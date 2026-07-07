@@ -1,6 +1,6 @@
 # Sa2 ToDo — Laravel 12 版
 
-Node.js 版（`D:\Development\todo-app`）から Laravel 12 + PostgreSQL + Blade へ移行したプロジェクトです。
+Node.js 版から Laravel 12 + PostgreSQL + Blade へ移行したプロジェクトです。プロジェクトパス: `D:\Development\todo_sa2`
 
 ## 環境
 
@@ -15,7 +15,7 @@ Node.js 版（`D:\Development\todo-app`）から Laravel 12 + PostgreSQL + Blade
 ## 初回セットアップ
 
 ```powershell
-cd D:\Development\todo-app-laravel
+cd D:\Development\todo_sa2
 php artisan migrate
 php artisan db:seed
 ```
@@ -25,7 +25,7 @@ php artisan db:seed
 ### 方法 A: artisan serve
 
 ```powershell
-cd D:\Development\todo-app-laravel
+cd D:\Development\todo_sa2
 php artisan serve
 ```
 
@@ -33,7 +33,7 @@ php artisan serve
 
 ### 方法 B: XAMPP Apache
 
-`DocumentRoot` を `D:/Development/todo-app-laravel/public` に設定してください。
+`DocumentRoot` を `D:/Development/todo_sa2/public` に設定してください。
 
 ## ログイン
 

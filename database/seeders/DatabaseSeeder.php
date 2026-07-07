@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
 
     public function __construct()
     {
-        $this->nodeDataPath = dirname(base_path()).DIRECTORY_SEPARATOR.'todo-app'.DIRECTORY_SEPARATOR.'data';
+        $this->nodeDataPath = database_path('seed-data');
     }
 
     public function run(): void

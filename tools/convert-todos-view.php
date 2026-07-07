@@ -1,7 +1,7 @@
 <?php
 
 $src = 'D:/Development/todo-app/views/todos.ejs';
-$dest = 'D:/Development/todo-app-laravel/resources/views/todos/index.blade.php';
+$dest = 'D:/Development/todo_sa2/resources/views/todos/index.blade.php';
 $c = file_get_contents($src);
 
 $replacements = [
