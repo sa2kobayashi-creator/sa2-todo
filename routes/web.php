@@ -4,9 +4,12 @@ use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\MapController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
+use App\Http\Controllers\TransitController;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +52,23 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
     Route::post('/notes/{id}/archive', [NoteController::class, 'archive'])->whereNumber('id');
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
+
+    Route::get('/finance', [FinanceController::class, 'index']);
+    Route::post('/finance', [FinanceController::class, 'store']);
+    Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
+    Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
+    Route::post('/finance/accounts/{id}/balance', [FinanceController::class, 'updateAccountBalance'])->whereNumber('id');
+    Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
+
+    Route::get('/transit', [TransitController::class, 'index']);
+    Route::post('/transit', [TransitController::class, 'store']);
+    Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
+    Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
+
+    Route::get('/map', [MapController::class, 'index']);
+    Route::post('/map', [MapController::class, 'store']);
+    Route::post('/map/{id}/update', [MapController::class, 'update'])->whereNumber('id');
+    Route::post('/map/{id}/delete', [MapController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);

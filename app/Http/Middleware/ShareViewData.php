@@ -2,9 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\FinanceService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use App\Services\TransitService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -33,6 +35,10 @@ class ShareViewData
             'clearFiltersHref' => $this->todos->buildClearFiltersHref(),
             'noteColors' => NoteService::NOTE_COLORS,
             'colorKeys' => NoteService::COLOR_KEYS,
+            'financeRegionLabels' => FinanceService::REGION_LABELS,
+            'financeKindLabels' => FinanceService::KIND_LABELS,
+            'financeTypeLabels' => FinanceService::TYPE_LABELS,
+            'transitCategoryLabels' => TransitService::CATEGORY_LABELS,
         ]);
 
         if ($user = $request->user()) {

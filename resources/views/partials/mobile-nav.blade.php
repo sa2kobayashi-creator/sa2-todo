@@ -11,9 +11,17 @@
     <span class="mobile-nav-icon" aria-hidden="true">📝</span>
     <span class="mobile-nav-label">メモ</span>
   </a>
-  <a href="/mypage" class="mobile-nav-item {{ ($active ?? '') === 'mypage' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">👤</span>
-    <span class="mobile-nav-label">マイ</span>
+  <a href="/transit" class="mobile-nav-item {{ ($active ?? '') === 'transit' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">🚌</span>
+    <span class="mobile-nav-label">路線</span>
+  </a>
+  <a href="/map" class="mobile-nav-item {{ ($active ?? '') === 'map' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">🗺</span>
+    <span class="mobile-nav-label">マップ</span>
+  </a>
+  <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">💰</span>
+    <span class="mobile-nav-label">入出金</span>
   </a>
   <a href="/settings" class="mobile-nav-item {{ ($active ?? '') === 'settings' ? 'active' : '' }}">
     <span class="mobile-nav-icon" aria-hidden="true">⚙</span>

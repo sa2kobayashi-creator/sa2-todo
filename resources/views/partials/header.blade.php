@@ -6,6 +6,9 @@
       <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">ダッシュボード</a>
       <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">Todo</a>
       <a href="/notes" class="{{ ($active ?? '') === 'notes' ? 'active' : '' }}">メモ</a>
+      <a href="/finance" class="{{ ($active ?? '') === 'finance' ? 'active' : '' }}">入出金経費</a>
+      <a href="/transit" class="{{ ($active ?? '') === 'transit' ? 'active' : '' }}">路線検索</a>
+      <a href="/map" class="{{ ($active ?? '') === 'map' ? 'active' : '' }}">マップ</a>
       <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin']) ? 'is-active' : '' }}" id="settings-dropdown">
         <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
           設定

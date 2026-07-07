@@ -1512,6 +1512,11 @@ a.filter-clear-btn {
   text-decoration: underline;
 }
 
+.calendar-day.is-quick-add-open {
+  overflow: visible;
+  z-index: 5;
+}
+
 .quick-add {
   margin-top: 6px;
   padding: 8px;
@@ -1743,6 +1748,37 @@ a.filter-clear-btn {
 .modal-day-list button.done {
   color: #9ca3af;
   text-decoration: line-through;
+}
+
+.modal.modal-centered {
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.modal-centered .modal-dialog {
+  border-radius: 16px;
+  max-width: min(480px, 100%);
+}
+
+.modal-form label.note-date-field {
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+}
+
+.note-compose-form textarea,
+.note-compose-form input[type="text"],
+.note-compose-form input[type="date"] {
+  width: 100%;
+}
+
+.note-compose-form .note-date-field input[type="date"] {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+.note-compose-form .note-composer-footer {
+  margin-top: 12px;
 }
 
 .note-modal-dialog {
@@ -2900,9 +2936,13 @@ button.link.danger,
   display: none;
 }
 
+.note-card.is-editing .note-bulk-check {
+  display: none;
+}
+
 .note-card-edit {
   display: none;
-  padding: 12px 14px 8px;
+  padding: 12px 14px 8px 14px;
 }
 
 .note-card.is-editing .note-card-edit {
@@ -3114,7 +3154,8 @@ button.link.danger,
 }
 
 .notes-view-list .note-card.is-editing .note-card-edit {
-  grid-column: 1 / -1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 @media (max-width: 1100px) {
@@ -3166,6 +3207,718 @@ button.link.danger,
 
   .note-card-actions {
     opacity: 1;
+  }
+}
+
+/* ===== Finance (入出金経費) ===== */
+body.finance-page {
+  background: #f3f6fb;
+}
+
+.finance-main {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.finance-top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.finance-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.finance-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  color: #3c4043;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.finance-tab.is-active {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.finance-period-form {
+  margin-left: auto;
+}
+
+.finance-period-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.finance-period-label input[type="month"] {
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
+.finance-section-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.finance-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.finance-section-head .finance-section-title {
+  margin: 0;
+}
+
+.finance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.finance-summary-item {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e8eaed;
+}
+
+.finance-summary-label {
+  display: block;
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 4px;
+}
+
+.finance-summary-value {
+  font-size: 18px;
+  color: #202124;
+}
+
+.finance-summary-value.income {
+  color: #137333;
+}
+
+.finance-summary-value.expense {
+  color: #c5221f;
+}
+
+.finance-account-group {
+  margin-bottom: 18px;
+}
+
+.finance-account-group-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #5f6368;
+  font-weight: 600;
+}
+
+.finance-account-cards {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.finance-account-card {
+  flex: 0 0 auto;
+  min-width: 150px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+}
+
+.finance-account-card.is-selected {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15);
+}
+
+.finance-account-name {
+  display: block;
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 6px;
+}
+
+.finance-account-balance {
+  font-size: 16px;
+  color: #202124;
+}
+
+.finance-account-settings {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8eaed;
+}
+
+.finance-account-setting-row {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.finance-account-setting-row summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.finance-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.finance-inline-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.finance-inline-form input,
+.finance-inline-form select {
+  min-width: 160px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.finance-transaction-list {
+  display: grid;
+  gap: 10px;
+}
+
+.finance-transaction-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.finance-transaction-row.type-transfer {
+  border-left: 4px solid #34a853;
+}
+
+.finance-transaction-row.type-income {
+  border-left: 4px solid #137333;
+}
+
+.finance-transaction-row.type-expense {
+  border-left: 4px solid #c5221f;
+}
+
+.finance-transaction-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.finance-transaction-date {
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 4px;
+}
+
+.finance-transaction-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.finance-type-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef3fc;
+  color: #1a73e8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.finance-transaction-desc {
+  font-size: 14px;
+  color: #202124;
+}
+
+.finance-transaction-amount {
+  font-size: 15px;
+  font-weight: 600;
+  color: #202124;
+}
+
+.finance-transaction-amount.expense {
+  color: #c5221f;
+}
+
+.finance-transaction-amount.income {
+  color: #137333;
+}
+
+.finance-transaction-memo {
+  flex: 1 1 100%;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+.finance-transaction-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.finance-modal-dialog {
+  max-width: min(520px, 100%);
+}
+
+.finance-form .finance-type-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.finance-form .finance-type-fieldset legend {
+  width: 100%;
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 4px;
+}
+
+.finance-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .finance-top-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .finance-period-form {
+    margin-left: 0;
+  }
+
+  .finance-transaction-row {
+    flex-direction: column;
+  }
+}
+
+/* ===== Transit (路線検索) ===== */
+body.transit-page {
+  background: #f3f6fb;
+}
+
+.transit-main {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.transit-page-title {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.transit-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.transit-category-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  color: #3c4043;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.transit-category-tab.is-active {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.transit-section-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.transit-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.transit-section-head .transit-section-title {
+  margin: 0;
+}
+
+.transit-search-form {
+  display: grid;
+  gap: 12px;
+}
+
+.transit-search-results {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8eaed;
+}
+
+.transit-search-results-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.transit-search-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.transit-search-links a {
+  text-decoration: none;
+}
+
+.pac-container {
+  z-index: 4000;
+}
+
+.pac-holder {
+  width: 100%;
+}
+
+.pac-holder gmp-place-autocomplete,
+gmp-place-autocomplete {
+  width: 100%;
+}
+
+.transit-search-actions,
+.transit-form-actions,
+.map-route-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.transit-time-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  background: #f8f9fa;
+}
+
+.transit-datetime-selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transit-datetime-selects select {
+  padding: 6px 8px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.transit-time-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.transit-time-types label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.transit-time-types input {
+  width: 16px;
+  height: 16px;
+}
+
+.transit-search-save {
+  margin-top: 12px;
+}
+
+.transit-favorite-list,
+.map-route-list {
+  display: grid;
+  gap: 10px;
+}
+
+.transit-favorite-card,
+.map-route-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.transit-favorite-name,
+.map-route-card strong {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.transit-favorite-route,
+.transit-favorite-line,
+.transit-favorite-notes,
+.map-route-card span {
+  display: block;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+.transit-favorite-actions,
+.map-route-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.transit-inline-form,
+.map-inline-form {
+  display: inline;
+}
+
+.transit-all-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.transit-all-group {
+  padding: 12px;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.transit-all-group-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.transit-all-item {
+  display: block;
+  margin-bottom: 4px;
+  color: #1a73e8;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.transit-modal-dialog {
+  max-width: min(520px, 100%);
+}
+
+/* ===== Map ===== */
+body.map-page {
+  background: #f3f6fb;
+}
+
+.map-main {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.map-api-warning code {
+  font-family: Consolas, monospace;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.map-page-title {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.map-section-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.map-route-form,
+.map-save-form {
+  display: grid;
+  gap: 10px;
+}
+
+.map-route-form label,
+.map-save-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.map-route-form input,
+.map-route-form select,
+.map-save-form input {
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.map-save-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e8eaed;
+}
+
+.map-route-card.is-selected {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+}
+
+.map-route-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map-route-mode {
+  font-size: 11px;
+  color: #1a73e8;
+}
+
+.map-canvas-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.map-canvas {
+  width: 100%;
+  min-height: 480px;
+  height: calc(100vh - 180px);
+  max-height: 720px;
+  background: #e8eaed;
+  position: relative;
+}
+
+.map-canvas-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: #5f6368;
+}
+
+.map-directions-panel {
+  padding: 12px 16px 16px;
+  border-top: 1px solid #e8eaed;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.map-directions-summary {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.map-direction-step {
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f3f4;
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-canvas {
+    min-height: 360px;
+    height: 50vh;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+
+  .mobile-nav-item {
+    flex: 0 0 auto;
+    min-width: 58px;
+    padding: 0 4px;
+  }
+
+  .transit-favorite-card,
+  .map-route-card {
+    flex-direction: column;
   }
 }
 

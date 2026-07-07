@@ -406,7 +406,7 @@
           })
         })
 
-        const highlightId = @json($highlightId)
+        const highlightId = @json($highlightId);
         if (highlightId) {
           const target = document.getElementById(`note-${highlightId}`)
           if (target) {

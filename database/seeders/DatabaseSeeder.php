@@ -33,12 +33,14 @@ class DatabaseSeeder extends Seeder
         $holidayService->importNationalHolidays($year);
         $holidayService->importNationalHolidays($year + 1);
 
+        app(\App\Services\FinanceService::class)->ensureDefaultAccounts();
+
         $this->resetSequences();
     }
 
     private function resetSequences(): void
     {
-        foreach (['users', 'todos', 'notes', 'holiday_entries', 'weekday_rules'] as $table) {
+        foreach (['users', 'todos', 'notes', 'holiday_entries', 'weekday_rules', 'finance_accounts', 'finance_transactions', 'transit_favorites', 'map_routes'] as $table) {
             DB::statement("SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))");
         }
     }

@@ -133,21 +133,6 @@
                       </button>
                     @endif
                   </div>
-                  <div class="quick-add" id="quick-{{ $cell['date'] }}" hidden>
-                    <form method="post" action="/todos">
-          @csrf
-                      <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                      <input type="hidden" name="startDate" value="{{ $cell['date'] }}" />
-                      <input type="hidden" name="endDate" value="{{ $cell['date'] }}" />
-                      <input type="hidden" name="splitByLine" value="1" />
-                      <textarea name="titles" placeholder="1行1件で入力" required></textarea>
-                      <div class="quick-add-actions">
-                        <button type="submit">追加</button>
-                        <a class="button-link secondary" href="/notes?date={{ $cell['date'] }}">メモを追加</a>
-                        <button type="button" class="secondary quick-cancel" data-date="{{ $cell['date'] }}">閉じる</button>
-                      </div>
-                    </form>
-                  </div>
                 </div>
               @endforeach
             </div>
@@ -314,6 +299,52 @@
       </div>
     </div>
 
+    <div class="modal modal-centered" id="note-compose-modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-dialog note-modal-dialog" role="dialog" aria-labelledby="note-compose-modal-title">
+        <div class="modal-header">
+          <h2 id="note-compose-modal-title">メモを追加</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+        </div>
+        <form method="post" action="/notes" id="note-compose-form" class="modal-form note-compose-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <input type="hidden" name="type" value="text" />
+          <input type="hidden" name="color" id="note-compose-color" value="default" />
+          <label class="note-date-field">
+            <span class="field-label">登録日</span>
+            <input type="date" name="registeredDate" id="note-compose-date" required />
+          </label>
+          <label>
+            タイトル
+            <input type="text" name="title" id="note-compose-title" placeholder="タイトル" autocomplete="off" />
+          </label>
+          <label>
+            本文
+            <textarea name="body" id="note-compose-body" rows="6" placeholder="メモを入力..."></textarea>
+          </label>
+          <div class="note-composer-footer">
+            <div class="note-color-picker" role="group" aria-label="色">
+              @foreach($colorKeys as $key)
+                <button
+                  type="button"
+                  class="note-color-dot note-compose-color-dot @class(['is-selected' => $key === 'default'])"
+                  data-color="{{ $key }}"
+                  style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}"
+                  title="{{ $noteColors[$key]['label'] }}"
+                  aria-label="{{ $noteColors[$key]['label'] }}"
+                ></button>
+              @endforeach
+            </div>
+            <div class="note-composer-actions">
+              <button type="button" class="secondary" data-close-modal>キャンセル</button>
+              <button type="submit" class="button-link">保存</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="modal modal-centered" id="quick-add-modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="quick-add-modal-title">
@@ -332,7 +363,7 @@
             <textarea name="titles" id="quick-add-titles" rows="6" placeholder="1行1件で入力" required></textarea>
           </label>
           <div class="modal-actions quick-add-modal-actions">
-            <a class="button-link secondary" id="quick-add-memo-link" href="/notes">メモを追加</a>
+            <button type="button" class="secondary" id="quick-add-memo-btn">メモを追加</button>
             <button type="button" class="secondary" data-close-modal>閉じる</button>
             <button type="submit">追加</button>
           </div>
@@ -341,21 +372,27 @@
     </div>
 
     <script>
-      const TODO_ITEMS = @json($todosForJs ?? [])
-      const NOTE_ITEMS = @json($notesForJs ?? [])
-      const NOTE_COLORS = @json($noteColors)
-      const RETURN_TO = @json($returnTo)
+      const TODO_ITEMS = @json($todosForJs ?? []);
+      const NOTE_ITEMS = @json($notesForJs ?? []);
+      const NOTE_COLORS = @json($noteColors);
+      const RETURN_TO = @json($returnTo);
 
-      let openQuickAdd = null
+      let quickAddDate = null
       const todoModal = document.getElementById('todo-modal')
       const dayModal = document.getElementById('day-modal')
       const noteDayModal = document.getElementById('note-day-modal')
       const noteModal = document.getElementById('note-modal')
+      const noteComposeModal = document.getElementById('note-compose-modal')
+      const noteComposeForm = document.getElementById('note-compose-form')
+      const noteComposeDate = document.getElementById('note-compose-date')
+      const noteComposeTitle = document.getElementById('note-compose-title')
+      const noteComposeBody = document.getElementById('note-compose-body')
+      const noteComposeColor = document.getElementById('note-compose-color')
       const quickAddModal = document.getElementById('quick-add-modal')
       const quickAddTitles = document.getElementById('quick-add-titles')
       const quickAddStart = document.getElementById('quick-add-start')
       const quickAddEnd = document.getElementById('quick-add-end')
-      const quickAddMemoLink = document.getElementById('quick-add-memo-link')
+      const quickAddMemoBtn = document.getElementById('quick-add-memo-btn')
       const editForm = document.getElementById('todo-edit-form')
       const deleteForm = document.getElementById('todo-delete-form')
 
@@ -390,37 +427,45 @@
         dayModal.hidden = true
         noteDayModal.hidden = true
         noteModal.hidden = true
+        if (noteComposeModal) noteComposeModal.hidden = true
         if (quickAddModal) quickAddModal.hidden = true
       }
 
-      function isMobileCalendar() {
-        return window.matchMedia('(max-width: 768px)').matches
+      function applyNoteComposePalette(colorKey) {
+        const palette = NOTE_COLORS[colorKey] || NOTE_COLORS.default
+        const dialog = noteComposeModal?.querySelector('.note-modal-dialog')
+        if (dialog) {
+          dialog.style.setProperty('--note-bg', palette.bg)
+          dialog.style.setProperty('--note-border', palette.border)
+        }
+      }
+
+      function openNoteComposeModal(date) {
+        if (!noteComposeModal || !noteComposeForm) return
+        closeModals()
+        document.getElementById('note-compose-modal-title').textContent = `${date} にメモを追加`
+        if (noteComposeDate) noteComposeDate.value = date
+        if (noteComposeTitle) noteComposeTitle.value = ''
+        if (noteComposeBody) noteComposeBody.value = ''
+        if (noteComposeColor) noteComposeColor.value = 'default'
+        noteComposeModal.querySelectorAll('.note-compose-color-dot').forEach((dot) => {
+          dot.classList.toggle('is-selected', dot.dataset.color === 'default')
+        })
+        applyNoteComposePalette('default')
+        noteComposeModal.hidden = false
+        noteComposeTitle?.focus()
       }
 
       function openQuickAddForDate(date) {
-        if (isMobileCalendar() && quickAddModal) {
-          if (openQuickAdd) openQuickAdd.hidden = true
-          openQuickAdd = null
-          document.getElementById('quick-add-modal-title').textContent = `${date} に ToDo を追加`
-          if (quickAddStart) quickAddStart.value = date
-          if (quickAddEnd) quickAddEnd.value = date
-          if (quickAddMemoLink) quickAddMemoLink.href = `/notes?date=${encodeURIComponent(date)}`
-          if (quickAddTitles) quickAddTitles.value = ''
-          todoModal.hidden = true
-          dayModal.hidden = true
-          noteDayModal.hidden = true
-          noteModal.hidden = true
-          quickAddModal.hidden = false
-          quickAddTitles?.focus()
-          return
-        }
-        const panel = document.getElementById(`quick-${date}`)
-        if (!panel) return
+        if (!quickAddModal) return
+        quickAddDate = date
         closeModals()
-        if (openQuickAdd && openQuickAdd !== panel) openQuickAdd.hidden = true
-        panel.hidden = !panel.hidden
-        openQuickAdd = panel.hidden ? null : panel
-        if (!panel.hidden) panel.querySelector('textarea')?.focus()
+        document.getElementById('quick-add-modal-title').textContent = `${date} に ToDo を追加`
+        if (quickAddStart) quickAddStart.value = date
+        if (quickAddEnd) quickAddEnd.value = date
+        if (quickAddTitles) quickAddTitles.value = ''
+        quickAddModal.hidden = false
+        quickAddTitles?.focus()
       }
 
       function inRange(date, todo) {
@@ -430,8 +475,18 @@
         return date >= start && date <= end
       }
 
-      const IMPORTANCE_LABELS = @json($importanceLabels)
-      const CATEGORY_LABELS = @json($categoryLabels)
+      const IMPORTANCE_LABELS = @json($importanceLabels);
+      const CATEGORY_LABELS = @json($categoryLabels);
+
+      function timeToMinutes(value) {
+        if (!value || typeof value !== 'string') return null
+        const match = value.trim().match(/^(\d{1,2}):(\d{2})/)
+        if (!match) return null
+        const hours = Number(match[1])
+        const minutes = Number(match[2])
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+        return hours * 60 + minutes
+      }
 
       function todoPrefix(todo) {
         const parts = []
@@ -591,11 +646,17 @@
       }
 
       document.querySelectorAll('[data-todo-id]').forEach((el) => {
-        el.addEventListener('click', () => openTodoModal(el.dataset.todoId))
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          openTodoModal(el.dataset.todoId)
+        })
       })
 
       document.querySelectorAll('[data-note-id]').forEach((el) => {
-        el.addEventListener('click', () => openNoteModal(el.dataset.noteId))
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          openNoteModal(el.dataset.noteId)
+        })
       })
 
       document.querySelectorAll('.day-note-badge').forEach((el) => {
@@ -707,7 +768,10 @@
       })
 
       document.querySelectorAll('.event-more').forEach((el) => {
-        el.addEventListener('click', () => openDayModal(el.dataset.date))
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          openDayModal(el.dataset.date)
+        })
       })
 
       document.querySelectorAll('.undated-open').forEach((el) => {
@@ -715,7 +779,10 @@
       })
 
       document.querySelectorAll('.mobile-agenda-item[data-todo-id]').forEach((el) => {
-        el.addEventListener('click', () => openTodoModal(el.dataset.todoId))
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          openTodoModal(el.dataset.todoId)
+        })
       })
 
       document.querySelectorAll('.calendar-day[data-date]').forEach((cell) => {
@@ -730,6 +797,24 @@
             return
           }
           openQuickAddForDate(date)
+        })
+      })
+
+      quickAddMemoBtn?.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const date = quickAddStart?.value || quickAddDate
+        if (date) openNoteComposeModal(date)
+      })
+
+      noteComposeModal?.querySelectorAll('.note-compose-color-dot').forEach((dot) => {
+        dot.addEventListener('click', () => {
+          const color = dot.dataset.color || 'default'
+          if (noteComposeColor) noteComposeColor.value = color
+          noteComposeModal.querySelectorAll('.note-compose-color-dot').forEach((el) => {
+            el.classList.toggle('is-selected', el === dot)
+          })
+          applyNoteComposePalette(color)
         })
       })
 
@@ -768,14 +853,6 @@
         btn.addEventListener('click', (e) => {
           e.stopPropagation()
           openQuickAddForDate(btn.dataset.date)
-        })
-      })
-
-      document.querySelectorAll('.quick-cancel').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const panel = document.getElementById(`quick-${btn.dataset.date}`)
-          if (panel) panel.hidden = true
-          openQuickAdd = null
         })
       })
     </script>
