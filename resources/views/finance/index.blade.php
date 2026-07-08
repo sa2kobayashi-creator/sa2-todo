@@ -314,7 +314,7 @@
           transactionIdInput.value = ''
           form.action = '/finance'
           form.method = 'post'
-          form.querySelector('#finance-date').value = @json($defaultDate)
+          form.querySelector('#finance-date').value = @json($defaultDate);
           form.querySelector('#finance-amount').value = ''
           form.querySelector('#finance-memo').value = ''
           form.querySelector('#finance-to-amount').value = ''

@@ -117,4 +117,22 @@ class TranslationApiKey extends Model
             $this->save();
         }
     }
+
+    public function getDailyUsageRate(): ?float
+    {
+        if (! $this->daily_limit) {
+            return null;
+        }
+
+        return ($this->current_daily_usage / $this->daily_limit) * 100;
+    }
+
+    public function getMonthlyUsageRate(): ?float
+    {
+        if (! $this->monthly_limit) {
+            return null;
+        }
+
+        return ($this->current_monthly_usage / $this->monthly_limit) * 100;
+    }
 }

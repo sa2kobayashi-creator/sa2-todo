@@ -187,42 +187,25 @@
       @elseif(($section ?? '') === 'translation')
       <div class="panel" id="translation-settings">
         <h2>AI翻訳（DeepL）</h2>
-        <p class="hint">DeepL APIキーを登録すると、メモカードの翻訳ボタンで日本語⇔英語の翻訳ができます。無料版キー（末尾が <code>:fx</code>）と有料版キーの両方に対応しています。</p>
+        <p class="hint">複数のAPIキーを登録すると、使用制限に達した場合に自動的に次のキーへ切り替わります。優先順位が高く、使用量が少ないキーから使用されます。</p>
 
-        <form method="post" action="/settings/translation-keys" class="translation-key-form" id="translation-key-form">
-          @csrf
-          <div class="translation-form-grid">
-            <label>識別名<input type="text" name="name" placeholder="DeepL Key 1" required /></label>
-            <label class="translation-key-field">
-              APIキー
-              <span class="translation-key-input">
-                <input type="password" name="api_key" id="translation-api-key-input" placeholder="xxxxxxxx-xxxx-...:fx" autocomplete="off" required />
-                <button type="button" class="mini-btn secondary" id="translation-key-toggle" aria-label="表示切替">表示</button>
-              </span>
-            </label>
-            <label>APIエンドポイント（任意）<input type="url" name="api_url" placeholder="未入力ならキーから自動判定" /></label>
-            <label>優先順位<input type="number" name="priority" value="0" min="0" /></label>
-            <label>1日の上限文字数（任意）<input type="number" name="daily_limit" min="0" placeholder="無制限" /></label>
-            <label>1ヶ月の上限文字数（任意）<input type="number" name="monthly_limit" min="0" placeholder="無制限" /></label>
-          </div>
-          <label class="translation-notes-field">メモ（任意）<input type="text" name="notes" placeholder="用途など" /></label>
-          <label class="checkbox-inline"><input type="checkbox" name="is_active" value="1" checked /> 有効にする</label>
-          <div class="translation-form-actions">
-            <button type="button" class="secondary" id="translation-test-btn">接続テスト</button>
-            <span class="translation-test-result hint" id="translation-test-result"></span>
-            <button type="submit">キーを追加</button>
-          </div>
-        </form>
+        <div class="translation-toolbar">
+          <button type="button" class="button-link" id="translation-add-btn">APIキーを追加</button>
+        </div>
 
         <table class="holiday-table translation-key-table">
           <thead>
-            <tr><th>識別名</th><th>状態</th><th>優先</th><th>使用量(月)</th><th>エラー</th><th></th></tr>
+            <tr><th>識別名</th><th>状態</th><th>優先</th><th>使用量</th><th>エラー</th><th>操作</th></tr>
           </thead>
           <tbody>
             @if(count($translationKeys) === 0)
-              <tr><td colspan="6" class="empty-cell">APIキーが登録されていません。上のフォームから追加してください。</td></tr>
+              <tr><td colspan="6" class="empty-cell">APIキーが登録されていません。「APIキーを追加」から登録してください。</td></tr>
             @endif
             @foreach($translationKeys as $key)
+              @php
+                $dailyRate = $key->getDailyUsageRate();
+                $monthlyRate = $key->getMonthlyUsageRate();
+              @endphp
               <tr>
                 <td>
                   <strong>{{ $key->name }}</strong>
@@ -230,20 +213,45 @@
                 </td>
                 <td><span class="holiday-type {{ $key->is_active ? 'national' : '' }}">{{ $key->is_active ? '有効' : '無効' }}</span></td>
                 <td>{{ $key->priority }}</td>
-                <td>{{ number_format($key->current_monthly_usage) }}@if($key->monthly_limit) / {{ number_format($key->monthly_limit) }}@endif</td>
-                <td>{{ $key->error_count }}</td>
+                <td class="translation-usage-cell">
+                  <div>
+                    日次: {{ number_format($key->current_daily_usage) }}
+                    @if($key->daily_limit)
+                      / {{ number_format($key->daily_limit) }}
+                      @if($dailyRate !== null)
+                        <span class="translation-usage-rate {{ $dailyRate > 80 ? 'is-danger' : ($dailyRate > 50 ? 'is-warn' : '') }}">({{ number_format($dailyRate, 1) }}%)</span>
+                      @endif
+                    @else
+                      <span class="hint inline-hint">(制限なし)</span>
+                    @endif
+                  </div>
+                  <div>
+                    月次: {{ number_format($key->current_monthly_usage) }}
+                    @if($key->monthly_limit)
+                      / {{ number_format($key->monthly_limit) }}
+                      @if($monthlyRate !== null)
+                        <span class="translation-usage-rate {{ $monthlyRate > 80 ? 'is-danger' : ($monthlyRate > 50 ? 'is-warn' : '') }}">({{ number_format($monthlyRate, 1) }}%)</span>
+                      @endif
+                    @else
+                      <span class="hint inline-hint">(制限なし)</span>
+                    @endif
+                  </div>
+                </td>
+                <td>
+                  @if($key->error_count > 0)
+                    <span class="holiday-type {{ $key->error_count >= 5 ? '' : 'national_ph' }}">{{ $key->error_count }}回</span>
+                    @if($key->last_error_at)<div class="hint inline-hint">{{ $key->last_error_at->format('Y/m/d H:i') }}</div>@endif
+                  @else
+                    <span class="hint">-</span>
+                  @endif
+                </td>
                 <td class="translation-key-row-actions">
-                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/update" class="inline-form">
+                  <button type="button" class="mini-btn secondary translation-edit-btn" data-id="{{ $key->id }}">編集</button>
+                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/reset-usage" class="inline-form" onsubmit="return confirm('使用量をリセットしますか？')">
                     @csrf
-                    <input type="hidden" name="name" value="{{ $key->name }}" />
-                    <input type="hidden" name="priority" value="{{ $key->priority }}" />
-                    @if($key->daily_limit)<input type="hidden" name="daily_limit" value="{{ $key->daily_limit }}" />@endif
-                    @if($key->monthly_limit)<input type="hidden" name="monthly_limit" value="{{ $key->monthly_limit }}" />@endif
-                    @if($key->notes)<input type="hidden" name="notes" value="{{ $key->notes }}" />@endif
-                    @if(! $key->is_active)<input type="hidden" name="is_active" value="1" />@endif
-                    <button type="submit" class="mini-btn secondary">{{ $key->is_active ? '無効化' : '有効化' }}</button>
+                    <button type="submit" class="mini-btn secondary" title="使用量をリセット">↺</button>
                   </form>
-                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/delete" class="inline-form" onsubmit="return confirm('このAPIキーを削除しますか？')">
+                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/delete" class="inline-form" onsubmit="return confirm('「{{ $key->name }}」を削除しますか？')">
                     @csrf
                     <button type="submit" class="danger mini-btn">削除</button>
                   </form>
@@ -252,6 +260,54 @@
             @endforeach
           </tbody>
         </table>
+      </div>
+
+      <div class="modal modal-centered" id="translation-key-modal" hidden>
+        <div class="modal-backdrop" data-close-translation-modal></div>
+        <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="translation-modal-title">
+          <div class="modal-header">
+            <h2 id="translation-modal-title">APIキーを追加</h2>
+            <button type="button" class="modal-close" data-close-translation-modal aria-label="閉じる">×</button>
+          </div>
+          <form method="post" action="/settings/translation-keys" id="translation-key-form" class="modal-form translation-modal-form">
+            @csrf
+            <input type="hidden" name="editing_id" id="translation-editing-id" value="" />
+            <label>識別名<input type="text" name="name" id="translation-name" placeholder="DeepL Key 1" required /></label>
+            <label>
+              APIキー
+              <span class="translation-key-input">
+                <input type="password" name="api_key" id="translation-api-key-input" placeholder="xxxxxxxx-xxxx-...:fx" autocomplete="off" required />
+                <button type="button" class="mini-btn secondary" id="translation-key-toggle" aria-label="表示切替">表示</button>
+              </span>
+            </label>
+            <label>APIエンドポイント（任意）<input type="url" name="api_url" id="translation-api-url" placeholder="未入力ならキーから自動判定" /></label>
+            <div class="translation-form-grid">
+              <label>優先順位<input type="number" name="priority" id="translation-priority" value="0" min="0" /></label>
+              <label>日次制限（文字数）<input type="number" name="daily_limit" id="translation-daily-limit" min="0" placeholder="無制限" /></label>
+              <label>月次制限（文字数）<input type="number" name="monthly_limit" id="translation-monthly-limit" min="0" placeholder="無制限" /></label>
+              <label>日次使用量（文字数）<input type="number" name="current_daily_usage" id="translation-daily-usage" min="0" placeholder="0" /></label>
+              <label>月次使用量（文字数）<input type="number" name="current_monthly_usage" id="translation-monthly-usage" min="0" placeholder="0" /></label>
+            </div>
+            <div id="translation-deepl-usage-section" hidden>
+              <button type="button" class="secondary" id="translation-fetch-usage-btn">DeepLから使用量を取得</button>
+              <p class="hint inline-hint">DeepL APIから現在の使用量と制限を取得して、上記フィールドに自動入力します。</p>
+            </div>
+            <label>メモ<input type="text" name="notes" id="translation-notes" placeholder="用途など" /></label>
+            <label class="checkbox-inline"><input type="checkbox" name="is_active" id="translation-is-active" value="1" checked /> 有効にする</label>
+            <label class="checkbox-inline translation-limit-exceeded-row" id="translation-limit-exceeded-row" hidden>
+              <input type="checkbox" name="set_limit_exceeded" id="translation-set-limit-exceeded" value="1" />
+              制限超過を設定（使用量を制限値に設定）
+            </label>
+            <div class="translation-form-actions">
+              <button type="button" class="secondary" id="translation-test-btn">接続テスト</button>
+              <span class="translation-test-result hint" id="translation-test-result"></span>
+              <div class="translation-modal-submit-actions">
+                <button type="button" class="secondary" data-close-translation-modal>キャンセル</button>
+                <button type="submit" id="translation-submit-btn">保存</button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
       @elseif(($section ?? '') === 'integration')
       <div class="panel"><h2>LINE 連携</h2><p class="hint">次のフェーズで移植予定です。</p></div>
@@ -332,19 +388,135 @@
     @if(($section ?? '') === 'translation')
     <script>
       (function () {
+        const modal = document.getElementById('translation-key-modal');
+        const form = document.getElementById('translation-key-form');
+        const modalTitle = document.getElementById('translation-modal-title');
+        const editingIdInput = document.getElementById('translation-editing-id');
         const keyInput = document.getElementById('translation-api-key-input');
-        const toggleBtn = document.getElementById('translation-key-toggle');
-        toggleBtn?.addEventListener('click', () => {
+        const apiUrlInput = document.getElementById('translation-api-url');
+        const testBtn = document.getElementById('translation-test-btn');
+        const resultEl = document.getElementById('translation-test-result');
+        const fetchUsageBtn = document.getElementById('translation-fetch-usage-btn');
+        const deeplUsageSection = document.getElementById('translation-deepl-usage-section');
+        const limitExceededRow = document.getElementById('translation-limit-exceeded-row');
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const deeplApiUrls = {
+          free: 'https://api-free.deepl.com/v2/translate',
+          paid: 'https://api.deepl.com/v2/translate',
+        };
+
+        let editingId = null;
+
+        function getDeepLApiUrl(apiKey) {
+          if (!apiKey || apiKey.trim() === '') return '';
+          return apiKey.includes(':fx') ? deeplApiUrls.free : deeplApiUrls.paid;
+        }
+
+        function updateApiUrlFromKey() {
+          const apiKey = keyInput?.value || '';
+          const currentUrl = apiUrlInput?.value.trim() || '';
+          if (!apiKey.trim()) {
+            if (apiUrlInput) apiUrlInput.value = '';
+            return;
+          }
+          const deeplUrl = getDeepLApiUrl(apiKey);
+          if (!currentUrl || !currentUrl.includes('deepl.com') ||
+              (currentUrl !== deeplApiUrls.free && currentUrl !== deeplApiUrls.paid)) {
+            if (apiUrlInput) apiUrlInput.value = deeplUrl;
+          }
+        }
+
+        function openModal() {
+          if (modal) modal.hidden = false;
+        }
+
+        function closeModal() {
+          if (modal) modal.hidden = true;
+          editingId = null;
+        }
+
+        function setField(id, value) {
+          const el = document.getElementById(id);
+          if (el) el.value = value ?? '';
+        }
+
+        function openAddModal() {
+          editingId = null;
+          if (editingIdInput) editingIdInput.value = '';
+          if (modalTitle) modalTitle.textContent = 'APIキーを追加';
+          if (form) {
+            form.action = '/settings/translation-keys';
+            form.reset();
+          }
+          setField('translation-priority', '0');
+          const activeEl = document.getElementById('translation-is-active');
+          if (activeEl) activeEl.checked = true;
+          if (keyInput) keyInput.required = true;
+          if (deeplUsageSection) deeplUsageSection.hidden = true;
+          if (limitExceededRow) limitExceededRow.hidden = true;
+          if (resultEl) resultEl.textContent = '';
+          openModal();
+        }
+
+        async function openEditModal(id) {
+          editingId = id;
+          try {
+            const res = await fetch(`/settings/translation-keys/${id}/edit`, {
+              headers: { Accept: 'application/json' },
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              window.alert(data.error || 'データの取得に失敗しました');
+              return;
+            }
+
+            if (modalTitle) modalTitle.textContent = 'APIキーを編集';
+            if (form) form.action = `/settings/translation-keys/${id}/update`;
+            if (editingIdInput) editingIdInput.value = String(id);
+
+            setField('translation-name', data.name);
+            setField('translation-api-key-input', data.api_key);
+            setField('translation-api-url', data.api_url || getDeepLApiUrl(data.api_key || ''));
+            setField('translation-priority', data.priority ?? 0);
+            setField('translation-daily-limit', data.daily_limit ?? '');
+            setField('translation-monthly-limit', data.monthly_limit ?? '');
+            setField('translation-daily-usage', data.current_daily_usage ?? 0);
+            setField('translation-monthly-usage', data.current_monthly_usage ?? 0);
+            setField('translation-notes', data.notes ?? '');
+
+            const activeEl = document.getElementById('translation-is-active');
+            if (activeEl) activeEl.checked = data.is_active !== false;
+            const limitEl = document.getElementById('translation-set-limit-exceeded');
+            if (limitEl) limitEl.checked = false;
+
+            if (keyInput) keyInput.required = false;
+            if (deeplUsageSection) deeplUsageSection.hidden = false;
+            if (limitExceededRow) limitExceededRow.hidden = false;
+            if (resultEl) resultEl.textContent = '';
+            openModal();
+          } catch (e) {
+            window.alert('データの取得に失敗しました');
+          }
+        }
+
+        document.getElementById('translation-add-btn')?.addEventListener('click', openAddModal);
+        document.querySelectorAll('.translation-edit-btn').forEach((btn) => {
+          btn.addEventListener('click', () => openEditModal(btn.dataset.id));
+        });
+        document.querySelectorAll('[data-close-translation-modal]').forEach((el) => {
+          el.addEventListener('click', closeModal);
+        });
+
+        document.getElementById('translation-key-toggle')?.addEventListener('click', () => {
           if (!keyInput) return;
           const show = keyInput.type === 'password';
           keyInput.type = show ? 'text' : 'password';
-          toggleBtn.textContent = show ? '隠す' : '表示';
+          const toggleBtn = document.getElementById('translation-key-toggle');
+          if (toggleBtn) toggleBtn.textContent = show ? '隠す' : '表示';
         });
 
-        const testBtn = document.getElementById('translation-test-btn');
-        const resultEl = document.getElementById('translation-test-result');
-        const apiUrlInput = document.querySelector('#translation-key-form input[name="api_url"]');
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        keyInput?.addEventListener('input', updateApiUrlFromKey);
 
         testBtn?.addEventListener('click', async () => {
           const apiKey = keyInput?.value.trim();
@@ -362,7 +534,7 @@
               headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrf,
-                'Accept': 'application/json',
+                Accept: 'application/json',
               },
               body: JSON.stringify({ api_key: apiKey, api_url: apiUrlInput?.value || '' }),
             });
@@ -376,6 +548,51 @@
             resultEl.className = 'translation-test-result hint is-error';
           } finally {
             testBtn.disabled = false;
+          }
+        });
+
+        fetchUsageBtn?.addEventListener('click', async () => {
+          if (!editingId) {
+            window.alert('編集モードでのみ使用量を取得できます');
+            return;
+          }
+          fetchUsageBtn.disabled = true;
+          const originalText = fetchUsageBtn.textContent;
+          fetchUsageBtn.textContent = '取得中...';
+          try {
+            const res = await fetch(`/settings/translation-keys/${editingId}/fetch-usage`, {
+              method: 'POST',
+              headers: {
+                'X-CSRF-TOKEN': csrf,
+                Accept: 'application/json',
+              },
+            });
+            const data = await res.json();
+            if (!data.ok) {
+              window.alert(data.message || '使用量の取得に失敗しました');
+              return;
+            }
+            setField('translation-monthly-usage', data.character_count ?? 0);
+            if (data.character_limit && !document.getElementById('translation-monthly-limit')?.value) {
+              setField('translation-monthly-limit', data.character_limit);
+            }
+            let message = `使用量を取得しました。\n\n文字数: ${(data.character_count ?? 0).toLocaleString()}`;
+            if (data.character_limit) {
+              message += `\n制限: ${data.character_limit.toLocaleString()}`;
+            }
+            if (data.is_paid_plan && data.estimated_cost !== null) {
+              message += `\n\n【料金情報（推定）】`;
+              message += `\n月額基本料金: €${(data.monthly_base_fee ?? 0).toFixed(2)}`;
+              message += `\n従量課金: €${(data.usage_cost ?? 0).toFixed(4)}`;
+              message += `\n合計（推定）: €${data.estimated_cost.toFixed(2)}`;
+              message += '\n\n※ 実際の請求額はDeepLの請求書を確認してください。';
+            }
+            window.alert(message);
+          } catch (e) {
+            window.alert('使用量の取得に失敗しました');
+          } finally {
+            fetchUsageBtn.disabled = false;
+            fetchUsageBtn.textContent = originalText;
           }
         });
       })();

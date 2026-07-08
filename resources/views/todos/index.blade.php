@@ -351,9 +351,9 @@
       function syncTodoDateMode() {
         const mode = document.querySelector('#add-form input[name="dateMode"]:checked')?.value || 'single'
         const isRange = mode === 'range'
-        cellEnd.classList.toggle('date-panel-hidden', !isRange)
-        labelEnd.classList.toggle('date-panel-hidden', !isRange)
-        labelStart.textContent = isRange ? '開始日' : '日付'
+        cellEnd?.classList.toggle('date-panel-hidden', !isRange)
+        labelEnd?.classList.toggle('date-panel-hidden', !isRange)
+        if (labelStart) labelStart.textContent = isRange ? '開始日' : '日付'
         addWeekdayPanel?.classList.toggle('date-panel-hidden', !isRange)
         addWeekdayInputs.forEach((input) => {
           if (!isRange) input.checked = false
@@ -370,11 +370,12 @@
           }
         }
         syncExcludeFields()
-        updatePreview()
       }
 
-      dateModeRadios.forEach((radio) => radio.addEventListener('change', syncTodoDateMode))
-      syncTodoDateMode()
+      dateModeRadios.forEach((radio) => radio.addEventListener('change', () => {
+        syncTodoDateMode()
+        updatePreview()
+      }))
 
       const iso = todayIso()
       if (!startDateInput.value) startDateInput.value = iso
@@ -391,19 +392,39 @@
       const enableTimeRange = document.getElementById('enable-time-range')
       const timeRangePanel = document.getElementById('time-range-panel')
 
+      // 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す
+      function defaultTimeRange() {
+        const now = new Date()
+        let hours = now.getHours()
+        let minutes = Math.ceil(now.getMinutes() / 30) * 30
+        if (minutes >= 60) {
+          minutes = 0
+          hours += 1
+        }
+        const pad = (n) => String(n).padStart(2, '0')
+        const start = `${pad(hours % 24)}:${pad(minutes)}`
+        const end = `${pad((hours + 1) % 24)}:${pad(minutes)}`
+        return { start, end }
+      }
+
       function syncTimeRangePanel() {
         const on = enableTimeRange?.checked
         timeRangePanel?.classList.toggle('date-panel-hidden', !on)
         if (todoStartTime) todoStartTime.disabled = !on
         if (todoEndTime) todoEndTime.disabled = !on
-        if (!on) {
+        if (on) {
+          if (todoStartTime && !todoStartTime.value) {
+            const range = defaultTimeRange()
+            todoStartTime.value = range.start
+            if (todoEndTime && !todoEndTime.value) todoEndTime.value = range.end
+          }
+        } else {
           if (todoStartTime) todoStartTime.value = ''
           if (todoEndTime) todoEndTime.value = ''
         }
       }
 
       enableTimeRange?.addEventListener('change', syncTimeRangePanel)
-      syncTimeRangePanel()
 
       todoStartTime?.addEventListener('change', () => {
         if (!todoEndTime.value || todoEndTime.value < todoStartTime.value) {
@@ -423,7 +444,13 @@
           panel.classList.toggle('date-panel-hidden', !on)
           start.disabled = !on
           end.disabled = !on
-          if (!on) {
+          if (on) {
+            if (!start.value) {
+              const range = defaultTimeRange()
+              start.value = range.start
+              if (!end.value) end.value = range.end
+            }
+          } else {
             start.value = ''
             end.value = ''
           }
@@ -583,6 +610,10 @@
         }
       })
 
+      syncTodoDateMode()
+      syncTimeRangePanel()
+      updatePreview()
+
       selectAllBtn?.addEventListener('click', () => {
         const all = checks()
         const shouldCheck = all.some((c) => !c.checked)
@@ -682,7 +713,7 @@
           const csrf = document.createElement('input')
           csrf.type = 'hidden'
           csrf.name = '_token'
-          csrf.value = @json(csrf_token())
+          csrf.value = @json(csrf_token());
           form.appendChild(csrf)
 
           checked.forEach((cb) => {

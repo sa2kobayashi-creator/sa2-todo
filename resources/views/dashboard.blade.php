@@ -827,12 +827,33 @@
       const modalStartTime = editForm.querySelector('#modal-start-time')
       const modalEndTime = editForm.querySelector('#modal-end-time')
 
+      // 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す
+      function defaultTimeRange() {
+        const now = new Date()
+        let hours = now.getHours()
+        let minutes = Math.ceil(now.getMinutes() / 30) * 30
+        if (minutes >= 60) {
+          minutes = 0
+          hours += 1
+        }
+        const pad = (n) => String(n).padStart(2, '0')
+        const start = `${pad(hours % 24)}:${pad(minutes)}`
+        const end = `${pad((hours + 1) % 24)}:${pad(minutes)}`
+        return { start, end }
+      }
+
       function syncModalTimeRange() {
         const on = modalEnableTimeRange.checked
         modalTimeRangePanel.classList.toggle('date-panel-hidden', !on)
         modalStartTime.disabled = !on
         modalEndTime.disabled = !on
-        if (!on) {
+        if (on) {
+          if (!modalStartTime.value) {
+            const range = defaultTimeRange()
+            modalStartTime.value = range.start
+            if (!modalEndTime.value) modalEndTime.value = range.end
+          }
+        } else {
           modalStartTime.value = ''
           modalEndTime.value = ''
         }

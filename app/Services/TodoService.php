@@ -816,4 +816,25 @@ class TodoService
 
         return $title ? [$title] : [];
     }
+
+    /**
+     * 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す。
+     *
+     * @return array{start: string, end: string}
+     */
+    public function defaultTimeRange(?Carbon $now = null): array
+    {
+        $now ??= Carbon::now();
+        $hours = (int) $now->format('G');
+        $minutes = (int) (ceil(((int) $now->format('i')) / 30) * 30);
+        if ($minutes >= 60) {
+            $minutes = 0;
+            $hours += 1;
+        }
+
+        return [
+            'start' => sprintf('%02d:%02d', $hours % 24, $minutes),
+            'end' => sprintf('%02d:%02d', ($hours + 1) % 24, $minutes),
+        ];
+    }
 }

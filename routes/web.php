@@ -83,8 +83,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
     Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
+    Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
+    Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
+    Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
 
     Route::view('/mypage', 'mypage.stub');
 

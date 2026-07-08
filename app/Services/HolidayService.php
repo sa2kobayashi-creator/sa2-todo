@@ -114,8 +114,9 @@ class HolidayService
     private function collectYears(): array
     {
         $years = [(int) date('Y'), (int) date('Y') + 1];
-        HolidayEntry::query()->selectRaw('EXTRACT(YEAR FROM date) as y')->distinct()->pluck('y')
-            ->each(fn ($y) => $years[] = (int) $y);
+        HolidayEntry::query()
+            ->get(['date'])
+            ->each(fn (HolidayEntry $entry) => $years[] = (int) $entry->date->format('Y'));
         WeekdayRule::all()->each(function (WeekdayRule $rule) use (&$years) {
             $years[] = (int) $rule->start_date->format('Y');
             $years[] = (int) $rule->end_date->format('Y');
