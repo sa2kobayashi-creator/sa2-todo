@@ -56,9 +56,17 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/finance', [FinanceController::class, 'index']);
+    Route::get('/finance/report', [FinanceController::class, 'report']);
     Route::post('/finance', [FinanceController::class, 'store']);
     Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
     Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
+    Route::post('/finance/accounts', [FinanceController::class, 'storeAccount']);
+    Route::post('/finance/accounts/{id}/schedules', [FinanceController::class, 'storeAccountSchedule'])->whereNumber('id');
+    Route::post('/finance/accounts/{id}/schedules/upsert', [FinanceController::class, 'upsertAccountSchedule'])->whereNumber('id');
+    Route::post('/finance/schedules/{id}/delete', [FinanceController::class, 'destroyAccountSchedule'])->whereNumber('id');
+    Route::post('/finance/accounts/reorder', [FinanceController::class, 'reorderAccounts']);
+    Route::post('/finance/accounts/{id}/update', [FinanceController::class, 'updateAccount'])->whereNumber('id');
+    Route::post('/finance/accounts/{id}/delete', [FinanceController::class, 'destroyAccount'])->whereNumber('id');
     Route::post('/finance/accounts/{id}/balance', [FinanceController::class, 'updateAccountBalance'])->whereNumber('id');
     Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
 

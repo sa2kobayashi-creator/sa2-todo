@@ -24,6 +24,7 @@ class FinanceController extends Controller
             'monthLabel' => $pageData['monthLabel'],
             'accounts' => $pageData['accounts'],
             'groupedAccounts' => $pageData['groupedAccounts'],
+            'balanceTotals' => $pageData['balanceTotals'],
             'summary' => $pageData['summary'],
             'transactions' => $pageData['transactions'],
             'jpAccounts' => array_values(array_filter($pageData['accounts'], fn ($a) => $a['region'] === 'jp')),
@@ -34,8 +35,32 @@ class FinanceController extends Controller
             )),
             'defaultDate' => $this->finance->todayIso(),
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
+            'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
             'formatMoney' => fn (float $amount, string $currency) => $this->finance->formatMoney($amount, $currency),
             ...$this->flashFromQuery($request),
+        ]);
+    }
+
+    public function report(Request $request)
+    {
+        $filters = $this->finance->parseFilters($request->query());
+        unset($filters['accountId']);
+        $reportData = $this->finance->buildReportData($filters);
+
+        return view('finance.report', [
+            'filters' => $filters,
+            'periodValue' => $reportData['periodValue'],
+            'monthLabel' => $reportData['monthLabel'],
+            'summary' => $reportData['summary'],
+            'groupedTransactions' => $reportData['groupedTransactions'],
+            'transactions' => $reportData['transactions'],
+            'accountBreakdown' => $reportData['accountBreakdown'],
+            'schedules' => $reportData['schedules'],
+            'accounts' => $reportData['accounts'],
+            'balanceTotals' => $reportData['balanceTotals'],
+            'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
+            'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
+            'formatMoney' => fn (float $amount, string $currency) => $this->finance->formatMoney($amount, $currency),
         ]);
     }
 
@@ -101,11 +126,14 @@ class FinanceController extends Controller
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $balance = (float) $request->input('initialBalance', 0);
-        if (! $this->finance->updateAccountInitialBalance($id, $balance)) {
+        $adjustmentAmount = $request->has('adjustmentAmount')
+            ? (float) $request->input('adjustmentAmount', 0)
+            : null;
+        if (! $this->finance->updateAccountInitialBalance($id, $balance, $adjustmentAmount)) {
             return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '開始残高を更新しました');
+        return $this->redirectWithMessage($returnTo, '口座残高設定を更新しました');
     }
 
     public function updateLinkedBank(Request $request, int $id)
@@ -119,5 +147,120 @@ class FinanceController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, '引落口座を更新しました');
+    }
+
+    public function storeAccount(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            $this->finance->createAccount([
+                'name' => $request->input('name'),
+                'region' => $request->input('region'),
+                'kind' => $request->input('kind'),
+                'initialBalance' => $request->input('initialBalance'),
+                'adjustmentAmount' => $request->input('adjustmentAmount'),
+                'linkedBankId' => $request->input('linkedBankId'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        } catch (\Throwable) {
+            return $this->redirectWithMessage($returnTo, '口座の登録に失敗しました', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '口座を登録しました');
+    }
+
+    public function updateAccount(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            $updated = $this->finance->updateAccount($id, [
+                'name' => $request->input('name'),
+                'kind' => $request->input('kind'),
+                'initialBalance' => $request->input('initialBalance'),
+                'adjustmentAmount' => $request->input('adjustmentAmount'),
+                'linkedBankId' => $request->input('linkedBankId'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        if (! $updated) {
+            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '口座を更新しました');
+    }
+
+    public function destroyAccount(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+        if (! $this->finance->deleteAccount($id)) {
+            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '口座を削除しました');
+    }
+
+    public function storeAccountSchedule(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            $this->finance->createSchedule($id, [
+                'scheduledDate' => $request->input('scheduledDate'),
+                'amount' => $request->input('amount'),
+                'memo' => $request->input('memo'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '予定を登録しました');
+    }
+
+    public function upsertAccountSchedule(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            $this->finance->upsertNextSchedule($id, [
+                'scheduledDate' => $request->input('scheduledDate'),
+                'amount' => $request->input('amount'),
+                'memo' => $request->input('memo'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '予定を保存しました');
+    }
+
+    public function destroyAccountSchedule(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+        if (! $this->finance->deleteSchedule($id)) {
+            return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '予定を削除しました');
+    }
+
+    public function reorderAccounts(Request $request)
+    {
+        $accountIds = $request->input('accountIds', []);
+        if (! is_array($accountIds)) {
+            return response()->json(['ok' => false, 'message' => '不正なリクエストです'], 422);
+        }
+
+        try {
+            $this->finance->reorderAccounts($accountIds);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true]);
     }
 }

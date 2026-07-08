@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\FinanceAccount;
+use App\Models\FinanceAccountSchedule;
 use App\Models\FinanceTransaction;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class FinanceService
 {
@@ -31,6 +33,11 @@ class FinanceService
         'income' => '収入',
         'expense' => '支出',
         'transfer' => '振替',
+    ];
+
+    public const SCHEDULE_TYPE_LABELS = [
+        'payment' => '支払予定',
+        'deposit' => '入金予定',
     ];
 
     /** @var list<array{slug: string, region: string, kind: string, name: string, currency: string, sort_order: int, linked_slug?: string}> */
@@ -123,6 +130,21 @@ class FinanceService
         return in_array($type, ['income', 'expense', 'transfer'], true) ? $type : 'expense';
     }
 
+    public function normalizeKind(?string $kind): string
+    {
+        return in_array($kind, ['bank', 'cash', 'credit_card', 'wallet'], true) ? $kind : 'bank';
+    }
+
+    public function normalizeRegion(?string $region): string
+    {
+        return in_array($region, ['jp', 'ph'], true) ? $region : 'jp';
+    }
+
+    public function currencyForRegion(string $region): string
+    {
+        return $region === 'ph' ? 'PHP' : 'JPY';
+    }
+
     /** @param array{tab?: string, year?: int, month?: int, accountId?: ?int} $filters */
     public function buildFinanceQuery(array $filters, array $extra = []): string
     {
@@ -147,6 +169,151 @@ class FinanceService
         }
 
         return '/finance?'.http_build_query($params);
+    }
+
+    /** @param array{tab?: string, year?: int, month?: int} $filters */
+    public function buildFinanceReportQuery(array $filters): string
+    {
+        $params = array_filter([
+            'tab' => $filters['tab'] ?? null,
+            'period' => isset($filters['year'], $filters['month'])
+                ? sprintf('%04d-%02d', $filters['year'], $filters['month'])
+                : null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($params === []) {
+            return '/finance/report';
+        }
+
+        return '/finance/report?'.http_build_query($params);
+    }
+
+    /** @param array{tab: string, year: int, month: int} $filters */
+    /** @return array<string, mixed> */
+    public function buildReportData(array $filters): array
+    {
+        $this->ensureDefaultAccounts();
+
+        $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
+        $monthEnd = date('Y-m-t', strtotime($monthStart));
+
+        $monthTransactions = FinanceTransaction::query()
+            ->with(['account', 'toAccount'])
+            ->whereDate('transaction_date', '>=', $monthStart)
+            ->whereDate('transaction_date', '<=', $monthEnd)
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $displayTransactions = $this->filterTransactionsForTab($monthTransactions, $filters['tab'], null);
+        $summary = $this->buildMonthSummary($displayTransactions, $filters['tab']);
+
+        $transactionRows = $displayTransactions
+            ->map(fn (FinanceTransaction $t) => $this->transactionToArray($t))
+            ->values()
+            ->all();
+
+        $groupedTransactions = [
+            'income' => array_values(array_filter($transactionRows, fn (array $t) => $t['type'] === 'income')),
+            'expense' => array_values(array_filter($transactionRows, fn (array $t) => $t['type'] === 'expense')),
+            'transfer' => array_values(array_filter($transactionRows, fn (array $t) => $t['type'] === 'transfer')),
+        ];
+
+        $allTransactions = FinanceTransaction::query()->get();
+        $accountsWithBalance = collect($this->listAccounts())
+            ->map(function (array $accountRow) use ($allTransactions) {
+                $model = FinanceAccount::query()->find($accountRow['id']);
+                if ($model) {
+                    $accountRow['balance'] = $this->calculateAccountBalance($model, $allTransactions);
+                }
+
+                return $accountRow;
+            })
+            ->filter(function (array $account) use ($filters) {
+                if ($filters['tab'] === 'transfer' || $filters['tab'] === 'all') {
+                    return true;
+                }
+
+                return $account['region'] === $filters['tab'];
+            })
+            ->values()
+            ->all();
+
+        $schedules = FinanceAccountSchedule::query()
+            ->with('account')
+            ->whereDate('scheduled_date', '>=', $monthStart)
+            ->whereDate('scheduled_date', '<=', $monthEnd)
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->get()
+            ->filter(function (FinanceAccountSchedule $schedule) use ($filters) {
+                $account = $schedule->account;
+                if (! $account || ! $account->is_active) {
+                    return false;
+                }
+                if ($filters['tab'] === 'all' || $filters['tab'] === 'transfer') {
+                    return true;
+                }
+
+                return $account->region === $filters['tab'];
+            })
+            ->map(fn (FinanceAccountSchedule $schedule) => $this->scheduleToArray($schedule))
+            ->values()
+            ->all();
+
+        return [
+            'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
+            'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
+            'year' => $filters['year'],
+            'month' => $filters['month'],
+            'summary' => $summary,
+            'groupedTransactions' => $groupedTransactions,
+            'transactions' => $transactionRows,
+            'accountBreakdown' => $this->buildAccountBreakdown($displayTransactions),
+            'schedules' => $schedules,
+            'accounts' => $accountsWithBalance,
+            'balanceTotals' => $this->buildBalanceTotals($accountsWithBalance),
+        ];
+    }
+
+    /** @param Collection<int, FinanceTransaction> $transactions */
+    /** @return list<array{accountName: string, currency: string, income: float, expense: float, net: float}> */
+    private function buildAccountBreakdown(Collection $transactions): array
+    {
+        $rows = [];
+
+        foreach ($transactions as $transaction) {
+            if ($transaction->type === 'transfer') {
+                continue;
+            }
+
+            $name = $transaction->account?->name ?? '不明';
+            $currency = $transaction->account?->currency ?? 'JPY';
+            $key = $name.'|'.$currency;
+
+            if (! isset($rows[$key])) {
+                $rows[$key] = [
+                    'accountName' => $name,
+                    'currency' => $currency,
+                    'income' => 0.0,
+                    'expense' => 0.0,
+                ];
+            }
+
+            if ($transaction->type === 'income') {
+                $rows[$key]['income'] += (float) $transaction->amount;
+            } elseif ($transaction->type === 'expense') {
+                $rows[$key]['expense'] += (float) $transaction->amount;
+            }
+        }
+
+        return array_values(array_map(function (array $row) {
+            $row['income'] = round($row['income'], 2);
+            $row['expense'] = round($row['expense'], 2);
+            $row['net'] = round($row['income'] - $row['expense'], 2);
+
+            return $row;
+        }, $rows));
     }
 
     /** @return list<array<string, mixed>> */
@@ -177,13 +344,14 @@ class FinanceService
             'sortOrder' => $account->sort_order,
             'linkedBankId' => $account->linked_bank_id,
             'initialBalance' => (float) $account->initial_balance,
+            'adjustmentAmount' => (float) ($account->adjustment_amount ?? 0),
             'balance' => $balance,
         ];
     }
 
     public function calculateAccountBalance(FinanceAccount $account, ?Collection $transactions = null): float
     {
-        $balance = (float) $account->initial_balance;
+        $balance = (float) $account->initial_balance + (float) ($account->adjustment_amount ?? 0);
         $transactions ??= FinanceTransaction::query()->get();
 
         foreach ($transactions as $transaction) {
@@ -228,6 +396,18 @@ class FinanceService
                 return $accountRow;
             });
 
+        $schedulesByAccount = FinanceAccountSchedule::query()
+            ->with('account')
+            ->whereIn('account_id', $accountsWithBalance->pluck('id'))
+            ->where('scheduled_date', '>=', $this->todayIso())
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('account_id');
+
+        $accountsWithBalance = $accountsWithBalance
+            ->map(fn (array $accountRow) => $this->attachSchedulesToAccountRow($accountRow, $schedulesByAccount->get($accountRow['id'])));
+
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
@@ -249,9 +429,18 @@ class FinanceService
             })->values()->all()
         );
 
+        $visibleAccounts = $accountsWithBalance->filter(function (array $account) use ($filters) {
+            if ($filters['tab'] === 'transfer' || $filters['tab'] === 'all') {
+                return true;
+            }
+
+            return $account['region'] === $filters['tab'];
+        })->values()->all();
+
         return [
             'accounts' => $accountsWithBalance->values()->all(),
             'groupedAccounts' => $groupedAccounts,
+            'balanceTotals' => $this->buildBalanceTotals($visibleAccounts),
             'summary' => $summary,
             'transactions' => $displayTransactions->map(fn (FinanceTransaction $t) => $this->transactionToArray($t))->values()->all(),
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
@@ -489,7 +678,7 @@ class FinanceService
         return (bool) FinanceTransaction::query()->whereKey($id)->delete();
     }
 
-    public function updateAccountInitialBalance(int $id, float $balance): bool
+    public function updateAccountInitialBalance(int $id, float $balance, ?float $adjustmentAmount = null): bool
     {
         $account = FinanceAccount::query()->find($id);
         if (! $account) {
@@ -497,6 +686,9 @@ class FinanceService
         }
 
         $account->initial_balance = round($balance, 2);
+        if ($adjustmentAmount !== null) {
+            $account->adjustment_amount = round($adjustmentAmount, 2);
+        }
 
         return $account->save();
     }
@@ -513,11 +705,328 @@ class FinanceService
             if (! $bank || ! in_array($bank->kind, ['bank', 'wallet'], true)) {
                 return false;
             }
+            if ($bank->region !== $account->region) {
+                return false;
+            }
         }
 
         $account->linked_bank_id = $linkedBankId;
 
         return $account->save();
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function createAccount(array $payload): FinanceAccount
+    {
+        $name = trim((string) ($payload['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('口座名を入力してください');
+        }
+
+        $region = $this->normalizeRegion($payload['region'] ?? null);
+        $kind = $this->normalizeKind($payload['kind'] ?? null);
+        $linkedBankId = isset($payload['linkedBankId']) && $payload['linkedBankId'] !== ''
+            ? (int) $payload['linkedBankId']
+            : null;
+
+        if ($kind === 'credit_card' && $linkedBankId !== null) {
+            $this->assertValidLinkedBank($linkedBankId, $region);
+        } elseif ($kind !== 'credit_card') {
+            $linkedBankId = null;
+        }
+
+        $maxOrder = (int) FinanceAccount::query()->max('sort_order');
+
+        return FinanceAccount::query()->create([
+            'slug' => $this->generateAccountSlug($region, $kind, $name),
+            'region' => $region,
+            'kind' => $kind,
+            'name' => $name,
+            'currency' => $this->currencyForRegion($region),
+            'sort_order' => isset($payload['sortOrder']) ? (int) $payload['sortOrder'] : $maxOrder + 10,
+            'linked_bank_id' => $linkedBankId,
+            'initial_balance' => round((float) ($payload['initialBalance'] ?? 0), 2),
+            'adjustment_amount' => round((float) ($payload['adjustmentAmount'] ?? 0), 2),
+            'is_active' => true,
+        ]);
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function updateAccount(int $id, array $payload): bool
+    {
+        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        if (! $account) {
+            return false;
+        }
+
+        $name = trim((string) ($payload['name'] ?? $account->name));
+        if ($name === '') {
+            throw new \InvalidArgumentException('口座名を入力してください');
+        }
+
+        $kind = $this->normalizeKind($payload['kind'] ?? $account->kind);
+        $linkedBankId = array_key_exists('linkedBankId', $payload)
+            ? ($payload['linkedBankId'] !== null && $payload['linkedBankId'] !== '' ? (int) $payload['linkedBankId'] : null)
+            : $account->linked_bank_id;
+
+        if ($kind === 'credit_card' && $linkedBankId !== null) {
+            $this->assertValidLinkedBank($linkedBankId, $account->region);
+        } elseif ($kind !== 'credit_card') {
+            $linkedBankId = null;
+        }
+
+        $account->name = $name;
+        $account->kind = $kind;
+        $account->linked_bank_id = $linkedBankId;
+
+        if (array_key_exists('initialBalance', $payload)) {
+            $account->initial_balance = round((float) $payload['initialBalance'], 2);
+        }
+        if (array_key_exists('adjustmentAmount', $payload)) {
+            $account->adjustment_amount = round((float) $payload['adjustmentAmount'], 2);
+        }
+        if (isset($payload['sortOrder'])) {
+            $account->sort_order = (int) $payload['sortOrder'];
+        }
+
+        return $account->save();
+    }
+
+    public function deleteAccount(int $id): bool
+    {
+        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        if (! $account) {
+            return false;
+        }
+
+        FinanceAccount::query()
+            ->where('linked_bank_id', $account->id)
+            ->update(['linked_bank_id' => null]);
+
+        $account->is_active = false;
+
+        return $account->save();
+    }
+
+    /** @param list<int> $orderedIds */
+    public function reorderAccounts(array $orderedIds): bool
+    {
+        $orderedIds = array_values(array_unique(array_filter(array_map('intval', $orderedIds))));
+        if ($orderedIds === []) {
+            throw new \InvalidArgumentException('並び替える口座がありません');
+        }
+
+        $accounts = FinanceAccount::query()
+            ->where('is_active', true)
+            ->whereIn('id', $orderedIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($accounts->count() !== count($orderedIds)) {
+            throw new \InvalidArgumentException('無効な口座が含まれています');
+        }
+
+        $kinds = $accounts->pluck('kind')->unique();
+        if ($kinds->count() > 1) {
+            throw new \InvalidArgumentException('同じ種別の口座のみ並び替えできます');
+        }
+
+        $minOrder = (int) $accounts->min('sort_order');
+        foreach ($orderedIds as $index => $id) {
+            $account = $accounts[$id];
+            $account->sort_order = $minOrder + ($index * 10);
+            $account->save();
+        }
+
+        return true;
+    }
+
+    private function assertValidLinkedBank(int $linkedBankId, string $region): void
+    {
+        $bank = FinanceAccount::query()->where('is_active', true)->find($linkedBankId);
+        if (! $bank || ! in_array($bank->kind, ['bank', 'wallet', 'cash'], true)) {
+            throw new \InvalidArgumentException('引落口座が正しくありません');
+        }
+        if ($bank->region !== $region) {
+            throw new \InvalidArgumentException('引落口座は同じ地域の口座を選択してください');
+        }
+    }
+
+    private function generateAccountSlug(string $region, string $kind, string $name): string
+    {
+        $base = Str::slug($region.'_'.$kind.'_'.$name, '_');
+        if ($base === '') {
+            $base = $region.'_'.$kind.'_account';
+        }
+        $slug = substr($base, 0, 58);
+        $suffix = 1;
+        while (FinanceAccount::query()->where('slug', $slug)->exists()) {
+            $slug = substr($base, 0, 54).'_'.$suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    public function scheduleTypeForAccountKind(?string $kind): ?string
+    {
+        return match ($kind) {
+            'credit_card' => 'payment',
+            'bank' => 'deposit',
+            default => null,
+        };
+    }
+
+    /** @return array<string, mixed> */
+    public function scheduleToArray(FinanceAccountSchedule $schedule): array
+    {
+        return [
+            'id' => $schedule->id,
+            'accountId' => $schedule->account_id,
+            'scheduleType' => $schedule->schedule_type,
+            'typeLabel' => self::SCHEDULE_TYPE_LABELS[$schedule->schedule_type] ?? $schedule->schedule_type,
+            'scheduledDate' => $schedule->scheduled_date->format('Y-m-d'),
+            'amount' => (float) $schedule->amount,
+            'memo' => $schedule->memo ?? '',
+            'currency' => $schedule->account?->currency ?? 'JPY',
+            'accountName' => $schedule->account?->name ?? '',
+        ];
+    }
+
+    /** @param \Illuminate\Support\Collection<int, FinanceAccountSchedule>|null $schedules */
+    /** @param array<string, mixed> $accountRow */
+    public function attachSchedulesToAccountRow(array $accountRow, $schedules = null): array
+    {
+        $scheduleItems = collect($schedules ?? [])
+            ->map(fn (FinanceAccountSchedule $schedule) => $this->scheduleToArray($schedule))
+            ->values()
+            ->all();
+
+        $accountRow['scheduleType'] = $this->scheduleTypeForAccountKind($accountRow['kind'] ?? null);
+        $accountRow['scheduleTypeLabel'] = $accountRow['scheduleType']
+            ? (self::SCHEDULE_TYPE_LABELS[$accountRow['scheduleType']] ?? '')
+            : '';
+        $accountRow['schedules'] = $scheduleItems;
+        $accountRow['nextSchedule'] = $scheduleItems[0] ?? null;
+
+        return $accountRow;
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function createSchedule(int $accountId, array $payload): FinanceAccountSchedule
+    {
+        $account = FinanceAccount::query()->where('is_active', true)->find($accountId);
+        if (! $account) {
+            throw new \InvalidArgumentException('口座が見つかりません');
+        }
+
+        $scheduleType = $this->scheduleTypeForAccountKind($account->kind);
+        if (! $scheduleType) {
+            throw new \InvalidArgumentException('この口座では予定を登録できません');
+        }
+
+        $amount = round(max(0, (float) ($payload['amount'] ?? 0)), 2);
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException('金額は 0 より大きい値を入力してください');
+        }
+
+        return FinanceAccountSchedule::query()->create([
+            'account_id' => $account->id,
+            'schedule_type' => $scheduleType,
+            'scheduled_date' => $this->normalizeDate($payload['scheduledDate'] ?? null),
+            'amount' => $amount,
+            'memo' => trim((string) ($payload['memo'] ?? '')),
+        ]);
+    }
+
+    public function deleteSchedule(int $id): bool
+    {
+        return (bool) FinanceAccountSchedule::query()->whereKey($id)->delete();
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function upsertNextSchedule(int $accountId, array $payload): FinanceAccountSchedule
+    {
+        $account = FinanceAccount::query()->where('is_active', true)->find($accountId);
+        if (! $account) {
+            throw new \InvalidArgumentException('口座が見つかりません');
+        }
+
+        $scheduleType = $this->scheduleTypeForAccountKind($account->kind);
+        if (! $scheduleType) {
+            throw new \InvalidArgumentException('この口座では予定を登録できません');
+        }
+
+        $amount = round(max(0, (float) ($payload['amount'] ?? 0)), 2);
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException('金額は 0 より大きい値を入力してください');
+        }
+
+        $data = [
+            'scheduled_date' => $this->normalizeDate($payload['scheduledDate'] ?? null),
+            'amount' => $amount,
+            'memo' => trim((string) ($payload['memo'] ?? '')),
+        ];
+
+        $existing = FinanceAccountSchedule::query()
+            ->where('account_id', $account->id)
+            ->where('schedule_type', $scheduleType)
+            ->where('scheduled_date', '>=', $this->todayIso())
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->first();
+
+        if ($existing) {
+            $existing->fill($data);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return FinanceAccountSchedule::query()->create([
+            'account_id' => $account->id,
+            'schedule_type' => $scheduleType,
+            ...$data,
+        ]);
+    }
+
+    /** @param list<array<string, mixed>> $accounts */
+    /** @return array{totals: array<string, float>, assets: array<string, float>, creditCards: array<string, float>, upcomingPayments: array<string, float>, upcomingDeposits: array<string, float>} */
+    public function buildBalanceTotals(array $accounts): array
+    {
+        $totals = [];
+        $assets = [];
+        $creditCards = [];
+        $upcomingPayments = [];
+        $upcomingDeposits = [];
+
+        foreach ($accounts as $account) {
+            $currency = $account['currency'];
+            $balance = (float) $account['balance'];
+            $totals[$currency] = ($totals[$currency] ?? 0) + $balance;
+
+            if ($account['kind'] === 'credit_card') {
+                $creditCards[$currency] = ($creditCards[$currency] ?? 0) + $balance;
+                if (! empty($account['nextSchedule'])) {
+                    $upcomingPayments[$currency] = ($upcomingPayments[$currency] ?? 0) + (float) $account['nextSchedule']['amount'];
+                }
+            } elseif (in_array($account['kind'], ['bank', 'cash', 'wallet'], true)) {
+                $assets[$currency] = ($assets[$currency] ?? 0) + $balance;
+                if ($account['kind'] === 'bank' && ! empty($account['nextSchedule'])) {
+                    $upcomingDeposits[$currency] = ($upcomingDeposits[$currency] ?? 0) + (float) $account['nextSchedule']['amount'];
+                }
+            }
+        }
+
+        $roundMap = fn (array $map) => array_map(fn (float $value) => round($value, 2), $map);
+
+        return [
+            'totals' => $roundMap($totals),
+            'assets' => $roundMap($assets),
+            'creditCards' => $roundMap($creditCards),
+            'upcomingPayments' => $roundMap($upcomingPayments),
+            'upcomingDeposits' => $roundMap($upcomingDeposits),
+        ];
     }
 
     public function formatMoney(float $amount, string $currency): string
