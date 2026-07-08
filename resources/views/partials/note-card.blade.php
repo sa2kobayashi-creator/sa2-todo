@@ -30,6 +30,7 @@
           <button type="submit" class="note-icon-btn" title="{{ !empty($note['pinned']) ? 'ピン留めを外す' : 'ピン留め' }}">📌</button>
         </form>
       @endif
+      <button type="button" class="note-icon-btn note-action-translate" data-note-id="{{ $note['id'] }}" title="日本語⇔英語に翻訳" aria-label="翻訳" aria-pressed="false">🌐<span class="note-translate-label">訳</span></button>
       <button type="button" class="note-icon-btn note-action-edit" title="編集" aria-label="編集">✎</button>
       <form method="post" action="/notes/{{ $note['id'] }}/archive" class="note-inline-form">
         @csrf

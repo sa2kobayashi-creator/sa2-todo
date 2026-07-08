@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TranslationApiKey;
 use App\Services\CalendarService;
 use App\Services\HolidayService;
 use Illuminate\Http\Request;
@@ -29,6 +30,9 @@ class SettingsController extends Controller
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
             'lineConfigured' => false,
             'pushConfigured' => false,
+            'translationKeys' => $section === 'translation'
+                ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
+                : collect(),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -124,7 +128,7 @@ class SettingsController extends Controller
 
     private function parseSection(?string $value): string
     {
-        return in_array($value, ['integration', 'notifications', 'holidays'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'translation', 'holidays'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

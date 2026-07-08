@@ -4542,3 +4542,124 @@ body.map-page {
     grid-template-columns: 1fr;
   }
 }
+
+/* メモカードの翻訳ボタン */
+.note-action-translate {
+  position: relative;
+  font-size: 13px;
+  gap: 1px;
+}
+
+.note-translate-label {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.note-action-translate.is-translated {
+  background: rgba(26, 115, 232, 0.14);
+  color: #1a73e8;
+}
+
+.note-action-translate.is-loading {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.note-action-translate.is-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(26, 115, 232, 0.35);
+  border-top-color: #1a73e8;
+  border-radius: 50%;
+  animation: note-translate-spin 0.7s linear infinite;
+}
+
+@keyframes note-translate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 設定 > AI翻訳 */
+.translation-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.translation-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.translation-form-grid label,
+.translation-notes-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+.translation-form-grid input,
+.translation-notes-field input {
+  padding: 8px 10px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.translation-key-input {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.translation-key-input input {
+  flex: 1;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.translation-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.translation-test-result.is-ok {
+  color: #188038;
+}
+
+.translation-test-result.is-error {
+  color: #d93025;
+}
+
+.translation-key-table {
+  margin-top: 8px;
+}
+
+.translation-key-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .translation-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

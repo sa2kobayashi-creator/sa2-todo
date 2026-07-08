@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Note;
 use App\Services\NoteService;
+use App\Services\TranslationService;
 use Illuminate\Http\Request;
 
 class NoteController extends Controller
@@ -10,6 +12,55 @@ class NoteController extends Controller
     use Concerns\RedirectsWithFlash;
 
     public function __construct(private NoteService $notes) {}
+
+    /**
+     * メモのタイトル・本文・チェックリストを翻訳して JSON で返す。
+     * target_lang（ja / en）を省略した場合は原文から自動判定する。
+     */
+    public function translate(Request $request, int $id, TranslationService $translator)
+    {
+        if (! $translator->isConfigured()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'AI翻訳が設定されていません。設定 > AI翻訳 からDeepL APIキーを登録してください。',
+            ], 422);
+        }
+
+        $note = Note::find($id);
+        if (! $note) {
+            return response()->json(['ok' => false, 'message' => 'メモが見つかりません'], 404);
+        }
+
+        $target = in_array($request->input('target_lang'), ['ja', 'en'], true)
+            ? $request->input('target_lang')
+            : ($this->containsJapanese($note->title.' '.$note->body.' '.$this->itemsText($note)) ? 'en' : 'ja');
+        $source = $target === 'en' ? 'ja' : 'en';
+
+        $items = [];
+        foreach ($note->items ?? [] as $item) {
+            $items[] = $translator->translate((string) ($item['text'] ?? ''), $source, $target) ?? ($item['text'] ?? '');
+        }
+
+        $result = [
+            'ok' => true,
+            'target' => $target,
+            'title' => $note->title !== '' ? ($translator->translate($note->title, $source, $target) ?? $note->title) : '',
+            'body' => $note->body ? ($translator->translate($note->body, $source, $target) ?? $note->body) : '',
+            'items' => $items,
+        ];
+
+        return response()->json($result);
+    }
+
+    private function containsJapanese(string $text): bool
+    {
+        return (bool) preg_match('/[\x{3040}-\x{30ff}\x{4e00}-\x{9fff}]/u', $text);
+    }
+
+    private function itemsText(Note $note): string
+    {
+        return collect($note->items ?? [])->map(fn ($i) => $i['text'] ?? '')->implode(' ');
+    }
 
     public function index(Request $request)
     {

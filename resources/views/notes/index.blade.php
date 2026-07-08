@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>メモ - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
@@ -403,6 +404,90 @@
             check.addEventListener('change', () => {
               if (hidden) hidden.value = check.checked ? '1' : '0'
             })
+          })
+        })
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        document.querySelectorAll('.note-action-translate').forEach((btn) => {
+          const card = btn.closest('.note-card')
+          if (!card) return
+          const noteId = btn.dataset.noteId
+          const titleEl = card.querySelector('.note-card-view .note-card-title')
+          const bodyEl = card.querySelector('.note-card-view .note-card-body')
+          const itemEls = card.querySelectorAll('.note-card-view .note-checklist-preview li span:last-child')
+          const state = { translated: false, loading: false, cache: null, original: null }
+
+          function captureOriginal() {
+            state.original = {
+              title: titleEl ? titleEl.textContent : null,
+              body: bodyEl ? bodyEl.textContent : null,
+              items: Array.from(itemEls).map((el) => el.textContent),
+            }
+          }
+
+          function render(data) {
+            if (titleEl && typeof data.title === 'string' && data.title !== '') titleEl.textContent = data.title
+            if (bodyEl && typeof data.body === 'string') bodyEl.textContent = data.body
+            if (Array.isArray(data.items)) {
+              itemEls.forEach((el, i) => {
+                if (typeof data.items[i] === 'string') el.textContent = data.items[i]
+              })
+            }
+          }
+
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation()
+            if (state.loading) return
+
+            if (state.translated) {
+              if (state.original) render(state.original)
+              state.translated = false
+              btn.classList.remove('is-translated')
+              btn.setAttribute('aria-pressed', 'false')
+              btn.title = '日本語⇔英語に翻訳'
+              return
+            }
+
+            if (state.cache) {
+              if (!state.original) captureOriginal()
+              render(state.cache)
+              state.translated = true
+              btn.classList.add('is-translated')
+              btn.setAttribute('aria-pressed', 'true')
+              btn.title = '原文に戻す'
+              return
+            }
+
+            state.loading = true
+            btn.classList.add('is-loading')
+            try {
+              const res = await fetch(`/notes/${noteId}/translate`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-TOKEN': csrfToken,
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify({}),
+              })
+              const data = await res.json()
+              if (!res.ok || !data.ok) {
+                window.alert(data.message || '翻訳に失敗しました')
+                return
+              }
+              captureOriginal()
+              state.cache = data
+              render(data)
+              state.translated = true
+              btn.classList.add('is-translated')
+              btn.setAttribute('aria-pressed', 'true')
+              btn.title = '原文に戻す'
+            } catch (err) {
+              window.alert('翻訳中に通信エラーが発生しました')
+            } finally {
+              state.loading = false
+              btn.classList.remove('is-loading')
+            }
           })
         })
 

@@ -16,6 +16,7 @@
         </button>
         <div class="nav-dropdown-menu" role="menu">
           <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">休日設定</a>
+          <a href="/settings?section=translation" class="{{ ($navSettingsSection ?? '') === 'translation' ? 'active' : '' }}" role="menuitem">AI翻訳</a>
           <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">LINE連携</a>
           <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">通知設定</a>
           @if(!empty($isAdmin))

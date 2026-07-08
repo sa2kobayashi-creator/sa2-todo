@@ -10,6 +10,7 @@ use App\Http\Controllers\NoteController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
+use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +50,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);
     Route::post('/notes/bulk/append', [NoteController::class, 'bulkAppend']);
     Route::post('/notes/{id}/update', [NoteController::class, 'update'])->whereNumber('id');
+    Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
     Route::post('/notes/{id}/archive', [NoteController::class, 'archive'])->whereNumber('id');
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
@@ -78,6 +80,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/settings/weekday-rules/{id}/delete', [SettingsController::class, 'deleteWeekdayRule'])->whereNumber('id');
     Route::post('/settings/weekday-rules/{id}/exceptions/add', [SettingsController::class, 'addWeekdayException'])->whereNumber('id');
     Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
+
+    Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
+    Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
+    Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
+    Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
 
     Route::view('/mypage', 'mypage.stub');
 

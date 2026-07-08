@@ -39,4 +39,11 @@ return [
         'api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    'translation' => [
+        'provider' => env('TRANSLATION_PROVIDER', 'deepl'),
+        'api_key' => env('TRANSLATION_API_KEY'),
+        'api_url' => env('TRANSLATION_API_URL', 'https://api-free.deepl.com/v2/translate'),
+        'cache_ttl' => (int) env('TRANSLATION_CACHE_TTL', 86400),
+    ],
+
 ];
