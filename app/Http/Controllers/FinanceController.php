@@ -20,6 +20,7 @@ class FinanceController extends Controller
     {
         $filters = $this->finance->parseFilters($request->query());
         $pageData = $this->finance->buildPageData($filters);
+        $filters = $pageData['filters'];
         $returnTo = $this->finance->buildFinanceQuery($filters);
 
         return view('finance.index', [
@@ -27,11 +28,16 @@ class FinanceController extends Controller
             'returnTo' => $returnTo,
             'periodValue' => $pageData['periodValue'],
             'monthLabel' => $pageData['monthLabel'],
+            'tabContextLabel' => $pageData['tabContextLabel'],
             'accounts' => $pageData['accounts'],
             'groupedAccounts' => $pageData['groupedAccounts'],
+            'accountDisplayGroups' => $pageData['accountDisplayGroups'],
             'balanceTotals' => $pageData['balanceTotals'],
             'summary' => $pageData['summary'],
             'transactions' => $pageData['transactions'],
+            'overviewAccounts' => $pageData['overviewAccounts'],
+            'overviewAccountsByRegion' => $pageData['overviewAccountsByRegion'],
+            'unpinnedAccounts' => $pageData['unpinnedAccounts'],
             'jpAccounts' => array_values(array_filter($pageData['accounts'], fn ($a) => $a['region'] === 'jp')),
             'phAccounts' => array_values(array_filter($pageData['accounts'], fn ($a) => $a['region'] === 'ph')),
             'bankAccounts' => array_values(array_filter(
@@ -173,6 +179,7 @@ class FinanceController extends Controller
                 'initialBalance' => $request->input('initialBalance'),
                 'adjustmentAmount' => $request->input('adjustmentAmount'),
                 'linkedBankId' => $request->input('linkedBankId'),
+                'showInOverview' => $request->boolean('show_in_overview'),
             ]);
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -181,6 +188,21 @@ class FinanceController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, '口座を登録しました');
+    }
+
+    public function updateAccountOverview(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+        $show = $request->boolean('show');
+
+        if (! $this->finance->setAccountOverviewVisibility($id, $show)) {
+            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+        }
+
+        return $this->redirectWithMessage(
+            $returnTo,
+            $show ? '総残高エリアにカードを追加しました' : '総残高エリアからカードを外しました'
+        );
     }
 
     public function updateAccount(Request $request, int $id)

@@ -63,6 +63,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
     Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
     Route::post('/finance/accounts', [FinanceController::class, 'storeAccount']);
+    Route::post('/finance/accounts/{id}/overview', [FinanceController::class, 'updateAccountOverview'])->whereNumber('id');
     Route::post('/finance/accounts/{id}/schedules', [FinanceController::class, 'storeAccountSchedule'])->whereNumber('id');
     Route::post('/finance/accounts/{id}/schedules/upsert', [FinanceController::class, 'upsertAccountSchedule'])->whereNumber('id');
     Route::post('/finance/schedules/{id}/delete', [FinanceController::class, 'destroyAccountSchedule'])->whereNumber('id');

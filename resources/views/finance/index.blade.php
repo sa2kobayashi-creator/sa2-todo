@@ -147,6 +147,8 @@
         <p class="hint finance-quick-entry-hint">金額は入力欄をクリックして直接入力するか、横の <span class="finance-easy-amount-inline-hint" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="3" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect></svg></span> ボタン（簡単入力）から入れられます。今日以前の日付は<strong>すぐ残高に反映</strong>されます。</p>
       </section>
 
+      <p class="finance-tab-context" aria-live="polite">{{ $tabContextLabel }}</p>
+
       <section class="finance-balance-overview panel">
         <h2 class="finance-section-title">現在の総残高</h2>
         <div class="finance-balance-overview-grid">
@@ -156,8 +158,32 @@
               <strong class="finance-balance-overview-total">{{ $formatMoney($total, $currency) }}</strong>
             </div>
           @empty
-            <p class="hint">表示対象の口座がありません。</p>
+            @if($filters['tab'] === 'transfer')
+              <p class="hint">表示対象の口座がありません。</p>
+            @endif
           @endforelse
+          @if($filters['tab'] !== 'transfer')
+            @if($filters['tab'] === 'all')
+              @foreach($overviewAccountsByRegion as $region => $regionAccounts)
+                <div class="finance-balance-overview-region" data-region="{{ $region }}">
+                  <span class="finance-balance-overview-region-label">{{ \App\Services\FinanceService::REGION_LABELS[$region] ?? $region }}</span>
+                  <div class="finance-balance-overview-region-cards">
+                    @foreach($regionAccounts as $account)
+                      @include('finance.partials.balance-overview-account-card', ['account' => $account, 'returnTo' => $returnTo, 'formatMoney' => $formatMoney])
+                    @endforeach
+                  </div>
+                </div>
+              @endforeach
+            @else
+              @foreach($overviewAccounts as $account)
+                @include('finance.partials.balance-overview-account-card', ['account' => $account, 'returnTo' => $returnTo, 'formatMoney' => $formatMoney])
+              @endforeach
+            @endif
+            <button type="button" class="finance-balance-overview-item finance-balance-overview-add" id="finance-open-overview-add" aria-label="残高カードを追加">
+              <span class="finance-balance-overview-add-icon" aria-hidden="true">＋</span>
+              <span class="finance-balance-overview-add-label">カードを追加</span>
+            </button>
+          @endif
         </div>
         @if(!empty($balanceTotals['assets']) || !empty($balanceTotals['creditCards']))
           <div class="finance-balance-overview-breakdown">
@@ -219,15 +245,20 @@
                 <button type="button" class="finance-view-toggle-btn" data-accounts-view="list" aria-pressed="false">リスト</button>
               </div>
               <button type="button" class="text-btn" id="finance-open-add-account">＋ 口座を追加</button>
-              <button type="button" class="text-btn" id="finance-toggle-settings">口座設定</button>
+              <button type="button" class="text-btn" id="finance-toggle-settings" aria-expanded="false" aria-controls="finance-account-settings">口座設定</button>
             </div>
           </div>
 
           <p class="hint finance-drag-hint">カード表示では <span class="finance-drag-hint-icon" aria-hidden="true">⠿</span> をドラッグして並び替えできます。入金・支出は上部フォームか、各口座の <strong>入金 / 支出</strong> ボタンから。日付欄は将来の<strong>予定</strong>用です。</p>
 
           <div class="finance-accounts-view" id="finance-accounts-view" data-view="cards">
-          @forelse($groupedAccounts as $kind => $kindAccounts)
-            <div class="finance-account-group" data-kind="{{ $kind }}">
+          @forelse($accountDisplayGroups as $displayGroup)
+            <div class="finance-account-region-block" @if($displayGroup['region']) data-region="{{ $displayGroup['region'] }}" @endif>
+              @if($displayGroup['regionLabel'])
+                <h3 class="finance-account-region-title">{{ $displayGroup['regionLabel'] }}</h3>
+              @endif
+              @foreach($displayGroup['kinds'] as $kind => $kindAccounts)
+            <div class="finance-account-group" data-kind="{{ $kind }}" @if($displayGroup['region']) data-region="{{ $displayGroup['region'] }}" @endif>
               <h3 class="finance-account-group-title">{{ \App\Services\FinanceService::KIND_LABELS[$kind] ?? $kind }}</h3>
               <div class="finance-account-cards" data-kind="{{ $kind }}">
                 @foreach($kindAccounts as $account)
@@ -398,6 +429,8 @@
                 @endforeach
               </div>
             </div>
+              @endforeach
+            </div>
           @empty
             <p class="hint">表示する口座がありません。</p>
           @endforelse
@@ -412,7 +445,7 @@
 
           <div class="finance-account-settings" id="finance-account-settings" hidden>
             <h3 class="finance-account-group-title">口座・クレカの管理</h3>
-            <p class="hint finance-settings-hint">口座名・種別の変更、残高調整、削除ができます。金額は <code>1000+340</code> のような式でも入力できます。</p>
+            <p class="hint finance-settings-hint">各口座の名前・種別・開始残高・調整金額・引落口座・予定の管理、削除ができます。カードをクリックしても同様の編集ができます。</p>
             @foreach($accounts as $account)
               <details class="finance-account-setting-row" data-account='@json($account)'>
                 <summary>
@@ -526,65 +559,81 @@
         @if(count($transactions) === 0)
           <p class="hint">この条件の取引はありません。「＋ 取引を追加」から登録できます。</p>
         @else
-          <div class="finance-transaction-list">
-            @foreach($transactions as $transaction)
-              <article class="finance-transaction-row type-{{ $transaction['type'] }} @if(!empty($transaction['isScheduled'])) is-scheduled @endif" data-transaction='@json($transaction)'>
-                <div class="finance-transaction-main">
-                  <div class="finance-transaction-body">
-                    <span class="finance-transaction-date">
-                      {{ $transaction['displayDate'] ?? $transaction['transactionDate'] }}
+          <div class="finance-transaction-table-wrap">
+            <table class="finance-transaction-table">
+              <thead>
+                <tr>
+                  <th scope="col">日付</th>
+                  <th scope="col">種別</th>
+                  <th scope="col">口座</th>
+                  <th scope="col">メモ</th>
+                  <th scope="col" class="is-num">金額</th>
+                  <th scope="col" class="is-actions">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($transactions as $transaction)
+                  @php($transactionMemo = $transaction['displayMemo'] ?? $transaction['memo'])
+                  <tr class="finance-transaction-row type-{{ $transaction['type'] }} @if(!empty($transaction['isScheduled'])) is-scheduled @endif" data-transaction='@json($transaction)'>
+                    <td class="finance-transaction-date-cell">
+                      <span class="finance-transaction-date">
+                        {{ $transaction['displayDate'] ?? $transaction['transactionDate'] }}
+                      </span>
                       @if(!empty($transaction['purchaseDate']))
                         <span class="finance-transaction-purchase-date" title="利用日">({{ $transaction['purchaseDate'] }})</span>
                       @endif
-                    </span>
-                    <span class="finance-type-badge">{{ $transaction['typeLabel'] }}</span>
-                    @if(!empty($transaction['isScheduled']))
-                      <span class="finance-transaction-badge finance-transaction-badge-scheduled">{{ $transaction['scheduledLabel'] ?? '予定' }}</span>
-                    @endif
-                    @if($transaction['type'] === 'transfer')
-                      <span class="finance-transaction-desc">
-                        {{ $transaction['accountName'] }} → {{ $transaction['toAccountName'] }}
-                      </span>
-                    @else
-                      <span class="finance-transaction-desc">{{ $transaction['accountName'] }}</span>
-                    @endif
-                    @php($transactionMemo = $transaction['displayMemo'] ?? $transaction['memo'])
-                    @if($transactionMemo !== '')
-                      <span class="finance-transaction-memo" title="{{ $transactionMemo }}">{{ $transactionMemo }}</span>
-                    @endif
-                    @if(!empty($transaction['scheduleId']) && empty($transaction['isScheduled']))
-                      <span class="finance-transaction-badge">カード引落</span>
-                    @endif
-                    <span class="finance-transaction-amount @if($transaction['type'] !== 'transfer') {{ $transaction['type'] }} @endif">
-                      @if($transaction['type'] === 'transfer')
-                        {{ $formatMoney($transaction['amount'], $transaction['currency']) }}
-                        @if($transaction['toAmount'] !== null && ($transaction['toCurrency'] ?? '') !== $transaction['currency'])
-                          / {{ $formatMoney($transaction['toAmount'], $transaction['toCurrency'] ?? $transaction['currency']) }}
-                        @endif
-                      @else
-                        {{ $transaction['type'] === 'expense' ? '−' : '+' }}{{ $formatMoney($transaction['amount'], $transaction['currency']) }}
+                    </td>
+                    <td class="finance-transaction-type-cell">
+                      <span class="finance-type-badge">{{ $transaction['typeLabel'] }}</span>
+                      @if(!empty($transaction['isScheduled']))
+                        <span class="finance-transaction-badge finance-transaction-badge-scheduled">{{ $transaction['scheduledLabel'] ?? '予定' }}</span>
                       @endif
-                    </span>
-                  </div>
-                </div>
-                <div class="finance-transaction-actions" onclick="event.stopPropagation()">
-                  @if(empty($transaction['isScheduleOnly']))
-                    <button type="button" class="text-btn finance-edit-btn">編集</button>
-                    <form method="post" action="/finance/{{ $transaction['id'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この取引を削除しますか？{{ !empty($transaction['scheduleId']) ? '\n対応する支払予定も削除されます。' : '' }}')">
-                      @csrf
-                      <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                      <button type="submit" class="text-btn danger">削除</button>
-                    </form>
-                  @else
-                    <form method="post" action="/finance/schedules/{{ $transaction['scheduleId'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この予定を削除しますか？')">
-                      @csrf
-                      <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                      <button type="submit" class="text-btn danger">削除</button>
-                    </form>
-                  @endif
-                </div>
-              </article>
-            @endforeach
+                      @if(!empty($transaction['scheduleId']) && empty($transaction['isScheduled']))
+                        <span class="finance-transaction-badge">カード引落</span>
+                      @endif
+                    </td>
+                    <td class="finance-transaction-account-cell">
+                      @if($transaction['type'] === 'transfer')
+                        {{ $transaction['accountName'] }} → {{ $transaction['toAccountName'] }}
+                      @else
+                        {{ $transaction['accountName'] }}
+                      @endif
+                    </td>
+                    <td class="finance-transaction-memo-cell" title="{{ $transactionMemo }}">{{ $transactionMemo }}</td>
+                    <td class="finance-transaction-amount-cell is-num">
+                      <span class="finance-transaction-amount @if($transaction['type'] !== 'transfer') {{ $transaction['type'] }} @endif">
+                        @if($transaction['type'] === 'transfer')
+                          {{ $formatMoney($transaction['amount'], $transaction['currency']) }}
+                          @if($transaction['toAmount'] !== null && ($transaction['toCurrency'] ?? '') !== $transaction['currency'])
+                            / {{ $formatMoney($transaction['toAmount'], $transaction['toCurrency'] ?? $transaction['currency']) }}
+                          @endif
+                        @else
+                          {{ $transaction['type'] === 'expense' ? '−' : '+' }}{{ $formatMoney($transaction['amount'], $transaction['currency']) }}
+                        @endif
+                      </span>
+                    </td>
+                    <td class="finance-transaction-actions-cell">
+                      <div class="finance-transaction-actions" onclick="event.stopPropagation()">
+                        @if(empty($transaction['isScheduleOnly']))
+                          <button type="button" class="text-btn finance-edit-btn">編集</button>
+                          <form method="post" action="/finance/{{ $transaction['id'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この取引を削除しますか？{{ !empty($transaction['scheduleId']) ? '\n対応する支払予定も削除されます。' : '' }}')">
+                            @csrf
+                            <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                            <button type="submit" class="text-btn danger">削除</button>
+                          </form>
+                        @else
+                          <form method="post" action="/finance/schedules/{{ $transaction['scheduleId'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この予定を削除しますか？')">
+                            @csrf
+                            <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                            <button type="submit" class="text-btn danger">削除</button>
+                          </form>
+                        @endif
+                      </div>
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
           </div>
         @endif
       </section>
@@ -676,6 +725,7 @@
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <input type="hidden" name="account_id" id="finance-account-id-input" value="" />
+          <input type="hidden" name="show_in_overview" id="finance-account-show-in-overview" value="0" />
 
           <label>
             口座名
@@ -701,7 +751,7 @@
           </label>
 
           <label>
-            開始残高
+            <span id="finance-account-initial-balance-label">開始残高</span>
             <input type="text" inputmode="decimal" class="finance-amount-calc" name="initialBalance" id="finance-account-initial-balance" value="0" autocomplete="off" />
           </label>
 
@@ -725,6 +775,41 @@
             <button type="submit" class="button-link" id="finance-account-submit-btn">保存</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="finance-overview-add-modal" hidden>
+      <div class="modal-backdrop" data-close-finance-overview-add-modal></div>
+      <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="finance-overview-add-modal-title">
+        <div class="modal-header">
+          <h2 id="finance-overview-add-modal-title">残高カードを追加</h2>
+          <button type="button" class="modal-close" data-close-finance-overview-add-modal aria-label="閉じる">×</button>
+        </div>
+        <div class="modal-form finance-form">
+          @if(count($unpinnedAccounts) > 0)
+            <form method="post" id="finance-overview-pin-form" class="finance-overview-pin-form">
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <input type="hidden" name="show" value="1" />
+              <label>
+                既存の口座をカードに追加
+                <select name="account_id" id="finance-overview-pin-account" required>
+                  @foreach($unpinnedAccounts as $account)
+                    <option value="{{ $account['id'] }}">{{ $account['kindLabel'] }}: {{ $account['name'] }}</option>
+                  @endforeach
+                </select>
+              </label>
+              <button type="submit" class="button-link">カードに追加</button>
+            </form>
+            <p class="hint finance-overview-add-divider">または</p>
+          @else
+            <p class="hint">カードに追加できる口座がありません。新しい口座を登録してください。</p>
+          @endif
+          <button type="button" class="button-link secondary" id="finance-overview-open-new-account">新しい口座を登録して追加</button>
+          <div class="finance-form-actions">
+            <button type="button" class="secondary" data-close-finance-overview-add-modal>閉じる</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1012,8 +1097,18 @@
         settingsToggle?.addEventListener('click', () => {
           if (!settingsPanel) return
           const hidden = settingsPanel.hasAttribute('hidden')
-          if (hidden) settingsPanel.removeAttribute('hidden')
-          else settingsPanel.setAttribute('hidden', '')
+          if (hidden) {
+            settingsPanel.removeAttribute('hidden')
+            settingsToggle.setAttribute('aria-expanded', 'true')
+            settingsToggle.textContent = '口座設定を閉じる'
+            settingsToggle.classList.add('is-active')
+            settingsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          } else {
+            settingsPanel.setAttribute('hidden', '')
+            settingsToggle.setAttribute('aria-expanded', 'false')
+            settingsToggle.textContent = '口座設定'
+            settingsToggle.classList.remove('is-active')
+          }
         })
 
         function closeModal() {
@@ -1207,6 +1302,7 @@
         const accountKindSelect = document.getElementById('finance-account-kind')
         const accountLinkedBankWrap = document.getElementById('finance-account-linked-bank-wrap')
         const accountLinkedBankSelect = document.getElementById('finance-account-linked-bank')
+        const accountShowInOverviewInput = document.getElementById('finance-account-show-in-overview')
         const openAccountBtn = document.getElementById('finance-open-add-account')
         const bankOptions = accountLinkedBankSelect ? Array.from(accountLinkedBankSelect.options) : []
 
@@ -1228,11 +1324,19 @@
           })
         }
 
-        function openAddAccountModal() {
-          accountModalTitle.textContent = '口座を追加'
+        function syncAccountInitialBalanceLabel() {
+          const label = document.getElementById('finance-account-initial-balance-label')
+          const isCreditCard = accountKindSelect?.value === 'credit_card'
+          if (label) label.textContent = isCreditCard ? '利用額（開始）' : '開始残高'
+        }
+
+        function openAddAccountModal(options = {}) {
+          const showInOverview = Boolean(options.showInOverview)
+          accountModalTitle.textContent = showInOverview ? '残高カード用の口座を登録' : '口座を追加'
           accountSubmitBtn.textContent = '登録'
           accountIdInput.value = ''
           accountForm.action = '/finance/accounts'
+          if (accountShowInOverviewInput) accountShowInOverviewInput.value = showInOverview ? '1' : '0'
           accountForm.querySelector('#finance-account-name').value = ''
           accountForm.querySelector('#finance-account-initial-balance').value = '0'
           accountForm.querySelector('#finance-account-adjustment').value = '0'
@@ -1245,10 +1349,11 @@
               accountRegionSelect.value = 'jp'
             @endif
           }
-          accountKindSelect.value = 'bank'
+          accountKindSelect.value = options.kind || 'bank'
           if (accountLinkedBankSelect) accountLinkedBankSelect.value = ''
           filterLinkedBankOptions(accountRegionSelect?.value || 'jp')
           syncAccountLinkedBankVisibility()
+          syncAccountInitialBalanceLabel()
           accountModal?.removeAttribute('hidden')
         }
 
@@ -1256,6 +1361,7 @@
           accountModalTitle.textContent = '口座を編集'
           accountSubmitBtn.textContent = '更新'
           accountIdInput.value = String(data.id)
+          if (accountShowInOverviewInput) accountShowInOverviewInput.value = '0'
           accountForm.action = `/finance/accounts/${data.id}/update`
           accountForm.querySelector('#finance-account-name').value = data.name || ''
           accountForm.querySelector('#finance-account-initial-balance').value = data.initialBalance ?? 0
@@ -1271,11 +1377,15 @@
             accountLinkedBankSelect.value = data.linkedBankId ? String(data.linkedBankId) : ''
           }
           syncAccountLinkedBankVisibility()
+          syncAccountInitialBalanceLabel()
           accountModal?.removeAttribute('hidden')
         }
 
-        openAccountBtn?.addEventListener('click', openAddAccountModal)
-        accountKindSelect?.addEventListener('change', syncAccountLinkedBankVisibility)
+        openAccountBtn?.addEventListener('click', () => openAddAccountModal())
+        accountKindSelect?.addEventListener('change', () => {
+          syncAccountLinkedBankVisibility()
+          syncAccountInitialBalanceLabel()
+        })
         accountRegionSelect?.addEventListener('change', () => {
           filterLinkedBankOptions(accountRegionSelect.value)
           if (accountLinkedBankSelect) accountLinkedBankSelect.value = ''
@@ -1297,6 +1407,44 @@
             event.stopPropagation()
             const host = btn.closest('[data-account]')
             if (host) openAccountEditorFromElement(host)
+          })
+        })
+
+        const overviewAddModal = document.getElementById('finance-overview-add-modal')
+        const overviewPinForm = document.getElementById('finance-overview-pin-form')
+        const overviewPinAccount = document.getElementById('finance-overview-pin-account')
+
+        function closeOverviewAddModal() {
+          overviewAddModal?.setAttribute('hidden', '')
+        }
+
+        document.getElementById('finance-open-overview-add')?.addEventListener('click', () => {
+          overviewAddModal?.removeAttribute('hidden')
+        })
+        document.querySelectorAll('[data-close-finance-overview-add-modal]').forEach((el) => {
+          el.addEventListener('click', closeOverviewAddModal)
+        })
+        document.getElementById('finance-overview-open-new-account')?.addEventListener('click', () => {
+          closeOverviewAddModal()
+          openAddAccountModal({ showInOverview: true })
+        })
+        overviewPinForm?.addEventListener('submit', (event) => {
+          const accountId = overviewPinAccount?.value
+          if (!accountId) return
+          overviewPinForm.action = `/finance/accounts/${accountId}/overview`
+        })
+        document.querySelectorAll('.finance-balance-overview-account').forEach((card) => {
+          card.addEventListener('click', (event) => {
+            if (event.target.closest('.finance-balance-overview-remove-form')) return
+            if (!card.dataset.account) return
+            openEditAccountModal(JSON.parse(card.dataset.account))
+          })
+          card.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            if (event.target.closest('.finance-balance-overview-remove-form')) return
+            event.preventDefault()
+            if (!card.dataset.account) return
+            openEditAccountModal(JSON.parse(card.dataset.account))
           })
         })
 

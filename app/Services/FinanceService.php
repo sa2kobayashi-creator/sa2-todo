@@ -97,6 +97,96 @@ class FinanceService
         }
     }
 
+    public function filterAccountsForTab(array $accounts, string $tab): array
+    {
+        if ($tab === 'all' || $tab === 'transfer') {
+            return array_values($accounts);
+        }
+
+        return array_values(array_filter($accounts, fn (array $account) => $account['region'] === $tab));
+    }
+
+    /** @param list<array<string, mixed>> $accounts @return list<array{region: ?string, regionLabel: ?string, kinds: array<string, list<array<string, mixed>>>}> */
+    public function buildAccountDisplayGroups(array $accounts, string $tab): array
+    {
+        if ($tab === 'all') {
+            $groups = [];
+            foreach (['jp', 'ph'] as $region) {
+                $regionAccounts = $this->filterAccountsForTab($accounts, $region);
+                $kinds = $this->groupAccountsByKind($regionAccounts);
+                if ($kinds === []) {
+                    continue;
+                }
+
+                $groups[] = [
+                    'region' => $region,
+                    'regionLabel' => self::REGION_LABELS[$region] ?? $region,
+                    'kinds' => $kinds,
+                ];
+            }
+
+            return $groups;
+        }
+
+        $kinds = $this->groupAccountsByKind($accounts);
+        if ($kinds === []) {
+            return [];
+        }
+
+        return [[
+            'region' => in_array($tab, ['jp', 'ph'], true) ? $tab : null,
+            'regionLabel' => self::REGION_LABELS[$tab] ?? null,
+            'kinds' => $kinds,
+        ]];
+    }
+
+    /** @param list<array<string, mixed>> $accounts @return array<string, list<array<string, mixed>>> */
+    public function groupAccountsByRegion(array $accounts): array
+    {
+        $groups = [];
+        foreach (['jp', 'ph'] as $region) {
+            $items = array_values(array_filter($accounts, fn (array $account) => $account['region'] === $region));
+            if ($items !== []) {
+                $groups[$region] = $items;
+            }
+        }
+
+        return $groups;
+    }
+
+    public function tabContextLabel(string $tab): string
+    {
+        return match ($tab) {
+            'jp' => '日本の口座・取引を表示中',
+            'ph' => 'フィリピンの口座・取引を表示中',
+            'transfer' => '送金取引を表示中',
+            'all' => '日本・フィリピンのすべてを表示中',
+            default => '',
+        };
+    }
+
+    /** @param list<array<string, mixed>> $accounts */
+    public function sanitizeAccountFilter(array $filters, array $accounts): array
+    {
+        if ($filters['accountId'] === null) {
+            return $filters;
+        }
+
+        $account = collect($accounts)->firstWhere('id', $filters['accountId']);
+        if (! $account) {
+            $filters['accountId'] = null;
+
+            return $filters;
+        }
+
+        $tab = $filters['tab'];
+        if ($tab !== 'all' && $tab !== 'transfer' && $account['region'] !== $tab) {
+            $filters['accountId'] = null;
+        }
+
+        return $filters;
+    }
+
     /** @return array{tab: string, year: int, month: int, accountId: ?int} */
     public function parseFilters(array $query): array
     {
@@ -363,6 +453,7 @@ class FinanceService
             'adjustmentAmount' => (float) ($account->adjustment_amount ?? 0),
             'balance' => $balance,
             'balanceLabel' => $account->kind === 'credit_card' ? '利用額' : '残高',
+            'showInOverview' => (bool) ($account->show_in_overview ?? false),
         ];
     }
 
@@ -695,6 +786,9 @@ class FinanceService
                 return $accountRow;
             });
 
+        $allAccountRows = $accountsWithBalance->values()->all();
+        $filters = $this->sanitizeAccountFilter($filters, $allAccountRows);
+
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
@@ -718,37 +812,44 @@ class FinanceService
             $allSchedules,
             $filters,
             $allTransactions,
-            $accountsWithBalance->values()->all(),
+            $allAccountRows,
             $monthStart,
             $monthEnd,
         );
 
-        $groupedAccounts = $this->groupAccountsByKind(
-            $accountsWithBalance->filter(function (array $account) use ($filters) {
-                if ($filters['tab'] === 'transfer' || $filters['tab'] === 'all') {
-                    return true;
-                }
+        $visibleAccounts = $this->filterAccountsForTab($allAccountRows, $filters['tab']);
 
-                return $account['region'] === $filters['tab'];
-            })->values()->all()
-        );
+        $groupedAccounts = $this->groupAccountsByKind($visibleAccounts);
+        $accountDisplayGroups = $this->buildAccountDisplayGroups($visibleAccounts, $filters['tab']);
 
-        $visibleAccounts = $accountsWithBalance->filter(function (array $account) use ($filters) {
-            if ($filters['tab'] === 'transfer' || $filters['tab'] === 'all') {
-                return true;
-            }
+        $overviewAccounts = array_values(array_filter(
+            $visibleAccounts,
+            fn (array $account) => ! empty($account['showInOverview'])
+        ));
+        usort($overviewAccounts, fn (array $a, array $b) => ($a['sortOrder'] ?? 0) <=> ($b['sortOrder'] ?? 0));
+        $overviewAccountsByRegion = $this->groupAccountsByRegion($overviewAccounts);
 
-            return $account['region'] === $filters['tab'];
-        })->values()->all();
+        $unpinnedAccounts = array_values(array_filter(
+            $visibleAccounts,
+            fn (array $account) => empty($account['showInOverview'])
+        ));
+        usort($unpinnedAccounts, fn (array $a, array $b) => ($a['sortOrder'] ?? 0) <=> ($b['sortOrder'] ?? 0));
 
         return [
-            'accounts' => $accountsWithBalance->values()->all(),
+            'accounts' => $visibleAccounts,
+            'allAccounts' => $allAccountRows,
             'groupedAccounts' => $groupedAccounts,
+            'accountDisplayGroups' => $accountDisplayGroups,
+            'overviewAccounts' => $overviewAccounts,
+            'overviewAccountsByRegion' => $overviewAccountsByRegion,
+            'unpinnedAccounts' => $unpinnedAccounts,
             'balanceTotals' => $this->buildBalanceTotals($visibleAccounts),
             'summary' => $summary,
             'transactions' => $displayTransactionRows,
+            'filters' => $filters,
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
+            'tabContextLabel' => $this->tabContextLabel($filters['tab']),
         ];
     }
 
@@ -1349,7 +1450,20 @@ class FinanceService
             'initial_balance' => round((float) ($payload['initialBalance'] ?? 0), 2),
             'adjustment_amount' => round((float) ($payload['adjustmentAmount'] ?? 0), 2),
             'is_active' => true,
+            'show_in_overview' => (bool) ($payload['showInOverview'] ?? false),
         ]);
+    }
+
+    public function setAccountOverviewVisibility(int $id, bool $show): bool
+    {
+        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        if (! $account) {
+            return false;
+        }
+
+        $account->show_in_overview = $show;
+
+        return $account->save();
     }
 
     /** @param array<string, mixed> $payload */

@@ -19,6 +19,7 @@ class FinanceAccount extends Model
         'initial_balance',
         'adjustment_amount',
         'is_active',
+        'show_in_overview',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class FinanceAccount extends Model
             'initial_balance' => 'decimal:2',
             'adjustment_amount' => 'decimal:2',
             'is_active' => 'boolean',
+            'show_in_overview' => 'boolean',
             'sort_order' => 'integer',
         ];
     }

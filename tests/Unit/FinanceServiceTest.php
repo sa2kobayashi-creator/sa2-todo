@@ -84,6 +84,66 @@ class FinanceServiceTest extends TestCase
         $this->assertTrue($account->is_active);
     }
 
+    public function test_create_account_can_show_in_overview(): void
+    {
+        $account = $this->service->createAccount([
+            'name' => '楽天銀行',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'initialBalance' => 12000,
+            'showInOverview' => true,
+        ]);
+
+        $this->assertTrue($account->show_in_overview);
+    }
+
+    public function test_set_account_overview_visibility(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'jp_bank_overview',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '表示テスト銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+            'show_in_overview' => false,
+        ]);
+
+        $this->assertTrue($this->service->setAccountOverviewVisibility($account->id, true));
+        $this->assertTrue($account->fresh()->show_in_overview);
+    }
+
+    public function test_filter_accounts_for_tab_limits_by_region(): void
+    {
+        $accounts = [
+            ['id' => 1, 'region' => 'jp', 'kind' => 'bank', 'name' => 'JP Bank'],
+            ['id' => 2, 'region' => 'ph', 'kind' => 'bank', 'name' => 'PH Bank'],
+        ];
+
+        $this->assertCount(1, $this->service->filterAccountsForTab($accounts, 'jp'));
+        $this->assertSame('JP Bank', $this->service->filterAccountsForTab($accounts, 'jp')[0]['name']);
+        $this->assertCount(2, $this->service->filterAccountsForTab($accounts, 'all'));
+    }
+
+    public function test_sanitize_account_filter_clears_foreign_region_account(): void
+    {
+        $accounts = [
+            ['id' => 10, 'region' => 'ph', 'kind' => 'bank', 'name' => 'BPI'],
+        ];
+
+        $filters = [
+            'tab' => 'jp',
+            'year' => 2026,
+            'month' => 7,
+            'accountId' => 10,
+        ];
+
+        $sanitized = $this->service->sanitizeAccountFilter($filters, $accounts);
+
+        $this->assertNull($sanitized['accountId']);
+    }
+
     public function test_create_credit_card_with_linked_bank(): void
     {
         $bank = FinanceAccount::create([
