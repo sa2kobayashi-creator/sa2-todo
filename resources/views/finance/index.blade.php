@@ -554,8 +554,44 @@
       @endif
 
       <section class="finance-transactions panel" id="finance-transactions">
-        <h2 class="finance-section-title">取引一覧</h2>
-        <p class="hint finance-transactions-hint">上部フォームで登録した取引が表示されます。「編集」「削除」で修正できます。</p>
+        <div class="finance-transactions-header">
+          <div>
+            <h2 class="finance-section-title">取引一覧</h2>
+            <p class="hint finance-transactions-hint">すべての取引を表示するか、口座を選んで残高推移を確認できます。</p>
+          </div>
+          <form class="finance-transaction-filter-form" method="get" action="/finance">
+            <input type="hidden" name="tab" value="{{ $filters['tab'] }}" />
+            <input type="hidden" name="period" value="{{ $periodValue }}" />
+            <label class="finance-transaction-filter-label">
+              表示対象
+              <select name="account" class="finance-transaction-filter-select" onchange="this.form.submit()">
+                <option value="">すべての取引</option>
+                @foreach($allAccounts as $account)
+                  <option value="{{ $account['id'] }}" @selected($filters['accountId'] === $account['id'])>
+                    [{{ $account['regionLabel'] }}] {{ $account['name'] }}（{{ $account['kindLabel'] }}）
+                  </option>
+                @endforeach
+              </select>
+            </label>
+          </form>
+        </div>
+
+        @if(!empty($transactionBalanceContext))
+          <div class="finance-transaction-balance-summary">
+            <span class="finance-transaction-balance-account">
+              {{ $transactionBalanceContext['kindLabel'] }}: {{ $transactionBalanceContext['accountName'] }}
+            </span>
+            <span class="finance-transaction-balance-item">
+              {{ $monthLabel }} 月初残高:
+              <strong>{{ $formatMoney($transactionBalanceContext['openingBalance'], $transactionBalanceContext['currency']) }}</strong>
+            </span>
+            <span class="finance-transaction-balance-item">
+              現在残高:
+              <strong>{{ $formatMoney($transactionBalanceContext['currentBalance'], $transactionBalanceContext['currency']) }}</strong>
+            </span>
+          </div>
+        @endif
+
         @if(count($transactions) === 0)
           <p class="hint">この条件の取引はありません。「＋ 取引を追加」から登録できます。</p>
         @else
@@ -568,6 +604,7 @@
                   <th scope="col">口座</th>
                   <th scope="col">メモ</th>
                   <th scope="col" class="is-num">金額</th>
+                  <th scope="col" class="is-num">残高</th>
                   <th scope="col" class="is-actions">操作</th>
                 </tr>
               </thead>
@@ -611,6 +648,15 @@
                           {{ $transaction['type'] === 'expense' ? '−' : '+' }}{{ $formatMoney($transaction['amount'], $transaction['currency']) }}
                         @endif
                       </span>
+                    </td>
+                    <td class="finance-transaction-balance-cell is-num">
+                      @if(isset($transaction['balanceAfter']) && $transaction['balanceAfter'] !== null)
+                        <span class="finance-transaction-balance" title="取引後残高">
+                          {{ $formatMoney($transaction['balanceAfter'], $transaction['balanceCurrency'] ?? $transaction['currency']) }}
+                        </span>
+                      @else
+                        <span class="finance-transaction-balance is-empty">—</span>
+                      @endif
                     </td>
                     <td class="finance-transaction-actions-cell">
                       <div class="finance-transaction-actions" onclick="event.stopPropagation()">

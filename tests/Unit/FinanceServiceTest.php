@@ -947,4 +947,120 @@ class FinanceServiceTest extends TestCase
         $this->assertSame($paymentDate, $row['displayDate']);
         $this->assertSame($purchaseDate, $row['purchaseDate']);
     }
+
+    public function test_build_balance_after_map_tracks_running_balance_for_bank_account(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'balance_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '残高銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 10000,
+            'adjustment_amount' => 0,
+            'is_active' => true,
+        ]);
+
+        $today = $this->service->todayIso();
+        $income = FinanceTransaction::create([
+            'transaction_date' => date('Y-m-d', strtotime($today.' -7 days')),
+            'type' => 'income',
+            'account_id' => $account->id,
+            'amount' => 3000,
+            'currency' => 'JPY',
+        ]);
+        $expense = FinanceTransaction::create([
+            'transaction_date' => date('Y-m-d', strtotime($today.' -3 days')),
+            'type' => 'expense',
+            'account_id' => $account->id,
+            'amount' => 1500,
+            'currency' => 'JPY',
+        ]);
+
+        $transactions = $this->service->filterEffectiveTransactions(FinanceTransaction::query()->get());
+        $map = $this->service->buildBalanceAfterMapForAccount($account, $transactions, $account->id);
+
+        $this->assertSame(13000.0, $map[$income->id]);
+        $this->assertSame(11500.0, $map[$expense->id]);
+    }
+
+    public function test_attach_balances_to_display_rows_adds_balance_after_per_transaction(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'attach_balance_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '付与銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 5000,
+            'adjustment_amount' => 0,
+            'is_active' => true,
+        ]);
+
+        $transaction = FinanceTransaction::create([
+            'transaction_date' => '2026-07-02',
+            'type' => 'income',
+            'account_id' => $account->id,
+            'amount' => 2000,
+            'currency' => 'JPY',
+        ]);
+
+        $rows = [[
+            'id' => $transaction->id,
+            'transactionDate' => '2026-07-02',
+            'accountId' => $account->id,
+            'currency' => 'JPY',
+            'type' => 'income',
+        ]];
+
+        $result = $this->service->attachBalancesToDisplayRows(
+            $rows,
+            FinanceTransaction::query()->get(),
+            $account->id
+        );
+
+        $this->assertSame(7000.0, $result[0]['balanceAfter']);
+        $this->assertSame('JPY', $result[0]['balanceCurrency']);
+    }
+
+    public function test_calculate_account_balance_up_to_date_returns_month_opening_balance(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'opening_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '月初銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 1000,
+            'adjustment_amount' => 0,
+            'is_active' => true,
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => '2026-06-28',
+            'type' => 'income',
+            'account_id' => $account->id,
+            'amount' => 500,
+            'currency' => 'JPY',
+        ]);
+        FinanceTransaction::create([
+            'transaction_date' => '2026-07-03',
+            'type' => 'expense',
+            'account_id' => $account->id,
+            'amount' => 200,
+            'currency' => 'JPY',
+        ]);
+
+        $opening = $this->service->calculateAccountBalanceUpToDate(
+            $account,
+            FinanceTransaction::query()->get(),
+            $account->id,
+            '2026-07-01'
+        );
+
+        $this->assertSame(1500.0, $opening);
+    }
 }

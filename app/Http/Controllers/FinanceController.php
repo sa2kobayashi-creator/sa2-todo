@@ -35,6 +35,8 @@ class FinanceController extends Controller
             'balanceTotals' => $pageData['balanceTotals'],
             'summary' => $pageData['summary'],
             'transactions' => $pageData['transactions'],
+            'transactionBalanceContext' => $pageData['transactionBalanceContext'],
+            'allAccounts' => $pageData['allAccounts'],
             'overviewAccounts' => $pageData['overviewAccounts'],
             'overviewAccountsByRegion' => $pageData['overviewAccountsByRegion'],
             'unpinnedAccounts' => $pageData['unpinnedAccounts'],

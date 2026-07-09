@@ -817,6 +817,13 @@ class FinanceService
             $monthEnd,
         );
 
+        $transactionBalanceContext = $this->buildTransactionBalanceContext(
+            $allAccountRows,
+            $allTransactions,
+            $filters['accountId'] ?? null,
+            $monthStart,
+        );
+
         $visibleAccounts = $this->filterAccountsForTab($allAccountRows, $filters['tab']);
 
         $groupedAccounts = $this->groupAccountsByKind($visibleAccounts);
@@ -846,6 +853,7 @@ class FinanceService
             'balanceTotals' => $this->buildBalanceTotals($visibleAccounts),
             'summary' => $summary,
             'transactions' => $displayTransactionRows,
+            'transactionBalanceContext' => $transactionBalanceContext,
             'filters' => $filters,
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
@@ -1158,7 +1166,205 @@ class FinanceService
             return ($b['id'] ?? $b['scheduleId'] ?? 0) <=> ($a['id'] ?? $a['scheduleId'] ?? 0);
         });
 
+        return $this->attachBalancesToDisplayRows($rows, $allTransactions, $accountId);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    public function attachBalancesToDisplayRows(array $rows, Collection $allTransactions, ?int $filterAccountId): array
+    {
+        if ($rows === []) {
+            return $rows;
+        }
+
+        $effective = $this->filterEffectiveTransactions($allTransactions);
+        $accounts = FinanceAccount::query()->where('is_active', true)->get()->keyBy('id');
+        /** @var array<int, array<int, float>> $maps */
+        $maps = [];
+        $today = $this->todayIso();
+
+        foreach ($rows as &$row) {
+            $row['balanceAfter'] = null;
+            $row['balanceCurrency'] = null;
+
+            if (! empty($row['isScheduleOnly']) || empty($row['id'])) {
+                continue;
+            }
+
+            $transactionDate = (string) ($row['transactionDate'] ?? '');
+            if ($transactionDate > $today) {
+                continue;
+            }
+
+            $balanceAccountId = $filterAccountId ?? (int) ($row['accountId'] ?? 0);
+            if ($balanceAccountId <= 0 || ! $accounts->has($balanceAccountId)) {
+                continue;
+            }
+
+            if (! isset($maps[$balanceAccountId])) {
+                $maps[$balanceAccountId] = $this->buildBalanceAfterMapForAccount(
+                    $accounts->get($balanceAccountId),
+                    $effective,
+                    $balanceAccountId
+                );
+            }
+
+            $transactionId = (int) $row['id'];
+            if (isset($maps[$balanceAccountId][$transactionId])) {
+                $account = $accounts->get($balanceAccountId);
+                $row['balanceAfter'] = $maps[$balanceAccountId][$transactionId];
+                $row['balanceCurrency'] = $account->currency;
+            }
+        }
+        unset($row);
+
         return $rows;
+    }
+
+    /** @return array<int, float> */
+    public function buildBalanceAfterMapForAccount(FinanceAccount $account, Collection $transactions, int $accountId): array
+    {
+        $sorted = $transactions
+            ->filter(fn (FinanceTransaction $transaction) => $this->transactionAffectsAccount($transaction, $accountId))
+            ->sortBy(fn (FinanceTransaction $transaction) => sprintf(
+                '%s-%010d',
+                $transaction->transaction_date->format('Y-m-d'),
+                $transaction->id
+            ))
+            ->values();
+
+        $balance = $this->accountConfiguredStartingBalance($account);
+        $map = [];
+
+        foreach ($sorted as $transaction) {
+            $balance = round(
+                $this->applyTransactionEffectForAccount($account, $balance, $transaction, $accountId),
+                2
+            );
+            $map[(int) $transaction->id] = $balance;
+        }
+
+        return $map;
+    }
+
+    public function calculateAccountBalanceUpToDate(
+        FinanceAccount $account,
+        Collection $allTransactions,
+        int $accountId,
+        string $exclusiveEndDate,
+    ): float {
+        $effective = $this->filterEffectiveTransactions($allTransactions);
+        $sorted = $effective
+            ->filter(function (FinanceTransaction $transaction) use ($accountId, $exclusiveEndDate) {
+                return $this->transactionAffectsAccount($transaction, $accountId)
+                    && $transaction->transaction_date->format('Y-m-d') < $exclusiveEndDate;
+            })
+            ->sortBy(fn (FinanceTransaction $transaction) => sprintf(
+                '%s-%010d',
+                $transaction->transaction_date->format('Y-m-d'),
+                $transaction->id
+            ))
+            ->values();
+
+        $balance = $this->accountConfiguredStartingBalance($account);
+        foreach ($sorted as $transaction) {
+            $balance = round(
+                $this->applyTransactionEffectForAccount($account, $balance, $transaction, $accountId),
+                2
+            );
+        }
+
+        return $balance;
+    }
+
+    /** @param list<array<string, mixed>> $accounts */
+    /** @return ?array{accountId: int, accountName: string, kindLabel: string, currency: string, openingBalance: float, currentBalance: float} */
+    public function buildTransactionBalanceContext(
+        array $accounts,
+        Collection $allTransactions,
+        ?int $accountId,
+        string $monthStart,
+    ): ?array {
+        if ($accountId === null) {
+            return null;
+        }
+
+        $accountRow = collect($accounts)->firstWhere('id', $accountId);
+        if ($accountRow === null) {
+            return null;
+        }
+
+        $account = FinanceAccount::query()->find($accountId);
+        if ($account === null) {
+            return null;
+        }
+
+        return [
+            'accountId' => $accountId,
+            'accountName' => (string) $accountRow['name'],
+            'kindLabel' => (string) ($accountRow['kindLabel'] ?? ''),
+            'currency' => (string) $accountRow['currency'],
+            'openingBalance' => $this->calculateAccountBalanceUpToDate($account, $allTransactions, $accountId, $monthStart),
+            'currentBalance' => (float) $accountRow['balance'],
+        ];
+    }
+
+    private function accountConfiguredStartingBalance(FinanceAccount $account): float
+    {
+        if ($account->kind === 'credit_card') {
+            return $this->creditCardConfiguredBalance($account);
+        }
+
+        return round((float) $account->initial_balance + (float) ($account->adjustment_amount ?? 0), 2);
+    }
+
+    private function transactionAffectsAccount(FinanceTransaction $transaction, int $accountId): bool
+    {
+        return (int) $transaction->account_id === $accountId
+            || ($transaction->type === 'transfer' && (int) $transaction->to_account_id === $accountId);
+    }
+
+    private function applyTransactionEffectForAccount(
+        FinanceAccount $account,
+        float $balance,
+        FinanceTransaction $transaction,
+        int $accountId,
+    ): float {
+        if ($account->kind === 'credit_card') {
+            if ((int) $transaction->account_id === $accountId) {
+                if ($transaction->type === 'expense') {
+                    $balance += (float) $transaction->amount;
+                } elseif ($transaction->type === 'income') {
+                    $balance -= (float) $transaction->amount;
+                } elseif ($transaction->type === 'transfer') {
+                    $balance -= (float) $transaction->amount;
+                }
+            }
+
+            if ($transaction->type === 'transfer' && (int) $transaction->to_account_id === $accountId) {
+                $balance -= (float) ($transaction->to_amount ?? $transaction->amount);
+            }
+
+            return max(0, $balance);
+        }
+
+        if ((int) $transaction->account_id === $accountId) {
+            if ($transaction->type === 'income') {
+                $balance += (float) $transaction->amount;
+            } elseif ($transaction->type === 'expense') {
+                $balance -= (float) $transaction->amount;
+            } elseif ($transaction->type === 'transfer') {
+                $balance -= (float) $transaction->amount;
+            }
+        }
+
+        if ($transaction->type === 'transfer' && (int) $transaction->to_account_id === $accountId) {
+            $balance += (float) ($transaction->to_amount ?? $transaction->amount);
+        }
+
+        return $balance;
     }
 
     /** @param Collection<int, FinanceAccountSchedule> $schedules */
