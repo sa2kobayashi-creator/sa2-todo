@@ -3249,6 +3249,63 @@ body.finance-page {
   margin-bottom: 12px;
 }
 
+.finance-csv-panel {
+  position: relative;
+}
+
+.finance-csv-panel > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.finance-csv-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.finance-csv-panel-body {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 280px;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.finance-csv-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.finance-csv-import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finance-csv-file-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.finance-csv-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #5f6368;
+}
+
 .finance-quick-actions {
   display: flex;
   flex-wrap: wrap;

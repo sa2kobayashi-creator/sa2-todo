@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\FinanceCsvService;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinanceController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
-    public function __construct(private FinanceService $finance) {}
+    public function __construct(
+        private FinanceService $finance,
+        private FinanceCsvService $financeCsv,
+    ) {}
 
     public function index(Request $request)
     {
@@ -35,6 +40,7 @@ class FinanceController extends Controller
             )),
             'defaultDate' => $this->finance->todayIso(),
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
+            'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
             'formatMoney' => fn (float $amount, string $currency) => $this->finance->formatMoney($amount, $currency),
             ...$this->flashFromQuery($request),
@@ -60,6 +66,7 @@ class FinanceController extends Controller
             'balanceTotals' => $reportData['balanceTotals'],
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
+            'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
             'formatMoney' => fn (float $amount, string $currency) => $this->finance->formatMoney($amount, $currency),
         ]);
     }
@@ -286,5 +293,60 @@ class FinanceController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $filters = $this->finance->parseFilters($request->query());
+        $format = $request->query('format', FinanceCsvService::FORMAT_TRANSACTIONS);
+        if (! in_array($format, [FinanceCsvService::FORMAT_TRANSACTIONS, FinanceCsvService::FORMAT_BUDGET_MONITOR], true)) {
+            abort(400, '不正なエクスポート形式です');
+        }
+
+        $csv = $this->financeCsv->export($filters, $format);
+        $filename = $format === FinanceCsvService::FORMAT_BUDGET_MONITOR
+            ? sprintf('budget-monitor_%04d-%02d.csv', $filters['year'], $filters['month'])
+            : sprintf('finance-transactions_%04d-%02d.csv', $filters['year'], $filters['month']);
+
+        return response()->streamDownload(
+            static function () use ($csv) {
+                echo $csv;
+            },
+            $filename,
+            ['Content-Type' => 'text/csv; charset=UTF-8']
+        );
+    }
+
+    public function importCsv(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+        $request->validate([
+            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:4096'],
+        ]);
+
+        $content = (string) file_get_contents($request->file('csv_file')->getRealPath());
+        if ($content === '') {
+            return $this->redirectWithMessage($returnTo, 'CSVファイルが空です', 'error');
+        }
+
+        try {
+            $result = $this->financeCsv->import($content, [
+                'replace' => $request->boolean('replace'),
+                'includeCardDeltas' => $request->boolean('include_card_deltas', true),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        } catch (\Throwable) {
+            return $this->redirectWithMessage($returnTo, 'CSVのインポートに失敗しました', 'error');
+        }
+
+        $message = sprintf(
+            'CSVをインポートしました（%d件追加、%d件スキップ%s）。',
+            $result['created'],
+            $result['skipped'],
+            $result['deleted'] > 0 ? '、既存'.$result['deleted'].'件を削除' : ''
+        );
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 }

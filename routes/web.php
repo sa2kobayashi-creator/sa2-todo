@@ -57,6 +57,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/finance', [FinanceController::class, 'index']);
     Route::get('/finance/report', [FinanceController::class, 'report']);
+    Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
+    Route::post('/finance/import', [FinanceController::class, 'importCsv']);
     Route::post('/finance', [FinanceController::class, 'store']);
     Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
     Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');

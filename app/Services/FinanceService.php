@@ -171,6 +171,21 @@ class FinanceService
         return '/finance?'.http_build_query($params);
     }
 
+    /** @param array{tab?: string, year?: int, month?: int, accountId?: ?int} $filters */
+    public function buildFinanceExportQuery(array $filters, string $format): string
+    {
+        $params = array_filter([
+            'tab' => $filters['tab'] ?? null,
+            'period' => isset($filters['year'], $filters['month'])
+                ? sprintf('%04d-%02d', $filters['year'], $filters['month'])
+                : null,
+            'account' => ! empty($filters['accountId']) ? $filters['accountId'] : null,
+            'format' => $format,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        return '/finance/export?'.http_build_query($params);
+    }
+
     /** @param array{tab?: string, year?: int, month?: int} $filters */
     public function buildFinanceReportQuery(array $filters): string
     {

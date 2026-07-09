@@ -38,6 +38,39 @@
         </form>
 
         <a href="{{ $buildFinanceReportQuery($filters) }}" class="button-link secondary finance-report-link">レポート</a>
+        <details class="finance-csv-panel">
+          <summary>CSV</summary>
+          <div class="finance-csv-panel-body">
+            <div class="finance-csv-actions">
+              <a
+                href="{{ $buildFinanceExportQuery($filters, 'transactions') }}"
+                class="button-link secondary"
+              >取引をエクスポート</a>
+              <a
+                href="{{ $buildFinanceExportQuery($filters, 'budget_monitor') }}"
+                class="button-link secondary"
+              >予算監視形式でエクスポート</a>
+            </div>
+            <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form">
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <label class="finance-csv-file-label">
+                CSVファイル
+                <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" name="replace" value="1" />
+                以前の予算CSVインポート分を置き換え
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" name="include_card_deltas" value="1" checked />
+                クレカ残高の増加も支出として展開
+              </label>
+              <button type="submit" class="button-link">インポート</button>
+            </form>
+            <p class="hint finance-csv-hint">「予算監視」形式（Date, IN, OUT, PH Bank In, PH Bank Out, Comment）に対応しています。</p>
+          </div>
+        </details>
       </div>
 
       <section class="finance-quick-entry panel" id="finance-quick-entry">
