@@ -291,9 +291,229 @@ class FinanceServiceTest extends TestCase
 
         $totals = $this->service->buildBalanceTotals($accounts);
 
-        $this->assertSame(7000.0, $totals['totals']['JPY']);
+        $this->assertSame(10000.0, $totals['totals']['JPY']);
         $this->assertSame(10000.0, $totals['assets']['JPY']);
-        $this->assertSame(-3000.0, $totals['creditCards']['JPY']);
+        $this->assertSame(3000.0, $totals['creditCards']['JPY']);
+    }
+
+    public function test_credit_card_balance_tracks_usage_not_assets(): void
+    {
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_usage',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '利用額カード',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => '2026-07-05',
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 8000,
+            'currency' => 'JPY',
+        ]);
+
+        $this->assertSame(8000.0, $this->service->calculateAccountBalance($card->fresh()));
+    }
+
+    public function test_due_payment_schedule_materializes_on_linked_bank_at_payment_date(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_due',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '引落銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 20000,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_due',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '引落カード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => '2026-07-01',
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 5000,
+            'currency' => 'JPY',
+        ]);
+
+        $this->service->createSchedule($card->id, [
+            'scheduledDate' => '2026-07-01',
+            'amount' => 5000,
+        ]);
+
+        $this->service->materializeDueSchedules();
+
+        $this->assertSame(15000.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $this->assertSame(0.0, $this->service->calculateAccountBalance($card->fresh()));
+        $this->assertSame(1, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+    }
+
+    public function test_future_payment_schedule_does_not_affect_bank_balance_yet(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_future',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '未来引落銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 20000,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_future',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '未来引落カード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        $this->service->createSchedule($card->id, [
+            'scheduledDate' => '2099-12-31',
+            'amount' => 5000,
+        ]);
+
+        $this->service->materializeDueSchedules();
+
+        $this->assertSame(20000.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $this->assertSame(0, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+    }
+
+    public function test_delete_schedule_removes_materialized_transaction(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_del_sched',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '削除テスト銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 20000,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_del_sched',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '削除テストカード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        $schedule = $this->service->createSchedule($card->id, [
+            'scheduledDate' => '2026-07-01',
+            'amount' => 4000,
+        ]);
+
+        $this->service->materializeDueSchedules();
+        $this->assertSame(1, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+
+        $this->assertTrue($this->service->deleteSchedule($schedule->id));
+
+        $this->assertSame(0, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+        $this->assertSame(20000.0, $this->service->calculateAccountBalance($bank->fresh()));
+    }
+
+    public function test_delete_materialized_transaction_also_deletes_schedule(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_del_txn',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '取引削除銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 20000,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_del_txn',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '取引削除カード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        $schedule = $this->service->createSchedule($card->id, [
+            'scheduledDate' => '2026-07-01',
+            'amount' => 4000,
+        ]);
+
+        $this->service->materializeDueSchedules();
+        $transaction = FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->first();
+        $this->assertNotNull($transaction);
+
+        $this->assertTrue($this->service->deleteTransaction($transaction->id));
+
+        $this->assertNull(FinanceAccountSchedule::query()->find($schedule->id));
+        $this->assertSame(20000.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $this->service->materializeDueSchedules();
+        $this->assertSame(0, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+    }
+
+    public function test_update_schedule_reapplies_materialized_transaction(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_upd_sched',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '更新テスト銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 20000,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_upd_sched',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '更新テストカード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        $schedule = $this->service->createSchedule($card->id, [
+            'scheduledDate' => '2026-07-01',
+            'amount' => 4000,
+        ]);
+
+        $this->service->materializeDueSchedules();
+        $this->assertSame(16000.0, $this->service->calculateAccountBalance($bank->fresh()));
+
+        $this->service->updateSchedule($schedule->id, [
+            'scheduledDate' => '2026-07-02',
+            'amount' => 3000,
+        ]);
+
+        $this->assertSame(17000.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $transaction = FinanceTransaction::query()->where('memo', 'like', '%[schedule:'.$schedule->id.']%')->first();
+        $this->assertNotNull($transaction);
+        $this->assertSame('2026-07-02', $transaction->transaction_date->format('Y-m-d'));
+        $this->assertSame(3000.0, (float) $transaction->amount);
     }
 
     public function test_upsert_next_schedule_updates_existing_entry(): void
@@ -321,6 +541,178 @@ class FinanceServiceTest extends TestCase
         $this->assertSame('2026-08-05', $updated->scheduled_date->format('Y-m-d'));
         $this->assertSame(12000.0, (float) $updated->amount);
         $this->assertSame(1, FinanceAccountSchedule::query()->where('account_id', $card->id)->count());
+    }
+
+    public function test_due_deposit_schedule_materializes_on_bank_at_deposit_date(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'ph_bank_deposit',
+            'region' => 'ph',
+            'kind' => 'bank',
+            'name' => '入金テスト銀行',
+            'currency' => 'PHP',
+            'sort_order' => 1,
+            'initial_balance' => 1000,
+            'is_active' => true,
+        ]);
+
+        $this->service->createSchedule($bank->id, [
+            'scheduledDate' => '2026-07-01',
+            'amount' => 182,
+        ]);
+
+        $this->service->materializeDueSchedules();
+
+        $this->assertSame(1182.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $this->assertSame(1, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+        $transaction = FinanceTransaction::query()->where('account_id', $bank->id)->where('type', 'income')->first();
+        $this->assertNotNull($transaction);
+        $this->assertSame(182.0, (float) $transaction->amount);
+    }
+
+    public function test_future_deposit_schedule_does_not_affect_bank_balance_yet(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'ph_bank_deposit_future',
+            'region' => 'ph',
+            'kind' => 'bank',
+            'name' => '未来入金銀行',
+            'currency' => 'PHP',
+            'sort_order' => 1,
+            'initial_balance' => 1000,
+            'is_active' => true,
+        ]);
+
+        $this->service->createSchedule($bank->id, [
+            'scheduledDate' => '2099-12-31',
+            'amount' => 182,
+        ]);
+
+        $this->service->materializeDueSchedules();
+
+        $this->assertSame(1000.0, $this->service->calculateAccountBalance($bank->fresh()));
+        $this->assertSame(0, FinanceTransaction::query()->where('memo', 'like', '%[schedule:%')->count());
+    }
+
+    public function test_build_credit_card_usage_breakdown_separates_configured_balance(): void
+    {
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_configured',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '設定残高カード',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 1.03,
+            'adjustment_amount' => 0,
+            'is_active' => true,
+        ]);
+
+        $breakdown = $this->service->buildCreditCardUsageBreakdown($card->fresh());
+
+        $this->assertNotNull($breakdown['configured']);
+        $this->assertSame(1.03, $breakdown['configured']['total']);
+        $this->assertSame([], $breakdown['items']);
+        $this->assertSame(1.03, $this->service->calculateAccountBalance($card->fresh()));
+    }
+
+    public function test_build_credit_card_outstanding_charges_uses_fifo_payments(): void
+    {
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_history',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '履歴カード',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => '2026-07-01',
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 3760,
+            'currency' => 'JPY',
+            'memo' => 'cursor支払い',
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => '2026-07-07',
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 2435,
+            'currency' => 'JPY',
+            'memo' => 'Ceb Pacific Ticket 支払い',
+        ]);
+
+        $history = $this->service->buildCreditCardOutstandingCharges($card->fresh());
+
+        $this->assertCount(2, $history);
+        $this->assertSame('Ceb Pacific Ticket 支払い', $history[0]['label']);
+        $this->assertSame('2026/7/7', $history[0]['displayDate']);
+        $this->assertSame(2435.0, $history[0]['amount']);
+        $this->assertSame('cursor支払い', $history[1]['label']);
+        $this->assertSame(6195.0, $this->service->calculateAccountBalance($card->fresh()));
+    }
+
+    public function test_build_credit_card_outstanding_charges_hides_paid_items(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'jp_bank_hist',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '履歴銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+        $card = FinanceAccount::create([
+            'slug' => 'jp_card_hist_paid',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => '履歴カード2',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => date('Y-m-d', strtotime($this->service->todayIso().' -8 days')),
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 3760,
+            'currency' => 'JPY',
+            'memo' => 'cursor支払い',
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => date('Y-m-d', strtotime($this->service->todayIso().' -2 days')),
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 2435,
+            'currency' => 'JPY',
+            'memo' => 'Ceb Pacific Ticket 支払い',
+        ]);
+
+        FinanceTransaction::create([
+            'transaction_date' => $this->service->todayIso(),
+            'type' => 'transfer',
+            'account_id' => $bank->id,
+            'to_account_id' => $card->id,
+            'amount' => 3760,
+            'to_amount' => 3760,
+            'currency' => 'JPY',
+            'to_currency' => 'JPY',
+            'memo' => 'カード引落',
+        ]);
+
+        $history = $this->service->buildCreditCardOutstandingCharges($card->fresh());
+
+        $this->assertCount(1, $history);
+        $this->assertSame('Ceb Pacific Ticket 支払い', $history[0]['label']);
+        $this->assertSame(2435.0, $this->service->calculateAccountBalance($card->fresh()));
     }
 
     public function test_build_report_data_filters_by_month_and_tab(): void
@@ -376,5 +768,123 @@ class FinanceServiceTest extends TestCase
         $this->assertStringContainsString('/finance/report?', $query);
         $this->assertStringContainsString('tab=ph', $query);
         $this->assertStringContainsString('period=2026-03', $query);
+    }
+
+    public function test_format_display_memo_strips_schedule_marker_and_system_prefix(): void
+    {
+        $this->assertSame('BPI 給与', $this->service->formatDisplayMemo('入金予定: BPI 給与 [schedule:12]'));
+        $this->assertSame('Rakuten Card Amazon', $this->service->formatDisplayMemo('カード引落: Rakuten Card Amazon [schedule:3]'));
+        $this->assertSame('スーパー', $this->service->formatDisplayMemo('スーパー'));
+        $this->assertSame('', $this->service->formatDisplayMemo(''));
+    }
+
+    public function test_future_transactions_do_not_affect_balance_until_due(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'future_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '未来銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'initial_balance' => 1000,
+            'is_active' => true,
+        ]);
+
+        $futureDate = date('Y-m-d', strtotime($this->service->todayIso().' +10 days'));
+
+        FinanceTransaction::create([
+            'transaction_date' => $futureDate,
+            'type' => 'income',
+            'account_id' => $account->id,
+            'amount' => 5000,
+            'currency' => 'JPY',
+            'memo' => '給与予定',
+        ]);
+
+        $this->assertSame(1000.0, $this->service->calculateAccountBalance($account->fresh()));
+    }
+
+    public function test_future_transaction_is_marked_scheduled_in_display_array(): void
+    {
+        $account = FinanceAccount::create([
+            'slug' => 'future_display_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '表示銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $futureDate = date('Y-m-d', strtotime($this->service->todayIso().' +5 days'));
+        $transaction = FinanceTransaction::create([
+            'transaction_date' => $futureDate,
+            'type' => 'expense',
+            'account_id' => $account->id,
+            'amount' => 1200,
+            'currency' => 'JPY',
+            'memo' => '来月支払',
+        ]);
+
+        $row = $this->service->transactionToArray($transaction->fresh(['account']));
+
+        $this->assertTrue($row['isScheduled']);
+        $this->assertSame('予定', $row['scheduledLabel']);
+        $this->assertSame($futureDate, $row['displayDate']);
+    }
+
+    public function test_credit_card_expense_uses_payment_schedule_date_for_display(): void
+    {
+        $bank = FinanceAccount::create([
+            'slug' => 'cc_bank',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => '引落銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $card = FinanceAccount::create([
+            'slug' => 'cc_card',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+            'name' => 'テストカード',
+            'currency' => 'JPY',
+            'sort_order' => 2,
+            'linked_bank_id' => $bank->id,
+            'is_active' => true,
+        ]);
+
+        $paymentDate = date('Y-m-d', strtotime($this->service->todayIso().' +12 days'));
+        FinanceAccountSchedule::create([
+            'account_id' => $card->id,
+            'schedule_type' => 'payment',
+            'scheduled_date' => $paymentDate,
+            'amount' => 3000,
+            'memo' => '引落',
+        ]);
+
+        $purchaseDate = $this->service->todayIso();
+        $transaction = FinanceTransaction::create([
+            'transaction_date' => $purchaseDate,
+            'type' => 'expense',
+            'account_id' => $card->id,
+            'amount' => 1500,
+            'currency' => 'JPY',
+            'memo' => 'Amazon',
+        ]);
+
+        $context = $this->service->buildTransactionDisplayContext(
+            [['id' => $card->id, 'kind' => 'credit_card']],
+            FinanceTransaction::query()->get()
+        );
+        $row = $this->service->transactionToArray($transaction->fresh(['account']), $context);
+
+        $this->assertTrue($row['isScheduled']);
+        $this->assertSame('予定支払', $row['scheduledLabel']);
+        $this->assertSame($paymentDate, $row['displayDate']);
+        $this->assertSame($purchaseDate, $row['purchaseDate']);
     }
 }

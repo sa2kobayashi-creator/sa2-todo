@@ -142,7 +142,7 @@
                             {{ $formatMoney($transaction['amount'], $transaction['currency']) }}
                           @endif
                         </td>
-                        <td>{{ $transaction['memo'] }}</td>
+                        <td>{{ $transaction['displayMemo'] ?? $transaction['memo'] }}</td>
                       </tr>
                     @endforeach
                   </tbody>
@@ -198,7 +198,12 @@
                   <tr>
                     <td>{{ $account['name'] }}</td>
                     <td>{{ $account['kindLabel'] }}</td>
-                    <td class="is-num">{{ $formatMoney($account['balance'], $account['currency']) }}</td>
+                    <td class="is-num">
+                      {{ $formatMoney($account['balance'], $account['currency']) }}
+                      @if(($account['balanceLabel'] ?? '残高') !== '残高')
+                        <span class="finance-report-balance-kind">（{{ $account['balanceLabel'] }}）</span>
+                      @endif
+                    </td>
                   </tr>
                 @endforeach
               </tbody>
@@ -206,7 +211,10 @@
           </div>
           <div class="finance-report-balance-totals">
             @foreach($balanceTotals['totals'] as $currency => $total)
-              <span>{{ $currency }} 合計: {{ $formatMoney($total, $currency) }}</span>
+              <span>{{ $currency }} 総残高: {{ $formatMoney($total, $currency) }}</span>
+            @endforeach
+            @foreach($balanceTotals['creditCards'] ?? [] as $currency => $amount)
+              <span>{{ $currency }} クレカ利用額: {{ $formatMoney($amount, $currency) }}</span>
             @endforeach
           </div>
         </section>

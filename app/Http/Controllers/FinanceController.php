@@ -84,7 +84,12 @@ class FinanceController extends Controller
             return $this->redirectWithMessage($returnTo, '取引の登録に失敗しました', 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '取引を登録しました');
+        $transactionDate = (string) $request->input('transactionDate');
+        $message = $transactionDate > $this->finance->todayIso()
+            ? '予定を登録しました（反映日まで残高には含まれません）'
+            : '取引を登録しました';
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 
     public function update(Request $request, int $id)
@@ -119,7 +124,7 @@ class FinanceController extends Controller
             return $this->redirectWithMessage($returnTo, '取引が見つかりません', 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '取引を削除しました');
+        return $this->redirectWithMessage($returnTo, '取引を削除しました（カード引落の場合は支払予定も削除しました）');
     }
 
     public function updateAccountBalance(Request $request, int $id)
@@ -245,7 +250,26 @@ class FinanceController extends Controller
             return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '予定を削除しました');
+        return $this->redirectWithMessage($returnTo, '予定を削除しました（関連する引落取引も削除しました）');
+    }
+
+    public function updateAccountSchedule(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            if (! $this->finance->updateSchedule($id, [
+                'scheduledDate' => $request->input('scheduledDate'),
+                'amount' => $request->input('amount'),
+                'memo' => $request->input('memo'),
+            ])) {
+                return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '予定を更新しました');
     }
 
     public function reorderAccounts(Request $request)

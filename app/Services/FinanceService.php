@@ -193,6 +193,7 @@ class FinanceService
     public function buildReportData(array $filters): array
     {
         $this->ensureDefaultAccounts();
+        $this->materializeDueSchedules();
 
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
@@ -346,13 +347,19 @@ class FinanceService
             'initialBalance' => (float) $account->initial_balance,
             'adjustmentAmount' => (float) ($account->adjustment_amount ?? 0),
             'balance' => $balance,
+            'balanceLabel' => $account->kind === 'credit_card' ? '利用額' : '残高',
         ];
     }
 
     public function calculateAccountBalance(FinanceAccount $account, ?Collection $transactions = null): float
     {
+        if ($account->kind === 'credit_card') {
+            return $this->calculateCreditCardBalance($account, $transactions);
+        }
+
         $balance = (float) $account->initial_balance + (float) ($account->adjustment_amount ?? 0);
         $transactions ??= FinanceTransaction::query()->get();
+        $transactions = $this->filterEffectiveTransactions($transactions);
 
         foreach ($transactions as $transaction) {
             if ((int) $transaction->account_id === (int) $account->id) {
@@ -373,10 +380,252 @@ class FinanceService
         return round($balance, 2);
     }
 
+    public function calculateCreditCardBalance(FinanceAccount $account, ?Collection $transactions = null): float
+    {
+        $balance = max(0, (float) $account->initial_balance) + max(0, (float) ($account->adjustment_amount ?? 0));
+        if ((float) $account->initial_balance < 0) {
+            $balance += abs((float) $account->initial_balance);
+        }
+        if ((float) ($account->adjustment_amount ?? 0) < 0) {
+            $balance += abs((float) $account->adjustment_amount);
+        }
+
+        $transactions ??= FinanceTransaction::query()->get();
+        $transactions = $this->filterEffectiveTransactions($transactions);
+
+        foreach ($transactions as $transaction) {
+            if ((int) $transaction->account_id === (int) $account->id) {
+                if ($transaction->type === 'expense') {
+                    $balance += (float) $transaction->amount;
+                } elseif ($transaction->type === 'income') {
+                    $balance -= (float) $transaction->amount;
+                } elseif ($transaction->type === 'transfer') {
+                    $balance -= (float) $transaction->amount;
+                }
+            }
+
+            if ($transaction->type === 'transfer' && (int) $transaction->to_account_id === (int) $account->id) {
+                $balance -= (float) ($transaction->to_amount ?? $transaction->amount);
+            }
+        }
+
+        return round(max(0, $balance), 2);
+    }
+
+    /** @return array{configured: ?array{initialBalance: float, adjustmentAmount: float, total: float, currency: string}, items: list<array{id: int, label: string, date: string, displayDate: string, amount: float, currency: string}>} */
+    public function buildCreditCardUsageBreakdown(FinanceAccount $account, ?Collection $transactions = null): array
+    {
+        if ($account->kind !== 'credit_card') {
+            return ['configured' => null, 'items' => []];
+        }
+
+        $configuredTotal = $this->creditCardConfiguredBalance($account);
+        $configured = $configuredTotal > 0 ? [
+            'initialBalance' => (float) $account->initial_balance,
+            'adjustmentAmount' => (float) ($account->adjustment_amount ?? 0),
+            'total' => $configuredTotal,
+            'currency' => $account->currency,
+        ] : null;
+
+        $charges = [];
+        if ($configuredTotal > 0) {
+            $charges[] = [
+                'id' => 0,
+                'label' => '設定残高',
+                'date' => '0000-01-01',
+                'displayDate' => '設定',
+                'amount' => $configuredTotal,
+                'currency' => $account->currency,
+            ];
+        }
+
+        $transactions ??= FinanceTransaction::query()
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+        $transactions = $this->filterEffectiveTransactions($transactions);
+
+        $payments = 0.0;
+
+        foreach ($transactions as $transaction) {
+            if ((int) $transaction->account_id === (int) $account->id && $transaction->type === 'expense') {
+                $memo = trim((string) ($transaction->memo ?? ''));
+                $charges[] = [
+                    'id' => $transaction->id,
+                    'label' => $memo !== '' ? $memo : '支払い',
+                    'date' => $transaction->transaction_date->format('Y-m-d'),
+                    'displayDate' => $transaction->transaction_date->format('Y/n/j'),
+                    'amount' => round((float) $transaction->amount, 2),
+                    'currency' => $transaction->currency,
+                ];
+
+                continue;
+            }
+
+            if ((int) $transaction->account_id === (int) $account->id) {
+                if ($transaction->type === 'income') {
+                    $payments += (float) $transaction->amount;
+                } elseif ($transaction->type === 'transfer') {
+                    $payments += (float) $transaction->amount;
+                }
+            }
+
+            if ($transaction->type === 'transfer' && (int) $transaction->to_account_id === (int) $account->id) {
+                $payments += (float) ($transaction->to_amount ?? $transaction->amount);
+            }
+        }
+
+        $remainingPayment = round($payments, 2);
+        $outstanding = [];
+
+        foreach ($charges as $charge) {
+            if ($remainingPayment >= $charge['amount']) {
+                $remainingPayment = round($remainingPayment - $charge['amount'], 2);
+
+                continue;
+            }
+
+            if ($remainingPayment > 0) {
+                $charge['amount'] = round($charge['amount'] - $remainingPayment, 2);
+                $remainingPayment = 0.0;
+            }
+
+            $outstanding[] = $charge;
+        }
+
+        $items = array_values(array_filter(
+            array_reverse($outstanding),
+            fn (array $item) => $item['id'] !== 0
+        ));
+
+        return [
+            'configured' => $configured,
+            'items' => $items,
+        ];
+    }
+
+    public function creditCardConfiguredBalance(FinanceAccount $account): float
+    {
+        $opening = max(0, (float) $account->initial_balance);
+        if ((float) $account->initial_balance < 0) {
+            $opening += abs((float) $account->initial_balance);
+        }
+        $adjustment = (float) ($account->adjustment_amount ?? 0);
+        if ($adjustment > 0) {
+            $opening += $adjustment;
+        } elseif ($adjustment < 0) {
+            $opening += abs($adjustment);
+        }
+
+        return round($opening, 2);
+    }
+
+    /** @return list<array{id: int, label: string, date: string, displayDate: string, amount: float, currency: string}> */
+    public function buildCreditCardOutstandingCharges(FinanceAccount $account, ?Collection $transactions = null): array
+    {
+        return $this->buildCreditCardUsageBreakdown($account, $transactions)['items'];
+    }
+
+    public function materializeDueSchedules(): void
+    {
+        $this->materializeDuePaymentSchedules();
+        $this->materializeDueDepositSchedules();
+    }
+
+    public function materializeDuePaymentSchedules(): void
+    {
+        $dueSchedules = FinanceAccountSchedule::query()
+            ->with('account')
+            ->where('schedule_type', 'payment')
+            ->whereDate('scheduled_date', '<=', $this->todayIso())
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($dueSchedules as $schedule) {
+            $card = $schedule->account;
+            if (! $card || $card->kind !== 'credit_card' || ! $card->is_active) {
+                continue;
+            }
+
+            $marker = $this->scheduleMarker($schedule->id);
+            if (FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->exists()) {
+                continue;
+            }
+
+            $amount = round((float) $schedule->amount, 2);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $date = $schedule->scheduled_date->format('Y-m-d');
+            $memo = trim('カード引落: '.$card->name.($schedule->memo ? ' '.$schedule->memo : '').' '.$marker);
+
+            $bank = $card->linked_bank_id
+                ? FinanceAccount::query()->where('is_active', true)->find($card->linked_bank_id)
+                : null;
+
+            if ($bank) {
+                FinanceTransaction::query()->create([
+                    'transaction_date' => $date,
+                    'type' => 'transfer',
+                    'account_id' => $bank->id,
+                    'to_account_id' => $card->id,
+                    'amount' => $amount,
+                    'to_amount' => $amount,
+                    'currency' => $bank->currency,
+                    'to_currency' => $card->currency,
+                    'memo' => $memo,
+                ]);
+            }
+        }
+    }
+
+    public function materializeDueDepositSchedules(): void
+    {
+        $dueSchedules = FinanceAccountSchedule::query()
+            ->with('account')
+            ->where('schedule_type', 'deposit')
+            ->whereDate('scheduled_date', '<=', $this->todayIso())
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($dueSchedules as $schedule) {
+            $bank = $schedule->account;
+            if (! $bank || $bank->kind !== 'bank' || ! $bank->is_active) {
+                continue;
+            }
+
+            $marker = $this->scheduleMarker($schedule->id);
+            if (FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->exists()) {
+                continue;
+            }
+
+            $amount = round((float) $schedule->amount, 2);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $date = $schedule->scheduled_date->format('Y-m-d');
+            $memo = trim('入金予定: '.$bank->name.($schedule->memo ? ' '.$schedule->memo : '').' '.$marker);
+
+            FinanceTransaction::query()->create([
+                'transaction_date' => $date,
+                'type' => 'income',
+                'account_id' => $bank->id,
+                'amount' => $amount,
+                'currency' => $bank->currency,
+                'memo' => $memo,
+            ]);
+        }
+    }
+
     /** @return array{accounts: list<array<string, mixed>>, summary: array<string, float>, transactions: list<array<string, mixed>>} */
     public function buildPageData(array $filters): array
     {
         $this->ensureDefaultAccounts();
+        $this->materializeDueSchedules();
 
         $accounts = collect($this->listAccounts());
         $allTransactions = FinanceTransaction::query()
@@ -399,14 +648,37 @@ class FinanceService
         $schedulesByAccount = FinanceAccountSchedule::query()
             ->with('account')
             ->whereIn('account_id', $accountsWithBalance->pluck('id'))
-            ->where('scheduled_date', '>=', $this->todayIso())
             ->orderBy('scheduled_date')
             ->orderBy('id')
             ->get()
             ->groupBy('account_id');
 
         $accountsWithBalance = $accountsWithBalance
-            ->map(fn (array $accountRow) => $this->attachSchedulesToAccountRow($accountRow, $schedulesByAccount->get($accountRow['id'])));
+            ->map(function (array $accountRow) use ($schedulesByAccount, $allTransactions) {
+                $accountRow = $this->attachSchedulesToAccountRow(
+                    $accountRow,
+                    $schedulesByAccount->get($accountRow['id'])
+                );
+
+                if ($accountRow['kind'] !== 'credit_card') {
+                    $accountRow['usageConfigured'] = null;
+                    $accountRow['usageHistory'] = [];
+
+                    return $accountRow;
+                }
+
+                $model = FinanceAccount::query()->find($accountRow['id']);
+                if ($model) {
+                    $breakdown = $this->buildCreditCardUsageBreakdown($model, $allTransactions);
+                    $accountRow['usageConfigured'] = $breakdown['configured'];
+                    $accountRow['usageHistory'] = $breakdown['items'];
+                } else {
+                    $accountRow['usageConfigured'] = null;
+                    $accountRow['usageHistory'] = [];
+                }
+
+                return $accountRow;
+            });
 
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
@@ -416,8 +688,25 @@ class FinanceService
                 && $t->transaction_date->format('Y-m-d') <= $monthEnd
         );
 
-        $displayTransactions = $this->filterTransactionsForTab($monthTransactions, $filters['tab'], $filters['accountId']);
-        $summary = $this->buildMonthSummary($monthTransactions, $filters['tab']);
+        $effectiveMonthTransactions = $this->filterEffectiveTransactions($monthTransactions);
+        $summary = $this->buildMonthSummary($effectiveMonthTransactions, $filters['tab']);
+
+        $allSchedules = FinanceAccountSchedule::query()
+            ->with('account')
+            ->whereIn('account_id', $accountsWithBalance->pluck('id'))
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->get();
+
+        $displayTransactionRows = $this->buildDisplayTransactionsForPage(
+            $monthTransactions,
+            $allSchedules,
+            $filters,
+            $allTransactions,
+            $accountsWithBalance->values()->all(),
+            $monthStart,
+            $monthEnd,
+        );
 
         $groupedAccounts = $this->groupAccountsByKind(
             $accountsWithBalance->filter(function (array $account) use ($filters) {
@@ -442,7 +731,7 @@ class FinanceService
             'groupedAccounts' => $groupedAccounts,
             'balanceTotals' => $this->buildBalanceTotals($visibleAccounts),
             'summary' => $summary,
-            'transactions' => $displayTransactions->map(fn (FinanceTransaction $t) => $this->transactionToArray($t))->values()->all(),
+            'transactions' => $displayTransactionRows,
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
         ];
@@ -562,12 +851,231 @@ class FinanceService
         ];
     }
 
-    /** @return array<string, mixed> */
-    public function transactionToArray(FinanceTransaction $transaction): array
+    /** @param Collection<int, FinanceTransaction> $transactions */
+    public function filterEffectiveTransactions(Collection $transactions): Collection
     {
+        $today = $this->todayIso();
+
+        return $transactions->filter(
+            fn (FinanceTransaction $transaction) => $transaction->transaction_date->format('Y-m-d') <= $today
+        );
+    }
+
+    public function isTransactionEffective(FinanceTransaction $transaction, ?string $today = null): bool
+    {
+        $today ??= $this->todayIso();
+
+        return $transaction->transaction_date->format('Y-m-d') <= $today;
+    }
+
+    public function isScheduleMaterialized(int $scheduleId): bool
+    {
+        return FinanceTransaction::query()
+            ->where('memo', 'like', '%'.$this->scheduleMarker($scheduleId).'%')
+            ->exists();
+    }
+
+    public function nextPaymentScheduleDate(int $accountId): ?string
+    {
+        $schedule = FinanceAccountSchedule::query()
+            ->where('account_id', $accountId)
+            ->where('schedule_type', 'payment')
+            ->whereDate('scheduled_date', '>=', $this->todayIso())
+            ->orderBy('scheduled_date')
+            ->orderBy('id')
+            ->first();
+
+        return $schedule?->scheduled_date->format('Y-m-d');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $accounts
+     * @param Collection<int, FinanceTransaction> $allTransactions
+     * @return array{outstanding: array<int, list<int>>, paymentDates: array<int, ?string>}
+     */
+    public function buildTransactionDisplayContext(array $accounts, Collection $allTransactions): array
+    {
+        $effective = $this->filterEffectiveTransactions($allTransactions);
+        $context = ['outstanding' => [], 'paymentDates' => []];
+
+        foreach ($accounts as $accountRow) {
+            if (($accountRow['kind'] ?? '') !== 'credit_card') {
+                continue;
+            }
+
+            $accountId = (int) $accountRow['id'];
+            $model = FinanceAccount::query()->find($accountId);
+            if (! $model) {
+                continue;
+            }
+
+            $outstanding = $this->buildCreditCardOutstandingCharges($model, $effective);
+            $context['outstanding'][$accountId] = array_values(array_filter(
+                array_map(fn (array $item) => $item['id'], $outstanding),
+                fn (int $id) => $id > 0
+            ));
+            $context['paymentDates'][$accountId] = $this->nextPaymentScheduleDate($accountId);
+        }
+
+        return $context;
+    }
+
+    /** @return array<string, mixed> */
+    public function scheduleToDisplayTransactionArray(FinanceAccountSchedule $schedule): array
+    {
+        $account = $schedule->account;
+        $date = $schedule->scheduled_date->format('Y-m-d');
+        $type = $schedule->schedule_type === 'deposit' ? 'income' : 'expense';
+
         return [
+            'id' => null,
+            'scheduleId' => $schedule->id,
+            'isScheduleOnly' => true,
+            'isScheduled' => true,
+            'scheduledLabel' => self::SCHEDULE_TYPE_LABELS[$schedule->schedule_type] ?? '予定',
+            'transactionDate' => $date,
+            'displayDate' => $date,
+            'purchaseDate' => null,
+            'type' => $type,
+            'typeLabel' => self::TYPE_LABELS[$type] ?? $type,
+            'accountId' => $schedule->account_id,
+            'accountName' => $account?->name,
+            'accountRegion' => $account?->region,
+            'toAccountId' => null,
+            'toAccountName' => null,
+            'toAccountRegion' => null,
+            'amount' => (float) $schedule->amount,
+            'toAmount' => null,
+            'currency' => $account?->currency ?? 'JPY',
+            'toCurrency' => null,
+            'memo' => $schedule->memo ?? '',
+            'displayMemo' => trim((string) ($schedule->memo ?? '')),
+            'isCrossRegion' => false,
+        ];
+    }
+
+    /**
+     * @param Collection<int, FinanceTransaction> $monthTransactions
+     * @param Collection<int, FinanceAccountSchedule> $allSchedules
+     * @param array{tab?: string, accountId?: ?int} $filters
+     * @param Collection<int, FinanceTransaction> $allTransactions
+     * @param list<array<string, mixed>> $accounts
+     * @return list<array<string, mixed>>
+     */
+    public function buildDisplayTransactionsForPage(
+        Collection $monthTransactions,
+        Collection $allSchedules,
+        array $filters,
+        Collection $allTransactions,
+        array $accounts,
+        string $monthStart,
+        string $monthEnd,
+    ): array {
+        $tab = $filters['tab'] ?? 'all';
+        $accountId = $filters['accountId'] ?? null;
+        $displayContext = $this->buildTransactionDisplayContext($accounts, $allTransactions);
+
+        $rows = $this->filterTransactionsForTab($monthTransactions, $tab, $accountId)
+            ->map(fn (FinanceTransaction $transaction) => $this->transactionToArray($transaction, $displayContext))
+            ->values()
+            ->all();
+
+        $monthSchedules = $allSchedules->filter(function (FinanceAccountSchedule $schedule) use ($monthStart, $monthEnd) {
+            $date = $schedule->scheduled_date->format('Y-m-d');
+
+            return $date >= $monthStart && $date <= $monthEnd;
+        });
+
+        foreach ($this->filterSchedulesForTab($monthSchedules, $tab, $accountId) as $schedule) {
+            if ($schedule->schedule_type !== 'deposit' || $this->isScheduleMaterialized($schedule->id)) {
+                continue;
+            }
+
+            $rows[] = $this->scheduleToDisplayTransactionArray($schedule);
+        }
+
+        $existingIds = collect($rows)->pluck('id')->filter()->values()->all();
+        $extraCreditCardRows = $allTransactions->filter(function (FinanceTransaction $transaction) use (
+            $existingIds,
+            $displayContext,
+            $monthStart,
+            $monthEnd,
+            $tab,
+            $accountId
+        ) {
+            if ($transaction->account?->kind !== 'credit_card' || $transaction->type !== 'expense') {
+                return false;
+            }
+
+            if (in_array($transaction->id, $existingIds, true)) {
+                return false;
+            }
+
+            $cardAccountId = (int) $transaction->account_id;
+            if (! in_array($transaction->id, $displayContext['outstanding'][$cardAccountId] ?? [], true)) {
+                return false;
+            }
+
+            $paymentDate = $displayContext['paymentDates'][$cardAccountId] ?? null;
+            if (! $paymentDate || $paymentDate < $monthStart || $paymentDate > $monthEnd) {
+                return false;
+            }
+
+            $txDate = $transaction->transaction_date->format('Y-m-d');
+            if ($txDate >= $monthStart && $txDate <= $monthEnd) {
+                return false;
+            }
+
+            return $this->filterTransactionsForTab(collect([$transaction]), $tab, $accountId)->isNotEmpty();
+        });
+
+        foreach ($extraCreditCardRows as $transaction) {
+            $rows[] = $this->transactionToArray($transaction, $displayContext);
+        }
+
+        usort($rows, function (array $a, array $b) {
+            $dateCompare = strcmp($b['displayDate'] ?? $b['transactionDate'], $a['displayDate'] ?? $a['transactionDate']);
+            if ($dateCompare !== 0) {
+                return $dateCompare;
+            }
+
+            return ($b['id'] ?? $b['scheduleId'] ?? 0) <=> ($a['id'] ?? $a['scheduleId'] ?? 0);
+        });
+
+        return $rows;
+    }
+
+    /** @param Collection<int, FinanceAccountSchedule> $schedules */
+    public function filterSchedulesForTab(Collection $schedules, string $tab, ?int $accountId): Collection
+    {
+        return $schedules->filter(function (FinanceAccountSchedule $schedule) use ($tab, $accountId) {
+            if ($accountId !== null) {
+                return (int) $schedule->account_id === $accountId;
+            }
+
+            if ($tab === 'transfer' || $tab === 'all') {
+                return true;
+            }
+
+            return $schedule->account?->region === $tab;
+        })->values();
+    }
+
+    /** @return array<string, mixed> */
+    public function transactionToArray(FinanceTransaction $transaction, ?array $displayContext = null): array
+    {
+        $txDate = $transaction->transaction_date->format('Y-m-d');
+        $today = $this->todayIso();
+        $scheduleId = $this->extractScheduleIdFromMemo($transaction->memo);
+
+        $row = [
             'id' => $transaction->id,
-            'transactionDate' => $transaction->transaction_date->format('Y-m-d'),
+            'transactionDate' => $txDate,
+            'displayDate' => $txDate,
+            'purchaseDate' => null,
+            'isScheduled' => false,
+            'isScheduleOnly' => false,
+            'scheduledLabel' => null,
             'type' => $transaction->type,
             'typeLabel' => self::TYPE_LABELS[$transaction->type] ?? $transaction->type,
             'accountId' => $transaction->account_id,
@@ -581,9 +1089,37 @@ class FinanceService
             'currency' => $transaction->currency,
             'toCurrency' => $transaction->to_currency,
             'memo' => $transaction->memo ?? '',
+            'displayMemo' => $this->formatDisplayMemo($transaction->memo),
             'isCrossRegion' => $transaction->type === 'transfer'
                 && $transaction->account?->region !== $transaction->toAccount?->region,
+            'scheduleId' => $scheduleId,
         ];
+
+        if ($scheduleId === null && $txDate > $today) {
+            $row['isScheduled'] = true;
+            $row['scheduledLabel'] = '予定';
+            $row['displayDate'] = $txDate;
+        }
+
+        $accountId = (int) $transaction->account_id;
+        if (
+            $displayContext
+            && $transaction->account?->kind === 'credit_card'
+            && $transaction->type === 'expense'
+            && in_array($transaction->id, $displayContext['outstanding'][$accountId] ?? [], true)
+        ) {
+            $paymentDate = $displayContext['paymentDates'][$accountId] ?? null;
+            if ($paymentDate) {
+                $row['isScheduled'] = true;
+                $row['scheduledLabel'] = '予定支払';
+                $row['displayDate'] = $paymentDate;
+                if ($txDate !== $paymentDate) {
+                    $row['purchaseDate'] = $txDate;
+                }
+            }
+        }
+
+        return $row;
     }
 
     /** @param array<string, mixed> $payload */
@@ -673,9 +1209,59 @@ class FinanceService
         return $transaction->update($data);
     }
 
+    public function scheduleMarker(int $scheduleId): string
+    {
+        return '[schedule:'.$scheduleId.']';
+    }
+
+    public function extractScheduleIdFromMemo(?string $memo): ?int
+    {
+        if (! is_string($memo) || ! preg_match('/\[schedule:(\d+)\]/', $memo, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    public function formatDisplayMemo(?string $memo): string
+    {
+        if (! is_string($memo) || trim($memo) === '') {
+            return '';
+        }
+
+        $clean = trim(preg_replace('/\s*\[schedule:\d+\]\s*/', '', $memo) ?? '');
+        if ($clean === '') {
+            return '';
+        }
+
+        if (preg_match('/^(入金予定|カード引落):\s*(.+)$/u', $clean, $matches)) {
+            return trim($matches[2]);
+        }
+
+        return $clean;
+    }
+
+    public function deleteMaterializedScheduleTransactions(int $scheduleId): void
+    {
+        $marker = $this->scheduleMarker($scheduleId);
+        FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->delete();
+    }
+
     public function deleteTransaction(int $id): bool
     {
-        return (bool) FinanceTransaction::query()->whereKey($id)->delete();
+        $transaction = FinanceTransaction::query()->find($id);
+        if (! $transaction) {
+            return false;
+        }
+
+        $scheduleId = $this->extractScheduleIdFromMemo($transaction->memo);
+        $deleted = (bool) $transaction->delete();
+
+        if ($deleted && $scheduleId !== null) {
+            FinanceAccountSchedule::query()->whereKey($scheduleId)->delete();
+        }
+
+        return $deleted;
     }
 
     public function updateAccountInitialBalance(int $id, float $balance, ?float $adjustmentAmount = null): bool
@@ -907,7 +1493,9 @@ class FinanceService
             ? (self::SCHEDULE_TYPE_LABELS[$accountRow['scheduleType']] ?? '')
             : '';
         $accountRow['schedules'] = $scheduleItems;
-        $accountRow['nextSchedule'] = $scheduleItems[0] ?? null;
+        $today = $this->todayIso();
+        $accountRow['nextSchedule'] = collect($scheduleItems)
+            ->first(fn (array $schedule) => ($schedule['scheduledDate'] ?? '') >= $today);
 
         return $accountRow;
     }
@@ -941,7 +1529,41 @@ class FinanceService
 
     public function deleteSchedule(int $id): bool
     {
-        return (bool) FinanceAccountSchedule::query()->whereKey($id)->delete();
+        $schedule = FinanceAccountSchedule::query()->find($id);
+        if (! $schedule) {
+            return false;
+        }
+
+        $this->deleteMaterializedScheduleTransactions($id);
+
+        return (bool) $schedule->delete();
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function updateSchedule(int $id, array $payload): ?FinanceAccountSchedule
+    {
+        $schedule = FinanceAccountSchedule::query()->with('account')->find($id);
+        if (! $schedule) {
+            return null;
+        }
+
+        $amount = round(max(0, (float) ($payload['amount'] ?? $schedule->amount)), 2);
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException('金額は 0 より大きい値を入力してください');
+        }
+
+        $this->deleteMaterializedScheduleTransactions($id);
+
+        $schedule->fill([
+            'scheduled_date' => $this->normalizeDate($payload['scheduledDate'] ?? $schedule->scheduled_date->format('Y-m-d')),
+            'amount' => $amount,
+            'memo' => trim((string) ($payload['memo'] ?? $schedule->memo ?? '')),
+        ]);
+        $schedule->save();
+
+        $this->materializeDueSchedules();
+
+        return $schedule->fresh();
     }
 
     /** @param array<string, mixed> $payload */
@@ -977,17 +1599,22 @@ class FinanceService
             ->first();
 
         if ($existing) {
+            $this->deleteMaterializedScheduleTransactions($existing->id);
             $existing->fill($data);
             $existing->save();
+            $this->materializeDueSchedules();
 
             return $existing;
         }
 
-        return FinanceAccountSchedule::query()->create([
+        $schedule = FinanceAccountSchedule::query()->create([
             'account_id' => $account->id,
             'schedule_type' => $scheduleType,
             ...$data,
         ]);
+        $this->materializeDueSchedules();
+
+        return $schedule;
     }
 
     /** @param list<array<string, mixed>> $accounts */
@@ -1003,7 +1630,6 @@ class FinanceService
         foreach ($accounts as $account) {
             $currency = $account['currency'];
             $balance = (float) $account['balance'];
-            $totals[$currency] = ($totals[$currency] ?? 0) + $balance;
 
             if ($account['kind'] === 'credit_card') {
                 $creditCards[$currency] = ($creditCards[$currency] ?? 0) + $balance;
@@ -1011,6 +1637,7 @@ class FinanceService
                     $upcomingPayments[$currency] = ($upcomingPayments[$currency] ?? 0) + (float) $account['nextSchedule']['amount'];
                 }
             } elseif (in_array($account['kind'], ['bank', 'cash', 'wallet'], true)) {
+                $totals[$currency] = ($totals[$currency] ?? 0) + $balance;
                 $assets[$currency] = ($assets[$currency] ?? 0) + $balance;
                 if ($account['kind'] === 'bank' && ! empty($account['nextSchedule'])) {
                     $upcomingDeposits[$currency] = ($upcomingDeposits[$currency] ?? 0) + (float) $account['nextSchedule']['amount'];

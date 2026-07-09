@@ -37,9 +37,82 @@
           </label>
         </form>
 
-        <button type="button" class="button-link" id="finance-open-add">＋ 取引を追加</button>
         <a href="{{ $buildFinanceReportQuery($filters) }}" class="button-link secondary finance-report-link">レポート</a>
       </div>
+
+      <section class="finance-quick-entry panel" id="finance-quick-entry">
+        <form method="post" action="/finance" id="finance-quick-entry-form" class="finance-quick-entry-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+
+          <div class="finance-quick-type-tabs" role="tablist" aria-label="取引種別">
+            <label class="finance-quick-type-tab is-income">
+              <input type="radio" name="type" value="income" />
+              <span>入金</span>
+            </label>
+            <label class="finance-quick-type-tab is-expense is-active">
+              <input type="radio" name="type" value="expense" checked />
+              <span>支出</span>
+            </label>
+            <label class="finance-quick-type-tab is-transfer">
+              <input type="radio" name="type" value="transfer" />
+              <span>振替</span>
+            </label>
+          </div>
+
+          <div class="finance-quick-entry-fields">
+            <div class="finance-quick-entry-row finance-quick-entry-row-main">
+              <label class="finance-quick-field finance-quick-field-date">
+                <span class="finance-quick-field-label">日付</span>
+                <input type="date" name="transactionDate" id="finance-quick-date" value="{{ $defaultDate }}" required />
+              </label>
+
+              <label class="finance-quick-field finance-quick-field-account">
+                <span class="finance-quick-field-label" id="finance-quick-account-label">口座</span>
+                <select name="accountId" id="finance-quick-account" required>
+                  @foreach($accounts as $account)
+                    <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
+                      {{ $account['kindLabel'] }}: {{ $account['name'] }}
+                    </option>
+                  @endforeach
+                </select>
+              </label>
+
+              <div class="finance-quick-transfer-wrap" id="finance-quick-transfer-fields" hidden>
+                <label class="finance-quick-field finance-quick-field-to-account">
+                  <span class="finance-quick-field-label">振替先</span>
+                  <select name="toAccountId" id="finance-quick-to-account">
+                    @foreach($accounts as $account)
+                      <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
+                        {{ $account['kindLabel'] }}: {{ $account['name'] }}
+                      </option>
+                    @endforeach
+                  </select>
+                </label>
+                <label class="finance-quick-field finance-quick-field-to-amount" id="finance-quick-to-amount-wrap" hidden>
+                  <span class="finance-quick-field-label">振替先金額</span>
+                  <input type="text" inputmode="decimal" class="finance-amount-calc" name="toAmount" id="finance-quick-to-amount" placeholder="1000" autocomplete="off" />
+                </label>
+              </div>
+
+              <label class="finance-quick-field finance-quick-field-amount">
+                <span class="finance-quick-field-label" id="finance-quick-amount-label">金額</span>
+                <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" id="finance-quick-amount" required placeholder="1000" autocomplete="off" />
+              </label>
+            </div>
+
+            <div class="finance-quick-entry-row finance-quick-entry-row-memo">
+              <label class="finance-quick-field finance-quick-field-memo">
+                <span class="finance-quick-field-label">メモ</span>
+                <input type="text" name="memo" id="finance-quick-memo" placeholder="例: 給与、スーパー、Amazon（内容を書くと後から探しやすい）" autocomplete="off" />
+              </label>
+
+              <button type="submit" class="finance-quick-submit" id="finance-quick-submit">登録</button>
+            </div>
+          </div>
+        </form>
+        <p class="hint finance-quick-entry-hint">金額は入力欄をクリックして直接入力するか、横の <span class="finance-easy-amount-inline-hint" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="3" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect></svg></span> ボタン（簡単入力）から入れられます。今日以前の日付は<strong>すぐ残高に反映</strong>されます。</p>
+      </section>
 
       <section class="finance-balance-overview panel">
         <h2 class="finance-section-title">現在の総残高</h2>
@@ -59,7 +132,7 @@
               <span>口座・現金 {{ $formatMoney($amount, $currency) }}</span>
             @endforeach
             @foreach($balanceTotals['creditCards'] as $currency => $amount)
-              <span>クレカ {{ $formatMoney($amount, $currency) }}</span>
+              <span>クレカ利用額 {{ $formatMoney($amount, $currency) }}</span>
             @endforeach
           </div>
         @endif
@@ -77,34 +150,28 @@
 
       <section class="finance-summary panel">
         <h2 class="finance-section-title">{{ $monthLabel }} サマリー</h2>
-        <p class="hint finance-summary-hint">各項目をクリックすると取引を追加できます。</p>
         <div class="finance-summary-grid">
-          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-type="income">
-            <span class="finance-summary-label">収入</span>
+          <div class="finance-summary-item finance-summary-static">
+            <span class="finance-summary-label">収入（入金）</span>
             <strong class="finance-summary-value income">{{ $formatMoney($summary['income'], $summary['currency']) }}</strong>
-            <span class="finance-summary-action">＋ 追加</span>
-          </button>
-          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-type="expense">
+          </div>
+          <div class="finance-summary-item finance-summary-static">
             <span class="finance-summary-label">支出</span>
             <strong class="finance-summary-value expense">{{ $formatMoney($summary['expense'], $summary['currency']) }}</strong>
-            <span class="finance-summary-action">＋ 追加</span>
-          </button>
-          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-type="expense">
+          </div>
+          <div class="finance-summary-item finance-summary-static">
             <span class="finance-summary-label">収支</span>
-            <strong class="finance-summary-value">{{ $formatMoney($summary['net'], $summary['currency']) }}</strong>
-            <span class="finance-summary-action">＋ 追加</span>
-          </button>
+            <strong class="finance-summary-value @if($summary['net'] >= 0) income @else expense @endif">{{ $formatMoney($summary['net'], $summary['currency']) }}</strong>
+          </div>
           @if($filters['tab'] === 'transfer' || $filters['tab'] === 'all' || $filters['tab'] === 'jp' || $filters['tab'] === 'ph')
-            <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-type="transfer">
+            <div class="finance-summary-item finance-summary-static">
               <span class="finance-summary-label">振替出</span>
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferOut'], $summary['currency']) }}</strong>
-              <span class="finance-summary-action">＋ 追加</span>
-            </button>
-            <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-type="transfer">
+            </div>
+            <div class="finance-summary-item finance-summary-static">
               <span class="finance-summary-label">振替入</span>
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferIn'], $summary['currency']) }}</strong>
-              <span class="finance-summary-action">＋ 追加</span>
-            </button>
+            </div>
           @endif
         </div>
       </section>
@@ -123,7 +190,7 @@
             </div>
           </div>
 
-          <p class="hint finance-drag-hint">カード表示では <span class="finance-drag-hint-icon" aria-hidden="true">⠿</span> をドラッグして並び替えできます。金額は <code>1000+340</code> のような式でも入力できます。</p>
+          <p class="hint finance-drag-hint">カード表示では <span class="finance-drag-hint-icon" aria-hidden="true">⠿</span> をドラッグして並び替えできます。入金・支出は上部フォームか、各口座の <strong>入金 / 支出</strong> ボタンから。日付欄は将来の<strong>予定</strong>用です。</p>
 
           <div class="finance-accounts-view" id="finance-accounts-view" data-view="cards">
           @forelse($groupedAccounts as $kind => $kindAccounts)
@@ -146,9 +213,11 @@
                     <div class="finance-account-card-body" tabindex="0" role="button" aria-label="{{ $account['name'] }} を編集">
                       <span class="finance-account-name">{{ $account['name'] }}</span>
                       <strong class="finance-account-balance">{{ $formatMoney($account['balance'], $account['currency']) }}</strong>
+                      <span class="finance-account-balance-label">{{ $account['balanceLabel'] ?? '残高' }}</span>
                       @if(($account['adjustmentAmount'] ?? 0) != 0)
                         <span class="finance-account-adjustment">調整 {{ $formatMoney($account['adjustmentAmount'], $account['currency']) }}</span>
                       @endif
+                      @include('finance.partials.credit-card-usage-history', ['account' => $account])
                       @if(($account['scheduleType'] ?? null) === 'payment')
                         <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-card-schedule-form" onclick="event.stopPropagation()">
                           @csrf
@@ -161,8 +230,21 @@
                             <span>支払額</span>
                             <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="{{ $account['nextSchedule']['amount'] ?? '' }}" required placeholder="1000+340" autocomplete="off" />
                           </label>
+                          <label class="finance-card-schedule-field">
+                            <span>メモ</span>
+                            <input type="text" name="memo" value="{{ $account['nextSchedule']['memo'] ?? '' }}" placeholder="給与、カード引落 など" autocomplete="off" />
+                          </label>
                           <div class="finance-card-schedule-actions">
                             <button type="submit" class="text-btn finance-card-schedule-save">保存</button>
+                            @if(!empty($account['nextSchedule']['id']))
+                              <button
+                                type="submit"
+                                class="text-btn danger"
+                                formaction="/finance/schedules/{{ $account['nextSchedule']['id'] }}/delete"
+                                formmethod="post"
+                                onclick="return confirm('予定を削除しますか？\n既に反映済みの取引がある場合はそれも削除されます。')"
+                              >クリア</button>
+                            @endif
                             @if(count($account['schedules'] ?? []) > 0)
                               <button type="button" class="text-btn finance-account-schedule-btn" data-schedule-account='@json($account)'>一覧</button>
                             @endif
@@ -180,19 +262,37 @@
                             <span>入金額</span>
                             <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="{{ $account['nextSchedule']['amount'] ?? '' }}" required placeholder="1000+340" autocomplete="off" />
                           </label>
+                          <label class="finance-card-schedule-field">
+                            <span>メモ</span>
+                            <input type="text" name="memo" value="{{ $account['nextSchedule']['memo'] ?? '' }}" placeholder="給与、振込元 など" autocomplete="off" />
+                          </label>
                           <div class="finance-card-schedule-actions">
                             <button type="submit" class="text-btn finance-card-schedule-save">保存</button>
+                            @if(!empty($account['nextSchedule']['id']))
+                              <button
+                                type="submit"
+                                class="text-btn danger"
+                                formaction="/finance/schedules/{{ $account['nextSchedule']['id'] }}/delete"
+                                formmethod="post"
+                                onclick="return confirm('予定を削除しますか？\n既に反映済みの取引がある場合はそれも削除されます。')"
+                              >クリア</button>
+                            @endif
                             @if(count($account['schedules'] ?? []) > 0)
                               <button type="button" class="text-btn finance-account-schedule-btn" data-schedule-account='@json($account)'>一覧</button>
                             @endif
                           </div>
                         </form>
                       @endif
+                      <div class="finance-account-quick-btns" onclick="event.stopPropagation()">
+                        <button type="button" class="finance-account-quick-btn income" data-quick-type="income" data-account-id="{{ $account['id'] }}">入金</button>
+                        <button type="button" class="finance-account-quick-btn expense" data-quick-type="expense" data-account-id="{{ $account['id'] }}">支出</button>
+                      </div>
                       <a
-                        href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']])) }}"
+                        href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']]), ['account' => $account['id']]) }}#finance-transactions"
                         class="finance-account-filter-link"
-                        title="この口座の取引を表示"
-                      >取引</a>
+                        title="この口座の取引一覧を表示"
+                        data-finance-account-filter="{{ $account['id'] }}"
+                      >取引表示</a>
                     </div>
                   </div>
                 @endforeach
@@ -216,32 +316,51 @@
                       <span class="finance-adjustment-badge is-empty" aria-hidden="true"></span>
                     @endif
                     @if(($account['scheduleType'] ?? null) === 'payment')
-                      <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-list-schedule-form" onclick="event.stopPropagation()">
+                      <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-list-schedule-form" id="finance-list-schedule-form-{{ $account['id'] }}">
                         @csrf
                         <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                        <span class="finance-list-schedule-label">支払予定</span>
                         <input type="date" name="scheduledDate" value="{{ $account['nextSchedule']['scheduledDate'] ?? '' }}" required aria-label="支払予定日" />
                         <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="{{ $account['nextSchedule']['amount'] ?? '' }}" required placeholder="支払額" aria-label="支払額" autocomplete="off" />
-                        <button type="submit" class="text-btn">保存</button>
+                        <input type="text" name="memo" value="{{ $account['nextSchedule']['memo'] ?? '' }}" placeholder="メモ" aria-label="メモ" autocomplete="off" />
                       </form>
                     @elseif(($account['scheduleType'] ?? null) === 'deposit')
-                      <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-list-schedule-form" onclick="event.stopPropagation()">
+                      <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-list-schedule-form" id="finance-list-schedule-form-{{ $account['id'] }}">
                         @csrf
                         <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                        <span class="finance-list-schedule-label">入金予定</span>
                         <input type="date" name="scheduledDate" value="{{ $account['nextSchedule']['scheduledDate'] ?? '' }}" required aria-label="入金予定日" />
                         <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="{{ $account['nextSchedule']['amount'] ?? '' }}" required placeholder="入金額" aria-label="入金額" autocomplete="off" />
-                        <button type="submit" class="text-btn">保存</button>
+                        <input type="text" name="memo" value="{{ $account['nextSchedule']['memo'] ?? '' }}" placeholder="メモ" aria-label="メモ" autocomplete="off" />
                       </form>
                     @else
                       <span class="finance-list-schedule-empty" aria-hidden="true"></span>
                     @endif
-                    <div class="finance-account-list-actions">
+                    <div class="finance-account-list-actions" onclick="event.stopPropagation()">
+                      <button type="button" class="finance-account-quick-btn income" data-quick-type="income" data-account-id="{{ $account['id'] }}">入金</button>
+                      <button type="button" class="finance-account-quick-btn expense" data-quick-type="expense" data-account-id="{{ $account['id'] }}">支出</button>
+                      @if(($account['scheduleType'] ?? null) === 'payment' || ($account['scheduleType'] ?? null) === 'deposit')
+                        <button type="submit" form="finance-list-schedule-form-{{ $account['id'] }}" class="text-btn finance-list-schedule-save">保存</button>
+                        @if(($account['scheduleType'] ?? null) === 'payment' && !empty($account['nextSchedule']['id']))
+                          <button
+                            type="submit"
+                            form="finance-list-schedule-form-{{ $account['id'] }}"
+                            class="text-btn danger finance-list-schedule-clear"
+                            formaction="/finance/schedules/{{ $account['nextSchedule']['id'] }}/delete"
+                            formmethod="post"
+                            onclick="return confirm('予定を削除しますか？\n既に反映済みの取引がある場合はそれも削除されます。')"
+                          >クリア</button>
+                        @endif
+                      @endif
                       <a
-                        href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']])) }}"
+                        href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']]), ['account' => $account['id']]) }}#finance-transactions"
                         class="text-btn finance-account-filter-link"
-                        title="この口座の取引を表示"
-                      >取引</a>
+                        title="この口座の取引一覧を表示"
+                        data-finance-account-filter="{{ $account['id'] }}"
+                      >取引表示</a>
                       <button type="button" class="text-btn finance-edit-account-card-btn">編集</button>
                     </div>
+                    @include('finance.partials.credit-card-usage-history', ['account' => $account, 'listMode' => true])
                   </div>
                 @endforeach
               </div>
@@ -316,17 +435,30 @@
                   <div class="finance-account-schedule-panel">
                     <h4 class="finance-account-schedule-title">{{ $account['scheduleTypeLabel'] }}</h4>
                     @forelse($account['schedules'] as $schedule)
-                      <div class="finance-account-schedule-item">
-                        <span>{{ $schedule['scheduledDate'] }} {{ $formatMoney($schedule['amount'], $account['currency']) }}</span>
-                        @if($schedule['memo'])
-                          <span class="finance-account-schedule-memo">{{ $schedule['memo'] }}</span>
-                        @endif
-                        <form method="post" action="/finance/schedules/{{ $schedule['id'] }}/delete" class="finance-inline-form" onsubmit="return confirm('この予定を削除しますか？')">
-                          @csrf
-                          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                          <button type="submit" class="text-btn danger">削除</button>
-                        </form>
-                      </div>
+                      <form method="post" action="/finance/schedules/{{ $schedule['id'] }}/update" class="finance-inline-form finance-schedule-edit-form">
+                        @csrf
+                        <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                        <label>
+                          予定日
+                          <input type="date" name="scheduledDate" value="{{ $schedule['scheduledDate'] }}" required />
+                        </label>
+                        <label>
+                          金額
+                          <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="{{ $schedule['amount'] }}" required autocomplete="off" />
+                        </label>
+                        <label>
+                          メモ
+                          <input type="text" name="memo" value="{{ $schedule['memo'] }}" />
+                        </label>
+                        <div class="finance-schedule-edit-actions">
+                          <button type="submit" class="button-link secondary">更新</button>
+                        </div>
+                      </form>
+                      <form method="post" action="/finance/schedules/{{ $schedule['id'] }}/delete" class="finance-inline-form finance-schedule-delete-form" onsubmit="return confirm('この予定を削除しますか？\n既に引落済みの取引がある場合はそれも削除されます。')">
+                        @csrf
+                        <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                        <button type="submit" class="text-btn danger">予定を削除</button>
+                      </form>
                     @empty
                       <p class="hint">登録された予定はありません。</p>
                     @endforelse
@@ -355,48 +487,68 @@
         </section>
       @endif
 
-      <section class="finance-transactions panel">
+      <section class="finance-transactions panel" id="finance-transactions">
         <h2 class="finance-section-title">取引一覧</h2>
+        <p class="hint finance-transactions-hint">上部フォームで登録した取引が表示されます。「編集」「削除」で修正できます。</p>
         @if(count($transactions) === 0)
           <p class="hint">この条件の取引はありません。「＋ 取引を追加」から登録できます。</p>
         @else
           <div class="finance-transaction-list">
             @foreach($transactions as $transaction)
-              <article class="finance-transaction-row type-{{ $transaction['type'] }}" data-transaction='@json($transaction)'>
+              <article class="finance-transaction-row type-{{ $transaction['type'] }} @if(!empty($transaction['isScheduled'])) is-scheduled @endif" data-transaction='@json($transaction)'>
                 <div class="finance-transaction-main">
-                  <div class="finance-transaction-date">{{ $transaction['transactionDate'] }}</div>
                   <div class="finance-transaction-body">
+                    <span class="finance-transaction-date">
+                      {{ $transaction['displayDate'] ?? $transaction['transactionDate'] }}
+                      @if(!empty($transaction['purchaseDate']))
+                        <span class="finance-transaction-purchase-date" title="利用日">({{ $transaction['purchaseDate'] }})</span>
+                      @endif
+                    </span>
                     <span class="finance-type-badge">{{ $transaction['typeLabel'] }}</span>
+                    @if(!empty($transaction['isScheduled']))
+                      <span class="finance-transaction-badge finance-transaction-badge-scheduled">{{ $transaction['scheduledLabel'] ?? '予定' }}</span>
+                    @endif
                     @if($transaction['type'] === 'transfer')
                       <span class="finance-transaction-desc">
-                        {{ $transaction['accountName'] }}
-                        →
-                        {{ $transaction['toAccountName'] }}
+                        {{ $transaction['accountName'] }} → {{ $transaction['toAccountName'] }}
                       </span>
-                      <span class="finance-transaction-amount">
+                    @else
+                      <span class="finance-transaction-desc">{{ $transaction['accountName'] }}</span>
+                    @endif
+                    @php($transactionMemo = $transaction['displayMemo'] ?? $transaction['memo'])
+                    @if($transactionMemo !== '')
+                      <span class="finance-transaction-memo" title="{{ $transactionMemo }}">{{ $transactionMemo }}</span>
+                    @endif
+                    @if(!empty($transaction['scheduleId']) && empty($transaction['isScheduled']))
+                      <span class="finance-transaction-badge">カード引落</span>
+                    @endif
+                    <span class="finance-transaction-amount @if($transaction['type'] !== 'transfer') {{ $transaction['type'] }} @endif">
+                      @if($transaction['type'] === 'transfer')
                         {{ $formatMoney($transaction['amount'], $transaction['currency']) }}
                         @if($transaction['toAmount'] !== null && ($transaction['toCurrency'] ?? '') !== $transaction['currency'])
                           / {{ $formatMoney($transaction['toAmount'], $transaction['toCurrency'] ?? $transaction['currency']) }}
                         @endif
-                      </span>
-                    @else
-                      <span class="finance-transaction-desc">{{ $transaction['accountName'] }}</span>
-                      <span class="finance-transaction-amount {{ $transaction['type'] }}">
+                      @else
                         {{ $transaction['type'] === 'expense' ? '−' : '+' }}{{ $formatMoney($transaction['amount'], $transaction['currency']) }}
-                      </span>
-                    @endif
-                    @if($transaction['memo'])
-                      <span class="finance-transaction-memo">{{ $transaction['memo'] }}</span>
-                    @endif
+                      @endif
+                    </span>
                   </div>
                 </div>
-                <div class="finance-transaction-actions">
-                  <button type="button" class="text-btn finance-edit-btn">編集</button>
-                  <form method="post" action="/finance/{{ $transaction['id'] }}/delete" class="finance-inline-form" onsubmit="return confirm('この取引を削除しますか？')">
-                    @csrf
-                    <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                    <button type="submit" class="text-btn danger">削除</button>
-                  </form>
+                <div class="finance-transaction-actions" onclick="event.stopPropagation()">
+                  @if(empty($transaction['isScheduleOnly']))
+                    <button type="button" class="text-btn finance-edit-btn">編集</button>
+                    <form method="post" action="/finance/{{ $transaction['id'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この取引を削除しますか？{{ !empty($transaction['scheduleId']) ? '\n対応する支払予定も削除されます。' : '' }}')">
+                      @csrf
+                      <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                      <button type="submit" class="text-btn danger">削除</button>
+                    </form>
+                  @else
+                    <form method="post" action="/finance/schedules/{{ $transaction['scheduleId'] }}/delete" class="finance-inline-form finance-delete-form" onsubmit="return confirm('この予定を削除しますか？')">
+                      @csrf
+                      <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                      <button type="submit" class="text-btn danger">削除</button>
+                    </form>
+                  @endif
                 </div>
               </article>
             @endforeach
@@ -420,9 +572,13 @@
           <fieldset class="finance-type-fieldset">
             <legend>種別</legend>
             <label class="inline-check"><input type="radio" name="type" value="expense" checked /> 支出</label>
-            <label class="inline-check"><input type="radio" name="type" value="income" /> 収入</label>
+            <label class="inline-check"><input type="radio" name="type" value="income" /> 入金</label>
             <label class="inline-check"><input type="radio" name="type" value="transfer" /> 振替・送金</label>
           </fieldset>
+
+          <p class="hint finance-transaction-type-hint" id="finance-transaction-type-hint">
+            支出を登録すると、選んだ口座の残高から差し引かれます。
+          </p>
 
           <label>
             日付
@@ -433,8 +589,8 @@
             口座
             <select name="accountId" id="finance-account-id" required>
               @foreach($accounts as $account)
-                <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}">
-                  [{{ $account['regionLabel'] }}] {{ $account['name'] }}
+                <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
+                  [{{ $account['regionLabel'] }}] {{ $account['kindLabel'] }}: {{ $account['name'] }}
                 </option>
               @endforeach
             </select>
@@ -445,8 +601,8 @@
               入金口座
               <select name="toAccountId" id="finance-to-account-id">
                 @foreach($accounts as $account)
-                  <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}">
-                    [{{ $account['regionLabel'] }}] {{ $account['name'] }}
+                  <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
+                    [{{ $account['regionLabel'] }}] {{ $account['kindLabel'] }}: {{ $account['name'] }}
                   </option>
                 @endforeach
               </select>
@@ -576,6 +732,8 @@
       </div>
     </div>
 
+    @include('finance.partials.easy-amount-modal')
+
     <script>
       (function () {
         function normalizeAmountExpression(raw) {
@@ -654,9 +812,155 @@
 
         bindAmountCalcInputs()
 
+        function createFinanceEasyAmountButton() {
+          const btn = document.createElement('button')
+          btn.type = 'button'
+          btn.className = 'finance-easy-amount-btn finance-easy-amount-btn--icon text-btn'
+          btn.setAttribute('aria-label', '金額を簡単入力')
+          btn.setAttribute('title', '簡単入力')
+          btn.innerHTML = '<svg class="finance-easy-amount-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="6" rx="1.5"></rect><rect x="14" y="3" width="7" height="6" rx="1.5"></rect><rect x="3" y="11" width="7" height="6" rx="1.5"></rect><rect x="14" y="11" width="7" height="6" rx="1.5"></rect></svg>'
+          return btn
+        }
+
+        function ensureFinanceAmountEasyButtons(root = document) {
+          root.querySelectorAll('.finance-amount-calc').forEach((input) => {
+            if (input.closest('.finance-amount-field-wrap')) return
+            if (input.disabled) return
+            const parent = input.parentElement
+            if (!parent) return
+            const isCompact = Boolean(input.closest('.finance-list-schedule-form, .finance-card-schedule-form'))
+            const wrap = document.createElement('div')
+            wrap.className = 'finance-amount-field-wrap' + (isCompact ? ' finance-amount-field-wrap--compact' : '')
+            parent.insertBefore(wrap, input)
+            wrap.appendChild(input)
+            wrap.appendChild(createFinanceEasyAmountButton())
+          })
+        }
+
+        function initFinanceEasyAmountModal() {
+          const modal = document.getElementById('finance-easy-amount-modal')
+          const displayEl = document.getElementById('finance-easy-amount-current')
+          const titleEl = document.getElementById('finance-easy-amount-modal-title')
+          let targetInput = null
+          let mode = 'add'
+
+          function parseAmountInputValue(input) {
+            const raw = String(input?.value || '').trim()
+            if (!raw) return 0
+            const result = evaluateAmountExpression(raw)
+            if (result !== null) return Math.max(0, result)
+            const num = parseFloat(raw.replace(/,/g, ''))
+            return Number.isFinite(num) ? Math.max(0, num) : 0
+          }
+
+          function formatEasyAmountDisplay(value) {
+            return Number(value).toLocaleString('ja-JP', {
+              maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+            })
+          }
+
+          function getWorkingValue() {
+            return targetInput ? parseAmountInputValue(targetInput) : 0
+          }
+
+          function updateDisplay() {
+            if (displayEl) displayEl.textContent = formatEasyAmountDisplay(getWorkingValue())
+          }
+
+          function syncInputFromWorking(value) {
+            if (!targetInput) return
+            const rounded = Math.round(value * 100) / 100
+            targetInput.value = Number.isInteger(rounded) ? String(rounded) : String(rounded)
+            targetInput.classList.remove('is-invalid-calc')
+            targetInput.setCustomValidity('')
+            targetInput.dispatchEvent(new Event('input', { bubbles: true }))
+            updateDisplay()
+          }
+
+          function updateModeButtons() {
+            modal?.querySelectorAll('[data-finance-easy-amount-mode]').forEach((btn) => {
+              const isActive = btn.dataset.financeEasyAmountMode === mode
+              btn.classList.toggle('is-active', isActive)
+              btn.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+            })
+          }
+
+          function resolveEasyAmountTitle(input) {
+            const label = input.closest('label')
+            const labelText = label?.querySelector('.finance-quick-field-label, span')?.textContent?.trim()
+            if (labelText) return `${labelText} 簡単入力`
+            if (input.id === 'finance-quick-to-amount' || input.name === 'toAmount') return '振替先金額 簡単入力'
+            return '金額 簡単入力'
+          }
+
+          function openEasyAmountModal(input) {
+            targetInput = input
+            mode = 'add'
+            if (titleEl) titleEl.textContent = resolveEasyAmountTitle(input)
+            updateModeButtons()
+            updateDisplay()
+            modal?.removeAttribute('hidden')
+          }
+
+          function closeEasyAmountModal() {
+            modal?.setAttribute('hidden', '')
+            targetInput = null
+          }
+
+          function applyEasyAmountDelta(delta) {
+            let next = getWorkingValue() + (mode === 'subtract' ? -delta : delta)
+            if (next < 0) next = 0
+            syncInputFromWorking(next)
+          }
+
+          document.body.addEventListener('click', (event) => {
+            const btn = event.target.closest('.finance-easy-amount-btn')
+            if (!btn) return
+            event.preventDefault()
+            const input = btn.closest('.finance-amount-field-wrap')?.querySelector('.finance-amount-calc')
+            if (input) openEasyAmountModal(input)
+          })
+
+          modal?.querySelectorAll('[data-finance-easy-amount-mode]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              mode = btn.dataset.financeEasyAmountMode === 'subtract' ? 'subtract' : 'add'
+              updateModeButtons()
+            })
+          })
+
+          modal?.querySelectorAll('[data-finance-easy-amount-delta]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const delta = parseFloat(btn.dataset.financeEasyAmountDelta || '0')
+              if (delta > 0) applyEasyAmountDelta(delta)
+            })
+          })
+
+          document.getElementById('finance-easy-amount-clear')?.addEventListener('click', () => syncInputFromWorking(0))
+          document.querySelectorAll('[data-close-finance-easy-amount]').forEach((el) => {
+            el.addEventListener('click', closeEasyAmountModal)
+          })
+        }
+
+        ensureFinanceAmountEasyButtons()
+        initFinanceEasyAmountModal()
+
         const modal = document.getElementById('finance-transaction-modal')
         const form = document.getElementById('finance-transaction-form')
-        const openBtn = document.getElementById('finance-open-add')
+        const quickForm = document.getElementById('finance-quick-entry-form')
+        const quickEntrySection = document.getElementById('finance-quick-entry')
+        const quickTypeRadios = quickForm?.querySelectorAll('input[name="type"]') || []
+        const quickTypeTabs = quickForm?.querySelectorAll('.finance-quick-type-tab') || []
+        const quickTransferFields = document.getElementById('finance-quick-transfer-fields')
+        const quickToAmountWrap = document.getElementById('finance-quick-to-amount-wrap')
+        const quickAccountSelect = document.getElementById('finance-quick-account')
+        const quickToAccountSelect = document.getElementById('finance-quick-to-account')
+        const quickAmountInput = document.getElementById('finance-quick-amount')
+        const quickMemoInput = document.getElementById('finance-quick-memo')
+        const quickDateInput = document.getElementById('finance-quick-date')
+        const quickAccountLabel = document.getElementById('finance-quick-account-label')
+        const quickAmountLabel = document.getElementById('finance-quick-amount-label')
+        const quickSubmitBtn = document.getElementById('finance-quick-submit')
+        const transactionTypeHint = document.getElementById('finance-transaction-type-hint')
         const modalTitle = document.getElementById('finance-modal-title')
         const submitBtn = document.getElementById('finance-submit-btn')
         const transactionIdInput = document.getElementById('finance-transaction-id')
@@ -699,7 +1003,16 @@
           toAmountWrap.hidden = !cross
         }
 
-        typeRadios.forEach((radio) => radio.addEventListener('change', syncTransferVisibility))
+        typeRadios.forEach((radio) => {
+          radio.addEventListener('change', () => {
+            syncTransferVisibility()
+            const type = radio.value
+            if (!transactionIdInput.value && typeTitles[type]) {
+              modalTitle.textContent = typeTitles[type]
+            }
+            syncTransactionTypeHint()
+          })
+        })
         accountSelect?.addEventListener('change', syncCrossCurrency)
         toAccountSelect?.addEventListener('change', syncCrossCurrency)
 
@@ -710,29 +1023,116 @@
         )
 
         function applyDefaultTransactionAccount() {
-          if (defaultTransactionAccountId) {
+          if (defaultTransactionAccountId && accountSelect) {
             accountSelect.value = String(defaultTransactionAccountId)
+          }
+          if (defaultTransactionAccountId && quickAccountSelect) {
+            quickAccountSelect.value = String(defaultTransactionAccountId)
+          }
+        }
+
+        const quickSubmitLabels = {
+          income: '入金を登録',
+          expense: '支出を登録',
+          transfer: '振替を登録',
+        }
+
+        const quickAccountLabels = {
+          income: '入金先',
+          expense: '支出元',
+          transfer: '振替元',
+        }
+
+        function syncQuickTypeTabs() {
+          const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
+          quickTypeTabs.forEach((tab) => {
+            const input = tab.querySelector('input[name="type"]')
+            tab.classList.toggle('is-active', input?.value === type)
+          })
+          if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || '登録'
+          if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || '口座'
+          if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? '振替元金額' : '金額'
+          quickSubmitBtn?.classList.toggle('is-income', type === 'income')
+          quickSubmitBtn?.classList.toggle('is-expense', type === 'expense')
+          quickSubmitBtn?.classList.toggle('is-transfer', type === 'transfer')
+        }
+
+        function syncQuickCrossCurrency() {
+          const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
+          if (type !== 'transfer') {
+            if (quickToAmountWrap) quickToAmountWrap.hidden = true
+            return
+          }
+          const fromOption = quickAccountSelect?.selectedOptions[0]
+          const toOption = quickToAccountSelect?.selectedOptions[0]
+          if (!fromOption || !toOption) return
+          const cross = fromOption.dataset.currency !== toOption.dataset.currency
+          if (quickToAmountWrap) quickToAmountWrap.hidden = !cross
+        }
+
+        function syncQuickTransferVisibility() {
+          const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
+          const isTransfer = type === 'transfer'
+          if (quickTransferFields) quickTransferFields.hidden = !isTransfer
+          if (quickToAccountSelect) quickToAccountSelect.required = isTransfer
+          if (!isTransfer && quickToAmountWrap) quickToAmountWrap.hidden = true
+          syncQuickCrossCurrency()
+          syncQuickTypeTabs()
+        }
+
+        function presetQuickEntry(type = 'expense', accountId = null) {
+          if (!quickForm) return
+          const allowedTypes = ['income', 'expense', 'transfer']
+          const resolvedType = allowedTypes.includes(type) ? type : 'expense'
+          const typeRadio = quickForm.querySelector(`input[name="type"][value="${resolvedType}"]`)
+          if (typeRadio) typeRadio.checked = true
+          if (accountId && quickAccountSelect) {
+            quickAccountSelect.value = String(accountId)
+          } else {
+            applyDefaultTransactionAccount()
+          }
+          if (quickDateInput && !quickDateInput.value) {
+            quickDateInput.value = @json($defaultDate)
+          }
+          syncQuickTransferVisibility()
+          quickEntrySection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          window.setTimeout(() => quickAmountInput?.focus(), 120)
+        }
+
+        quickTypeRadios.forEach((radio) => {
+          radio.addEventListener('change', syncQuickTransferVisibility)
+        })
+        quickAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
+        quickToAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
+        document.querySelectorAll('[data-quick-type]').forEach((btn) => {
+          btn.addEventListener('click', (event) => {
+            event.stopPropagation()
+            presetQuickEntry(btn.dataset.quickType, btn.dataset.accountId)
+          })
+        })
+        syncQuickTransferVisibility()
+
+        const typeHints = {
+          income: '入金を登録すると、選んだ口座の残高にすぐ加算されます（給与・振込受取など）。',
+          expense: '支出を登録すると、選んだ口座の残高からすぐ差し引かれます。クレカ利用は口座でクレカを選び、メモに内容を書きます。',
+          transfer: '口座間の移動です。送金元から減り、送金先に加わります。',
+        }
+
+        const typeTitles = {
+          income: '入金を登録',
+          expense: '支出を登録',
+          transfer: '振替・送金を登録',
+        }
+
+        function syncTransactionTypeHint() {
+          const type = form.querySelector('input[name="type"]:checked')?.value || 'expense'
+          if (transactionTypeHint) {
+            transactionTypeHint.textContent = typeHints[type] || ''
           }
         }
 
         function openAddModal(presetType = 'expense') {
-          const allowedTypes = ['income', 'expense', 'transfer']
-          const type = allowedTypes.includes(presetType) ? presetType : 'expense'
-          modalTitle.textContent = '取引を追加'
-          submitBtn.textContent = '保存'
-          transactionIdInput.value = ''
-          form.action = '/finance'
-          form.method = 'post'
-          form.querySelector('#finance-date').value = @json($defaultDate);
-          form.querySelector('#finance-amount').value = ''
-          form.querySelector('#finance-memo').value = ''
-          form.querySelector('#finance-to-amount').value = ''
-          const typeRadio = form.querySelector(`input[name="type"][value="${type}"]`)
-          if (typeRadio) typeRadio.checked = true
-          applyDefaultTransactionAccount()
-          syncTransferVisibility()
-          modal?.removeAttribute('hidden')
-          window.setTimeout(() => form.querySelector('#finance-amount')?.focus(), 0)
+          presetQuickEntry(presetType)
         }
 
         function openEditModal(data) {
@@ -751,10 +1151,6 @@
           modal?.removeAttribute('hidden')
         }
 
-        openBtn?.addEventListener('click', () => openAddModal('expense'))
-        document.querySelectorAll('[data-summary-type]').forEach((item) => {
-          item.addEventListener('click', () => openAddModal(item.dataset.summaryType))
-        })
         document.querySelectorAll('[data-close-finance-modal]').forEach((el) => {
           el.addEventListener('click', closeModal)
         })
@@ -862,6 +1258,15 @@
           })
         })
 
+        document.querySelectorAll('.finance-edit-account-card-btn').forEach((btn) => {
+          btn.addEventListener('click', (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            const host = btn.closest('[data-account]')
+            if (host) openAccountEditorFromElement(host)
+          })
+        })
+
         const accountsView = document.getElementById('finance-accounts-view')
         const viewToggleButtons = document.querySelectorAll('[data-accounts-view]')
         const ACCOUNTS_VIEW_KEY = 'finance-accounts-view'
@@ -900,11 +1305,8 @@
           if (event.target.closest('.finance-account-schedule-btn')) return
           if (event.target.closest('.finance-card-schedule-form')) return
           if (event.target.closest('.finance-list-schedule-form')) return
-          const editBtn = event.target.closest('.finance-edit-account-card-btn')
-          if (editBtn) {
-            openAccountEditorFromElement(editBtn.closest('[data-account]'))
-            return
-          }
+          if (event.target.closest('.finance-edit-account-card-btn')) return
+          if (event.target.closest('.finance-account-list-actions')) return
           const item = event.target.closest('.finance-account-card-body, .finance-account-list-row')
           if (item) {
             openAccountEditorFromElement(item.closest('[data-account]') || item)
@@ -913,10 +1315,34 @@
 
         accountsView?.addEventListener('keydown', (event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
+          if (event.target.closest('.finance-account-list-actions, .finance-list-schedule-form')) return
           const item = event.target.closest('.finance-account-card-body, .finance-account-list-row')
           if (!item) return
           event.preventDefault()
           openAccountEditorFromElement(item.closest('[data-account]') || item)
+        })
+
+        function scrollToFinanceTransactions() {
+          const section = document.getElementById('finance-transactions')
+          if (!section) return
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          section.classList.add('is-highlight')
+          window.setTimeout(() => section.classList.remove('is-highlight'), 1200)
+        }
+
+        if (window.location.hash === '#finance-transactions') {
+          window.setTimeout(scrollToFinanceTransactions, 100)
+        }
+
+        document.querySelectorAll('[data-finance-account-filter]').forEach((link) => {
+          link.addEventListener('click', (event) => {
+            const linkUrl = new URL(link.href, window.location.origin)
+            const currentUrl = new URL(window.location.href)
+            if (linkUrl.pathname === currentUrl.pathname && linkUrl.search === currentUrl.search) {
+              event.preventDefault()
+              scrollToFinanceTransactions()
+            }
+          })
         })
 
         let draggedCard = null
@@ -1030,22 +1456,26 @@
             schedules.forEach((schedule) => {
               const row = document.createElement('div')
               row.className = 'finance-account-schedule-item'
-              const memo = schedule.memo
-                ? `<span class="finance-account-schedule-memo">${schedule.memo}</span>`
-                : ''
               row.innerHTML = `
-                <span>${schedule.scheduledDate} ${formatScheduleMoney(schedule.amount, account.currency)}</span>
-                ${memo}
-                <form method="post" action="/finance/schedules/${schedule.id}/delete" class="finance-inline-form">
+                <form method="post" action="/finance/schedules/${schedule.id}/update" class="finance-inline-form finance-schedule-edit-form">
                   <input type="hidden" name="_token" value="${csrfToken || ''}" />
                   <input type="hidden" name="returnTo" value="${scheduleReturnTo}" />
-                  <button type="submit" class="text-btn danger">削除</button>
+                  <label>予定日 <input type="date" name="scheduledDate" value="${schedule.scheduledDate}" required /></label>
+                  <label>金額 <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" value="${schedule.amount}" required autocomplete="off" /></label>
+                  <label>メモ <input type="text" name="memo" value="${schedule.memo || ''}" /></label>
+                  <button type="submit" class="text-btn">更新</button>
+                </form>
+                <form method="post" action="/finance/schedules/${schedule.id}/delete" class="finance-inline-form finance-schedule-delete-form">
+                  <input type="hidden" name="_token" value="${csrfToken || ''}" />
+                  <input type="hidden" name="returnTo" value="${scheduleReturnTo}" />
+                  <button type="submit" class="text-btn danger" onclick="return confirm('予定を削除しますか？\\n既に反映済みの取引がある場合はそれも削除されます。')">予定を削除</button>
                 </form>
               `
               scheduleList.appendChild(row)
             })
           }
           bindAmountCalcInputs(scheduleModal)
+          ensureFinanceAmountEasyButtons(scheduleModal)
           scheduleModal?.removeAttribute('hidden')
         }
 
