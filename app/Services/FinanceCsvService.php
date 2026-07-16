@@ -14,6 +14,8 @@ class FinanceCsvService
 
     public const FORMAT_BUDGET_MONITOR = 'budget_monitor';
 
+    public const FORMAT_ACCOUNTS = 'accounts';
+
     /** @var array<string, string> */
     private const BUDGET_MONITOR_FLOW_COLUMNS = [
         'IN' => 'income:jp_bank_rakuten',
@@ -53,9 +55,14 @@ class FinanceCsvService
 
     public function detectFormat(string $content): string
     {
+        $content = $this->normalizeCsvEncoding($content);
         $firstLine = strtok($content, "\r\n");
         if (! is_string($firstLine)) {
             return self::FORMAT_TRANSACTIONS;
+        }
+
+        if ($this->looksLikeAccountMasterHeader($firstLine)) {
+            return self::FORMAT_ACCOUNTS;
         }
 
         if (str_contains($firstLine, 'Balance') && str_contains($firstLine, 'PH Bank In')) {
@@ -66,13 +73,19 @@ class FinanceCsvService
     }
 
     /**
-     * @return array{format: string, created: int, skipped: int, deleted: int, from: ?string, to: ?string, messages: list<string>}
+     * @return array{format: string, created: int, updated: int, skipped: int, deleted: int, from: ?string, to: ?string, messages: list<string>}
      */
     public function import(string $content, array $options = []): array
     {
+        $content = $this->normalizeCsvEncoding($content);
         $format = $options['format'] ?? $this->detectFormat($content);
         $replace = (bool) ($options['replace'] ?? false);
         $includeCardDeltas = (bool) ($options['includeCardDeltas'] ?? true);
+        $updateExisting = (bool) ($options['updateExisting'] ?? true);
+
+        if ($format === self::FORMAT_ACCOUNTS) {
+            return $this->importAccounts($content, $updateExisting);
+        }
 
         $this->finance->ensureDefaultAccounts();
 
@@ -85,6 +98,10 @@ class FinanceCsvService
 
     public function export(array $filters, string $format = self::FORMAT_TRANSACTIONS): string
     {
+        if ($format === self::FORMAT_ACCOUNTS) {
+            return $this->exportAccounts();
+        }
+
         if ($format === self::FORMAT_BUDGET_MONITOR) {
             return $this->exportBudgetMonitor($filters);
         }
@@ -217,6 +234,7 @@ class FinanceCsvService
         return [
             'format' => self::FORMAT_BUDGET_MONITOR,
             'created' => $created,
+            'updated' => 0,
             'skipped' => $skipped,
             'deleted' => $deleted,
             'from' => $dates[0] ?? null,
@@ -298,6 +316,7 @@ class FinanceCsvService
         return [
             'format' => self::FORMAT_TRANSACTIONS,
             'created' => $created,
+            'updated' => 0,
             'skipped' => $skipped,
             'deleted' => $deleted,
             'from' => $dates[0] ?? null,
@@ -430,16 +449,362 @@ class FinanceCsvService
         return $this->toCsv($lines);
     }
 
+    /**
+     * @return array{format: string, created: int, updated: int, skipped: int, deleted: int, from: ?string, to: ?string, messages: list<string>}
+     */
+    private function importAccounts(string $content, bool $updateExisting): array
+    {
+        $rows = $this->parseCsvRows($content);
+        if ($rows === []) {
+            throw new \InvalidArgumentException('CSVが空です');
+        }
+
+        $header = array_map(fn ($value) => mb_strtolower(trim((string) $value)), array_shift($rows) ?: []);
+        $indexes = $this->mapAccountHeaderIndexes($header);
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        /** @var array<string, string> $pendingLinks account slug => linked bank slug or name */
+        $pendingLinks = [];
+
+        foreach ($rows as $row) {
+            $name = trim($this->csvCell($row, $indexes['name']));
+            if ($name === '') {
+                $skipped++;
+
+                continue;
+            }
+
+            $region = $this->normalizeImportRegion($this->csvCell($row, $indexes['region']));
+            $kind = $this->normalizeImportKind($this->csvCell($row, $indexes['kind']));
+            $slug = trim($this->csvCell($row, $indexes['slug']));
+            $currency = trim($this->csvCell($row, $indexes['currency']));
+            if ($currency === '') {
+                $currency = $this->finance->currencyForRegion($region);
+            }
+            $sortOrder = trim($this->csvCell($row, $indexes['sort_order']));
+            $initialBalance = $this->parseAmount($this->csvCell($row, $indexes['initial_balance']));
+            $adjustmentAmount = $this->parseAmount($this->csvCell($row, $indexes['adjustment_amount']));
+            $showInOverview = $this->parseImportBool($this->csvCell($row, $indexes['show_in_overview']));
+            $linkedBankRaw = trim($this->csvCell($row, $indexes['linked_bank_slug']));
+
+            $account = null;
+            if ($slug !== '') {
+                $account = FinanceAccount::query()->where('slug', $slug)->first();
+            }
+            if ($account === null && $updateExisting) {
+                $account = FinanceAccount::query()
+                    ->where('is_active', true)
+                    ->where('name', $name)
+                    ->where('region', $region)
+                    ->where('kind', $kind)
+                    ->first();
+            }
+
+            if ($account !== null) {
+                if (! $updateExisting) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $account->name = $name;
+                $account->region = $region;
+                $account->kind = $kind;
+                $account->currency = $currency;
+                if ($sortOrder !== '' && ctype_digit($sortOrder)) {
+                    $account->sort_order = (int) $sortOrder;
+                }
+                $account->initial_balance = $initialBalance;
+                $account->adjustment_amount = $adjustmentAmount;
+                $account->show_in_overview = $showInOverview;
+                $account->is_active = true;
+                if ($kind !== 'credit_card') {
+                    $account->linked_bank_id = null;
+                }
+                $account->save();
+                $updated++;
+                $accountSlug = $account->slug;
+            } else {
+                if ($slug !== '' && FinanceAccount::query()->where('slug', $slug)->exists()) {
+                    throw new \InvalidArgumentException("識別子 slug が重複しています: {$slug}");
+                }
+
+                $account = $this->finance->createAccount([
+                    'name' => $name,
+                    'region' => $region,
+                    'kind' => $kind,
+                    'initialBalance' => $initialBalance,
+                    'adjustmentAmount' => $adjustmentAmount,
+                    'showInOverview' => $showInOverview,
+                    'sortOrder' => $sortOrder !== '' && ctype_digit($sortOrder) ? (int) $sortOrder : null,
+                ]);
+
+                if ($currency !== $this->finance->currencyForRegion($region)) {
+                    $account->currency = $currency;
+                }
+                if ($slug !== '' && $account->slug !== $slug) {
+                    $account->slug = $slug;
+                }
+                $account->save();
+                $created++;
+                $accountSlug = $account->slug;
+            }
+
+            if ($kind === 'credit_card' && $linkedBankRaw !== '') {
+                $pendingLinks[$accountSlug] = $linkedBankRaw;
+            }
+        }
+
+        if ($pendingLinks !== []) {
+            $accountsBySlug = FinanceAccount::query()->where('is_active', true)->get()->keyBy('slug');
+            $accountsByName = FinanceAccount::query()
+                ->where('is_active', true)
+                ->get()
+                ->keyBy(fn (FinanceAccount $account) => mb_strtolower($account->name));
+
+            foreach ($pendingLinks as $accountSlug => $linkedRaw) {
+                $account = $accountsBySlug->get($accountSlug);
+                if ($account === null) {
+                    continue;
+                }
+
+                $linked = $accountsBySlug->get($linkedRaw)
+                    ?? $accountsByName->get(mb_strtolower($linkedRaw));
+                if ($linked === null || $linked->kind !== 'bank') {
+                    continue;
+                }
+
+                if ($linked->region !== $account->region) {
+                    continue;
+                }
+
+                $account->linked_bank_id = $linked->id;
+                $account->save();
+            }
+        }
+
+        return [
+            'format' => self::FORMAT_ACCOUNTS,
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'deleted' => 0,
+            'from' => null,
+            'to' => null,
+            'messages' => ['口座マスターをインポートしました。'],
+        ];
+    }
+
+    private function exportAccounts(): string
+    {
+        $accounts = FinanceAccount::query()
+            ->where('is_active', true)
+            ->with('linkedBank')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $lines = [[
+            'slug',
+            'region',
+            'kind',
+            'name',
+            'currency',
+            'sort_order',
+            'linked_bank_slug',
+            'initial_balance',
+            'adjustment_amount',
+            'show_in_overview',
+        ]];
+
+        foreach ($accounts as $account) {
+            $lines[] = [
+                $account->slug,
+                $account->region,
+                $account->kind,
+                $account->name,
+                $account->currency,
+                (string) $account->sort_order,
+                $account->linkedBank?->slug ?? '',
+                (string) $account->initial_balance,
+                (string) ($account->adjustment_amount ?? 0),
+                $account->show_in_overview ? '1' : '0',
+            ];
+        }
+
+        return $this->toCsv($lines);
+    }
+
+    private function looksLikeAccountMasterHeader(string $line): bool
+    {
+        $header = array_map(fn ($value) => mb_strtolower(trim((string) $value)), str_getcsv($line) ?: []);
+
+        return $this->headerHasAny($header, ['name', '口座名', '名前', 'account_name'])
+            && $this->headerHasAny($header, ['kind', '種別', 'account_kind'])
+            && $this->headerHasAny($header, ['region', '地域']);
+    }
+
+    /** @param list<string> $header @param list<string> $candidates */
+    private function headerHasAny(array $header, array $candidates): bool
+    {
+        foreach ($candidates as $candidate) {
+            if (in_array(mb_strtolower($candidate), $header, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $header @return array<string, int> */
+    private function mapAccountHeaderIndexes(array $header): array
+    {
+        $aliases = [
+            'slug' => ['slug', '識別子', 'account_slug'],
+            'region' => ['region', '地域'],
+            'kind' => ['kind', '種別', 'account_kind'],
+            'name' => ['name', '口座名', '名前', 'account_name'],
+            'currency' => ['currency', '通貨'],
+            'sort_order' => ['sort_order', '表示順', '並び順', 'sortorder'],
+            'linked_bank_slug' => ['linked_bank_slug', '引落口座slug', '引落銀行', 'linked_bank', '引落口座'],
+            'initial_balance' => ['initial_balance', '開始残高', '残高', 'initialbalance'],
+            'adjustment_amount' => ['adjustment_amount', '調整金額', '調整', 'adjustmentamount'],
+            'show_in_overview' => ['show_in_overview', '総残高表示', '概要表示', 'showinoverview'],
+        ];
+
+        $indexes = [];
+        foreach ($aliases as $key => $options) {
+            foreach ($options as $option) {
+                $index = array_search(mb_strtolower($option), $header, true);
+                if ($index !== false) {
+                    $indexes[$key] = $index;
+                    break;
+                }
+            }
+        }
+
+        foreach (['region', 'kind', 'name'] as $required) {
+            if (! isset($indexes[$required])) {
+                throw new \InvalidArgumentException('口座マスターCSVのヘッダーが不正です（地域・種別・口座名が必要）');
+            }
+        }
+
+        foreach (['slug', 'currency', 'sort_order', 'linked_bank_slug', 'initial_balance', 'adjustment_amount', 'show_in_overview'] as $optional) {
+            $indexes[$optional] ??= null;
+        }
+
+        return $indexes;
+    }
+
+    private function normalizeImportRegion(mixed $value): string
+    {
+        $raw = mb_strtolower(trim((string) $value));
+        if (in_array($raw, ['jp', 'japan', '日本'], true)) {
+            return 'jp';
+        }
+        if (in_array($raw, ['ph', 'philippines', 'フィリピン'], true)) {
+            return 'ph';
+        }
+
+        return $this->finance->normalizeRegion($raw);
+    }
+
+    private function normalizeImportKind(mixed $value): string
+    {
+        $raw = mb_strtolower(trim((string) $value));
+        if (in_array($raw, ['bank', '銀行'], true)) {
+            return 'bank';
+        }
+        if (in_array($raw, ['credit_card', 'クレカ', 'クレジットカード', 'card'], true)) {
+            return 'credit_card';
+        }
+        if (in_array($raw, ['wallet', 'ウォレット'], true)) {
+            return 'wallet';
+        }
+        if (in_array($raw, ['cash', '現金'], true)) {
+            return 'cash';
+        }
+
+        return $this->finance->normalizeKind($raw);
+    }
+
+    private function parseImportBool(mixed $value): bool
+    {
+        $raw = mb_strtolower(trim((string) $value));
+        if ($raw === '') {
+            return false;
+        }
+
+        return in_array($raw, ['1', 'true', 'yes', 'y', 'on', 'はい', '表示'], true);
+    }
+
+    /** Excel の Shift-JIS / CP932 CSV を UTF-8 に揃える */
+    public function normalizeCsvEncoding(string $content): string
+    {
+        $content = str_replace("\u{FEFF}", '', $content);
+        if ($content === '') {
+            return $content;
+        }
+
+        if (mb_check_encoding($content, 'UTF-8') && $this->looksLikeReadableJapaneseCsv($content)) {
+            return $content;
+        }
+
+        foreach (['SJIS-win', 'CP932', 'SJIS', 'EUC-JP'] as $encoding) {
+            $converted = @mb_convert_encoding($content, 'UTF-8', $encoding);
+            if (! is_string($converted) || $converted === '') {
+                continue;
+            }
+
+            if ($this->looksLikeReadableJapaneseCsv($converted)) {
+                return $converted;
+            }
+        }
+
+        return $content;
+    }
+
+    private function looksLikeReadableJapaneseCsv(string $content): bool
+    {
+        $firstLine = strtok($content, "\r\n");
+        if (! is_string($firstLine) || $firstLine === '') {
+            return false;
+        }
+
+        if (preg_match('/地域|種別|口座名|日付|金額|メモ|識別子/', $firstLine) === 1) {
+            return true;
+        }
+
+        return preg_match('/slug|region|kind|name|date|amount|Balance|PH Bank/i', $firstLine) === 1;
+    }
+
+    /** @param list<string|null> $row */
+    private function csvCell(array $row, ?int $index): string
+    {
+        if ($index === null || ! array_key_exists($index, $row)) {
+            return '';
+        }
+
+        return (string) ($row[$index] ?? '');
+    }
+
     /** @return list<list<string>> */
     private function parseCsvRows(string $content): array
     {
-        $content = trim(str_replace("\u{FEFF}", '', $content));
+        $content = trim(str_replace("\u{FEFF}", '', $this->normalizeCsvEncoding($content)));
         $rows = [];
         foreach (preg_split('/\r\n|\n|\r/', $content) ?: [] as $line) {
             if (trim($line) === '') {
                 continue;
             }
-            $rows[] = str_getcsv($line);
+
+            // Excel のタブ区切り（Unicode テキスト）にも対応
+            if (! str_contains($line, ',') && str_contains($line, "\t")) {
+                $rows[] = array_map(fn ($value) => (string) $value, explode("\t", $line));
+            } else {
+                $rows[] = str_getcsv($line);
+            }
         }
 
         return $rows;

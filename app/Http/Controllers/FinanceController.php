@@ -323,14 +323,20 @@ class FinanceController extends Controller
     {
         $filters = $this->finance->parseFilters($request->query());
         $format = $request->query('format', FinanceCsvService::FORMAT_TRANSACTIONS);
-        if (! in_array($format, [FinanceCsvService::FORMAT_TRANSACTIONS, FinanceCsvService::FORMAT_BUDGET_MONITOR], true)) {
+        if (! in_array($format, [
+            FinanceCsvService::FORMAT_TRANSACTIONS,
+            FinanceCsvService::FORMAT_BUDGET_MONITOR,
+            FinanceCsvService::FORMAT_ACCOUNTS,
+        ], true)) {
             abort(400, '不正なエクスポート形式です');
         }
 
         $csv = $this->financeCsv->export($filters, $format);
-        $filename = $format === FinanceCsvService::FORMAT_BUDGET_MONITOR
-            ? sprintf('budget-monitor_%04d-%02d.csv', $filters['year'], $filters['month'])
-            : sprintf('finance-transactions_%04d-%02d.csv', $filters['year'], $filters['month']);
+        $filename = match ($format) {
+            FinanceCsvService::FORMAT_BUDGET_MONITOR => sprintf('budget-monitor_%04d-%02d.csv', $filters['year'], $filters['month']),
+            FinanceCsvService::FORMAT_ACCOUNTS => 'finance-accounts.csv',
+            default => sprintf('finance-transactions_%04d-%02d.csv', $filters['year'], $filters['month']),
+        };
 
         return response()->streamDownload(
             static function () use ($csv) {
@@ -354,22 +360,38 @@ class FinanceController extends Controller
         }
 
         try {
+            $importType = $request->input('import_type');
             $result = $this->financeCsv->import($content, [
+                'format' => $importType === 'accounts' ? FinanceCsvService::FORMAT_ACCOUNTS : null,
                 'replace' => $request->boolean('replace'),
                 'includeCardDeltas' => $request->boolean('include_card_deltas', true),
+                'updateExisting' => $request->boolean('update_existing', true),
             ]);
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
-        } catch (\Throwable) {
-            return $this->redirectWithMessage($returnTo, 'CSVのインポートに失敗しました', 'error');
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage(
+                $returnTo,
+                'CSVのインポートに失敗しました: '.$e->getMessage(),
+                'error'
+            );
         }
 
-        $message = sprintf(
-            'CSVをインポートしました（%d件追加、%d件スキップ%s）。',
-            $result['created'],
-            $result['skipped'],
-            $result['deleted'] > 0 ? '、既存'.$result['deleted'].'件を削除' : ''
-        );
+        if ($result['format'] === FinanceCsvService::FORMAT_ACCOUNTS) {
+            $message = sprintf(
+                '口座マスターをインポートしました（%d件追加、%d件更新、%d件スキップ）。',
+                $result['created'],
+                $result['updated'],
+                $result['skipped'],
+            );
+        } else {
+            $message = sprintf(
+                'CSVをインポートしました（%d件追加、%d件スキップ%s）。',
+                $result['created'],
+                $result['skipped'],
+                $result['deleted'] > 0 ? '、既存'.$result['deleted'].'件を削除' : ''
+            );
+        }
 
         return $this->redirectWithMessage($returnTo, $message);
     }

@@ -7,6 +7,7 @@ use App\Services\DisplayService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -23,29 +24,79 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        ['year' => $y, 'month' => $m] = $this->calendar->resolveMonth($request->query('year'), $request->query('month'));
+        $state = $this->calendar->resolveCalendarState($request->query());
+        $view = $state['view'];
+        $focusDate = $state['focusDate'];
+        $y = $state['year'];
+        $m = $state['month'];
 
-        $holidayMap = array_merge(
-            $this->holidays->getHolidayInfoMapForYear($y),
-            $this->holidays->getHolidayInfoMapForYear($this->calendar->shiftMonth($y, $m, -1)['year']),
-            $this->holidays->getHolidayInfoMapForYear($this->calendar->shiftMonth($y, $m, 1)['year']),
-        );
+        $holidayYears = [$y];
+        if ($view === 'month') {
+            $holidayYears[] = $this->calendar->shiftMonth($y, $m, -1)['year'];
+            $holidayYears[] = $this->calendar->shiftMonth($y, $m, 1)['year'];
+        } elseif ($view === 'week') {
+            $weekStart = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'))->startOfWeek(Carbon::SUNDAY);
+            $weekEnd = $weekStart->copy()->addDays(6);
+            $holidayYears[] = (int) $weekStart->format('Y');
+            $holidayYears[] = (int) $weekEnd->format('Y');
+        }
+        $holidayYears = array_values(array_unique($holidayYears));
+
+        $holidayMap = [];
+        foreach ($holidayYears as $holidayYear) {
+            $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
+        }
 
         $allTodos = $this->todos->listTodos()->all();
-        $grid = $this->calendar->buildMonthGrid($y, $m, $allTodos, $holidayMap);
         $activeNotes = $this->notes->listActiveNotesForCalendar();
-        $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
+        $undated = array_values(array_filter(
+            $allTodos,
+            fn (array $todo) => empty($todo['startDate']) && empty($todo['endDate'])
+        ));
+
+        $weeks = [];
+        $dayView = null;
+        $weekView = null;
+        $yearView = null;
+
+        if ($view === 'day') {
+            $dayView = $this->calendar->buildDayView($focusDate, $allTodos, $holidayMap, $activeNotes);
+        } elseif ($view === 'week') {
+            $weekView = $this->calendar->buildWeekView($focusDate, $allTodos, $holidayMap, $activeNotes);
+        } elseif ($view === 'year') {
+            $yearView = $this->calendar->buildYearView($y, $allTodos, $holidayMap);
+        } else {
+            $grid = $this->calendar->buildMonthGrid($y, $m, $allTodos, $holidayMap);
+            $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
+            $weeks = $grid['weeks'];
+            $undated = $grid['undated'];
+        }
+
+        $prev = $this->calendar->shiftFocus($view, $focusDate, -1);
+        $next = $this->calendar->shiftFocus($view, $focusDate, 1);
+        $today = Carbon::now(config('app.timezone', 'Asia/Tokyo'))->format('Y-m-d');
+        $returnTo = $this->calendar->buildDashboardQuery($view, $focusDate);
 
         return view('dashboard', [
+            'view' => $view,
+            'viewLabels' => CalendarService::VIEW_LABELS,
+            'focusDate' => $focusDate,
+            'periodLabel' => $this->calendar->formatPeriodLabel($view, $focusDate),
             'year' => $y,
             'month' => $m,
-            'prev' => $this->calendar->shiftMonth($y, $m, -1),
-            'next' => $this->calendar->shiftMonth($y, $m, 1),
+            'prevUrl' => $this->calendar->buildDashboardQuery($view, $prev['focusDate']),
+            'nextUrl' => $this->calendar->buildDashboardQuery($view, $next['focusDate']),
+            'todayUrl' => $this->calendar->buildDashboardQuery('day', $today),
+            'buildViewUrl' => fn (string $targetView) => $this->calendar->buildDashboardQuery($targetView, $focusDate),
+            'buildDashboardQuery' => fn (string $targetView, string $date) => $this->calendar->buildDashboardQuery($targetView, $date),
             'weekdayLabels' => CalendarService::WEEKDAY_LABELS,
-            'weeks' => $grid['weeks'],
-            'undated' => $grid['undated'],
-            'returnTo' => "/dashboard?year={$y}&month={$m}",
-            'monthAgenda' => $this->listMonthAgenda($y, $m),
+            'weeks' => $weeks,
+            'dayView' => $dayView,
+            'weekView' => $weekView,
+            'yearView' => $yearView,
+            'undated' => $undated,
+            'returnTo' => $returnTo,
+            'monthAgenda' => $view === 'month' ? $this->listMonthAgenda($y, $m) : [],
             'truncateTitle' => fn ($title, $max = 24) => $this->display->truncateTitle((string) $title, $max),
             'limitTodosForCell' => fn ($todos, $limit = 4) => $this->display->limitTodosForCell($todos, $limit),
             'limitCellItems' => fn ($todos, $notes, $limit = 4) => $this->display->limitCellItems($todos, $notes, $limit),

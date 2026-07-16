@@ -14,20 +14,36 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      <div class="calendar-shell">
+      <div class="calendar-shell" data-calendar-view="{{ $view }}">
         <div class="calendar-toolbar">
           <div class="nav-group">
-            <a class="button-link secondary icon-btn" href="/dashboard?year={{ $prev['year'] }}&month={{ $prev['month'] }}">‹</a>
-            <a class="button-link secondary" href="/dashboard">今日</a>
-            <a class="button-link secondary icon-btn" href="/dashboard?year={{ $next['year'] }}&month={{ $next['month'] }}">›</a>
+            <a class="button-link secondary icon-btn" href="{{ $prevUrl }}">‹</a>
+            <a class="button-link secondary" href="{{ $todayUrl }}">今日</a>
+            <a class="button-link secondary icon-btn" href="{{ $nextUrl }}">›</a>
           </div>
-          <div class="month-label">{{ $year }}年{{ $month }}月</div>
+          <div class="month-label">{{ $periodLabel }}</div>
           <div class="calendar-toolbar-links">
+            <div class="calendar-view-switch" role="group" aria-label="表示切替">
+              @foreach($viewLabels as $viewKey => $viewLabel)
+                <a
+                  href="{{ $buildViewUrl($viewKey) }}"
+                  class="calendar-view-btn @if($view === $viewKey) is-active @endif"
+                  aria-current="{{ $view === $viewKey ? 'page' : 'false' }}"
+                >{{ $viewLabel }}</a>
+              @endforeach
+            </div>
             <a class="button-link secondary" href="/notes">メモ</a>
             <a class="button-link" href="/todos">Todo 管理へ</a>
           </div>
         </div>
 
+        @if($view === 'day')
+          @include('dashboard.partials.calendar-day')
+        @elseif($view === 'week')
+          @include('dashboard.partials.calendar-week')
+        @elseif($view === 'year')
+          @include('dashboard.partials.calendar-year')
+        @else
         <div class="calendar-weekdays">
           @foreach($weekdayLabels as $index => $label)
             <div class="calendar-weekday {{ $index === 0 ? 'sun' : ($index === 6 ? 'sat' : '') }}">{{ $label }}</div>
@@ -86,7 +102,13 @@
                       @endphp
                       <button
                         type="button"
-                        class="event-chip category-{{ $todo['category'] }} importance-{{ $todo['importance'] }} @class(['done' => !empty($todo['completed']), 'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null)])"
+                        @class([
+                          'event-chip',
+                          'category-'.($todo['category'] ?? 'task'),
+                          'importance-'.($todo['importance'] ?? 'medium'),
+                          'done' => ! empty($todo['completed']),
+                          'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null),
+                        ])
                         data-todo-id="{{ $todo['id'] }}"
                         data-tip-title="{{ $todo['title'] }}"
                         data-tip-date="{{ $formatPeriodLabel($todo) }}"
@@ -107,7 +129,13 @@
                         @php $todo = $item['todo']; @endphp
                         <button
                           type="button"
-                          class="event-chip category-{{ $todo['category'] }} importance-{{ $todo['importance'] }} @class(['done' => !empty($todo['completed']), 'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null)])"
+                          @class([
+                            'event-chip',
+                            'category-'.($todo['category'] ?? 'task'),
+                            'importance-'.($todo['importance'] ?? 'medium'),
+                            'done' => ! empty($todo['completed']),
+                            'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null),
+                          ])
                           data-todo-id="{{ $todo['id'] }}"
                         >
                           <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
@@ -138,8 +166,10 @@
             </div>
           @endforeach
         </div>
+        @endif
       </div>
 
+      @if($view === 'month')
       <section class="mobile-month-agenda panel" aria-label="{{ $month }}月の予定一覧">
         <h3>{{ $month }}月の予定（{{ count($monthAgenda) }}件）</h3>
         @if(count($monthAgenda) === 0)
@@ -175,6 +205,7 @@
           </ul>
         @endif
       </section>
+      @endif
 
       @if(count($undated) > 0)
         <div class="panel calendar-sidebar">
@@ -376,6 +407,14 @@
       const NOTE_ITEMS = @json($notesForJs ?? []);
       const NOTE_COLORS = @json($noteColors);
       const RETURN_TO = @json($returnTo);
+      const CALENDAR_VIEW = @json($view);
+
+      const timedScroll = document.querySelector('.cal-timed-scroll')
+      if (timedScroll) {
+        const host = timedScroll.closest('.calendar-day-view, .calendar-week-view') || timedScroll
+        const hourHeight = parseFloat(getComputedStyle(host).getPropertyValue('--cal-hour-height')) || 48
+        timedScroll.scrollTop = hourHeight * 8
+      }
 
       let quickAddDate = null
       const todoModal = document.getElementById('todo-modal')

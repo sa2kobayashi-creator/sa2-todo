@@ -98,4 +98,100 @@ class FinanceCsvServiceTest extends TestCase
         $this->assertStringContainsString('2026/7/2', $csv);
         $this->assertStringContainsString('78,823', $csv);
     }
+
+    public function test_detects_account_master_format(): void
+    {
+        $content = file_get_contents(base_path('tests/fixtures/account_master_sample.csv'));
+        $this->assertSame(FinanceCsvService::FORMAT_ACCOUNTS, $this->service->detectFormat($content));
+    }
+
+    public function test_imports_account_master_csv(): void
+    {
+        $content = file_get_contents(base_path('tests/fixtures/account_master_sample.csv'));
+
+        $result = $this->service->import($content, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $this->assertSame(FinanceCsvService::FORMAT_ACCOUNTS, $result['format']);
+        $this->assertSame(7, $result['created']);
+        $this->assertSame(0, $result['updated']);
+        $this->assertSame(0, $result['skipped']);
+
+        $this->assertDatabaseHas('finance_accounts', [
+            'slug' => 'jp_bank_rakuten',
+            'kind' => 'bank',
+            'name' => '楽天銀行',
+            'initial_balance' => 500000,
+            'show_in_overview' => true,
+        ]);
+
+        $rakutenCard = \App\Models\FinanceAccount::query()->where('slug', 'jp_card_rakuten')->first();
+        $rakutenBank = \App\Models\FinanceAccount::query()->where('slug', 'jp_bank_rakuten')->first();
+        $this->assertNotNull($rakutenCard);
+        $this->assertNotNull($rakutenBank);
+        $this->assertSame($rakutenBank->id, $rakutenCard->linked_bank_id);
+    }
+
+    public function test_updates_existing_accounts_on_account_master_import(): void
+    {
+        $content = file_get_contents(base_path('tests/fixtures/account_master_sample.csv'));
+        $this->service->import($content, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $updatedCsv = str_replace('500000', '550000', $content);
+        $result = $this->service->import($updatedCsv, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(7, $result['updated']);
+        $this->assertDatabaseHas('finance_accounts', [
+            'slug' => 'jp_bank_rakuten',
+            'initial_balance' => 550000,
+        ]);
+    }
+
+    public function test_exports_account_master_csv(): void
+    {
+        $content = file_get_contents(base_path('tests/fixtures/account_master_sample.csv'));
+        $this->service->import($content, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $csv = $this->service->export([], FinanceCsvService::FORMAT_ACCOUNTS);
+
+        $this->assertStringContainsString('slug,region,kind,name,currency', $csv);
+        $this->assertStringContainsString('jp_bank_rakuten,jp,bank,楽天銀行,JPY', $csv);
+        $this->assertStringContainsString('jp_card_rakuten,jp,credit_card,Rakuten,JPY,110,jp_bank_rakuten', $csv);
+    }
+
+    public function test_imports_japanese_header_account_csv_with_empty_slug(): void
+    {
+        $content = "識別子,地域,種別,口座名\n,フィリピン,銀行,BPI\n,日本,クレカ,楽天VISA\n,フィリピン,ウォレット,Maya\n";
+
+        $result = $this->service->import($content, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $this->assertSame(3, $result['created']);
+        $this->assertDatabaseHas('finance_accounts', [
+            'name' => 'BPI',
+            'region' => 'ph',
+            'kind' => 'bank',
+        ]);
+        $this->assertDatabaseHas('finance_accounts', [
+            'name' => '楽天VISA',
+            'region' => 'jp',
+            'kind' => 'credit_card',
+        ]);
+    }
+
+    public function test_imports_shift_jis_japanese_account_csv(): void
+    {
+        $utf8 = "識別子,地域,種別,口座名\n,フィリピン,銀行,BPI\n,日本,銀行,楽天銀行\n";
+        $sjis = mb_convert_encoding($utf8, 'SJIS-win', 'UTF-8');
+
+        $this->assertSame(FinanceCsvService::FORMAT_ACCOUNTS, $this->service->detectFormat($sjis));
+
+        $result = $this->service->import($sjis, ['format' => FinanceCsvService::FORMAT_ACCOUNTS]);
+
+        $this->assertSame(2, $result['created']);
+        $this->assertDatabaseHas('finance_accounts', [
+            'name' => '楽天銀行',
+            'region' => 'jp',
+            'kind' => 'bank',
+        ]);
+    }
 }

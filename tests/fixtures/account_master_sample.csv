@@ -1,0 +1,8 @@
+slug,region,kind,name,currency,sort_order,linked_bank_slug,initial_balance,adjustment_amount,show_in_overview
+jp_bank_rakuten,jp,bank,楽天銀行,JPY,10,,500000,0,1
+jp_bank_paypay,jp,bank,PAYPAY銀行,JPY,30,,100000,0,0
+jp_card_rakuten,jp,credit_card,Rakuten,JPY,110,jp_bank_rakuten,0,0,0
+jp_card_paypay,jp,credit_card,Paypay,JPY,130,jp_bank_paypay,0,0,0
+ph_bank_bpi,ph,bank,BPI,PHP,210,,50000,0,1
+ph_wallet_maya,ph,wallet,Maya,PHP,220,,3000,0,0
+ph_card_bpi_mc,ph,credit_card,BPI Mastercard,PHP,310,ph_bank_bpi,0,0,0

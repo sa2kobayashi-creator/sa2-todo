@@ -50,10 +50,15 @@
                 href="{{ $buildFinanceExportQuery($filters, 'budget_monitor') }}"
                 class="button-link secondary"
               >予算監視形式でエクスポート</a>
+              <a
+                href="{{ $buildFinanceExportQuery($filters, 'accounts') }}"
+                class="button-link secondary"
+              >口座マスターをエクスポート</a>
             </div>
             <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form">
               @csrf
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <p class="finance-csv-form-title">取引インポート</p>
               <label class="finance-csv-file-label">
                 CSVファイル
                 <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
@@ -68,7 +73,22 @@
               </label>
               <button type="submit" class="button-link">インポート</button>
             </form>
-            <p class="hint finance-csv-hint">「予算監視」形式（Date, IN, OUT, PH Bank In, PH Bank Out, Comment）に対応しています。</p>
+            <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form finance-csv-import-form-accounts">
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <input type="hidden" name="import_type" value="accounts" />
+              <p class="finance-csv-form-title">口座マスターインポート</p>
+              <label class="finance-csv-file-label">
+                CSVファイル
+                <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" name="update_existing" value="1" checked />
+                同名・同識別子の口座を更新
+              </label>
+              <button type="submit" class="button-link">口座マスターをインポート</button>
+            </form>
+            <p class="hint finance-csv-hint">取引は「予算監視」形式に対応。口座マスターは「識別子,地域,種別,口座名」だけでもOK（識別子は空欄可）。Excelの日本語CSV（Shift-JIS）にも対応しています。</p>
           </div>
         </details>
       </div>
@@ -94,7 +114,7 @@
           </div>
 
           <div class="finance-quick-entry-fields">
-            <div class="finance-quick-entry-row finance-quick-entry-row-main">
+            <div class="finance-quick-entry-row finance-quick-entry-row-main" id="finance-quick-entry-row-main">
               <label class="finance-quick-field finance-quick-field-date">
                 <span class="finance-quick-field-label">日付</span>
                 <input type="date" name="transactionDate" id="finance-quick-date" value="{{ $defaultDate }}" required />
@@ -111,26 +131,25 @@
                 </select>
               </label>
 
-              <div class="finance-quick-transfer-wrap" id="finance-quick-transfer-fields" hidden>
-                <label class="finance-quick-field finance-quick-field-to-account">
-                  <span class="finance-quick-field-label">振替先</span>
-                  <select name="toAccountId" id="finance-quick-to-account">
-                    @foreach($accounts as $account)
-                      <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
-                        {{ $account['kindLabel'] }}: {{ $account['name'] }}
-                      </option>
-                    @endforeach
-                  </select>
-                </label>
-                <label class="finance-quick-field finance-quick-field-to-amount" id="finance-quick-to-amount-wrap" hidden>
-                  <span class="finance-quick-field-label">振替先金額</span>
-                  <input type="text" inputmode="decimal" class="finance-amount-calc" name="toAmount" id="finance-quick-to-amount" placeholder="1000" autocomplete="off" />
-                </label>
-              </div>
+              <label class="finance-quick-field finance-quick-field-to-account" id="finance-quick-to-account-field" hidden>
+                <span class="finance-quick-field-label">振替先</span>
+                <select name="toAccountId" id="finance-quick-to-account">
+                  @foreach($accounts as $account)
+                    <option value="{{ $account['id'] }}" data-region="{{ $account['region'] }}" data-currency="{{ $account['currency'] }}" data-kind="{{ $account['kind'] }}">
+                      {{ $account['kindLabel'] }}: {{ $account['name'] }}
+                    </option>
+                  @endforeach
+                </select>
+              </label>
 
               <label class="finance-quick-field finance-quick-field-amount">
                 <span class="finance-quick-field-label" id="finance-quick-amount-label">金額</span>
                 <input type="text" inputmode="decimal" class="finance-amount-calc" name="amount" id="finance-quick-amount" required placeholder="1000" autocomplete="off" />
+              </label>
+
+              <label class="finance-quick-field finance-quick-field-to-amount" id="finance-quick-to-amount-wrap" hidden>
+                <span class="finance-quick-field-label">振替先金額</span>
+                <input type="text" inputmode="decimal" class="finance-amount-calc" name="toAmount" id="finance-quick-to-amount" placeholder="1000" autocomplete="off" />
               </label>
             </div>
 
@@ -356,7 +375,18 @@
                         class="finance-account-filter-link"
                         title="この口座の取引一覧を表示"
                         data-finance-account-filter="{{ $account['id'] }}"
-                      >取引表示</a>
+                      >取引</a>
+                      <form
+                        method="post"
+                        action="/finance/accounts/{{ $account['id'] }}/delete"
+                        class="finance-inline-form finance-account-delete-form"
+                        onclick="event.stopPropagation()"
+                        onsubmit="return confirm('「{{ $account['name'] }}」を削除しますか？\n一覧から非表示になります（過去の取引は残ります）。')"
+                      >
+                        @csrf
+                        <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                        <button type="submit" class="text-btn danger">削除</button>
+                      </form>
                     </div>
                   </div>
                 @endforeach
@@ -371,14 +401,13 @@
                     tabindex="0"
                     aria-label="{{ $account['name'] }} を編集"
                   >
-                    <span class="finance-account-list-name">{{ $account['name'] }}</span>
-                    <span class="finance-kind-badge">{{ $account['kindLabel'] }}</span>
-                    <strong class="finance-account-list-balance">{{ $formatMoney($account['balance'], $account['currency']) }}</strong>
-                    @if(($account['adjustmentAmount'] ?? 0) != 0)
-                      <span class="finance-adjustment-badge">調整 {{ $formatMoney($account['adjustmentAmount'], $account['currency']) }}</span>
-                    @else
-                      <span class="finance-adjustment-badge is-empty" aria-hidden="true"></span>
-                    @endif
+                    <div class="finance-account-list-identity">
+                      <span class="finance-account-list-name">{{ $account['name'] }}</span>
+                      <strong class="finance-account-list-balance">{{ $formatMoney($account['balance'], $account['currency']) }}</strong>
+                      @if(($account['adjustmentAmount'] ?? 0) != 0)
+                        <span class="finance-adjustment-badge">調整 {{ $formatMoney($account['adjustmentAmount'], $account['currency']) }}</span>
+                      @endif
+                    </div>
                     @if(($account['scheduleType'] ?? null) === 'payment')
                       <form method="post" action="/finance/accounts/{{ $account['id'] }}/schedules/upsert" class="finance-list-schedule-form" id="finance-list-schedule-form-{{ $account['id'] }}">
                         @csrf
@@ -403,26 +432,38 @@
                     <div class="finance-account-list-actions" onclick="event.stopPropagation()">
                       <button type="button" class="finance-account-quick-btn income" data-quick-type="income" data-account-id="{{ $account['id'] }}">入金</button>
                       <button type="button" class="finance-account-quick-btn expense" data-quick-type="expense" data-account-id="{{ $account['id'] }}">支出</button>
-                      @if(($account['scheduleType'] ?? null) === 'payment' || ($account['scheduleType'] ?? null) === 'deposit')
-                        <button type="submit" form="finance-list-schedule-form-{{ $account['id'] }}" class="text-btn finance-list-schedule-save">保存</button>
-                        @if(($account['scheduleType'] ?? null) === 'payment' && !empty($account['nextSchedule']['id']))
-                          <button
-                            type="submit"
-                            form="finance-list-schedule-form-{{ $account['id'] }}"
-                            class="text-btn danger finance-list-schedule-clear"
-                            formaction="/finance/schedules/{{ $account['nextSchedule']['id'] }}/delete"
-                            formmethod="post"
-                            onclick="return confirm('予定を削除しますか？\n既に反映済みの取引がある場合はそれも削除されます。')"
-                          >クリア</button>
+                      <div class="finance-account-list-manage">
+                        @if(($account['scheduleType'] ?? null) === 'payment' || ($account['scheduleType'] ?? null) === 'deposit')
+                          <button type="submit" form="finance-list-schedule-form-{{ $account['id'] }}" class="text-btn finance-list-schedule-save">保存</button>
+                          @if(!empty($account['nextSchedule']['id']))
+                            <button
+                              type="submit"
+                              form="finance-list-schedule-form-{{ $account['id'] }}"
+                              class="text-btn danger finance-list-schedule-clear"
+                              formaction="/finance/schedules/{{ $account['nextSchedule']['id'] }}/delete"
+                              formmethod="post"
+                              onclick="return confirm('予定を削除しますか？\n既に反映済みの取引がある場合はそれも削除されます。')"
+                            >クリア</button>
+                          @endif
                         @endif
-                      @endif
-                      <a
-                        href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']]), ['account' => $account['id']]) }}#finance-transactions"
-                        class="text-btn finance-account-filter-link"
-                        title="この口座の取引一覧を表示"
-                        data-finance-account-filter="{{ $account['id'] }}"
-                      >取引表示</a>
-                      <button type="button" class="text-btn finance-edit-account-card-btn">編集</button>
+                        <a
+                          href="{{ $buildFinanceQuery(array_merge($filters, ['accountId' => $account['id']]), ['account' => $account['id']]) }}#finance-transactions"
+                          class="text-btn finance-account-filter-link"
+                          title="この口座の取引一覧を表示"
+                          data-finance-account-filter="{{ $account['id'] }}"
+                        >取引</a>
+                        <button type="button" class="text-btn finance-edit-account-card-btn">編集</button>
+                        <form
+                          method="post"
+                          action="/finance/accounts/{{ $account['id'] }}/delete"
+                          class="finance-inline-form finance-account-delete-form"
+                          onsubmit="return confirm('「{{ $account['name'] }}」を削除しますか？\n一覧から非表示になります（過去の取引は残ります）。')"
+                        >
+                          @csrf
+                          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                          <button type="submit" class="text-btn danger">削除</button>
+                        </form>
+                      </div>
                     </div>
                     @include('finance.partials.credit-card-usage-history', ['account' => $account, 'listMode' => true])
                   </div>
@@ -821,6 +862,18 @@
             <button type="submit" class="button-link" id="finance-account-submit-btn">保存</button>
           </div>
         </form>
+        <form
+          method="post"
+          action=""
+          id="finance-account-delete-form"
+          class="finance-account-modal-delete"
+          hidden
+          onsubmit="return confirm('この口座を削除しますか？\n一覧から非表示になります（過去の取引は残ります）。')"
+        >
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <button type="submit" class="text-btn danger">この口座を削除</button>
+        </form>
       </div>
     </div>
 
@@ -1114,8 +1167,9 @@
         const quickEntrySection = document.getElementById('finance-quick-entry')
         const quickTypeRadios = quickForm?.querySelectorAll('input[name="type"]') || []
         const quickTypeTabs = quickForm?.querySelectorAll('.finance-quick-type-tab') || []
-        const quickTransferFields = document.getElementById('finance-quick-transfer-fields')
+        const quickTransferToAccountField = document.getElementById('finance-quick-to-account-field')
         const quickToAmountWrap = document.getElementById('finance-quick-to-amount-wrap')
+        const quickEntryRowMain = document.getElementById('finance-quick-entry-row-main')
         const quickAccountSelect = document.getElementById('finance-quick-account')
         const quickToAccountSelect = document.getElementById('finance-quick-to-account')
         const quickAmountInput = document.getElementById('finance-quick-amount')
@@ -1232,23 +1286,28 @@
         }
 
         function syncQuickCrossCurrency() {
+          // 振替時は振替先金額を常に1行表示する（異通貨時は入力必須の目安）
           const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
           if (type !== 'transfer') {
             if (quickToAmountWrap) quickToAmountWrap.hidden = true
+            quickEntryRowMain?.classList.remove('is-cross-currency')
             return
           }
           const fromOption = quickAccountSelect?.selectedOptions[0]
           const toOption = quickToAccountSelect?.selectedOptions[0]
-          if (!fromOption || !toOption) return
-          const cross = fromOption.dataset.currency !== toOption.dataset.currency
-          if (quickToAmountWrap) quickToAmountWrap.hidden = !cross
+          const cross = Boolean(
+            fromOption && toOption && fromOption.dataset.currency !== toOption.dataset.currency
+          )
+          if (quickToAmountWrap) quickToAmountWrap.hidden = false
+          quickEntryRowMain?.classList.toggle('is-cross-currency', cross)
         }
 
         function syncQuickTransferVisibility() {
           const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
           const isTransfer = type === 'transfer'
-          if (quickTransferFields) quickTransferFields.hidden = !isTransfer
+          if (quickTransferToAccountField) quickTransferToAccountField.hidden = !isTransfer
           if (quickToAccountSelect) quickToAccountSelect.required = isTransfer
+          quickEntryRowMain?.classList.toggle('is-transfer', isTransfer)
           if (!isTransfer && quickToAmountWrap) quickToAmountWrap.hidden = true
           syncQuickCrossCurrency()
           syncQuickTypeTabs()
@@ -1349,6 +1408,7 @@
         const accountLinkedBankWrap = document.getElementById('finance-account-linked-bank-wrap')
         const accountLinkedBankSelect = document.getElementById('finance-account-linked-bank')
         const accountShowInOverviewInput = document.getElementById('finance-account-show-in-overview')
+        const accountDeleteForm = document.getElementById('finance-account-delete-form')
         const openAccountBtn = document.getElementById('finance-open-add-account')
         const bankOptions = accountLinkedBankSelect ? Array.from(accountLinkedBankSelect.options) : []
 
@@ -1382,6 +1442,10 @@
           accountSubmitBtn.textContent = '登録'
           accountIdInput.value = ''
           accountForm.action = '/finance/accounts'
+          if (accountDeleteForm) {
+            accountDeleteForm.hidden = true
+            accountDeleteForm.action = ''
+          }
           if (accountShowInOverviewInput) accountShowInOverviewInput.value = showInOverview ? '1' : '0'
           accountForm.querySelector('#finance-account-name').value = ''
           accountForm.querySelector('#finance-account-initial-balance').value = '0'
@@ -1409,6 +1473,10 @@
           accountIdInput.value = String(data.id)
           if (accountShowInOverviewInput) accountShowInOverviewInput.value = '0'
           accountForm.action = `/finance/accounts/${data.id}/update`
+          if (accountDeleteForm) {
+            accountDeleteForm.hidden = false
+            accountDeleteForm.action = `/finance/accounts/${data.id}/delete`
+          }
           accountForm.querySelector('#finance-account-name').value = data.name || ''
           accountForm.querySelector('#finance-account-initial-balance').value = data.initialBalance ?? 0
           accountForm.querySelector('#finance-account-adjustment').value = data.adjustmentAmount ?? 0
@@ -1528,6 +1596,7 @@
 
         accountsView?.addEventListener('click', (event) => {
           if (event.target.closest('.finance-account-filter-link')) return
+          if (event.target.closest('.finance-account-delete-form')) return
           if (event.target.closest('.finance-account-drag-handle')) return
           if (event.target.closest('.finance-account-schedule-btn')) return
           if (event.target.closest('.finance-card-schedule-form')) return

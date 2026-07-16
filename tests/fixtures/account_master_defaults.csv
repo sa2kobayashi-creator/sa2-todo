@@ -1,0 +1,21 @@
+slug,region,kind,name,currency,sort_order,linked_bank_slug,initial_balance,adjustment_amount,show_in_overview
+jp_bank_rakuten,jp,bank,楽天銀行,JPY,10,,0,0,1
+jp_bank_seven,jp,bank,セブン銀行,JPY,20,,0,0,0
+jp_bank_paypay,jp,bank,PAYPAY銀行,JPY,30,,0,0,0
+jp_bank_smbc,jp,bank,三井住友銀行,JPY,40,,0,0,0
+jp_cash_petty,jp,cash,手持ち現金（Petty cash）,JPY,50,,0,0,0
+jp_card_rakuten,jp,credit_card,Rakuten,JPY,110,jp_bank_rakuten,0,0,0
+jp_card_amazon,jp,credit_card,Amazon,JPY,120,,0,0,0
+jp_card_paypay,jp,credit_card,Paypay,JPY,130,jp_bank_paypay,0,0,0
+jp_card_jal,jp,credit_card,JAL,JPY,140,,0,0,0
+jp_card_seven,jp,credit_card,Seven,JPY,150,jp_bank_seven,0,0,0
+jp_card_fami,jp,credit_card,Fami,JPY,160,,0,0,0
+jp_card_epos,jp,credit_card,EPOS,JPY,170,,0,0,0
+jp_card_smbc_cl,jp,credit_card,三井住友 (CL),JPY,180,jp_bank_smbc,0,0,0
+ph_bank_bpi,ph,bank,BPI,PHP,210,,0,0,1
+ph_wallet_maya,ph,wallet,Maya,PHP,220,,0,0,0
+ph_wallet_wize,ph,wallet,Wize,PHP,230,,0,0,0
+ph_cash_petty,ph,cash,手持ち現金（Petty cash）,PHP,240,,0,0,0
+ph_card_bpi_mc,ph,credit_card,BPI Mastercard,PHP,310,ph_bank_bpi,0,0,0
+ph_card_bankard_mc_gold,ph,credit_card,Bankard Mastercard Gold,PHP,320,,0,0,0
+ph_card_bankard_airmiles,ph,credit_card,Bankard Airmiles Visa,PHP,330,,0,0,0
