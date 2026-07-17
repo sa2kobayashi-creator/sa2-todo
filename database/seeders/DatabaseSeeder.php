@@ -132,6 +132,7 @@ class DatabaseSeeder extends Seeder
                     'pinned' => (bool) ($note['pinned'] ?? false),
                     'archived' => (bool) ($note['archived'] ?? false),
                     'type' => $note['type'] ?? 'text',
+                    'category' => $note['category'] ?? 'personal',
                     'items' => $note['items'] ?? null,
                     'registered_date' => $note['registeredDate'] ?? null,
                 ]

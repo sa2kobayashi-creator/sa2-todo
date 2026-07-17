@@ -69,6 +69,7 @@ class NoteController extends Controller
         $pageResult = $this->notes->listNotesPage([
             'archived' => $filters['archived'],
             'q' => $filters['q'],
+            'category' => $filters['category'],
             'date' => $filters['date'] ?: null,
             'year' => $filters['date'] ? null : $filters['year'],
             'month' => $filters['date'] ? null : $filters['month'],
@@ -85,6 +86,7 @@ class NoteController extends Controller
             'otherNotes' => array_values(array_filter($pageNotes, fn ($n) => empty($n['pinned']))),
             'showArchived' => $filters['archived'],
             'searchQuery' => $filters['q'],
+            'filterCategory' => $filters['category'],
             'filterDate' => $filters['date'] ?? '',
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'filters' => $filters,
@@ -94,6 +96,8 @@ class NoteController extends Controller
             'returnTo' => $returnTo,
             'noteColors' => NoteService::NOTE_COLORS,
             'colorKeys' => NoteService::COLOR_KEYS,
+            'noteCategories' => NoteService::NOTE_CATEGORIES,
+            'defaultCategory' => NoteService::DEFAULT_CATEGORY,
             'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
             ...$this->flashFromQuery($request),
         ]);
@@ -116,6 +120,7 @@ class NoteController extends Controller
             'title' => $request->input('title'),
             'body' => $request->input('body'),
             'color' => $request->input('color'),
+            'category' => $request->input('category'),
             'type' => $type,
             'items' => $items,
             'registeredDate' => $request->input('registeredDate'),
@@ -127,14 +132,18 @@ class NoteController extends Controller
     public function update(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        $updated = $this->notes->updateNote($id, [
+        $patch = [
             'title' => $request->input('title'),
             'body' => $request->input('body'),
             'color' => $request->input('color'),
+            'category' => $request->input('category'),
             'type' => $request->input('type'),
-            'items' => $request->input('items'),
             'registeredDate' => $request->input('registeredDate'),
-        ]);
+        ];
+        if ($request->has('items')) {
+            $patch['items'] = $request->input('items');
+        }
+        $updated = $this->notes->updateNote($id, $patch);
         if (! $updated) {
             return $this->redirectWithMessage($returnTo, 'メモが見つかりません', 'error');
         }

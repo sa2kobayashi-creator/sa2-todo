@@ -13,6 +13,7 @@ class Note extends Model
         'pinned',
         'archived',
         'type',
+        'category',
         'items',
         'registered_date',
     ];

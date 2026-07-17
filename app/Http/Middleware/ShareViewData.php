@@ -35,6 +35,8 @@ class ShareViewData
             'clearFiltersHref' => $this->todos->buildClearFiltersHref(),
             'noteColors' => NoteService::NOTE_COLORS,
             'colorKeys' => NoteService::COLOR_KEYS,
+            'noteCategories' => NoteService::NOTE_CATEGORIES,
+            'defaultCategory' => NoteService::DEFAULT_CATEGORY,
             'financeRegionLabels' => FinanceService::REGION_LABELS,
             'financeKindLabels' => FinanceService::KIND_LABELS,
             'financeTypeLabels' => FinanceService::TYPE_LABELS,

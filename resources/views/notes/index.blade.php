@@ -22,13 +22,25 @@
       @endif
 
       <div class="notes-top-actions">
-        <form class="notes-period-form" method="get" action="/notes" id="notes-period-form">
+        <form class="notes-filter-form" method="get" action="/notes" id="notes-filter-form">
           @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
-          @if($searchQuery)<input type="hidden" name="q" value="{{ $searchQuery }}" />@endif
           @if($filterDate)<input type="hidden" name="date" value="{{ $filterDate }}" />@endif
           <label class="notes-period-label">
             表示月
             <input type="month" name="period" id="notes-period" value="{{ $periodValue }}" @disabled($filterDate) />
+          </label>
+          <label class="notes-search-label">
+            <span class="visually-hidden">メモを検索</span>
+            <input type="search" name="q" value="{{ $searchQuery }}" placeholder="メモを検索" aria-label="メモを検索" />
+          </label>
+          <label class="notes-category-filter">
+            カテゴリー
+            <select name="category" id="notes-category-filter" aria-label="カテゴリー">
+              <option value="" @selected($filterCategory === '')>すべて</option>
+              @foreach($noteCategories as $key => $label)
+                <option value="{{ $key }}" @selected($filterCategory === $key)>{{ $label }}</option>
+              @endforeach
+            </select>
           </label>
         </form>
         @if($showArchived)
@@ -39,16 +51,6 @@
       </div>
 
       <div class="notes-input-row">
-        <form class="notes-search" method="get" action="/notes" id="notes-search-form">
-          @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
-          @if($filterDate)
-            <input type="hidden" name="date" value="{{ $filterDate }}" />
-          @else
-            <input type="hidden" name="period" value="{{ $periodValue }}" />
-          @endif
-          <input type="search" name="q" value="{{ $searchQuery }}" placeholder="メモを検索" aria-label="メモを検索" />
-        </form>
-
         @if(!$showArchived)
           <section class="note-composer" id="note-composer">
             <form method="post" action="/notes" class="note-composer-form" id="note-composer-form">
@@ -60,10 +62,20 @@
                 メモを入力...
               </div>
               <div class="note-composer-expanded date-panel-hidden" id="composer-expanded">
-                <label class="note-date-field">
-                  <span class="field-label">登録日</span>
-                  <input type="date" name="registeredDate" id="composer-registered-date" value="{{ $defaultRegisteredDate }}" />
-                </label>
+                <div class="note-composer-meta">
+                  <label class="note-date-field">
+                    <span class="field-label">登録日</span>
+                    <input type="date" name="registeredDate" id="composer-registered-date" value="{{ $defaultRegisteredDate }}" />
+                  </label>
+                  <label class="note-category-field">
+                    <span class="field-label">カテゴリー</span>
+                    <select name="category" id="composer-category">
+                      @foreach($noteCategories as $key => $label)
+                        <option value="{{ $key }}" @selected($key === $defaultCategory)>{{ $label }}</option>
+                      @endforeach
+                    </select>
+                  </label>
+                </div>
                 <input type="text" name="title" id="composer-title" placeholder="タイトル" autocomplete="off" />
                 <div class="composer-text-panel" id="composer-text-panel">
                   <textarea name="body" id="composer-body" placeholder="メモを入力..." rows="4"></textarea>
@@ -339,6 +351,13 @@
           const edit = card.querySelector('.note-card-edit')
           const editBtn = card.querySelector('.note-action-edit')
           const cancelBtn = card.querySelector('.note-edit-cancel')
+          const typeInput = card.querySelector('.note-edit-type')
+          const textPanel = card.querySelector('.note-edit-text-panel')
+          const checklistPanel = card.querySelector('.note-edit-checklist-panel')
+          const toggleTypeBtn = card.querySelector('.note-edit-toggle-type')
+          const bodyInput = card.querySelector('.note-edit-text-panel textarea[name="body"]')
+          const listEditor = card.querySelector('.checklist-editor')
+          const addRowBtn = card.querySelector('.note-add-check-item')
 
           function openEdit() {
             document.querySelectorAll('.note-card.is-editing').forEach((other) => {
@@ -349,6 +368,51 @@
 
           function closeEdit() {
             card.classList.remove('is-editing')
+          }
+
+          function bindChecklistRemove(row) {
+            row.querySelector('.checklist-remove')?.addEventListener('click', (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              row.remove()
+            })
+          }
+
+          function addChecklistRow(value = '', checked = false) {
+            const index = listEditor?.querySelectorAll('.checklist-row').length || 0
+            const row = document.createElement('div')
+            row.className = 'checklist-row'
+            row.innerHTML = `
+              <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
+              <input type="text" class="checklist-text" name="items[${index}][text]" value="${String(value).replace(/"/g, '&quot;')}" placeholder="項目" />
+              <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
+              <button type="button" class="checklist-remove" aria-label="削除">×</button>
+            `
+            const check = row.querySelector('.checklist-check')
+            const hidden = row.querySelector('.checklist-checked-hidden')
+            check?.addEventListener('change', () => {
+              if (hidden) hidden.value = check.checked ? '1' : '0'
+            })
+            bindChecklistRemove(row)
+            listEditor?.appendChild(row)
+            return row
+          }
+
+          function syncEditType(type) {
+            const isChecklist = type === 'checklist'
+            if (typeInput) typeInput.value = isChecklist ? 'checklist' : 'text'
+            textPanel?.classList.toggle('date-panel-hidden', isChecklist)
+            checklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
+            if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? 'メモ' : 'チェックリスト'
+            if (isChecklist && listEditor && listEditor.children.length === 0) {
+              addChecklistRow()
+            }
+          }
+
+          function checklistTexts() {
+            return [...(listEditor?.querySelectorAll('.checklist-text') || [])]
+              .map((el) => el.value.trim())
+              .filter(Boolean)
           }
 
           view?.addEventListener('click', (e) => {
@@ -366,6 +430,23 @@
             closeEdit()
           })
 
+          toggleTypeBtn?.addEventListener('click', (e) => {
+            e.preventDefault()
+            const next = typeInput?.value === 'checklist' ? 'text' : 'checklist'
+            if (next === 'text') {
+              const texts = checklistTexts()
+              if (bodyInput && !bodyInput.value.trim() && texts.length > 0) {
+                bodyInput.value = texts.join('\n')
+              }
+            } else if (listEditor && listEditor.children.length === 0 && bodyInput?.value.trim()) {
+              bodyInput.value.split(/\r?\n/).forEach((line) => {
+                const text = line.trim()
+                if (text) addChecklistRow(text)
+              })
+            }
+            syncEditType(next)
+          })
+
           card.querySelectorAll('.note-color-dot').forEach((dot) => {
             dot.addEventListener('click', (e) => {
               e.preventDefault()
@@ -377,25 +458,10 @@
             })
           })
 
-          const addRowBtn = card.querySelector('.note-add-check-item')
-          const listEditor = card.querySelector('.checklist-editor')
+          listEditor?.querySelectorAll('.checklist-row').forEach((row) => bindChecklistRemove(row))
+
           addRowBtn?.addEventListener('click', () => {
-            const index = listEditor?.querySelectorAll('.checklist-row').length || 0
-            const row = document.createElement('div')
-            row.className = 'checklist-row'
-            row.innerHTML = `
-              <input type="checkbox" class="checklist-check" aria-label="完了" />
-              <input type="text" class="checklist-text" name="items[${index}][text]" placeholder="項目" />
-              <input type="hidden" name="items[${index}][checked]" value="0" class="checklist-checked-hidden" />
-              <button type="button" class="checklist-remove" aria-label="削除">×</button>
-            `
-            const check = row.querySelector('.checklist-check')
-            const hidden = row.querySelector('.checklist-checked-hidden')
-            check?.addEventListener('change', () => {
-              if (hidden) hidden.value = check.checked ? '1' : '0'
-            })
-            row.querySelector('.checklist-remove')?.addEventListener('click', () => row.remove())
-            listEditor?.appendChild(row)
+            const row = addChecklistRow()
             row.querySelector('.checklist-text')?.focus()
           })
 
@@ -404,6 +470,14 @@
             check.addEventListener('change', () => {
               if (hidden) hidden.value = check.checked ? '1' : '0'
             })
+          })
+
+          edit?.addEventListener('submit', () => {
+            if (typeInput?.value === 'text') {
+              edit.querySelectorAll('[name^="items"]').forEach((el) => {
+                el.disabled = true
+              })
+            }
           })
         })
 
@@ -500,9 +574,11 @@
           }
         }
 
-        const notesPeriodForm = document.getElementById('notes-period-form')
+        const notesFilterForm = document.getElementById('notes-filter-form')
         const notesPeriodInput = document.getElementById('notes-period')
-        notesPeriodInput?.addEventListener('change', () => notesPeriodForm?.submit())
+        const notesCategoryFilter = document.getElementById('notes-category-filter')
+        notesPeriodInput?.addEventListener('change', () => notesFilterForm?.submit())
+        notesCategoryFilter?.addEventListener('change', () => notesFilterForm?.submit())
 
         const bulkReturnTo = document.getElementById('notes-bulk-return-to')
         const bulkEditModal = document.getElementById('note-bulk-edit-modal')

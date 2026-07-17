@@ -26,6 +26,19 @@ class NoteService
 
     public const COLOR_KEYS = ['default', 'coral', 'peach', 'sand', 'mint', 'sage', 'fog', 'storm', 'dusk', 'blossom', 'clay', 'chalk'];
 
+    public const NOTE_CATEGORIES = [
+        'personal' => '個人',
+        'work' => '仕事',
+        'money' => 'お金',
+        'idea' => 'アイデア',
+        'word' => '言葉',
+        'cooking' => '料理',
+        'hobby' => '趣味',
+        'other' => 'その他',
+    ];
+
+    public const DEFAULT_CATEGORY = 'personal';
+
     /** @param array<string, mixed> $query */
     public function parseNoteFilters(array $query): array
     {
@@ -34,6 +47,7 @@ class NoteService
         $archived = ($query['archived'] ?? '') === '1' || ($query['archived'] ?? '') === 'true';
         $q = is_string($query['q'] ?? null) ? trim($query['q']) : '';
         $date = is_string($query['date'] ?? null) ? $this->normalizeRegisteredDate(trim($query['date'])) : null;
+        $category = $this->normalizeCategoryFilter($query['category'] ?? null);
 
         return [
             'year' => $period['year'],
@@ -42,6 +56,7 @@ class NoteService
             'archived' => $archived,
             'q' => $q,
             'date' => $date,
+            'category' => $category,
         ];
     }
 
@@ -54,6 +69,9 @@ class NoteService
         }
         if (! empty($filters['q'])) {
             $params['q'] = $filters['q'];
+        }
+        if (! empty($filters['category'])) {
+            $params['category'] = $filters['category'];
         }
         if (! empty($filters['date'])) {
             $params['date'] = $filters['date'];
@@ -87,6 +105,7 @@ class NoteService
         $date = $this->normalizeRegisteredDate($options['date'] ?? null);
         $year = isset($options['year']) ? (int) $options['year'] : null;
         $month = isset($options['month']) ? (int) $options['month'] : null;
+        $category = $this->normalizeCategoryFilter($options['category'] ?? null);
 
         $notes = Note::query()->get()->map(fn (Note $n) => $this->toArray($n));
         $list = $notes->filter(fn ($note) => ($note['archived'] ?? false) === $archived)->values()->all();
@@ -95,6 +114,13 @@ class NoteService
             $list = array_values(array_filter($list, fn ($note) => $this->getRegisteredDate($note) === $date));
         } elseif ($year && $month >= 1 && $month <= 12) {
             $list = $this->filterNotesByMonth($list, $year, $month);
+        }
+
+        if ($category !== '') {
+            $list = array_values(array_filter(
+                $list,
+                fn ($note) => ($note['category'] ?? self::DEFAULT_CATEGORY) === $category
+            ));
         }
 
         if ($q !== '') {
@@ -151,6 +177,7 @@ class NoteService
             'pinned' => ($input['pinned'] ?? false) === true,
             'archived' => false,
             'type' => $type,
+            'category' => $this->normalizeCategory($input['category'] ?? null),
             'items' => $type === 'checklist' ? $items : [],
             'registered_date' => $this->normalizeRegisteredDate($input['registeredDate'] ?? null) ?? $this->todayIso(),
         ]);
@@ -175,6 +202,9 @@ class NoteService
         if (array_key_exists('color', $patch)) {
             $note->color = $this->normalizeColor($patch['color']);
         }
+        if (array_key_exists('category', $patch)) {
+            $note->category = $this->normalizeCategory($patch['category']);
+        }
         if (array_key_exists('pinned', $patch)) {
             $note->pinned = $patch['pinned'] === true;
         }
@@ -184,14 +214,17 @@ class NoteService
         if (array_key_exists('registeredDate', $patch)) {
             $note->registered_date = $this->normalizeRegisteredDate($patch['registeredDate']) ?? $note->registered_date;
         }
-        if (array_key_exists('type', $patch)) {
-            $note->type = $this->normalizeType($patch['type']);
-            if ($note->type === 'text') {
-                $note->items = [];
+
+        $requestedType = array_key_exists('type', $patch) ? $this->normalizeType($patch['type']) : null;
+        $hasItems = isset($patch['items']) && is_array($patch['items']);
+
+        if ($requestedType === 'text') {
+            $note->type = 'text';
+            $note->items = [];
+        } elseif ($hasItems || $requestedType === 'checklist') {
+            if ($hasItems) {
+                $note->items = $this->parseChecklistItems($patch['items']);
             }
-        }
-        if (array_key_exists('items', $patch)) {
-            $note->items = $this->parseChecklistItems($patch['items']);
             $note->type = 'checklist';
             $note->body = '';
         }
@@ -333,6 +366,32 @@ class NoteService
         return $value === 'checklist' ? 'checklist' : 'text';
     }
 
+    public function normalizeCategory(?string $value): string
+    {
+        return array_key_exists((string) $value, self::NOTE_CATEGORIES)
+            ? (string) $value
+            : self::DEFAULT_CATEGORY;
+    }
+
+    /** フィルタ用。空文字は「すべて」。 */
+    public function normalizeCategoryFilter(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return '';
+        }
+
+        $key = trim($value);
+
+        return array_key_exists($key, self::NOTE_CATEGORIES) ? $key : '';
+    }
+
+    public function categoryLabel(?string $value): string
+    {
+        $key = $this->normalizeCategory($value);
+
+        return self::NOTE_CATEGORIES[$key];
+    }
+
     /** @param mixed $raw @return list<array{id: int, text: string, checked: bool}> */
     public function parseChecklistItems(mixed $raw): array
     {
@@ -372,6 +431,7 @@ class NoteService
             'pinned' => $note->pinned,
             'archived' => $note->archived,
             'type' => $note->type,
+            'category' => $this->normalizeCategory($note->category ?? null),
             'items' => $note->items ?? [],
             'registeredDate' => $note->registered_date?->format('Y-m-d'),
             'createdAt' => $note->created_at?->toIso8601String(),
