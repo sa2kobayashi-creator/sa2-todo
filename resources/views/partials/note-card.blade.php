@@ -3,15 +3,30 @@
   $palette = $noteColors[$note['color'] ?? 'default'] ?? $noteColors['default'];
   $categoryKey = $note['category'] ?? ($defaultCategory ?? 'personal');
   $categoryLabel = $noteCategories[$categoryKey] ?? ($noteCategories['personal'] ?? '個人');
+  $notePayload = [
+      'id' => $note['id'],
+      'title' => $note['title'] ?? '',
+      'body' => $note['body'] ?? '',
+      'color' => $note['color'] ?? 'default',
+      'type' => $note['type'] ?? 'text',
+      'category' => $categoryKey,
+      'registeredDate' => app(\App\Services\NoteService::class)->getRegisteredDate($note),
+      'items' => $note['items'] ?? [],
+  ];
 @endphp
-<article class="note-card {{ $colorClass }}@if(!empty($highlightId) && $highlightId === $note['id']) is-highlighted @endif" id="note-{{ $note['id'] }}" style="--note-bg: {{ $palette['bg'] }}; --note-border: {{ $palette['border'] }}">
+<article
+  class="note-card {{ $colorClass }}@if(!empty($highlightId) && $highlightId === $note['id']) is-highlighted @endif"
+  id="note-{{ $note['id'] }}"
+  style="--note-bg: {{ $palette['bg'] }}; --note-border: {{ $palette['border'] }}"
+  data-note-b64="{{ base64_encode(json_encode($notePayload, JSON_UNESCAPED_UNICODE)) }}"
+>
   <label class="note-bulk-check">
     <input type="checkbox" class="note-check" value="{{ $note['id'] }}" aria-label="{{ ($note['title'] ?? 'メモ') }}を選択" />
   </label>
   <div class="note-card-view">
     @if(!empty($note['pinned']))<div class="note-pin-badge" title="ピン留め">📌</div>@endif
     <div class="note-card-meta">
-      <div class="note-card-date">{{ app(\App\Services\NoteService::class)->getRegisteredDate($note) }}</div>
+      <div class="note-card-date">{{ $notePayload['registeredDate'] }}</div>
       <span class="note-card-category">{{ $categoryLabel }}</span>
     </div>
     @if(!empty($note['title']))<h3 class="note-card-title">{{ $note['title'] }}</h3>@endif
@@ -49,55 +64,4 @@
       </form>
     </div>
   </div>
-
-  <form method="post" action="/notes/{{ $note['id'] }}/update" class="note-card-edit">
-    @csrf
-    <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-    <input type="hidden" name="type" class="note-edit-type" value="{{ $note['type'] ?? 'text' }}" />
-    <input type="hidden" name="color" value="{{ $note['color'] }}" />
-    <div class="note-composer-meta">
-      <label class="note-date-field">
-        <span class="field-label">登録日</span>
-        <input type="date" name="registeredDate" value="{{ app(\App\Services\NoteService::class)->getRegisteredDate($note) }}" />
-      </label>
-      <label class="note-category-field">
-        <span class="field-label">カテゴリー</span>
-        <select name="category">
-          @foreach($noteCategories as $key => $label)
-            <option value="{{ $key }}" @selected($key === $categoryKey)>{{ $label }}</option>
-          @endforeach
-        </select>
-      </label>
-    </div>
-    <input type="text" name="title" value="{{ $note['title'] }}" placeholder="タイトル" />
-    @php $isChecklist = ($note['type'] ?? '') === 'checklist'; @endphp
-    <div class="note-edit-text-panel @class(['date-panel-hidden' => $isChecklist])">
-      <textarea name="body" rows="5" placeholder="メモを入力...">{{ $note['body'] }}</textarea>
-    </div>
-    <div class="note-edit-checklist-panel @class(['date-panel-hidden' => ! $isChecklist])">
-      <div class="checklist-editor">
-        @foreach($note['items'] ?? [] as $index => $item)
-          <div class="checklist-row">
-            <input type="checkbox" class="checklist-check" @checked(!empty($item['checked'])) aria-label="完了" />
-            <input type="text" class="checklist-text" name="items[{{ $index }}][text]" value="{{ $item['text'] }}" />
-            <input type="hidden" name="items[{{ $index }}][checked]" value="{{ !empty($item['checked']) ? '1' : '0' }}" class="checklist-checked-hidden" />
-            <button type="button" class="checklist-remove" aria-label="削除">×</button>
-          </div>
-        @endforeach
-      </div>
-      <button type="button" class="text-btn note-add-check-item">項目を追加</button>
-    </div>
-    <div class="note-composer-footer">
-      <div class="note-color-picker" role="group" aria-label="色">
-        @foreach($colorKeys as $key)
-          <button type="button" class="note-color-dot @if($key === ($note['color'] ?? 'default')) is-selected @endif" data-color="{{ $key }}" style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}" title="{{ $noteColors[$key]['label'] }}"></button>
-        @endforeach
-      </div>
-      <div class="note-composer-actions">
-        <button type="button" class="text-btn note-edit-toggle-type">{{ $isChecklist ? 'メモ' : 'チェックリスト' }}</button>
-        <button type="button" class="text-btn note-edit-cancel">キャンセル</button>
-        <button type="submit" class="button-link">保存</button>
-      </div>
-    </div>
-  </form>
 </article>

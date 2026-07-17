@@ -1,6 +1,6 @@
 <colgroup>
   <col style="width: 44px" />
-  <col style="width: 98px" />
+  <col style="width: 200px" />
   <col />
   <col style="width: 108px" />
   <col style="width: 72px" />

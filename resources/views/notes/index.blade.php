@@ -89,7 +89,7 @@
                     @foreach($colorKeys as $key)
                       <button
                         type="button"
-                        class="note-color-dot @class(['is-selected' => $key === 'default'])"
+                        @class(['note-color-dot', 'is-selected' => $key === 'default'])
                         data-color="{{ $key }}"
                         style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}"
                         title="{{ $noteColors[$key]['label'] }}"
@@ -168,6 +168,72 @@
         </nav>
       @endif
     </main>
+
+    <div class="modal modal-centered" id="note-edit-modal" hidden>
+      <div class="modal-backdrop" data-close-note-edit></div>
+      <div class="modal-dialog note-edit-dialog" role="dialog" aria-labelledby="note-edit-modal-title">
+        <div class="modal-header">
+          <h2 id="note-edit-modal-title">メモを編集</h2>
+          <button type="button" class="modal-close" data-close-note-edit aria-label="閉じる">×</button>
+        </div>
+        <form method="post" action="" id="note-edit-form" class="modal-form note-edit-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <input type="hidden" name="type" id="note-edit-type" value="text" />
+          <input type="hidden" name="color" id="note-edit-color" value="default" />
+          <div class="note-composer-meta">
+            <label class="note-date-field">
+              <span class="field-label">登録日</span>
+              <input type="date" name="registeredDate" id="note-edit-date" required />
+            </label>
+            <label class="note-category-field">
+              <span class="field-label">カテゴリー</span>
+              <select name="category" id="note-edit-category">
+                @foreach($noteCategories as $key => $label)
+                  <option value="{{ $key }}">{{ $label }}</option>
+                @endforeach
+              </select>
+            </label>
+          </div>
+          <label>
+            タイトル
+            <input type="text" name="title" id="note-edit-title" placeholder="タイトル" autocomplete="off" />
+          </label>
+          <div id="note-edit-text-panel">
+            <label>
+              メモ
+              <textarea name="body" id="note-edit-body" rows="6" placeholder="メモを入力..."></textarea>
+            </label>
+          </div>
+          <div id="note-edit-checklist-panel" class="date-panel-hidden">
+            <div class="field-label" style="margin-bottom:6px">チェックリスト</div>
+            <div class="checklist-editor" id="note-edit-checklist"></div>
+            <button type="button" class="text-btn" id="note-edit-add-item">項目を追加</button>
+          </div>
+          <div class="note-composer-footer">
+            <div class="note-color-picker" id="note-edit-colors" role="group" aria-label="色">
+              @foreach($colorKeys as $key)
+                <button
+                  type="button"
+                  @class(['note-color-dot', 'note-edit-color-dot', 'is-selected' => $key === 'default'])
+                  data-color="{{ $key }}"
+                  style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}"
+                  title="{{ $noteColors[$key]['label'] }}"
+                  aria-label="{{ $noteColors[$key]['label'] }}"
+                ></button>
+              @endforeach
+            </div>
+            <div class="note-composer-actions">
+              <button type="button" class="text-btn" id="note-edit-toggle-type">チェックリスト</button>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="secondary" data-close-note-edit>キャンセル</button>
+            <button type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="modal modal-centered" id="note-bulk-edit-modal" hidden>
       <div class="modal-backdrop" data-close-bulk-edit></div>
@@ -346,139 +412,175 @@
 
         }
 
-        document.querySelectorAll('.note-card').forEach((card) => {
-          const view = card.querySelector('.note-card-view')
-          const edit = card.querySelector('.note-card-edit')
-          const editBtn = card.querySelector('.note-action-edit')
-          const cancelBtn = card.querySelector('.note-edit-cancel')
-          const typeInput = card.querySelector('.note-edit-type')
-          const textPanel = card.querySelector('.note-edit-text-panel')
-          const checklistPanel = card.querySelector('.note-edit-checklist-panel')
-          const toggleTypeBtn = card.querySelector('.note-edit-toggle-type')
-          const bodyInput = card.querySelector('.note-edit-text-panel textarea[name="body"]')
-          const listEditor = card.querySelector('.checklist-editor')
-          const addRowBtn = card.querySelector('.note-add-check-item')
+        const noteEditModal = document.getElementById('note-edit-modal')
+        const noteEditForm = document.getElementById('note-edit-form')
+        const noteEditType = document.getElementById('note-edit-type')
+        const noteEditColor = document.getElementById('note-edit-color')
+        const noteEditDate = document.getElementById('note-edit-date')
+        const noteEditCategory = document.getElementById('note-edit-category')
+        const noteEditTitle = document.getElementById('note-edit-title')
+        const noteEditBody = document.getElementById('note-edit-body')
+        const noteEditTextPanel = document.getElementById('note-edit-text-panel')
+        const noteEditChecklistPanel = document.getElementById('note-edit-checklist-panel')
+        const noteEditChecklist = document.getElementById('note-edit-checklist')
+        const noteEditToggleType = document.getElementById('note-edit-toggle-type')
+        const noteEditAddItem = document.getElementById('note-edit-add-item')
 
-          function openEdit() {
-            document.querySelectorAll('.note-card.is-editing').forEach((other) => {
-              if (other !== card) other.classList.remove('is-editing')
-            })
-            card.classList.add('is-editing')
+        function closeNoteEditModal() {
+          if (noteEditModal) noteEditModal.hidden = true
+        }
+
+        function selectEditColor(key) {
+          if (noteEditColor) noteEditColor.value = key || 'default'
+          noteEditModal?.querySelectorAll('.note-edit-color-dot').forEach((dot) => {
+            dot.classList.toggle('is-selected', dot.dataset.color === (key || 'default'))
+          })
+        }
+
+        function bindEditChecklistRemove(row) {
+          row.querySelector('.checklist-remove')?.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            row.remove()
+          })
+        }
+
+        function addEditChecklistRow(value = '', checked = false) {
+          const index = noteEditChecklist?.querySelectorAll('.checklist-row').length || 0
+          const row = document.createElement('div')
+          row.className = 'checklist-row'
+          const safe = String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+          row.innerHTML = `
+            <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
+            <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="項目" />
+            <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
+            <button type="button" class="checklist-remove" aria-label="削除">×</button>
+          `
+          const check = row.querySelector('.checklist-check')
+          const hidden = row.querySelector('.checklist-checked-hidden')
+          check?.addEventListener('change', () => {
+            if (hidden) hidden.value = check.checked ? '1' : '0'
+          })
+          bindEditChecklistRemove(row)
+          noteEditChecklist?.appendChild(row)
+          return row
+        }
+
+        function syncNoteEditType(type, { focus = false } = {}) {
+          const isChecklist = type === 'checklist'
+          if (noteEditType) noteEditType.value = isChecklist ? 'checklist' : 'text'
+          noteEditTextPanel?.classList.toggle('date-panel-hidden', isChecklist)
+          noteEditChecklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
+          if (noteEditToggleType) noteEditToggleType.textContent = isChecklist ? 'フリーメモに切替' : 'チェックリストに切替'
+          if (isChecklist && noteEditChecklist && noteEditChecklist.children.length === 0) {
+            addEditChecklistRow()
           }
-
-          function closeEdit() {
-            card.classList.remove('is-editing')
-          }
-
-          function bindChecklistRemove(row) {
-            row.querySelector('.checklist-remove')?.addEventListener('click', (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              row.remove()
-            })
-          }
-
-          function addChecklistRow(value = '', checked = false) {
-            const index = listEditor?.querySelectorAll('.checklist-row').length || 0
-            const row = document.createElement('div')
-            row.className = 'checklist-row'
-            row.innerHTML = `
-              <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
-              <input type="text" class="checklist-text" name="items[${index}][text]" value="${String(value).replace(/"/g, '&quot;')}" placeholder="項目" />
-              <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
-              <button type="button" class="checklist-remove" aria-label="削除">×</button>
-            `
-            const check = row.querySelector('.checklist-check')
-            const hidden = row.querySelector('.checklist-checked-hidden')
-            check?.addEventListener('change', () => {
-              if (hidden) hidden.value = check.checked ? '1' : '0'
-            })
-            bindChecklistRemove(row)
-            listEditor?.appendChild(row)
-            return row
-          }
-
-          function syncEditType(type) {
-            const isChecklist = type === 'checklist'
-            if (typeInput) typeInput.value = isChecklist ? 'checklist' : 'text'
-            textPanel?.classList.toggle('date-panel-hidden', isChecklist)
-            checklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
-            if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? 'メモ' : 'チェックリスト'
-            if (isChecklist && listEditor && listEditor.children.length === 0) {
-              addChecklistRow()
+          if (focus) {
+            if (isChecklist) {
+              noteEditChecklist?.querySelector('.checklist-text')?.focus()
+            } else {
+              noteEditBody?.focus()
             }
           }
+        }
 
-          function checklistTexts() {
-            return [...(listEditor?.querySelectorAll('.checklist-text') || [])]
+        function openNoteEdit(note) {
+          if (!noteEditForm || !note) return
+          noteEditForm.action = `/notes/${note.id}/update`
+          if (noteEditTitle) noteEditTitle.value = note.title || ''
+          if (noteEditBody) noteEditBody.value = note.body || ''
+          if (noteEditDate) noteEditDate.value = note.registeredDate || ''
+          if (noteEditCategory) noteEditCategory.value = note.category || 'personal'
+          selectEditColor(note.color || 'default')
+          if (noteEditChecklist) noteEditChecklist.innerHTML = ''
+          const items = Array.isArray(note.items) ? note.items : []
+          items.forEach((item) => {
+            addEditChecklistRow(item.text || '', !!item.checked)
+          })
+          syncNoteEditType(note.type === 'checklist' ? 'checklist' : 'text')
+          if (noteEditModal) noteEditModal.hidden = false
+          noteEditTitle?.focus()
+        }
+
+        function parseCardNote(card) {
+          try {
+            const b64 = card.getAttribute('data-note-b64') || ''
+            const json = decodeURIComponent(Array.prototype.map.call(atob(b64), (c) => {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+            }).join(''))
+            return JSON.parse(json)
+          } catch (_) {
+            return null
+          }
+        }
+
+        notesContent?.addEventListener('click', (e) => {
+          const editBtn = e.target.closest('.note-action-edit')
+          if (editBtn) {
+            e.preventDefault()
+            e.stopPropagation()
+            const card = editBtn.closest('.note-card')
+            openNoteEdit(parseCardNote(card))
+            return
+          }
+          const view = e.target.closest('.note-card-view')
+          if (view && !e.target.closest('.note-card-actions, .note-bulk-check, .note-inline-form')) {
+            const card = view.closest('.note-card')
+            openNoteEdit(parseCardNote(card))
+          }
+        })
+
+        noteEditToggleType?.addEventListener('click', (e) => {
+          e.preventDefault()
+          const next = noteEditType?.value === 'checklist' ? 'text' : 'checklist'
+          if (next === 'text') {
+            const texts = [...(noteEditChecklist?.querySelectorAll('.checklist-text') || [])]
               .map((el) => el.value.trim())
               .filter(Boolean)
+            if (noteEditBody && !noteEditBody.value.trim() && texts.length > 0) {
+              noteEditBody.value = texts.join('\n')
+            }
+          } else if (noteEditChecklist && noteEditChecklist.children.length === 0 && noteEditBody?.value.trim()) {
+            noteEditBody.value.split(/\r?\n/).forEach((line) => {
+              const text = line.trim()
+              if (text) addEditChecklistRow(text)
+            })
           }
+          syncNoteEditType(next, { focus: true })
+        })
 
-          view?.addEventListener('click', (e) => {
-            if (e.target.closest('.note-card-actions, .note-bulk-check')) return
-            openEdit()
-          })
+        noteEditAddItem?.addEventListener('click', (e) => {
+          e.preventDefault()
+          const row = addEditChecklistRow()
+          row.querySelector('.checklist-text')?.focus()
+        })
 
-          editBtn?.addEventListener('click', (e) => {
-            e.stopPropagation()
-            openEdit()
-          })
-
-          cancelBtn?.addEventListener('click', (e) => {
+        noteEditModal?.querySelectorAll('.note-edit-color-dot').forEach((dot) => {
+          dot.addEventListener('click', (e) => {
             e.preventDefault()
-            closeEdit()
+            selectEditColor(dot.dataset.color || 'default')
           })
+        })
 
-          toggleTypeBtn?.addEventListener('click', (e) => {
-            e.preventDefault()
-            const next = typeInput?.value === 'checklist' ? 'text' : 'checklist'
-            if (next === 'text') {
-              const texts = checklistTexts()
-              if (bodyInput && !bodyInput.value.trim() && texts.length > 0) {
-                bodyInput.value = texts.join('\n')
-              }
-            } else if (listEditor && listEditor.children.length === 0 && bodyInput?.value.trim()) {
-              bodyInput.value.split(/\r?\n/).forEach((line) => {
-                const text = line.trim()
-                if (text) addChecklistRow(text)
-              })
-            }
-            syncEditType(next)
-          })
-
-          card.querySelectorAll('.note-color-dot').forEach((dot) => {
-            dot.addEventListener('click', (e) => {
-              e.preventDefault()
-              const colorField = card.querySelector('input[name="color"]')
-              if (colorField) colorField.value = dot.dataset.color || 'default'
-              card.querySelectorAll('.note-color-dot').forEach((d) => d.classList.toggle('is-selected', d === dot))
-              card.className = card.className.replace(/note-color-\w+/g, '')
-              card.classList.add(`note-color-${dot.dataset.color || 'default'}`)
+        noteEditForm?.addEventListener('submit', () => {
+          if (noteEditType?.value === 'text') {
+            noteEditForm.querySelectorAll('[name^="items"]').forEach((el) => {
+              el.disabled = true
             })
-          })
-
-          listEditor?.querySelectorAll('.checklist-row').forEach((row) => bindChecklistRemove(row))
-
-          addRowBtn?.addEventListener('click', () => {
-            const row = addChecklistRow()
-            row.querySelector('.checklist-text')?.focus()
-          })
-
-          card.querySelectorAll('.checklist-row .checklist-check').forEach((check) => {
-            const hidden = check.closest('.checklist-row')?.querySelector('.checklist-checked-hidden')
-            check.addEventListener('change', () => {
-              if (hidden) hidden.value = check.checked ? '1' : '0'
+          } else {
+            // チェックリスト保存時は表示中の行の name index を振り直す
+            const rows = [...(noteEditChecklist?.querySelectorAll('.checklist-row') || [])]
+            rows.forEach((row, index) => {
+              const text = row.querySelector('.checklist-text')
+              const hidden = row.querySelector('.checklist-checked-hidden')
+              if (text) text.name = `items[${index}][text]`
+              if (hidden) hidden.name = `items[${index}][checked]`
             })
-          })
+          }
+        })
 
-          edit?.addEventListener('submit', () => {
-            if (typeInput?.value === 'text') {
-              edit.querySelectorAll('[name^="items"]').forEach((el) => {
-                el.disabled = true
-              })
-            }
-          })
+        document.querySelectorAll('[data-close-note-edit]').forEach((el) => {
+          el.addEventListener('click', closeNoteEditModal)
         })
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''

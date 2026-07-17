@@ -43,6 +43,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/todos/{id}/toggle', [TodoController::class, 'toggle'])->whereNumber('id');
     Route::post('/todos/{id}/delete', [TodoController::class, 'destroy'])->whereNumber('id');
     Route::post('/todos/{id}/duplicate', [TodoController::class, 'duplicate'])->whereNumber('id');
+    Route::post('/todos/{id}/reschedule', [TodoController::class, 'reschedule'])->whereNumber('id');
 
     Route::get('/notes', [NoteController::class, 'index']);
     Route::post('/notes', [NoteController::class, 'store']);
@@ -53,6 +54,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
     Route::post('/notes/{id}/archive', [NoteController::class, 'archive'])->whereNumber('id');
+    Route::post('/notes/{id}/reschedule', [NoteController::class, 'reschedule'])->whereNumber('id');
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/finance', [FinanceController::class, 'index']);

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>Todo - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
@@ -136,6 +137,9 @@
 
       <div class="panel" id="todo-list-panel">
         <form class="filter-bar" method="get" action="/todos#todo-list-panel" id="filter-form">
+          @if(($displayMode ?? 'list') === 'calendar')
+            <input type="hidden" name="display" value="calendar" />
+          @endif
           <div class="filter-group filter-group-period">
             <label>期間@if(($filters['scope'] ?? '') === 'today') <span class="filter-scope-hint">（今日で表示中）</span>@endif</label>
             <div class="filter-period-mode" role="group" aria-label="期間の指定方法">
@@ -243,10 +247,21 @@
         <input type="hidden" id="bulk-return-to" value="{{ $listReturnTo }}" />
 
         <div class="list-toolbar">
-          <h2>一覧（{{ $pagination['total'] }}件）</h2>
-          @if(($pagination['total'] ?? 0) > 0)
+          <h2>
+            @if(($displayMode ?? 'list') === 'calendar')
+              カレンダー（{{ $calendarYear }}年{{ $calendarMonth }}月）
+            @else
+              一覧（{{ $pagination['total'] }}件）
+            @endif
+          </h2>
+          <div class="todos-display-toggle" role="group" aria-label="表示切替">
+            <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'list') === 'list' ? 'is-active' : '' }}">一覧</a>
+            <a href="{{ $buildTodosQuery(['display' => 'calendar']) }}#todo-list-panel" class="{{ ($displayMode ?? '') === 'calendar' ? 'is-active' : '' }}">カレンダー</a>
+          </div>
+          @if(($displayMode ?? 'list') === 'list' && ($pagination['total'] ?? 0) > 0)
             <span class="todo-page-summary">{{ $pagination['total'] }}件中 {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}件を表示</span>
           @endif
+          @if(($displayMode ?? 'list') === 'list')
           <div class="bulk-actions">
             <button type="button" class="secondary" id="select-all-btn">全選択</button>
             <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/complete">一括完了</button>
@@ -254,8 +269,124 @@
             <button type="button" class="danger bulk-btn" data-bulk-url="/todos/bulk/delete" data-confirm="選択した ToDo を削除しますか？">一括削除</button>
             <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">コピー</button>
           </div>
+          @else
+            <p class="hint inline-hint">ドラッグ＆ドロップや詳細編集は <a href="{{ $dashboardMonthUrl }}">ダッシュボード</a> でも操作できます。</p>
+          @endif
         </div>
 
+        @if(($displayMode ?? 'list') === 'calendar')
+          <div class="todos-calendar-panel calendar-month-view">
+            <div class="calendar-weekdays">
+              @foreach($weekdayLabels as $label)
+                <div class="calendar-weekday">{{ $label }}</div>
+              @endforeach
+            </div>
+            <div class="calendar-body">
+              @foreach($weeks as $week)
+                <div class="calendar-week">
+                  @foreach($week as $cell)
+                    @php
+                      $cellNotes = $cell['notes'] ?? [];
+                      $cellData = $limitTodosForCell($cell['todos'] ?? [], 4);
+                      $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
+                    @endphp
+                    <div
+                      class="calendar-day {{ !empty($cell['inMonth']) ? '' : 'other-month' }} {{ !empty($cell['isToday']) ? 'today' : '' }} {{ count($cellNotes) ? 'has-notes' : '' }} {{ $holidayClass }}"
+                      data-date="{{ $cell['date'] }}"
+                    >
+                      <div class="day-header">
+                        <span class="day-num">{{ $cell['day'] }}</span>
+                        @if(count($cellNotes) > 0)
+                          <a
+                            class="day-note-badge"
+                            href="/notes?date={{ $cell['date'] }}"
+                            title="メモ {{ count($cellNotes) }}件"
+                          >
+                            <span class="day-note-badge-icon" aria-hidden="true">📝</span>
+                            @if(count($cellNotes) > 1)
+                              <span class="day-note-badge-count">{{ count($cellNotes) }}</span>
+                            @endif
+                          </a>
+                        @endif
+                      </div>
+                      @if(!empty($cell['holidayName']))
+                        <div class="holiday-label" title="{{ $cell['holidayName'] }}">{{ $cell['holidayName'] }}</div>
+                      @endif
+                      <div class="day-events">
+                        @foreach($cellData['visible'] as $todo)
+                          <a
+                            class="event-chip category-{{ $todo['category'] ?? 'task' }} importance-{{ $todo['importance'] ?? 'medium' }} {{ !empty($todo['completed']) ? 'done' : '' }}"
+                            href="{{ $dashboardMonthUrl }}"
+                            title="{{ $todo['title'] }}（{{ $formatPeriodLabel($todo) }}）"
+                            draggable="true"
+                            data-todo-id="{{ $todo['id'] }}"
+                          >
+                            <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                          </a>
+                        @endforeach
+                        @if(($cellData['hiddenCount'] ?? 0) > 0)
+                          <span class="event-more">他 {{ $cellData['hiddenCount'] }} 件</span>
+                        @endif
+                      </div>
+                    </div>
+                  @endforeach
+                </div>
+              @endforeach
+            </div>
+          </div>
+          <script>
+            (function () {
+              const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+              function setupDraggable(el) {
+                el.addEventListener('dragstart', (e) => {
+                  el.dataset.dragging = '1'
+                  e.dataTransfer.setData('application/json', JSON.stringify({
+                    type: 'todo',
+                    id: Number(el.dataset.todoId),
+                  }))
+                  e.dataTransfer.effectAllowed = 'move'
+                })
+                el.addEventListener('dragend', () => {
+                  setTimeout(() => { el.dataset.dragging = '0' }, 0)
+                })
+                el.addEventListener('click', (e) => {
+                  if (el.dataset.dragging === '1') e.preventDefault()
+                })
+              }
+              document.querySelectorAll('.todos-calendar-panel [data-todo-id]').forEach((el) => setupDraggable(el))
+              document.querySelectorAll('.todos-calendar-panel .calendar-day[data-date]').forEach((day) => {
+                day.addEventListener('dragover', (e) => {
+                  e.preventDefault()
+                  day.classList.add('is-drop-target')
+                })
+                day.addEventListener('dragleave', () => day.classList.remove('is-drop-target'))
+                day.addEventListener('drop', async (e) => {
+                  e.preventDefault()
+                  day.classList.remove('is-drop-target')
+                  let payload
+                  try { payload = JSON.parse(e.dataTransfer.getData('application/json') || '{}') } catch (_) { return }
+                  if (payload.type !== 'todo' || !payload.id || !day.dataset.date) return
+                  const res = await fetch(`/todos/${payload.id}/reschedule`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Accept: 'application/json',
+                      'X-CSRF-TOKEN': csrf,
+                      'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ date: day.dataset.date }),
+                  })
+                  const data = await res.json().catch(() => ({}))
+                  if (!res.ok || !data.ok) {
+                    alert(data.message || '移動に失敗しました')
+                    return
+                  }
+                  location.reload()
+                })
+              })
+            })()
+          </script>
+        @else
         <div class="todo-table-wrap">
           <table class="todo-table">
             @include('partials.todo-table-colgroup')
@@ -272,6 +403,8 @@
             </tbody>
           </table>
         </div>
+        @endif
+        @if(($displayMode ?? 'list') === 'list')
         @if(($pagination['totalPages'] ?? 1) > 1)
           <nav class="todo-pagination" aria-label="ToDo 一覧のページ">
             @if($pagination['page'] > 1)
@@ -305,6 +438,7 @@
               </tbody>
             </table>
           </div>
+        @endif
         @endif
       </div>
     </main>

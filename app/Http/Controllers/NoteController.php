@@ -167,6 +167,26 @@ class NoteController extends Controller
         return redirect($returnTo);
     }
 
+    public function reschedule(Request $request, int $id)
+    {
+        $date = (string) ($request->input('date') ?: $request->json('date') ?: '');
+        $updated = $this->notes->rescheduleNote($id, $date);
+        if ($request->expectsJson() || $request->ajax()) {
+            if (! $updated) {
+                return response()->json(['ok' => false, 'message' => 'メモを移動できませんでした'], 422);
+            }
+
+            return response()->json(['ok' => true, 'note' => $updated]);
+        }
+
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
+        if (! $updated) {
+            return $this->redirectWithMessage($returnTo, 'メモを移動できませんでした', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, 'メモの日付を変更しました');
+    }
+
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');

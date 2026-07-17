@@ -266,6 +266,16 @@ class NoteService
         return (bool) Note::destroy($id);
     }
 
+    public function rescheduleNote(int $id, string $newDate): ?array
+    {
+        $normalized = $this->normalizeRegisteredDate($newDate);
+        if (! $normalized) {
+            return null;
+        }
+
+        return $this->updateNote($id, ['registeredDate' => $normalized]);
+    }
+
     /** @param list<int> $ids */
     public function bulkArchive(array $ids, bool $archived = true): int
     {

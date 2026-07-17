@@ -421,6 +421,40 @@ class TodoService
         return $copy->toArray();
     }
 
+    /** 開始日を移動し、期間の長さは維持する。 */
+    public function rescheduleTodo(int $id, string $newStartDate): ?array
+    {
+        $todo = Todo::find($id);
+        if (! $todo) {
+            return null;
+        }
+        $normalized = $this->normalizeDate($newStartDate);
+        if (! $normalized) {
+            return null;
+        }
+
+        $oldStart = $todo->start_date?->format('Y-m-d');
+        $oldEnd = $todo->end_date?->format('Y-m-d') ?: $oldStart;
+
+        if (! $oldStart) {
+            return $this->updateTodo($id, [
+                'startDate' => $normalized,
+                'endDate' => $normalized,
+            ]);
+        }
+
+        $span = Carbon::parse($oldStart, config('app.timezone', 'Asia/Tokyo'))
+            ->diffInDays(Carbon::parse($oldEnd, config('app.timezone', 'Asia/Tokyo')));
+        $newEnd = Carbon::parse($normalized, config('app.timezone', 'Asia/Tokyo'))
+            ->addDays($span)
+            ->format('Y-m-d');
+
+        return $this->updateTodo($id, [
+            'startDate' => $normalized,
+            'endDate' => $newEnd,
+        ]);
+    }
+
     /** @param list<int> $ids */
     public function bulkDuplicate(array $ids): int
     {

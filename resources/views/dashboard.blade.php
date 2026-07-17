@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>ダッシュボード - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
@@ -57,9 +58,6 @@
                 @php
                   $cellNotes = $cell['notes'] ?? [];
                   $cellData = $limitTodosForCell($cell['todos'] ?? [], 4);
-                  $cellMobile = $limitCellItems($cell['todos'] ?? [], $cellNotes, 4);
-                  $cellMobileVisible = $cellMobile['visible'] ?? [];
-                  $cellMobileHidden = $cellMobile['hiddenCount'] ?? 0;
                   $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
                 @endphp
                 <div
@@ -73,7 +71,7 @@
                       @if(count($cellNotes) > 0)
                         <button
                           type="button"
-                          class="day-note-badge desktop-only"
+                          class="day-note-badge"
                           data-date="{{ $cell['date'] }}"
                           title="メモ {{ count($cellNotes) }}件"
                           aria-label="{{ $cell['date'] }} のメモ {{ count($cellNotes) }}件"
@@ -124,40 +122,24 @@
                     @endif
                   </div>
                   <div class="day-events day-events-mobile">
-                    @foreach($cellMobileVisible as $item)
-                      @if(($item['kind'] ?? '') === 'todo')
-                        @php $todo = $item['todo']; @endphp
-                        <button
-                          type="button"
-                          @class([
-                            'event-chip',
-                            'category-'.($todo['category'] ?? 'task'),
-                            'importance-'.($todo['importance'] ?? 'medium'),
-                            'done' => ! empty($todo['completed']),
-                            'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null),
-                          ])
-                          data-todo-id="{{ $todo['id'] }}"
-                        >
-                          <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
-                        </button>
-                      @else
-                        @php
-                          $note = $item['note'];
-                          $notePalette = $noteColors[$note['color'] ?? 'default'] ?? $noteColors['default'];
-                        @endphp
-                        <button
-                          type="button"
-                          class="event-chip note-chip"
-                          data-note-id="{{ $note['id'] }}"
-                          style="--note-bg: {{ $notePalette['bg'] }}; --note-border: {{ $notePalette['border'] }}"
-                        >
-                          <span class="event-title">📝 {{ $truncateTitle($getNoteDisplayTitle($note)) }}</span>
-                        </button>
-                      @endif
+                    @foreach($cellData['visible'] as $todo)
+                      <button
+                        type="button"
+                        @class([
+                          'event-chip',
+                          'category-'.($todo['category'] ?? 'task'),
+                          'importance-'.($todo['importance'] ?? 'medium'),
+                          'done' => ! empty($todo['completed']),
+                          'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null),
+                        ])
+                        data-todo-id="{{ $todo['id'] }}"
+                      >
+                        <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                      </button>
                     @endforeach
-                    @if(($cellMobileHidden ?? 0) > 0)
+                    @if(($cellData['hiddenCount'] ?? 0) > 0)
                       <button type="button" class="event-more" data-date="{{ $cell['date'] }}">
-                        他 {{ $cellMobileHidden }} 件
+                        他 {{ $cellData['hiddenCount'] }} 件
                       </button>
                     @endif
                   </div>
@@ -250,11 +232,22 @@
             タイトル
             <textarea name="title" rows="4" required></textarea>
           </label>
-          <label>
-            開始日
+          <div class="modal-date-mode" role="group" aria-label="指定方法">
+            <span class="field-label">指定方法</span>
+            <label class="radio-inline">
+              <input type="radio" name="dateMode" id="modal-date-mode-single" value="single" />
+              単日
+            </label>
+            <label class="radio-inline">
+              <input type="radio" name="dateMode" id="modal-date-mode-range" value="range" />
+              期間
+            </label>
+          </div>
+          <label id="modal-start-date-label">
+            <span id="modal-start-date-text">開始日</span>
             <input type="date" name="startDate" id="modal-start-date" />
           </label>
-          <label>
+          <label id="modal-end-date-label">
             終了日
             <input type="date" name="endDate" id="modal-end-date" />
           </label>
@@ -287,7 +280,7 @@
               @endforeach
             </select>
           </label>
-          <label class="inline-check">
+          <label class="inline-check" id="modal-completed-label">
             <input type="checkbox" name="completed" value="1" />
             完了
           </label>
@@ -298,8 +291,9 @@
         </form>
         <div class="modal-actions">
           <button type="button" class="secondary" data-close-modal>キャンセル</button>
-          <button type="submit" form="todo-edit-form">保存</button>
-          <button type="submit" form="todo-delete-form" class="danger">削除</button>
+          <button type="submit" form="todo-edit-form" id="todo-modal-save">保存</button>
+          <button type="button" class="secondary" id="todo-modal-copy" title="コピーして新規作成">コピー</button>
+          <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">削除</button>
         </div>
       </div>
     </div>
@@ -434,6 +428,8 @@
       const quickAddMemoBtn = document.getElementById('quick-add-memo-btn')
       const editForm = document.getElementById('todo-edit-form')
       const deleteForm = document.getElementById('todo-delete-form')
+      const todoModalCopyBtn = document.getElementById('todo-modal-copy')
+      let editingTodoId = null
 
       function findTodo(id) {
         return TODO_ITEMS.find((item) => item.id === Number(id))
@@ -545,17 +541,32 @@
           .replace(/"/g, '&quot;')
       }
 
-      function openTodoModal(id) {
-        const todo = findTodo(id)
-        if (!todo) return
-        dayModal.hidden = true
-        noteModal.hidden = true
-        noteDayModal.hidden = true
-        editForm.action = `/todos/${todo.id}/update`
-        deleteForm.action = `/todos/${todo.id}/delete`
-        editForm.querySelector('[name=title]').value = todo.title
+      const todoModalTitle = document.getElementById('todo-modal-title')
+      const todoModalDeleteBtn = document.getElementById('todo-modal-delete')
+      const modalCompletedLabel = document.getElementById('modal-completed-label')
+      const modalStartDateText = document.getElementById('modal-start-date-text')
+      const modalEndDateLabel = document.getElementById('modal-end-date-label')
+      const modalDateModeSingle = document.getElementById('modal-date-mode-single')
+      const modalDateModeRange = document.getElementById('modal-date-mode-range')
+      let todoModalMode = 'edit' // edit | copy
+
+      function syncModalDateMode(mode) {
+        const isSingle = mode === 'single'
+        if (modalDateModeSingle) modalDateModeSingle.checked = isSingle
+        if (modalDateModeRange) modalDateModeRange.checked = !isSingle
+        if (modalStartDateText) modalStartDateText.textContent = isSingle ? '日付' : '開始日'
+        if (modalEndDateLabel) modalEndDateLabel.classList.toggle('date-panel-hidden', isSingle)
+        if (isSingle) {
+          const start = editForm?.querySelector('#modal-start-date')?.value
+          const endInput = editForm?.querySelector('#modal-end-date')
+          if (endInput && start) endInput.value = start
+        }
+      }
+
+      function fillTodoModalFields(todo) {
+        editForm.querySelector('[name=title]').value = todo.title || ''
         editForm.querySelector('#modal-start-date').value = todo.startDate || ''
-        editForm.querySelector('#modal-end-date').value = todo.endDate || ''
+        editForm.querySelector('#modal-end-date').value = todo.endDate || todo.startDate || ''
         const enableTimeRange = editForm.querySelector('#modal-enable-time-range')
         const timeRangePanel = editForm.querySelector('#modal-time-range-panel')
         const startTimeInput = editForm.querySelector('#modal-start-time')
@@ -569,9 +580,80 @@
         endTimeInput.value = todo.endTime || ''
         editForm.querySelector('#modal-importance').value = todo.importance || 'medium'
         editForm.querySelector('#modal-category').value = todo.category || 'task'
-        editForm.querySelector('[name=completed]').checked = todo.completed
+        editForm.querySelector('[name=completed]').checked = !!todo.completed
+        const isSingle = !todo.startDate || !todo.endDate || todo.startDate === todo.endDate
+        syncModalDateMode(isSingle ? 'single' : 'range')
+      }
+
+      function setTodoModalMode(mode) {
+        todoModalMode = mode
+        const isCopy = mode === 'copy'
+        if (todoModalTitle) todoModalTitle.textContent = isCopy ? 'ToDo をコピーして追加' : 'ToDo 編集'
+        if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isCopy
+        if (todoModalCopyBtn) todoModalCopyBtn.hidden = isCopy
+        if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isCopy)
+        if (isCopy) {
+          editForm.action = '/todos'
+          // store 側で title も受付。完了は新規なので送らない
+          editForm.querySelector('[name=completed]')?.removeAttribute('name')
+          editForm.querySelector('[name=completed]')?.setAttribute('data-completed-input', '1')
+        } else {
+          const completed = editForm.querySelector('[data-completed-input], [name=completed]')
+          if (completed) {
+            completed.setAttribute('name', 'completed')
+            completed.removeAttribute('data-completed-input')
+          }
+        }
+      }
+
+      function openTodoModal(id) {
+        const todo = findTodo(id)
+        if (!todo) return
+        editingTodoId = todo.id
+        dayModal.hidden = true
+        noteModal.hidden = true
+        noteDayModal.hidden = true
+        editForm.action = `/todos/${todo.id}/update`
+        deleteForm.action = `/todos/${todo.id}/delete`
+        fillTodoModalFields(todo)
+        setTodoModalMode('edit')
         todoModal.hidden = false
       }
+
+      modalDateModeSingle?.addEventListener('change', () => {
+        if (modalDateModeSingle.checked) syncModalDateMode('single')
+      })
+      modalDateModeRange?.addEventListener('change', () => {
+        if (modalDateModeRange.checked) syncModalDateMode('range')
+      })
+      editForm?.querySelector('#modal-start-date')?.addEventListener('change', () => {
+        if (modalDateModeSingle?.checked) {
+          const endInput = editForm.querySelector('#modal-end-date')
+          if (endInput) endInput.value = editForm.querySelector('#modal-start-date').value
+        }
+      })
+
+      editForm?.addEventListener('submit', () => {
+        if (modalDateModeSingle?.checked) {
+          const endInput = editForm.querySelector('#modal-end-date')
+          const start = editForm.querySelector('#modal-start-date')?.value
+          if (endInput && start) endInput.value = start
+        }
+      })
+
+      todoModalCopyBtn?.addEventListener('click', () => {
+        if (!editingTodoId) return
+        const source = findTodo(editingTodoId)
+        if (!source) return
+        fillTodoModalFields({
+          ...source,
+          completed: false,
+        })
+        setTodoModalMode('copy')
+        editingTodoId = null
+        todoModal.hidden = false
+        editForm.querySelector('[name=title]')?.focus()
+      })
 
       function openNoteModal(id) {
         const note = findNote(id)
@@ -686,6 +768,11 @@
 
       document.querySelectorAll('[data-todo-id]').forEach((el) => {
         el.addEventListener('click', (e) => {
+          if (el.dataset.dragging === '1') {
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
           e.stopPropagation()
           openTodoModal(el.dataset.todoId)
         })
@@ -693,8 +780,81 @@
 
       document.querySelectorAll('[data-note-id]').forEach((el) => {
         el.addEventListener('click', (e) => {
+          if (el.dataset.dragging === '1') {
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
           e.stopPropagation()
           openNoteModal(el.dataset.noteId)
+        })
+      })
+
+      // --- Drag & drop: ToDo を別日へ移動（メモは対象外） ---
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || editForm?.querySelector('input[name="_token"]')?.value
+        || ''
+
+      function setupDraggable(el) {
+        el.setAttribute('draggable', 'true')
+        el.addEventListener('dragstart', (e) => {
+          el.dataset.dragging = '1'
+          e.dataTransfer.setData('application/json', JSON.stringify({
+            type: 'todo',
+            id: Number(el.dataset.todoId),
+          }))
+          e.dataTransfer.effectAllowed = 'move'
+          el.classList.add('is-dragging')
+        })
+        el.addEventListener('dragend', () => {
+          el.classList.remove('is-dragging')
+          setTimeout(() => {
+            el.dataset.dragging = '0'
+          }, 0)
+        })
+      }
+
+      document.querySelectorAll('.event-chip[data-todo-id]').forEach((el) => setupDraggable(el))
+
+      document.querySelectorAll('.calendar-day[data-date]').forEach((day) => {
+        day.addEventListener('dragover', (e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          day.classList.add('is-drop-target')
+        })
+        day.addEventListener('dragleave', () => day.classList.remove('is-drop-target'))
+        day.addEventListener('drop', async (e) => {
+          e.preventDefault()
+          day.classList.remove('is-drop-target')
+          let payload = null
+          try {
+            payload = JSON.parse(e.dataTransfer.getData('application/json') || '{}')
+          } catch (_) {
+            return
+          }
+          const targetDate = day.dataset.date
+          if (!targetDate || payload?.type !== 'todo' || !payload?.id) return
+
+          try {
+            const res = await fetch(`/todos/${payload.id}/reschedule`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: JSON.stringify({ date: targetDate }),
+            })
+            const data = await res.json()
+            if (!res.ok || !data.ok) {
+              window.alert(data.message || '移動に失敗しました')
+              return
+            }
+            window.location.reload()
+          } catch (_) {
+            window.alert('移動中に通信エラーが発生しました')
+          }
         })
       })
 
