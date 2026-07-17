@@ -108,9 +108,23 @@
           </section>
         @endif
 
-        <div class="notes-view-toggle" role="group" aria-label="表示切替">
-          <button type="button" class="notes-view-btn is-active" data-view="gallery" title="ギャラリー表示" aria-pressed="true" aria-label="ギャラリー表示">⊞</button>
-          <button type="button" class="notes-view-btn" data-view="list" title="リスト表示" aria-pressed="false" aria-label="リスト表示">☰</button>
+        <div class="notes-display-controls">
+          <div class="notes-cols-toggle" id="notes-cols-toggle" role="group" aria-label="横の枚数">
+            @for($n = 1; $n <= 5; $n++)
+              <button
+                type="button"
+                class="notes-cols-btn{{ $n === 4 ? ' is-active' : '' }}"
+                data-cols="{{ $n }}"
+                title="横に{{ $n }}枚"
+                aria-pressed="{{ $n === 4 ? 'true' : 'false' }}"
+                aria-label="横に{{ $n }}枚"
+              >{{ $n }}</button>
+            @endfor
+          </div>
+          <div class="notes-view-toggle" role="group" aria-label="表示切替">
+            <button type="button" class="notes-view-btn is-active" data-view="gallery" title="ギャラリー表示" aria-pressed="true" aria-label="ギャラリー表示">⊞</button>
+            <button type="button" class="notes-view-btn" data-view="list" title="リスト表示" aria-pressed="false" aria-label="リスト表示">☰</button>
+          </div>
         </div>
       </div>
 
@@ -132,7 +146,7 @@
         <span class="notes-page-summary">{{ $pagination['total'] }}件中 {{ $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}件を表示</span>
       </div>
 
-      <div class="notes-content notes-view-gallery" id="notes-content">
+      <div class="notes-content notes-view-gallery notes-cols-4" id="notes-content">
       @if(count($pinnedNotes) > 0)
         <h2 class="notes-section-title">ピン留め</h2>
         <div class="notes-grid">
@@ -262,8 +276,29 @@
     <script>
       (function () {
         const VIEW_KEY = 'notesViewMode'
+        const COLS_KEY = 'notesGalleryCols'
         const notesContent = document.getElementById('notes-content')
         const viewButtons = document.querySelectorAll('.notes-view-btn')
+        const colsToggle = document.getElementById('notes-cols-toggle')
+        const colsButtons = document.querySelectorAll('.notes-cols-btn')
+
+        function applyCols(count) {
+          const cols = Math.min(5, Math.max(1, Number(count) || 4))
+          if (notesContent) {
+            for (let i = 1; i <= 5; i++) {
+              notesContent.classList.toggle(`notes-cols-${i}`, i === cols)
+            }
+          }
+          colsButtons.forEach((btn) => {
+            const active = Number(btn.dataset.cols) === cols
+            btn.classList.toggle('is-active', active)
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false')
+          })
+          try {
+            localStorage.setItem(COLS_KEY, String(cols))
+          } catch (_) {}
+          return cols
+        }
 
         function applyView(mode) {
           const view = mode === 'list' ? 'list' : 'gallery'
@@ -276,19 +311,28 @@
             btn.classList.toggle('is-active', active)
             btn.setAttribute('aria-pressed', active ? 'true' : 'false')
           })
+          if (colsToggle) {
+            colsToggle.hidden = view === 'list'
+          }
           try {
             localStorage.setItem(VIEW_KEY, view)
           } catch (_) {}
         }
 
         let savedView = 'gallery'
+        let savedCols = 4
         try {
           savedView = localStorage.getItem(VIEW_KEY) || 'gallery'
+          savedCols = Number(localStorage.getItem(COLS_KEY) || 4)
         } catch (_) {}
+        applyCols(savedCols)
         applyView(savedView)
 
         viewButtons.forEach((btn) => {
           btn.addEventListener('click', () => applyView(btn.dataset.view))
+        })
+        colsButtons.forEach((btn) => {
+          btn.addEventListener('click', () => applyCols(btn.dataset.cols))
         })
 
         const composer = document.getElementById('note-composer')
