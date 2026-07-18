@@ -348,11 +348,37 @@
     return false
   }
 
+  function extractStationLabel(text) {
+    if (!text) return ''
+    const matches = String(text).match(/([一-龥ぁ-んァ-ヶA-Za-z0-9]+?)(?:駅|バス停|バスセンター|渡船場)/g)
+    if (!matches || !matches.length) return ''
+    return matches[matches.length - 1]
+  }
+
   function labelFromJapaneseAddress(address) {
     if (!address) return ''
     const normalized = address.replace(/^日本[、,]\s*/, '').trim()
+    const station = extractStationLabel(normalized)
+    if (station) return station
+
+    // 「東区 志賀島」のように末尾が地名のケース
+    const spaceParts = normalized.split(/\s+/).filter(Boolean)
+    if (spaceParts.length > 1) {
+      const last = spaceParts[spaceParts.length - 1].replace(/[、,]+$/g, '')
+      if (last && !isWeakPlaceLabel(last) && !/^[0-9０-９\-−ー丁目番地号]+$/.test(last)) {
+        return last
+      }
+    }
+
     const afterWard = normalized.match(/区\s*([^、,]+)/)
-    if (afterWard && afterWard[1]) return afterWard[1].trim()
+    if (afterWard && afterWard[1]) {
+      const wardTail = afterWard[1].trim()
+      const wardStation = extractStationLabel(wardTail)
+      if (wardStation) return wardStation
+      const wardSpace = wardTail.split(/\s+/).filter(Boolean)
+      if (wardSpace.length) return wardSpace[wardSpace.length - 1]
+      return wardTail
+    }
     const parts = address.split(/[、,]/).map(function (s) { return s.trim() }).filter(Boolean)
     if (parts.length > 0) {
       const last = parts[parts.length - 1]
@@ -363,18 +389,23 @@
     return address
   }
 
+  function looksLikeTransitStop(label) {
+    if (!label || isWeakPlaceLabel(label)) return false
+    return /(?:駅|バス停|バスセンター|渡船場|港)$/.test(label) || label.length <= 8
+  }
+
   function resolvePlaceLabel(place, prediction) {
     const displayName = place.displayName || ''
     const formattedAddress = place.formattedAddress || ''
     const fromAddress = labelFromJapaneseAddress(formattedAddress)
     const predictionText = prediction && prediction.text ? prediction.text.text : ''
+    const stationFromAddress = extractStationLabel(formattedAddress)
 
-    if (fromAddress && (isWeakPlaceLabel(displayName) || fromAddress.length > displayName.length)) {
-      return fromAddress
-    }
-    if (predictionText && !isWeakPlaceLabel(predictionText)) {
-      return predictionText
-    }
+    // 駅・バス停名が取れたらそれを最優先（住所全文より短い displayName を捨てない）
+    if (stationFromAddress) return stationFromAddress
+    if (displayName && looksLikeTransitStop(displayName)) return displayName
+    if (predictionText && looksLikeTransitStop(predictionText)) return predictionText
+    if (fromAddress && !isWeakPlaceLabel(fromAddress)) return fromAddress
     return displayName || fromAddress || formattedAddress || predictionText
   }
 

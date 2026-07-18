@@ -52,8 +52,8 @@ class FukuokaNetworkBuilder
 
         return [
             'region' => 'fukuoka',
-            'version' => '2026-07-18',
-            'note' => '福岡都心の簡易ダイヤ。西鉄バス路線を優先配置。',
+            'version' => '2026-07-18c',
+            'note' => '福岡都心の簡易ダイヤ。西鉄バス路線を優先配置（志賀島線含む）。',
             'stops' => $stops,
             'routes' => $routes,
             'routeStopSequences' => $sequences,
@@ -62,6 +62,19 @@ class FukuokaNetworkBuilder
             'tripEvents' => $tripEvents,
             'transfers' => $this->buildTransfers($stops),
             'faresByRoute' => $faresByRoute,
+            'aliases' => [
+                'hakata' => ['博多駅', 'jr博多駅', 'jr博多', 'はかた'],
+                'hakata_bc' => ['博多バスセンター', '博多bc'],
+                'tenjin' => ['天神駅', '地下鉄天神', 'てんじん'],
+                'tenjin_bc' => ['天神バスセンター', '天神bc'],
+                'nishitetsu_fukuoka' => ['西鉄福岡天神', '西鉄福岡駅', '西鉄天神'],
+                'airport' => ['福岡空港駅', '福岡空港国内線'],
+                'meinohama' => ['姪浜駅', 'めいのはま'],
+                'ohashi' => ['大橋駅', '西鉄大橋'],
+                'shikanoshima' => ['志賀島渡船場', 'しがのしま', '志賀島港'],
+                'saitozaki' => ['西戸崎駅', '西戸崎'],
+                'gannosu' => ['雁ノ巣', '雁の巣レクリエーションセンター'],
+            ],
         ];
     }
 
@@ -93,6 +106,9 @@ class FukuokaNetworkBuilder
             'chihaya' => ['千早', 33.6508, 130.4378],
             'hakozaki' => ['箱崎', 33.6178, 130.4248],
             'yoshizuka' => ['吉塚', 33.6065, 130.4235],
+            'saitozaki' => ['西戸崎', 33.6502, 130.3615],
+            'gannosu' => ['雁の巣', 33.6668, 130.4085],
+            'shikanoshima' => ['志賀島', 33.6745, 130.3028],
         ];
 
         $stops = [];
@@ -152,6 +168,26 @@ class FukuokaNetworkBuilder
                 'fare' => 220,
                 'priority' => 1.0,
             ],
+            'nn_bus_shikanoshima' => [
+                'id' => 'nn_bus_shikanoshima',
+                'name' => '西鉄バス 志賀島線',
+                'agency' => 'nishitetsu_bus',
+                'mode' => 'bus',
+                'headway' => 25,
+                'legMinutes' => 12,
+                'fare' => 530,
+                'priority' => 1.0,
+            ],
+            'nn_bus_east' => [
+                'id' => 'nn_bus_east',
+                'name' => '西鉄バス 東部線（香椎〜博多）',
+                'agency' => 'nishitetsu_bus',
+                'mode' => 'bus',
+                'headway' => 12,
+                'legMinutes' => 8,
+                'fare' => 260,
+                'priority' => 1.0,
+            ],
             'nn_rail_tenjin_ohashi' => [
                 'id' => 'nn_rail_tenjin_ohashi',
                 'name' => '西鉄天神大牟田線',
@@ -192,6 +228,26 @@ class FukuokaNetworkBuilder
                 'fare' => 190,
                 'priority' => 0.3,
             ],
+            'jr_kashi' => [
+                'id' => 'jr_kashi',
+                'name' => 'JR香椎線',
+                'agency' => 'jr',
+                'mode' => 'rail',
+                'headway' => 20,
+                'legMinutes' => 8,
+                'fare' => 280,
+                'priority' => 0.25,
+            ],
+            'ferry_shikanoshima' => [
+                'id' => 'ferry_shikanoshima',
+                'name' => '市営渡船 志賀島航路',
+                'agency' => 'ferry',
+                'mode' => 'ferry',
+                'headway' => 40,
+                'legMinutes' => 15,
+                'fare' => 480,
+                'priority' => 0.2,
+            ],
         ];
     }
 
@@ -203,10 +259,27 @@ class FukuokaNetworkBuilder
             'nn_bus_tenjin_hakata' => ['tenjin_bc', 'nakasu_kawabata', 'gion', 'hakata_bc', 'hakata'],
             'nn_bus_west' => ['tenjin_bc', 'akasakae', 'oori', 'nishijin', 'fujisaki', 'muromi', 'meinohama'],
             'nn_bus_south' => ['tenjin_bc', 'yakuin', 'takamiya', 'ohashi'],
+            // 志賀島〜博多・天神（西鉄バス）
+            'nn_bus_shikanoshima' => [
+                'shikanoshima',
+                'saitozaki',
+                'gannosu',
+                'kashii',
+                'chihaya',
+                'hakozaki',
+                'yoshizuka',
+                'hakata_bc',
+                'tenjin_bc',
+            ],
+            // 東部エリアのバス連絡（渡船→JR香椎後の乗換用にも）
+            'nn_bus_east' => ['kashii', 'chihaya', 'hakozaki', 'yoshizuka', 'hakata_bc', 'tenjin_bc'],
             'nn_rail_tenjin_ohashi' => ['nishitetsu_fukuoka', 'yakuin', 'takamiya', 'ohashi'],
             'subway_airport' => ['meinohama', 'muromi', 'fujisaki', 'nishijin', 'oori', 'akasakae', 'tenjin', 'nakasu_kawabata', 'gion', 'hakata', 'airport'],
             'subway_nanakuma' => ['hashimoto', 'ropponmatsu', 'yakuin', 'tenjin_minami', 'hakata'],
             'jr_kagoshima' => ['kashii', 'chihaya', 'hakozaki', 'yoshizuka', 'hakata'],
+            // 香椎線は西戸崎〜香椎（博多直通は鹿児島本線乗換）
+            'jr_kashi' => ['saitozaki', 'kashii'],
+            'ferry_shikanoshima' => ['shikanoshima', 'saitozaki'],
         ];
     }
 
