@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Storage;
 
 class PhotoService
 {
-    public const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
-
     public const ALLOWED_MIMES = [
         'image/jpeg',
         'image/png',
@@ -19,6 +17,60 @@ class PhotoService
         'image/heic',
         'image/heif',
     ];
+
+    public function maxUploadBytes(): int
+    {
+        return max(1, (int) config('photos.max_upload_bytes', 12 * 1024 * 1024));
+    }
+
+    public function userQuotaBytes(): int
+    {
+        return max(1, (int) config('photos.user_quota_bytes', 500 * 1024 * 1024));
+    }
+
+    public function diskName(): string
+    {
+        $disk = (string) config('photos.disk', 'public');
+
+        return $disk !== '' ? $disk : 'public';
+    }
+
+    public function diskDriver(): string
+    {
+        return (string) config('filesystems.disks.'.$this->diskName().'.driver', 'local');
+    }
+
+    public function usesObjectStorage(): bool
+    {
+        return $this->diskDriver() === 's3';
+    }
+
+    /** @return array{usedBytes: int, quotaBytes: int, percent: float, photoCount: int, remainingBytes: int, formattedUsed: string, formattedQuota: string, disk: string, diskLabel: string} */
+    public function storageStats(int $userId): array
+    {
+        $used = (int) Photo::query()->where('user_id', $userId)->sum('size_bytes');
+        // サムネ分は size_bytes に含まれないため、実ディスクは少し多い。表示は DB 上の保存サイズを基準にする。
+        $thumbExtra = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('thumb_path')
+            ->count() * 80_000; // おおよそ 80KB/枚
+        $usedApprox = $used + $thumbExtra;
+        $quota = $this->userQuotaBytes();
+        $percent = min(100, round(($usedApprox / $quota) * 100, 1));
+        $disk = $this->diskName();
+
+        return [
+            'usedBytes' => $usedApprox,
+            'quotaBytes' => $quota,
+            'percent' => $percent,
+            'photoCount' => (int) Photo::query()->where('user_id', $userId)->count(),
+            'remainingBytes' => max(0, $quota - $usedApprox),
+            'formattedUsed' => $this->formatBytes($usedApprox),
+            'formattedQuota' => $this->formatBytes($quota),
+            'disk' => $disk,
+            'diskLabel' => $disk === 'r2' ? 'Cloudflare R2' : ($disk === 'public' ? 'サーバーローカル' : $disk),
+        ];
+    }
 
     /** @return list<array<string, mixed>> */
     public function listAlbums(int $userId): array
@@ -128,6 +180,21 @@ class PhotoService
             }
         }
 
+        $stats = $this->storageStats($userId);
+        $incoming = 0;
+        foreach ($files as $file) {
+            if ($file instanceof UploadedFile && $file->isValid()) {
+                $incoming += (int) $file->getSize();
+            }
+        }
+        // 圧縮後は小さくなる想定だが、上限超過の粗いガード
+        if ($stats['usedBytes'] >= $stats['quotaBytes']) {
+            throw new \InvalidArgumentException('写真の保存容量上限（'.$stats['formattedQuota'].'）に達しています');
+        }
+        if ($stats['usedBytes'] + (int) ($incoming * 0.35) > $stats['quotaBytes']) {
+            throw new \InvalidArgumentException('保存容量が不足しています（使用中 '.$stats['formattedUsed'].' / '.$stats['formattedQuota'].'）');
+        }
+
         $created = [];
         $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
         $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
@@ -139,26 +206,21 @@ class PhotoService
             $this->assertValidUpload($file);
 
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
-            $path = $file->store($dir, 'public');
-            if (! $path) {
+            $stored = $this->storeOptimizedImage($file, $dir);
+            if ($stored === null) {
                 continue;
             }
-
-            $size = @getimagesize($file->getRealPath());
-            $width = is_array($size) ? ($size[0] ?? null) : null;
-            $height = is_array($size) ? ($size[1] ?? null) : null;
-            $thumbPath = $this->makeThumbnail($path, $file);
 
             $photo = Photo::create([
                 'user_id' => $userId,
                 'album_id' => $albumId,
-                'path' => $path,
-                'thumb_path' => $thumbPath,
+                'path' => $stored['path'],
+                'thumb_path' => $stored['thumbPath'],
                 'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
-                'mime' => $file->getMimeType(),
-                'size_bytes' => (int) $file->getSize(),
-                'width' => $width,
-                'height' => $height,
+                'mime' => $stored['mime'],
+                'size_bytes' => $stored['sizeBytes'],
+                'width' => $stored['width'],
+                'height' => $stored['height'],
                 'taken_at' => now(),
                 'sort_order' => $nextOrder,
             ]);
@@ -189,8 +251,8 @@ class PhotoService
         }
 
         foreach ([$photo->path, $photo->thumb_path] as $path) {
-            if ($path && Storage::disk('public')->exists($path)) {
-                Storage::disk('public')->delete($path);
+            if ($path && $this->storage()->exists($path)) {
+                $this->storage()->delete($path);
             }
         }
 
@@ -222,8 +284,8 @@ class PhotoService
 
     private function assertValidUpload(UploadedFile $file): void
     {
-        if ($file->getSize() > self::MAX_UPLOAD_BYTES) {
-            throw new \InvalidArgumentException('ファイルサイズは12MB以下にしてください');
+        if ($file->getSize() > $this->maxUploadBytes()) {
+            throw new \InvalidArgumentException('ファイルサイズは'.$this->formatBytes($this->maxUploadBytes()).'以下にしてください');
         }
 
         $mime = (string) $file->getMimeType();
@@ -234,27 +296,41 @@ class PhotoService
         }
     }
 
-    private function makeThumbnail(string $storedPath, UploadedFile $file): ?string
+    /**
+     * 長辺を縮小して JPEG 保存し、サムネも生成する。
+     * GD で扱えない形式（HEIC 等）は原本をそのまま保存する。
+     * ローカル / R2（S3互換）どちらでも動くよう一時ファイル経由で put する。
+     *
+     * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
+     */
+    private function storeOptimizedImage(UploadedFile $file, string $dir): ?array
     {
-        if (! function_exists('imagecreatetruecolor')) {
-            return null;
-        }
-
         $sourcePath = $file->getRealPath();
         if (! $sourcePath) {
             return null;
         }
 
         $mime = (string) $file->getMimeType();
-        $src = match (true) {
-            str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => @imagecreatefromjpeg($sourcePath),
-            str_contains($mime, 'png') => @imagecreatefrompng($sourcePath),
-            str_contains($mime, 'webp') && function_exists('imagecreatefromwebp') => @imagecreatefromwebp($sourcePath),
-            str_contains($mime, 'gif') => @imagecreatefromgif($sourcePath),
-            default => false,
-        };
+        $src = $this->createImageResource($sourcePath, $mime);
+        $quality = max(40, min(95, (int) config('photos.jpeg_quality', 82)));
+        $maxEdge = max(640, (int) config('photos.max_long_edge', 1920));
+        $thumbEdge = max(240, (int) config('photos.thumb_long_edge', 720));
+
         if (! $src) {
-            return null;
+            $path = $file->store(trim($dir, '/'), $this->diskName());
+            if (! $path) {
+                return null;
+            }
+            $size = @getimagesize($sourcePath);
+
+            return [
+                'path' => $path,
+                'thumbPath' => null,
+                'mime' => $mime ?: 'application/octet-stream',
+                'sizeBytes' => (int) $this->storage()->size($path),
+                'width' => is_array($size) ? ($size[0] ?? null) : null,
+                'height' => is_array($size) ? ($size[1] ?? null) : null,
+            ];
         }
 
         $sw = imagesx($src);
@@ -265,21 +341,119 @@ class PhotoService
             return null;
         }
 
-        $max = 720;
-        $scale = min(1, $max / max($sw, $sh));
-        $tw = max(1, (int) round($sw * $scale));
-        $th = max(1, (int) round($sh * $scale));
-        $dst = imagecreatetruecolor($tw, $th);
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $tw, $th, $sw, $sh);
+        [$dw, $dh] = $this->scaledSize($sw, $sh, $maxEdge);
+        $main = imagecreatetruecolor($dw, $dh);
+        $this->fillWhite($main);
+        imagecopyresampled($main, $src, 0, 0, 0, 0, $dw, $dh, $sw, $sh);
 
-        $thumbRel = preg_replace('/(\.[^.]+)$/', '_thumb.jpg', $storedPath) ?: ($storedPath.'_thumb.jpg');
-        $abs = Storage::disk('public')->path($thumbRel);
-        @mkdir(dirname($abs), 0775, true);
-        imagejpeg($dst, $abs, 82);
+        $basename = str_replace('.', '', uniqid('ph_', true));
+        $path = trim($dir, '/').'/'.$basename.'.jpg';
+        $thumbPath = trim($dir, '/').'/'.$basename.'_thumb.jpg';
+
+        $mainTmp = tempnam(sys_get_temp_dir(), 'phm');
+        $thumbTmp = tempnam(sys_get_temp_dir(), 'pht');
+        if ($mainTmp === false || $thumbTmp === false) {
+            imagedestroy($src);
+            imagedestroy($main);
+
+            return null;
+        }
+
+        imagejpeg($main, $mainTmp, $quality);
+
+        [$tw, $th] = $this->scaledSize($dw, $dh, $thumbEdge);
+        $thumb = imagecreatetruecolor($tw, $th);
+        $this->fillWhite($thumb);
+        imagecopyresampled($thumb, $main, 0, 0, 0, 0, $tw, $th, $dw, $dh);
+        imagejpeg($thumb, $thumbTmp, $quality);
+
         imagedestroy($src);
-        imagedestroy($dst);
+        imagedestroy($main);
+        imagedestroy($thumb);
 
-        return Storage::disk('public')->exists($thumbRel) ? $thumbRel : null;
+        try {
+            $this->putFileContents($path, (string) file_get_contents($mainTmp), 'image/jpeg');
+            $this->putFileContents($thumbPath, (string) file_get_contents($thumbTmp), 'image/jpeg');
+        } finally {
+            @unlink($mainTmp);
+            @unlink($thumbTmp);
+        }
+
+        if (! $this->storage()->exists($path)) {
+            return null;
+        }
+
+        return [
+            'path' => $path,
+            'thumbPath' => $this->storage()->exists($thumbPath) ? $thumbPath : null,
+            'mime' => 'image/jpeg',
+            'sizeBytes' => (int) $this->storage()->size($path),
+            'width' => $dw,
+            'height' => $dh,
+        ];
+    }
+
+    private function storage(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        return Storage::disk($this->diskName());
+    }
+
+    private function putFileContents(string $path, string $contents, string $contentType): void
+    {
+        $options = [
+            'visibility' => 'public',
+            'ContentType' => $contentType,
+        ];
+        $this->storage()->put($path, $contents, $options);
+    }
+
+    /** @return \GdImage|false|resource */
+    private function createImageResource(string $sourcePath, string $mime)
+    {
+        if (! function_exists('imagecreatetruecolor')) {
+            return false;
+        }
+
+        return match (true) {
+            str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => @imagecreatefromjpeg($sourcePath),
+            str_contains($mime, 'png') => @imagecreatefrompng($sourcePath),
+            str_contains($mime, 'webp') && function_exists('imagecreatefromwebp') => @imagecreatefromwebp($sourcePath),
+            str_contains($mime, 'gif') => @imagecreatefromgif($sourcePath),
+            default => false,
+        };
+    }
+
+    /** @return array{0: int, 1: int} */
+    private function scaledSize(int $width, int $height, int $maxEdge): array
+    {
+        $scale = min(1, $maxEdge / max($width, $height));
+
+        return [
+            max(1, (int) round($width * $scale)),
+            max(1, (int) round($height * $scale)),
+        ];
+    }
+
+    /** @param \GdImage|resource $image */
+    private function fillWhite($image): void
+    {
+        $white = imagecolorallocate($image, 255, 255, 255);
+        imagefilledrectangle($image, 0, 0, imagesx($image), imagesy($image), $white);
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return round($bytes / 1024, 1).' KB';
+        }
+        if ($bytes < 1024 * 1024 * 1024) {
+            return round($bytes / (1024 * 1024), 1).' MB';
+        }
+
+        return round($bytes / (1024 * 1024 * 1024), 2).' GB';
     }
 
     /** @return array<string, mixed> */
@@ -352,6 +526,6 @@ class PhotoService
             return null;
         }
 
-        return Storage::disk('public')->url($path);
+        return $this->storage()->url($path);
     }
 }

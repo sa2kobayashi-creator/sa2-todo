@@ -29,6 +29,7 @@ class PhotoController extends Controller
             'photoGroups' => $this->photos->groupPhotosByDate($photoList),
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
+            'storageStats' => $this->photos->storageStats($userId),
             'returnTo' => '/photos'.($albumId ? '?album='.$albumId : ''),
             ...$this->flashFromQuery($request),
         ]);

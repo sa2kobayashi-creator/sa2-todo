@@ -51,6 +51,23 @@
         </div>
       </section>
 
+      <aside class="photos-storage" aria-label="保存容量">
+        <div class="photos-storage-head">
+          <strong>保存容量</strong>
+          <span>{{ $storageStats['formattedUsed'] }} / {{ $storageStats['formattedQuota'] }}（{{ $storageStats['photoCount'] }}枚）</span>
+        </div>
+        <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) $storageStats['percent'] }}">
+          <span class="photos-storage-bar-fill{{ $storageStats['percent'] >= 90 ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
+        </div>
+        <p class="photos-storage-note">
+          アップロード時に長辺1920pxへ自動圧縮します。
+          保存先: {{ $storageStats['diskLabel'] }}
+          @if(($storageStats['disk'] ?? '') === 'public')
+            （本番では PHOTO_DISK=r2 で Cloudflare R2 に切り替え可能）
+          @endif
+        </p>
+      </aside>
+
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <strong>スマホ同期 / アプリ化</strong>
         <span>スマホブラウザでこのページを開き「写真を追加」。対応端末では「ホーム画面に追加」でアプリのように使えます。</span>
@@ -210,8 +227,65 @@
         const coverBtn = document.getElementById('photos-cover-btn')
         const albumModal = document.getElementById('photos-album-modal')
         const installBtn = document.getElementById('photos-pwa-install')
+        const uploadLabel = document.querySelector('.photos-upload-btn-label')
         let currentIndex = 0
         let deferredPrompt = null
+        let uploading = false
+
+        async function compressImageFile(file) {
+          if (!file || !file.type.startsWith('image/')) return file
+          if (file.type === 'image/gif' || /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+            return file
+          }
+          if (typeof createImageBitmap !== 'function') return file
+
+          const maxEdge = 1920
+          const quality = 0.82
+          let bitmap
+          try {
+            bitmap = await createImageBitmap(file)
+          } catch (_) {
+            return file
+          }
+          const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
+          const w = Math.max(1, Math.round(bitmap.width * scale))
+          const h = Math.max(1, Math.round(bitmap.height * scale))
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            bitmap.close?.()
+            return file
+          }
+          ctx.drawImage(bitmap, 0, 0, w, h)
+          bitmap.close?.()
+
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+          if (!blob || blob.size >= file.size) return file
+          const name = file.name.replace(/\.\w+$/, '') + '.jpg'
+          return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() })
+        }
+
+        async function submitFiles(fileList) {
+          if (!fileList?.length || !form || !formFiles || uploading) return
+          uploading = true
+          if (uploadLabel) uploadLabel.textContent = '圧縮中…'
+          try {
+            const dt = new DataTransfer()
+            for (const file of Array.from(fileList)) {
+              dt.items.add(await compressImageFile(file))
+            }
+            if (!dt.files.length) return
+            formFiles.files = dt.files
+            if (uploadLabel) uploadLabel.textContent = '送信中…'
+            form.submit()
+          } catch (_) {
+            uploading = false
+            if (uploadLabel) uploadLabel.textContent = '写真を追加'
+            window.alert('画像の処理に失敗しました。別の形式で試してください。')
+          }
+        }
 
         function triggerUpload() {
           fileInput?.click()
@@ -226,11 +300,8 @@
         })
 
         fileInput?.addEventListener('change', () => {
-          if (!fileInput.files?.length || !form || !formFiles) return
-          const dt = new DataTransfer()
-          Array.from(fileInput.files).forEach((f) => dt.items.add(f))
-          formFiles.files = dt.files
-          form.submit()
+          if (!fileInput.files?.length) return
+          submitFiles(fileInput.files)
         })
 
         ;['dragenter', 'dragover'].forEach((type) => {
@@ -247,14 +318,9 @@
         })
         emptyZone?.addEventListener('drop', (e) => {
           const files = e.dataTransfer?.files
-          if (!files?.length || !form || !formFiles) return
-          const dt = new DataTransfer()
-          Array.from(files).forEach((f) => {
-            if (f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name)) dt.items.add(f)
-          })
-          if (!dt.files.length) return
-          formFiles.files = dt.files
-          form.submit()
+          if (!files?.length) return
+          const filtered = Array.from(files).filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
+          submitFiles(filtered)
         })
 
         function openLightbox(index) {
