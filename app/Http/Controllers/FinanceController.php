@@ -34,6 +34,7 @@ class FinanceController extends Controller
             'accountDisplayGroups' => $pageData['accountDisplayGroups'],
             'balanceTotals' => $pageData['balanceTotals'],
             'summary' => $pageData['summary'],
+            'summaryDetails' => $pageData['summaryDetails'],
             'transactions' => $pageData['transactions'],
             'transactionBalanceContext' => $pageData['transactionBalanceContext'],
             'allAccounts' => $pageData['allAccounts'],
@@ -47,6 +48,10 @@ class FinanceController extends Controller
                 fn ($a) => in_array($a['kind'], ['bank', 'wallet', 'cash'], true)
             )),
             'defaultDate' => $this->finance->todayIso(),
+            'expenseCategoryPrimary' => FinanceService::EXPENSE_CATEGORY_PRIMARY,
+            'expenseCategoryOther' => $this->finance->expenseCategoryOther(),
+            'expenseCategoryCustom' => $this->finance->customExpenseCategoryLabels(),
+            'expenseCategoryLabels' => $this->finance->expenseCategoryLabels(),
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
             'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
@@ -92,6 +97,7 @@ class FinanceController extends Controller
                 'amount' => $request->input('amount'),
                 'toAmount' => $request->input('toAmount'),
                 'memo' => $request->input('memo'),
+                'category' => $request->input('category'),
             ]);
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -120,6 +126,7 @@ class FinanceController extends Controller
                 'amount' => $request->input('amount'),
                 'toAmount' => $request->input('toAmount'),
                 'memo' => $request->input('memo'),
+                'category' => $request->input('category'),
             ]);
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -140,6 +147,35 @@ class FinanceController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, '取引を削除しました（カード引落の場合は支払予定も削除しました）');
+    }
+
+    public function storeExpenseCategory(Request $request)
+    {
+        try {
+            $category = $this->finance->createExpenseCategory((string) $request->input('label', ''));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['ok' => false, 'message' => 'カテゴリーの追加に失敗しました'], 500);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'category' => $category,
+        ]);
+    }
+
+    public function destroyExpenseCategory(string $slug)
+    {
+        try {
+            $this->finance->deleteExpenseCategory($slug);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['ok' => false, 'message' => 'カテゴリーの削除に失敗しました'], 500);
+        }
+
+        return response()->json(['ok' => true, 'slug' => $slug]);
     }
 
     public function updateAccountBalance(Request $request, int $id)

@@ -111,6 +111,23 @@
               <input type="radio" name="type" value="transfer" />
               <span>振替</span>
             </label>
+
+            <div class="finance-expense-categories" id="finance-expense-categories" role="group" aria-label="支出カテゴリー">
+              <input type="hidden" name="category" id="finance-quick-category" value="" />
+              @foreach($expenseCategoryPrimary as $slug => $label)
+                <button
+                  type="button"
+                  class="finance-expense-category-btn"
+                  data-category="{{ $slug }}"
+                >{{ $label }}</button>
+              @endforeach
+              <button
+                type="button"
+                class="finance-expense-category-btn is-other"
+                id="finance-expense-category-other"
+                data-category="__other__"
+              >その他</button>
+            </div>
           </div>
 
           <div class="finance-quick-entry-fields">
@@ -228,28 +245,34 @@
 
       <section class="finance-summary panel">
         <h2 class="finance-section-title">{{ $monthLabel }} サマリー</h2>
+        <p class="hint finance-summary-hint">カードを押すと内訳を表示します。支出はカテゴリーで絞り込めます。</p>
         <div class="finance-summary-grid">
-          <div class="finance-summary-item finance-summary-static">
+          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="income">
             <span class="finance-summary-label">収入（入金）</span>
             <strong class="finance-summary-value income">{{ $formatMoney($summary['income'], $summary['currency']) }}</strong>
-          </div>
-          <div class="finance-summary-item finance-summary-static">
+            <span class="finance-summary-action">詳細を見る</span>
+          </button>
+          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="expense">
             <span class="finance-summary-label">支出</span>
             <strong class="finance-summary-value expense">{{ $formatMoney($summary['expense'], $summary['currency']) }}</strong>
-          </div>
-          <div class="finance-summary-item finance-summary-static">
+            <span class="finance-summary-action">カテゴリー別で見る</span>
+          </button>
+          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="net">
             <span class="finance-summary-label">収支</span>
             <strong class="finance-summary-value @if($summary['net'] >= 0) income @else expense @endif">{{ $formatMoney($summary['net'], $summary['currency']) }}</strong>
-          </div>
+            <span class="finance-summary-action">詳細を見る</span>
+          </button>
           @if($filters['tab'] === 'transfer' || $filters['tab'] === 'all' || $filters['tab'] === 'jp' || $filters['tab'] === 'ph')
-            <div class="finance-summary-item finance-summary-static">
+            <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="transferOut">
               <span class="finance-summary-label">振替出</span>
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferOut'], $summary['currency']) }}</strong>
-            </div>
-            <div class="finance-summary-item finance-summary-static">
+              <span class="finance-summary-action">詳細を見る</span>
+            </button>
+            <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="transferIn">
               <span class="finance-summary-label">振替入</span>
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferIn'], $summary['currency']) }}</strong>
-            </div>
+              <span class="finance-summary-action">詳細を見る</span>
+            </button>
           @endif
         </div>
       </section>
@@ -663,6 +686,9 @@
                     </td>
                     <td class="finance-transaction-type-cell">
                       <span class="finance-type-badge">{{ $transaction['typeLabel'] }}</span>
+                      @if(!empty($transaction['categoryLabel']))
+                        <span class="finance-category-badge">{{ $transaction['categoryLabel'] }}</span>
+                      @endif
                       @if(!empty($transaction['isScheduled']))
                         <span class="finance-transaction-badge finance-transaction-badge-scheduled">{{ $transaction['scheduledLabel'] ?? '予定' }}</span>
                       @endif
@@ -788,6 +814,16 @@
             <span class="hint finance-calc-hint">例: 1000+340 / 5000-200 / 100*1.1</span>
           </label>
 
+          <label id="finance-category-field">
+            支出カテゴリー
+            <select name="category" id="finance-category">
+              <option value="">未分類</option>
+              @foreach($expenseCategoryLabels as $slug => $label)
+                <option value="{{ $slug }}">{{ $label }}</option>
+              @endforeach
+            </select>
+          </label>
+
           <label>
             メモ
             <input type="text" name="memo" id="finance-memo" placeholder="国保、PH送金 など" />
@@ -798,6 +834,74 @@
             <button type="submit" class="button-link" id="finance-submit-btn">保存</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="finance-expense-other-modal" hidden>
+      <div class="modal-backdrop" data-close-expense-other-modal></div>
+      <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="finance-expense-other-title">
+        <div class="modal-header">
+          <h2 id="finance-expense-other-title">その他の支出カテゴリー</h2>
+          <button type="button" class="modal-close" data-close-expense-other-modal aria-label="閉じる">×</button>
+        </div>
+        <div class="finance-expense-other-grid" id="finance-expense-other-grid">
+          @foreach($expenseCategoryOther as $slug => $label)
+            <div class="finance-expense-other-item{{ isset($expenseCategoryCustom[$slug]) ? ' is-custom' : '' }}">
+              <button type="button" class="finance-expense-other-option" data-category="{{ $slug }}">{{ $label }}</button>
+              @if(isset($expenseCategoryCustom[$slug]))
+                <button
+                  type="button"
+                  class="finance-expense-other-delete"
+                  data-category="{{ $slug }}"
+                  aria-label="{{ $label }}を削除"
+                  title="削除"
+                >×</button>
+              @endif
+            </div>
+          @endforeach
+        </div>
+        <form class="finance-expense-other-add" id="finance-expense-other-add-form">
+          <label class="finance-expense-other-add-label">
+            <span class="finance-expense-other-add-caption">カテゴリーを追加</span>
+            <input
+              type="text"
+              id="finance-expense-other-add-input"
+              maxlength="40"
+              placeholder="例：ガス、保険"
+              autocomplete="off"
+            />
+          </label>
+          <button type="submit" class="button-link" id="finance-expense-other-add-btn">追加</button>
+          <p class="hint finance-expense-other-add-error" id="finance-expense-other-add-error" hidden></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="finance-summary-detail-modal" hidden>
+      <div class="modal-backdrop" data-close-summary-detail-modal></div>
+      <div class="modal-dialog finance-modal-dialog finance-summary-detail-dialog" role="dialog" aria-labelledby="finance-summary-detail-title">
+        <div class="modal-header">
+          <h2 id="finance-summary-detail-title">サマリー詳細</h2>
+          <button type="button" class="modal-close" data-close-summary-detail-modal aria-label="閉じる">×</button>
+        </div>
+        <div class="finance-summary-detail-meta">
+          <strong id="finance-summary-detail-total"></strong>
+          <span class="hint" id="finance-summary-detail-count"></span>
+        </div>
+        <div class="finance-summary-detail-categories" id="finance-summary-detail-categories" hidden></div>
+        <div class="finance-summary-detail-table-wrap">
+          <table class="finance-summary-detail-table">
+            <thead>
+              <tr>
+                <th scope="col">日付</th>
+                <th scope="col">内容</th>
+                <th scope="col" class="is-num">金額</th>
+              </tr>
+            </thead>
+            <tbody id="finance-summary-detail-body"></tbody>
+          </table>
+          <p class="hint finance-summary-detail-empty" id="finance-summary-detail-empty" hidden>該当はありません。</p>
+        </div>
       </div>
     </div>
 
@@ -1178,6 +1282,17 @@
         const quickAccountLabel = document.getElementById('finance-quick-account-label')
         const quickAmountLabel = document.getElementById('finance-quick-amount-label')
         const quickSubmitBtn = document.getElementById('finance-quick-submit')
+        const expenseCategories = document.getElementById('finance-expense-categories')
+        const quickCategoryInput = document.getElementById('finance-quick-category')
+        const expenseCategoryBtns = expenseCategories?.querySelectorAll('.finance-expense-category-btn') || []
+        const expenseOtherModal = document.getElementById('finance-expense-other-modal')
+        const expenseOtherBtn = document.getElementById('finance-expense-category-other')
+        const categoryField = document.getElementById('finance-category-field')
+        const categorySelect = document.getElementById('finance-category')
+        const expenseCategoryOtherKeys = @json(array_keys($expenseCategoryOther));
+        let expenseCategoryOtherKeyList = Array.isArray(expenseCategoryOtherKeys)
+          ? expenseCategoryOtherKeys.slice()
+          : Object.keys(expenseCategoryOtherKeys || {});
         const transactionTypeHint = document.getElementById('finance-transaction-type-hint')
         const modalTitle = document.getElementById('finance-modal-title')
         const submitBtn = document.getElementById('finance-submit-btn')
@@ -1218,8 +1333,11 @@
         function syncTransferVisibility() {
           const type = form.querySelector('input[name="type"]:checked')?.value || 'expense'
           const isTransfer = type === 'transfer'
+          const isExpense = type === 'expense'
           transferFields.hidden = !isTransfer
           toAccountSelect.required = isTransfer
+          if (categoryField) categoryField.hidden = !isExpense
+          if (!isExpense && categorySelect) categorySelect.value = ''
           syncCrossCurrency()
         }
 
@@ -1248,7 +1366,7 @@
           $filters['accountId']
             ?? ($filters['tab'] === 'jp' ? (collect($jpAccounts)->first()['id'] ?? null) : null)
             ?? ($filters['tab'] === 'ph' ? (collect($phAccounts)->first()['id'] ?? null) : null)
-        )
+        );
 
         function applyDefaultTransactionAccount() {
           if (defaultTransactionAccountId && accountSelect) {
@@ -1271,12 +1389,157 @@
           transfer: '振替元',
         }
 
+        function setQuickExpenseCategory(category) {
+          if (quickCategoryInput) quickCategoryInput.value = category || ''
+          const isOther = Boolean(category && expenseCategoryOtherKeyList.includes(category))
+          expenseCategoryBtns.forEach((btn) => {
+            const btnCategory = btn.dataset.category
+            if (btnCategory === '__other__') {
+              btn.classList.toggle('is-active', isOther)
+              if (isOther) {
+                const option = expenseOtherModal?.querySelector(
+                  `.finance-expense-other-option[data-category="${CSS.escape(category)}"]`
+                )
+                const label = option?.textContent.trim() || 'その他'
+                btn.dataset.selectedLabel = label
+                btn.textContent = label
+              } else {
+                delete btn.dataset.selectedLabel
+                btn.textContent = 'その他'
+              }
+              return
+            }
+            btn.classList.toggle('is-active', btnCategory === category)
+          })
+        }
+
+        function clearQuickExpenseCategory() {
+          if (expenseOtherBtn) {
+            delete expenseOtherBtn.dataset.selectedLabel
+            expenseOtherBtn.textContent = 'その他'
+          }
+          setQuickExpenseCategory('')
+        }
+
+        function openExpenseOtherModal() {
+          const errorEl = document.getElementById('finance-expense-other-add-error')
+          const inputEl = document.getElementById('finance-expense-other-add-input')
+          if (errorEl) {
+            errorEl.hidden = true
+            errorEl.textContent = ''
+          }
+          if (inputEl) inputEl.value = ''
+          expenseOtherModal?.removeAttribute('hidden')
+        }
+
+        function closeExpenseOtherModal() {
+          expenseOtherModal?.setAttribute('hidden', '')
+        }
+
+        function appendExpenseCategoryOption(slug, label) {
+          const grid = document.getElementById('finance-expense-other-grid')
+          if (grid && !grid.querySelector(`.finance-expense-other-option[data-category="${CSS.escape(slug)}"]`)) {
+            const item = document.createElement('div')
+            item.className = 'finance-expense-other-item is-custom'
+            const btn = document.createElement('button')
+            btn.type = 'button'
+            btn.className = 'finance-expense-other-option'
+            btn.dataset.category = slug
+            btn.textContent = label
+            const del = document.createElement('button')
+            del.type = 'button'
+            del.className = 'finance-expense-other-delete'
+            del.dataset.category = slug
+            del.setAttribute('aria-label', `${label}を削除`)
+            del.title = '削除'
+            del.textContent = '×'
+            item.appendChild(btn)
+            item.appendChild(del)
+            grid.appendChild(item)
+            bindExpenseOtherOption(btn)
+            bindExpenseOtherDelete(del)
+          }
+          if (categorySelect && !categorySelect.querySelector(`option[value="${CSS.escape(slug)}"]`)) {
+            const option = document.createElement('option')
+            option.value = slug
+            option.textContent = label
+            categorySelect.appendChild(option)
+          }
+          if (!expenseCategoryOtherKeyList.includes(slug)) {
+            expenseCategoryOtherKeyList.push(slug)
+          }
+        }
+
+        function removeExpenseCategoryOption(slug) {
+          document
+            .querySelectorAll(`#finance-expense-other-grid .finance-expense-other-item .finance-expense-other-option[data-category="${CSS.escape(slug)}"]`)
+            .forEach((btn) => btn.closest('.finance-expense-other-item')?.remove())
+          categorySelect?.querySelector(`option[value="${CSS.escape(slug)}"]`)?.remove()
+          expenseCategoryOtherKeyList = expenseCategoryOtherKeyList.filter((key) => key !== slug)
+          if (quickCategoryInput?.value === slug) {
+            clearQuickExpenseCategory()
+          }
+          if (categorySelect?.value === slug) {
+            categorySelect.value = ''
+          }
+        }
+
+        function bindExpenseOtherOption(btn) {
+          if (!btn || btn.dataset.bound === '1') return
+          btn.dataset.bound = '1'
+          btn.addEventListener('click', () => {
+            setQuickExpenseCategory(btn.dataset.category)
+            closeExpenseOtherModal()
+          })
+        }
+
+        function bindExpenseOtherDelete(btn) {
+          if (!btn || btn.dataset.bound === '1') return
+          btn.dataset.bound = '1'
+          btn.addEventListener('click', async (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            const slug = btn.dataset.category
+            if (!slug) return
+            const label = btn.closest('.finance-expense-other-item')
+              ?.querySelector('.finance-expense-other-option')
+              ?.textContent
+              ?.trim() || slug
+            if (!window.confirm(`「${label}」を削除しますか？`)) return
+            btn.disabled = true
+            try {
+              const response = await fetch(`/finance/categories/${encodeURIComponent(slug)}/delete`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'X-CSRF-TOKEN': csrfToken || '',
+                },
+              })
+              const data = await response.json().catch(() => ({}))
+              if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || 'カテゴリーの削除に失敗しました')
+              }
+              removeExpenseCategoryOption(slug)
+            } catch (error) {
+              window.alert(error?.message || 'カテゴリーの削除に失敗しました')
+              btn.disabled = false
+            }
+          })
+        }
+
         function syncQuickTypeTabs() {
           const type = quickForm?.querySelector('input[name="type"]:checked')?.value || 'expense'
+          const isExpense = type === 'expense'
           quickTypeTabs.forEach((tab) => {
             const input = tab.querySelector('input[name="type"]')
             tab.classList.toggle('is-active', input?.value === type)
           })
+          if (expenseCategories) expenseCategories.hidden = !isExpense
+          if (!isExpense) {
+            clearQuickExpenseCategory()
+            closeExpenseOtherModal()
+          }
           if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || '登録'
           if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || '口座'
           if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? '振替元金額' : '金額'
@@ -1325,7 +1588,7 @@
             applyDefaultTransactionAccount()
           }
           if (quickDateInput && !quickDateInput.value) {
-            quickDateInput.value = @json($defaultDate)
+            quickDateInput.value = @json($defaultDate);
           }
           syncQuickTransferVisibility()
           quickEntrySection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1337,6 +1600,71 @@
         })
         quickAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
         quickToAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
+        expenseCategoryBtns.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const category = btn.dataset.category
+            if (category === '__other__') {
+              openExpenseOtherModal()
+              return
+            }
+            setQuickExpenseCategory(category)
+          })
+        })
+        document.querySelectorAll('.finance-expense-other-option').forEach((btn) => {
+          bindExpenseOtherOption(btn)
+        })
+        document.querySelectorAll('.finance-expense-other-delete').forEach((btn) => {
+          bindExpenseOtherDelete(btn)
+        })
+        document.querySelectorAll('[data-close-expense-other-modal]').forEach((el) => {
+          el.addEventListener('click', closeExpenseOtherModal)
+        })
+        document.getElementById('finance-expense-other-add-form')?.addEventListener('submit', async (event) => {
+          event.preventDefault()
+          const inputEl = document.getElementById('finance-expense-other-add-input')
+          const errorEl = document.getElementById('finance-expense-other-add-error')
+          const submitBtn = document.getElementById('finance-expense-other-add-btn')
+          const label = String(inputEl?.value || '').trim()
+          if (errorEl) {
+            errorEl.hidden = true
+            errorEl.textContent = ''
+          }
+          if (!label) {
+            if (errorEl) {
+              errorEl.textContent = 'カテゴリー名を入力してください'
+              errorEl.hidden = false
+            }
+            inputEl?.focus()
+            return
+          }
+          if (submitBtn) submitBtn.disabled = true
+          try {
+            const response = await fetch('/finance/categories', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken || '',
+              },
+              body: JSON.stringify({ label }),
+            })
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok || !data?.ok || !data?.category) {
+              throw new Error(data?.message || 'カテゴリーの追加に失敗しました')
+            }
+            appendExpenseCategoryOption(data.category.slug, data.category.label)
+            setQuickExpenseCategory(data.category.slug)
+            if (inputEl) inputEl.value = ''
+            closeExpenseOtherModal()
+          } catch (error) {
+            if (errorEl) {
+              errorEl.textContent = error?.message || 'カテゴリーの追加に失敗しました'
+              errorEl.hidden = false
+            }
+          } finally {
+            if (submitBtn) submitBtn.disabled = false
+          }
+        })
         document.querySelectorAll('[data-quick-type]').forEach((btn) => {
           btn.addEventListener('click', (event) => {
             event.stopPropagation()
@@ -1380,6 +1708,7 @@
           accountSelect.value = String(data.accountId)
           if (data.toAccountId) toAccountSelect.value = String(data.toAccountId)
           if (data.toAmount != null) form.querySelector('#finance-to-amount').value = data.toAmount
+          if (categorySelect) categorySelect.value = data.category || ''
           syncTransferVisibility()
           modal?.removeAttribute('hidden')
         }
@@ -1396,6 +1725,165 @@
         })
 
         applyDefaultTransactionAccount()
+
+        const summaryDetails = @json($summaryDetails);
+        const summaryDetailModal = document.getElementById('finance-summary-detail-modal')
+        const summaryDetailTitle = document.getElementById('finance-summary-detail-title')
+        const summaryDetailTotal = document.getElementById('finance-summary-detail-total')
+        const summaryDetailCount = document.getElementById('finance-summary-detail-count')
+        const summaryDetailCategories = document.getElementById('finance-summary-detail-categories')
+        const summaryDetailBody = document.getElementById('finance-summary-detail-body')
+        const summaryDetailEmpty = document.getElementById('finance-summary-detail-empty')
+        let summaryDetailKey = null
+        let summaryDetailCategoryFilter = 'all'
+
+        const summaryDetailTitles = {
+          income: '収入（入金）の内訳',
+          expense: '支出の内訳',
+          net: '収支の内訳',
+          transferOut: '振替出の内訳',
+          transferIn: '振替入の内訳',
+        }
+
+        function formatSummaryMoney(amount, currency) {
+          const prefix = currency === 'PHP' ? '₱' : '¥'
+          const decimals = currency === 'PHP' ? 2 : 0
+          return prefix + Number(amount || 0).toLocaleString('ja-JP', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+          })
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+        }
+
+        function getSummaryDetailSection(key) {
+          return summaryDetails?.[key] || { total: 0, items: [], categories: [] }
+        }
+
+        function filteredSummaryDetailItems(section) {
+          const items = Array.isArray(section.items) ? section.items : []
+          if (summaryDetailKey !== 'expense' || summaryDetailCategoryFilter === 'all') {
+            return items
+          }
+          return items.filter((item) => String(item.category ?? '') === summaryDetailCategoryFilter)
+        }
+
+        function renderSummaryDetailCategories(section) {
+          if (!summaryDetailCategories) return
+          if (summaryDetailKey !== 'expense') {
+            summaryDetailCategories.hidden = true
+            summaryDetailCategories.innerHTML = ''
+            return
+          }
+          const categories = Array.isArray(section.categories) ? section.categories : []
+          const currency = summaryDetails?.currency || 'JPY'
+          const chips = [
+            {
+              slug: 'all',
+              label: 'すべて',
+              total: section.total || 0,
+              count: Array.isArray(section.items) ? section.items.length : 0,
+            },
+            ...categories,
+          ]
+          summaryDetailCategories.innerHTML = chips.map((chip) => {
+            const slug = String(chip.slug ?? '')
+            const active = summaryDetailCategoryFilter === slug
+              || (summaryDetailCategoryFilter === 'all' && slug === 'all')
+            return `<button type="button" class="finance-summary-detail-category-chip${active ? ' is-active' : ''}" data-summary-category="${escapeHtml(slug)}">
+              <span class="finance-summary-detail-category-label">${escapeHtml(chip.label)}</span>
+              <span class="finance-summary-detail-category-meta">${escapeHtml(formatSummaryMoney(chip.total, currency))} · ${Number(chip.count || 0)}件</span>
+            </button>`
+          }).join('')
+          summaryDetailCategories.hidden = false
+        }
+
+        function renderSummaryDetailList() {
+          const section = getSummaryDetailSection(summaryDetailKey)
+          const currency = summaryDetails?.currency || 'JPY'
+          const items = filteredSummaryDetailItems(section)
+          const total = items.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+
+          if (summaryDetailTitle) {
+            summaryDetailTitle.textContent = summaryDetailTitles[summaryDetailKey] || 'サマリー詳細'
+          }
+          if (summaryDetailTotal) {
+            const tone = summaryDetailKey === 'income' || (summaryDetailKey === 'net' && total >= 0)
+              ? 'income'
+              : (summaryDetailKey === 'expense' || (summaryDetailKey === 'net' && total < 0) ? 'expense' : '')
+            summaryDetailTotal.className = tone
+            if (summaryDetailKey === 'net' && summaryDetailCategoryFilter === 'all') {
+              summaryDetailTotal.textContent = `収支 ${formatSummaryMoney(section.total || 0, currency)}（収入 ${formatSummaryMoney(section.income || 0, currency)} / 支出 ${formatSummaryMoney(section.expense || 0, currency)}）`
+            } else {
+              summaryDetailTotal.textContent = formatSummaryMoney(total, currency)
+            }
+          }
+          if (summaryDetailCount) {
+            summaryDetailCount.textContent = `${items.length}件`
+          }
+
+          renderSummaryDetailCategories(section)
+
+          if (!summaryDetailBody) return
+          if (items.length === 0) {
+            summaryDetailBody.innerHTML = ''
+            if (summaryDetailEmpty) summaryDetailEmpty.hidden = false
+            return
+          }
+          if (summaryDetailEmpty) summaryDetailEmpty.hidden = true
+          summaryDetailBody.innerHTML = items.map((item) => {
+            const accountText = item.type === 'transfer'
+              ? `${item.accountName || ''} → ${item.toAccountName || ''}`
+              : (item.accountName || '')
+            const badges = []
+            if (item.typeLabel) badges.push(`<span class="finance-type-badge">${escapeHtml(item.typeLabel)}</span>`)
+            if (item.categoryLabel) badges.push(`<span class="finance-category-badge">${escapeHtml(item.categoryLabel)}</span>`)
+            const memo = item.memo ? escapeHtml(item.memo) : '<span class="hint">（メモなし）</span>'
+            const amountPrefix = item.type === 'expense' ? '−' : (item.type === 'income' ? '+' : '')
+            return `<tr>
+              <td>${escapeHtml(item.transactionDate || '')}</td>
+              <td>
+                <div class="finance-summary-detail-content">
+                  <div class="finance-summary-detail-badges">${badges.join('')}</div>
+                  <div class="finance-summary-detail-account">${escapeHtml(accountText)}</div>
+                  <div class="finance-summary-detail-memo">${memo}</div>
+                </div>
+              </td>
+              <td class="is-num">${amountPrefix}${escapeHtml(formatSummaryMoney(item.amount, item.currency || currency))}</td>
+            </tr>`
+          }).join('')
+        }
+
+        function openSummaryDetailModal(key) {
+          if (!summaryDetails?.[key]) return
+          summaryDetailKey = key
+          summaryDetailCategoryFilter = 'all'
+          renderSummaryDetailList()
+          summaryDetailModal?.removeAttribute('hidden')
+        }
+
+        function closeSummaryDetailModal() {
+          summaryDetailModal?.setAttribute('hidden', '')
+        }
+
+        document.querySelectorAll('[data-summary-detail]').forEach((btn) => {
+          btn.addEventListener('click', () => openSummaryDetailModal(btn.dataset.summaryDetail))
+        })
+        document.querySelectorAll('[data-close-summary-detail-modal]').forEach((el) => {
+          el.addEventListener('click', closeSummaryDetailModal)
+        })
+        summaryDetailCategories?.addEventListener('click', (event) => {
+          const chip = event.target.closest('[data-summary-category]')
+          if (!chip) return
+          summaryDetailCategoryFilter = chip.dataset.summaryCategory ?? 'all'
+          renderSummaryDetailList()
+        })
 
         const accountModal = document.getElementById('finance-account-modal')
         const accountForm = document.getElementById('finance-account-form')

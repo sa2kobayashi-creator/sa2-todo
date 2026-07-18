@@ -10,6 +10,7 @@ class FinanceTransaction extends Model
     protected $fillable = [
         'transaction_date',
         'type',
+        'category',
         'account_id',
         'to_account_id',
         'amount',

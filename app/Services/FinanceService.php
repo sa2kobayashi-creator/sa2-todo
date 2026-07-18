@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FinanceAccount;
 use App\Models\FinanceAccountSchedule;
+use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceTransaction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -35,10 +36,144 @@ class FinanceService
         'transfer' => '振替',
     ];
 
+    /** クイック選択用の支出カテゴリ */
+    public const EXPENSE_CATEGORY_PRIMARY = [
+        'medical' => '医療費',
+        'tobacco_alcohol' => 'たばこ/酒',
+        'transport' => '交通費',
+        'food' => '食費',
+        'shopping' => '買い物',
+    ];
+
+    /** 「その他」モーダル内の支出カテゴリ */
+    public const EXPENSE_CATEGORY_OTHER = [
+        'tuition' => '学費',
+        'electricity' => '電気',
+        'living' => '生活費',
+        'internet' => 'インターネット',
+        'allowance' => 'お小遣い',
+        'card_payment' => 'カード支払い',
+        'loan_payment' => '借用支払い',
+        'fee' => '手数料',
+    ];
+
     public const SCHEDULE_TYPE_LABELS = [
         'payment' => '支払予定',
         'deposit' => '入金予定',
     ];
+
+    /** @return array<string, string> */
+    public static function builtInExpenseCategoryLabels(): array
+    {
+        return self::EXPENSE_CATEGORY_PRIMARY + self::EXPENSE_CATEGORY_OTHER;
+    }
+
+    /** @return array<string, string> slug => label */
+    public function customExpenseCategoryLabels(): array
+    {
+        return FinanceExpenseCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->mapWithKeys(fn (FinanceExpenseCategory $category) => [$category->slug => $category->label])
+            ->all();
+    }
+
+    /** 「その他」モーダル用（組み込み + ユーザー追加） */
+    /** @return array<string, string> */
+    public function expenseCategoryOther(): array
+    {
+        return self::EXPENSE_CATEGORY_OTHER + $this->customExpenseCategoryLabels();
+    }
+
+    /** @return array<string, string> */
+    public function expenseCategoryLabels(): array
+    {
+        return self::EXPENSE_CATEGORY_PRIMARY + $this->expenseCategoryOther();
+    }
+
+    public function normalizeExpenseCategory(?string $category, string $type): ?string
+    {
+        if ($type !== 'expense') {
+            return null;
+        }
+        $category = trim((string) $category);
+        if ($category === '' || ! array_key_exists($category, $this->expenseCategoryLabels())) {
+            return null;
+        }
+
+        return $category;
+    }
+
+    /**
+     * @return array{slug: string, label: string}
+     */
+    public function createExpenseCategory(string $label): array
+    {
+        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? '');
+        if ($label === '') {
+            throw new \InvalidArgumentException('カテゴリー名を入力してください');
+        }
+        if (mb_strlen($label) > 40) {
+            throw new \InvalidArgumentException('カテゴリー名は40文字以内にしてください');
+        }
+
+        $existingLabels = array_map('mb_strtolower', array_values($this->expenseCategoryLabels()));
+        if (in_array(mb_strtolower($label), $existingLabels, true)) {
+            throw new \InvalidArgumentException('同じ名前のカテゴリーが既にあります');
+        }
+
+        $slug = $this->makeExpenseCategorySlug($label);
+        $sortOrder = (int) FinanceExpenseCategory::query()->max('sort_order') + 10;
+
+        $category = FinanceExpenseCategory::query()->create([
+            'slug' => $slug,
+            'label' => $label,
+            'sort_order' => $sortOrder,
+        ]);
+
+        return [
+            'slug' => $category->slug,
+            'label' => $category->label,
+        ];
+    }
+
+    public function deleteExpenseCategory(string $slug): bool
+    {
+        $slug = trim($slug);
+        if ($slug === '' || array_key_exists($slug, self::builtInExpenseCategoryLabels())) {
+            throw new \InvalidArgumentException('このカテゴリーは削除できません');
+        }
+
+        $category = FinanceExpenseCategory::query()->where('slug', $slug)->first();
+        if (! $category) {
+            throw new \InvalidArgumentException('カテゴリーが見つかりません');
+        }
+
+        return (bool) $category->delete();
+    }
+
+    private function makeExpenseCategorySlug(string $label): string
+    {
+        $base = Str::slug($label, '_');
+        if ($base === '') {
+            $base = 'custom';
+        }
+        $base = Str::limit($base, 24, '');
+        $slug = $base;
+        $n = 1;
+        $reserved = $this->expenseCategoryLabels();
+        while (array_key_exists($slug, $reserved) || FinanceExpenseCategory::query()->where('slug', $slug)->exists()) {
+            $slug = $base.'_'.$n;
+            $n++;
+            if ($n > 100) {
+                $slug = 'custom_'.Str::lower(Str::random(8));
+                break;
+            }
+        }
+
+        return Str::limit($slug, 40, '');
+    }
 
     /** @var list<array{slug: string, region: string, kind: string, name: string, currency: string, sort_order: int, linked_slug?: string}> */
     public const DEFAULT_ACCOUNTS = [
@@ -799,6 +934,7 @@ class FinanceService
 
         $effectiveMonthTransactions = $this->filterEffectiveTransactions($monthTransactions);
         $summary = $this->buildMonthSummary($effectiveMonthTransactions, $filters['tab']);
+        $summaryDetails = $this->buildSummaryDetails($effectiveMonthTransactions, $filters['tab']);
 
         $allSchedules = FinanceAccountSchedule::query()
             ->with('account')
@@ -852,6 +988,7 @@ class FinanceService
             'unpinnedAccounts' => $unpinnedAccounts,
             'balanceTotals' => $this->buildBalanceTotals($visibleAccounts),
             'summary' => $summary,
+            'summaryDetails' => $summaryDetails,
             'transactions' => $displayTransactionRows,
             'transactionBalanceContext' => $transactionBalanceContext,
             'filters' => $filters,
@@ -975,6 +1112,199 @@ class FinanceService
         ];
     }
 
+    /**
+     * サマリーカード詳細用データ（実効日・タブ条件は buildMonthSummary と揃える）
+     *
+     * @param Collection<int, FinanceTransaction> $transactions
+     * @return array{
+     *   currency: string,
+     *   income: array{total: float, items: list<array<string, mixed>>},
+     *   expense: array{total: float, items: list<array<string, mixed>>, categories: list<array{slug: string, label: string, total: float, count: int}>},
+     *   transferOut: array{total: float, items: list<array<string, mixed>>},
+     *   transferIn: array{total: float, items: list<array<string, mixed>>},
+     *   net: array{total: float, income: float, expense: float, items: list<array<string, mixed>>}
+     * }
+     */
+    public function buildSummaryDetails(Collection $transactions, string $tab): array
+    {
+        $currency = $tab === 'ph' ? 'PHP' : 'JPY';
+        if ($tab === 'all' || $tab === 'transfer') {
+            $currency = 'JPY';
+        }
+
+        $labels = $this->expenseCategoryLabels();
+        $incomeItems = [];
+        $expenseItems = [];
+        $transferOutItems = [];
+        $transferInItems = [];
+        $incomeTotal = 0.0;
+        $expenseTotal = 0.0;
+        $transferOutTotal = 0.0;
+        $transferInTotal = 0.0;
+        /** @var array<string, array{slug: string, label: string, total: float, count: int}> $expenseCategories */
+        $expenseCategories = [];
+
+        $sorted = $transactions
+            ->sortByDesc(fn (FinanceTransaction $t) => $t->transaction_date->format('Y-m-d').'-'.$t->id)
+            ->values();
+
+        foreach ($sorted as $transaction) {
+            if ($tab === 'transfer' && $transaction->type !== 'transfer') {
+                continue;
+            }
+
+            if ($tab !== 'all' && $tab !== 'transfer') {
+                if ($transaction->type === 'transfer') {
+                    if ($transaction->account?->region !== $tab && $transaction->toAccount?->region !== $tab) {
+                        continue;
+                    }
+                } elseif ($transaction->account?->region !== $tab) {
+                    continue;
+                }
+            }
+
+            if ($transaction->type === 'income') {
+                if ($tab === 'all' || $transaction->account?->currency === $currency || $tab === $transaction->account?->region) {
+                    $amount = (float) $transaction->amount;
+                    $incomeTotal += $amount;
+                    $incomeItems[] = $this->summaryDetailItem($transaction, $amount, $labels);
+                }
+            } elseif ($transaction->type === 'expense') {
+                if ($tab === 'all' || $transaction->account?->currency === $currency || $tab === $transaction->account?->region) {
+                    $amount = (float) $transaction->amount;
+                    $expenseTotal += $amount;
+                    $item = $this->summaryDetailItem($transaction, $amount, $labels);
+                    $expenseItems[] = $item;
+                    $slug = $item['category'] ?? '';
+                    $label = $item['categoryLabel'] ?: '未分類';
+                    if (! isset($expenseCategories[$slug])) {
+                        $expenseCategories[$slug] = [
+                            'slug' => $slug,
+                            'label' => $label,
+                            'total' => 0.0,
+                            'count' => 0,
+                        ];
+                    }
+                    $expenseCategories[$slug]['total'] += $amount;
+                    $expenseCategories[$slug]['count']++;
+                }
+            } elseif ($transaction->type === 'transfer') {
+                if ($tab === 'ph') {
+                    if ($transaction->account?->region === 'ph') {
+                        $amount = (float) $transaction->amount;
+                        $transferOutTotal += $amount;
+                        $transferOutItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferOut');
+                    }
+                    if ($transaction->toAccount?->region === 'ph') {
+                        $amount = (float) ($transaction->to_amount ?? $transaction->amount);
+                        $transferInTotal += $amount;
+                        $transferInItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferIn');
+                    }
+                } elseif ($tab === 'jp') {
+                    if ($transaction->account?->region === 'jp') {
+                        $amount = (float) $transaction->amount;
+                        $transferOutTotal += $amount;
+                        $transferOutItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferOut');
+                    }
+                    if ($transaction->toAccount?->region === 'jp') {
+                        $amount = (float) ($transaction->to_amount ?? $transaction->amount);
+                        $transferInTotal += $amount;
+                        $transferInItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferIn');
+                    }
+                } else {
+                    $outAmount = (float) $transaction->amount;
+                    $inAmount = (float) ($transaction->to_amount ?? $transaction->amount);
+                    $transferOutTotal += $outAmount;
+                    $transferInTotal += $inAmount;
+                    $transferOutItems[] = $this->summaryDetailItem($transaction, $outAmount, $labels, 'transferOut');
+                    $transferInItems[] = $this->summaryDetailItem($transaction, $inAmount, $labels, 'transferIn');
+                }
+            }
+        }
+
+        $categoryRows = array_values($expenseCategories);
+        usort($categoryRows, function (array $a, array $b) {
+            if ($a['slug'] === '' && $b['slug'] !== '') {
+                return 1;
+            }
+            if ($b['slug'] === '' && $a['slug'] !== '') {
+                return -1;
+            }
+
+            return $b['total'] <=> $a['total'];
+        });
+        foreach ($categoryRows as &$row) {
+            $row['total'] = round($row['total'], 2);
+        }
+        unset($row);
+
+        $netItems = array_merge($incomeItems, $expenseItems);
+        usort(
+            $netItems,
+            fn (array $a, array $b) => ($b['transactionDate'] <=> $a['transactionDate']) ?: (($b['id'] ?? 0) <=> ($a['id'] ?? 0))
+        );
+
+        return [
+            'currency' => $currency,
+            'income' => [
+                'total' => round($incomeTotal, 2),
+                'items' => $incomeItems,
+            ],
+            'expense' => [
+                'total' => round($expenseTotal, 2),
+                'items' => $expenseItems,
+                'categories' => $categoryRows,
+            ],
+            'transferOut' => [
+                'total' => round($transferOutTotal, 2),
+                'items' => $transferOutItems,
+            ],
+            'transferIn' => [
+                'total' => round($transferInTotal, 2),
+                'items' => $transferInItems,
+            ],
+            'net' => [
+                'total' => round($incomeTotal - $expenseTotal, 2),
+                'income' => round($incomeTotal, 2),
+                'expense' => round($expenseTotal, 2),
+                'items' => $netItems,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $categoryLabels
+     * @return array<string, mixed>
+     */
+    private function summaryDetailItem(
+        FinanceTransaction $transaction,
+        float $amount,
+        array $categoryLabels,
+        ?string $transferSide = null,
+    ): array {
+        $category = $transaction->category;
+        $categoryLabel = $category
+            ? ($categoryLabels[$category] ?? $category)
+            : ($transaction->type === 'expense' ? '未分類' : null);
+
+        return [
+            'id' => $transaction->id,
+            'transactionDate' => $transaction->transaction_date->format('Y-m-d'),
+            'type' => $transaction->type,
+            'typeLabel' => self::TYPE_LABELS[$transaction->type] ?? $transaction->type,
+            'transferSide' => $transferSide,
+            'category' => $category ?? '',
+            'categoryLabel' => $categoryLabel,
+            'accountName' => $transaction->account?->name,
+            'toAccountName' => $transaction->toAccount?->name,
+            'memo' => $this->formatDisplayMemo($transaction->memo),
+            'amount' => round($amount, 2),
+            'currency' => $transferSide === 'transferIn'
+                ? ($transaction->to_currency ?: $transaction->currency)
+                : $transaction->currency,
+        ];
+    }
+
     /** @param Collection<int, FinanceTransaction> $transactions */
     public function filterEffectiveTransactions(Collection $transactions): Collection
     {
@@ -1062,6 +1392,8 @@ class FinanceService
             'purchaseDate' => null,
             'type' => $type,
             'typeLabel' => self::TYPE_LABELS[$type] ?? $type,
+            'category' => null,
+            'categoryLabel' => null,
             'accountId' => $schedule->account_id,
             'accountName' => $account?->name,
             'accountRegion' => $account?->region,
@@ -1400,6 +1732,10 @@ class FinanceService
             'scheduledLabel' => null,
             'type' => $transaction->type,
             'typeLabel' => self::TYPE_LABELS[$transaction->type] ?? $transaction->type,
+            'category' => $transaction->category,
+            'categoryLabel' => $transaction->category
+                ? ($this->expenseCategoryLabels()[$transaction->category] ?? $transaction->category)
+                : null,
             'accountId' => $transaction->account_id,
             'accountName' => $transaction->account?->name,
             'accountRegion' => $transaction->account?->region,
@@ -1476,6 +1812,7 @@ class FinanceService
                 'currency' => $account->currency,
                 'to_currency' => $toAccount->currency,
                 'memo' => trim((string) ($payload['memo'] ?? '')),
+                'category' => null,
             ]);
         }
 
@@ -1486,6 +1823,7 @@ class FinanceService
             'amount' => $amount,
             'currency' => $account->currency,
             'memo' => trim((string) ($payload['memo'] ?? '')),
+            'category' => $this->normalizeExpenseCategory($payload['category'] ?? null, $type),
         ]);
     }
 
@@ -1513,6 +1851,10 @@ class FinanceService
             'amount' => $amount,
             'currency' => $account->currency,
             'memo' => trim((string) ($payload['memo'] ?? $transaction->memo)),
+            'category' => $this->normalizeExpenseCategory(
+                array_key_exists('category', $payload) ? $payload['category'] : $transaction->category,
+                $type
+            ),
             'to_account_id' => null,
             'to_amount' => null,
             'to_currency' => null,
