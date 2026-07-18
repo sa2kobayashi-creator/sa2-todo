@@ -40,13 +40,26 @@
               type="file"
               name="photos[]"
               id="photos-file-input"
-              accept="image/*,.heic,.heif"
+              accept="image/*,video/mp4,.heic,.heif,.mp4"
               multiple
               hidden
             />
-            <span class="photos-upload-btn-label">写真を追加</span>
+            <span class="photos-upload-btn-label">写真・動画を追加</span>
           </label>
           <button type="button" class="photos-secondary-btn" id="photos-album-open">アルバム作成</button>
+          @if($selectedAlbum)
+            <button type="button" class="photos-secondary-btn" id="photos-album-edit">名前変更</button>
+            <form
+              method="post"
+              action="/photos/albums/{{ $selectedAlbumId }}/delete"
+              class="photos-album-delete-form"
+              onsubmit="return confirm({{ json_encode('「'.$selectedAlbum['name'].'」を削除しますか？'."\n".'アルバム内の写真・動画もすべて削除されます。', JSON_UNESCAPED_UNICODE) }})"
+            >
+              @csrf
+              <input type="hidden" name="returnTo" value="/photos" />
+              <button type="submit" class="photos-secondary-btn photos-danger-btn">アルバム削除</button>
+            </form>
+          @endif
           <button type="button" class="photos-secondary-btn" id="photos-pwa-install" hidden>ホーム画面に追加</button>
         </div>
       </section>
@@ -60,7 +73,7 @@
           <span class="photos-storage-bar-fill{{ $storageStats['percent'] >= 90 ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
         </div>
         <p class="photos-storage-note">
-          アップロード時に長辺1920pxへ自動圧縮します。
+          画像は長辺1920pxへ自動圧縮。動画は MP4（最大 {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）に対応。
           保存先: {{ $storageStats['diskLabel'] }}
           @if(($storageStats['disk'] ?? '') === 'public')
             （本番では PHOTO_DISK=r2 で Cloudflare R2 に切り替え可能）
@@ -70,7 +83,7 @@
 
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <strong>スマホ同期 / アプリ化</strong>
-        <span>スマホブラウザでこのページを開き「写真を追加」。対応端末では「ホーム画面に追加」でアプリのように使えます。</span>
+        <span>スマホブラウザでこのページを開き「写真・動画を追加」。対応端末では「ホーム画面に追加」でアプリのように使えます。動画は MP4 のみです。</span>
       </aside>
 
       <section class="photos-album-covers" aria-label="アルバム">
@@ -84,7 +97,18 @@
             @class(['photos-cover-card', 'is-active' => $selectedAlbumId === $album['id']])
           >
             @if(!empty($album['coverUrl']))
-              <img src="{{ $album['coverUrl'] }}" alt="" class="photos-cover-image" loading="lazy" />
+              @if(($album['coverMediaKind'] ?? '') === 'video')
+                <video
+                  class="photos-cover-image photos-cover-video"
+                  src="{{ $album['coverUrl'] }}#t=0.1"
+                  muted
+                  playsinline
+                  preload="metadata"
+                  aria-hidden="true"
+                ></video>
+              @else
+                <img src="{{ $album['coverUrl'] }}" alt="" class="photos-cover-image" loading="lazy" />
+              @endif
             @else
               <span class="photos-cover-placeholder" aria-hidden="true"></span>
             @endif
@@ -103,14 +127,16 @@
         @if($selectedAlbumId)
           <input type="hidden" name="album_id" value="{{ $selectedAlbumId }}" />
         @endif
-        <input type="file" name="photos[]" id="photos-form-files" accept="image/*,.heic,.heif" multiple hidden />
+        <input type="file" name="photos[]" id="photos-form-files" accept="image/*,video/mp4,.heic,.heif,.mp4" multiple hidden />
+        <input type="file" name="video_thumbs[]" id="photos-form-thumbs" accept="image/jpeg" multiple hidden />
+        <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
       </form>
 
       @if(count($photos) === 0)
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
-            <p class="photos-empty-title">まだ写真がありません</p>
-            <p class="photos-empty-text">ドラッグ＆ドロップ、または下のボタンから追加できます。<br />スマホならカメラロールと直結します。</p>
+            <p class="photos-empty-title">まだメディアがありません</p>
+            <p class="photos-empty-text">写真または MP4 動画を追加できます。<br />ドラッグ＆ドロップ、またはボタンから。</p>
             <label class="photos-upload-btn photos-upload-btn-large">
               <span class="photos-upload-btn-label">最初の一枚を入れる</span>
             </label>
@@ -129,17 +155,29 @@
                 @foreach($group['photos'] as $photo)
                   <button
                     type="button"
-                    class="photos-tile"
-                    style="--photo-ratio: {{ max(0.66, min(1.45, ($photo['height'] && $photo['width']) ? ($photo['height'] / $photo['width']) : 1)) }}"
+                    @class(['photos-tile', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
+                    style="--photo-ratio: {{ max(0.66, min(1.45, ($photo['height'] && $photo['width']) ? ($photo['height'] / $photo['width']) : (($photo['mediaKind'] ?? '') === 'video' ? 0.75 : 1))) }}"
                     data-photo-index="{{ $flatIndex }}"
-                    aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: '写真を表示') }}"
+                    aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: ((($photo['mediaKind'] ?? '') === 'video') ? '動画を再生' : '写真を表示')) }}"
                   >
-                    <img
-                      src="{{ $photo['thumbUrl'] }}"
-                      alt="{{ $photo['caption'] ?: ($photo['originalName'] ?: '写真') }}"
-                      loading="lazy"
-                      decoding="async"
-                    />
+                    @if(($photo['mediaKind'] ?? '') === 'video')
+                      <video
+                        class="photos-tile-video"
+                        src="{{ $photo['url'] }}#t=0.1"
+                        muted
+                        playsinline
+                        preload="metadata"
+                        aria-hidden="true"
+                      ></video>
+                      <span class="photos-play-badge" aria-hidden="true">▶</span>
+                    @else
+                      <img
+                        src="{{ $photo['thumbUrl'] }}"
+                        alt="{{ $photo['caption'] ?: ($photo['originalName'] ?: 'メディア') }}"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    @endif
                     <span class="photos-tile-glow" aria-hidden="true"></span>
                   </button>
                   @php $flatIndex++; @endphp
@@ -155,9 +193,10 @@
       <div class="photos-lightbox-backdrop" data-close-lightbox></div>
       <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="写真プレビュー">
         <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
-        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前の写真">‹</button>
+        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">‹</button>
         <img src="" alt="" id="photos-lightbox-image" />
-        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次の写真">›</button>
+        <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
+        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">›</button>
         <div class="photos-lightbox-meta">
           <div>
             <p class="photos-lightbox-caption" id="photos-lightbox-caption"></p>
@@ -172,7 +211,7 @@
                 <button type="submit" class="photos-cover-btn" id="photos-cover-btn">表紙にする</button>
               </form>
             @endif
-            <form method="post" action="" id="photos-delete-form" onsubmit="return confirm('この写真を削除しますか？')">
+            <form method="post" action="" id="photos-delete-form" onsubmit="return confirm('このメディアを削除しますか？')">
               @csrf
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
               <button type="submit" class="photos-delete-btn">削除</button>
@@ -189,20 +228,20 @@
           <h2 id="photos-album-modal-title">アルバムを作成</h2>
           <button type="button" class="modal-close" data-close-album-modal aria-label="閉じる">×</button>
         </div>
-        <form method="post" action="/photos/albums" class="modal-form">
+        <form method="post" action="/photos/albums" class="modal-form" id="photos-album-form">
           @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" id="photos-album-return-to" />
           <label>
             アルバム名
-            <input type="text" name="name" required maxlength="120" placeholder="例: 旅行 2026" autocomplete="off" />
+            <input type="text" name="name" id="photos-album-name" required maxlength="120" placeholder="例: 旅行 2026" autocomplete="off" />
           </label>
           <label>
             説明（任意）
-            <input type="text" name="description" maxlength="500" placeholder="短いメモ" autocomplete="off" />
+            <input type="text" name="description" id="photos-album-description" maxlength="500" placeholder="短いメモ" autocomplete="off" />
           </label>
           <div class="modal-actions">
             <button type="button" class="secondary" data-close-album-modal>キャンセル</button>
-            <button type="submit">作成</button>
+            <button type="submit" id="photos-album-submit">作成</button>
           </div>
         </form>
       </div>
@@ -216,9 +255,12 @@
         const fileInput = document.getElementById('photos-file-input')
         const form = document.getElementById('photos-upload-form')
         const formFiles = document.getElementById('photos-form-files')
+        const formThumbs = document.getElementById('photos-form-thumbs')
+        const formThumbFor = document.getElementById('photos-form-thumb-for')
         const emptyZone = document.getElementById('photos-dropzone')
         const lightbox = document.getElementById('photos-lightbox')
         const lightboxImage = document.getElementById('photos-lightbox-image')
+        const lightboxVideo = document.getElementById('photos-lightbox-video')
         const lightboxCaption = document.getElementById('photos-lightbox-caption')
         const lightboxDate = document.getElementById('photos-lightbox-date')
         const deleteForm = document.getElementById('photos-delete-form')
@@ -227,13 +269,83 @@
         const coverBtn = document.getElementById('photos-cover-btn')
         const albumModal = document.getElementById('photos-album-modal')
         const installBtn = document.getElementById('photos-pwa-install')
-        const uploadLabel = document.querySelector('.photos-upload-btn-label')
+        const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
         let currentIndex = 0
         let deferredPrompt = null
         let uploading = false
 
+        function isVideoFile(file) {
+          return !!file && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name || ''))
+        }
+
+        async function captureVideoThumb(file) {
+          if (!file || typeof document === 'undefined') return null
+          return new Promise((resolve) => {
+            const url = URL.createObjectURL(file)
+            const video = document.createElement('video')
+            video.muted = true
+            video.playsInline = true
+            video.preload = 'auto'
+            let settled = false
+            const finish = (value) => {
+              if (settled) return
+              settled = true
+              clearTimeout(timer)
+              URL.revokeObjectURL(url)
+              resolve(value)
+            }
+            const timer = setTimeout(() => finish(null), 10000)
+            video.addEventListener('loadeddata', () => {
+              try {
+                const t = Number.isFinite(video.duration) && video.duration > 0
+                  ? Math.min(1, Math.max(0.1, video.duration * 0.05))
+                  : 0.1
+                video.currentTime = t
+              } catch (_) {
+                finish(null)
+              }
+            })
+            video.addEventListener('seeked', () => {
+              try {
+                if (!video.videoWidth || !video.videoHeight) {
+                  finish(null)
+                  return
+                }
+                const maxEdge = 720
+                const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight))
+                const w = Math.max(1, Math.round(video.videoWidth * scale))
+                const h = Math.max(1, Math.round(video.videoHeight * scale))
+                const canvas = document.createElement('canvas')
+                canvas.width = w
+                canvas.height = h
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                  finish(null)
+                  return
+                }
+                ctx.drawImage(video, 0, 0, w, h)
+                canvas.toBlob((blob) => {
+                  if (!blob) {
+                    finish(null)
+                    return
+                  }
+                  const name = (file.name || 'video').replace(/\.\w+$/, '') + '_thumb.jpg'
+                  finish(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }))
+                }, 'image/jpeg', 0.82)
+              } catch (_) {
+                finish(null)
+              }
+            })
+            video.addEventListener('error', () => finish(null))
+            video.src = url
+            video.load()
+          })
+        }
+
         async function compressImageFile(file) {
-          if (!file || !file.type.startsWith('image/')) return file
+          if (!file) return file
+          if (isVideoFile(file)) return file
+          if (!file.type.startsWith('image/')) return file
           if (file.type === 'image/gif' || /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
             return file
           }
@@ -270,20 +382,34 @@
         async function submitFiles(fileList) {
           if (!fileList?.length || !form || !formFiles || uploading) return
           uploading = true
-          if (uploadLabel) uploadLabel.textContent = '圧縮中…'
+          const list = Array.from(fileList)
+          const hasVideo = list.some(isVideoFile)
+          if (uploadLabel) uploadLabel.textContent = hasVideo ? 'サムネ作成中…' : '圧縮中…'
           try {
             const dt = new DataTransfer()
-            for (const file of Array.from(fileList)) {
+            const thumbDt = new DataTransfer()
+            const thumbFor = []
+            for (let i = 0; i < list.length; i++) {
+              const file = list[i]
               dt.items.add(await compressImageFile(file))
+              if (isVideoFile(file)) {
+                const thumb = await captureVideoThumb(file)
+                if (thumb) {
+                  thumbDt.items.add(thumb)
+                  thumbFor.push(String(i))
+                }
+              }
             }
             if (!dt.files.length) return
             formFiles.files = dt.files
+            if (formThumbs) formThumbs.files = thumbDt.files
+            if (formThumbFor) formThumbFor.value = thumbFor.join(',')
             if (uploadLabel) uploadLabel.textContent = '送信中…'
             form.submit()
           } catch (_) {
             uploading = false
-            if (uploadLabel) uploadLabel.textContent = '写真を追加'
-            window.alert('画像の処理に失敗しました。別の形式で試してください。')
+            if (uploadLabel) uploadLabel.textContent = '写真・動画を追加'
+            window.alert('ファイルの処理に失敗しました。別の形式で試してください。')
           }
         }
 
@@ -319,18 +445,44 @@
         emptyZone?.addEventListener('drop', (e) => {
           const files = e.dataTransfer?.files
           if (!files?.length) return
-          const filtered = Array.from(files).filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
+          const filtered = Array.from(files).filter((f) =>
+            f.type.startsWith('image/') ||
+            f.type === 'video/mp4' ||
+            /\.(heic|heif|mp4)$/i.test(f.name)
+          )
           submitFiles(filtered)
         })
+
+        function stopLightboxVideo() {
+          if (!lightboxVideo) return
+          lightboxVideo.pause()
+          lightboxVideo.removeAttribute('src')
+          lightboxVideo.load()
+          lightboxVideo.hidden = true
+        }
 
         function openLightbox(index) {
           if (!photos.length || !lightbox) return
           currentIndex = (index + photos.length) % photos.length
           const photo = photos[currentIndex]
-          lightboxImage.src = photo.url
-          lightboxImage.alt = photo.caption || photo.originalName || '写真'
+          const isVideo = photo.mediaKind === 'video'
+          stopLightboxVideo()
+          if (isVideo) {
+            lightboxImage.hidden = true
+            lightboxImage.removeAttribute('src')
+            if (lightboxVideo) {
+              lightboxVideo.hidden = false
+              lightboxVideo.src = photo.url
+            }
+          } else {
+            if (lightboxImage) {
+              lightboxImage.hidden = false
+              lightboxImage.src = photo.url
+              lightboxImage.alt = photo.caption || photo.originalName || '写真'
+            }
+          }
           lightboxCaption.textContent = photo.caption || photo.originalName || ''
-          lightboxDate.textContent = photo.takenAt || ''
+          lightboxDate.textContent = (isVideo ? '動画 · ' : '') + (photo.takenAt || '')
           deleteForm.action = `/photos/${photo.id}/delete`
           if (coverPhotoInput) coverPhotoInput.value = String(photo.id)
           if (coverBtn && selectedAlbumId) {
@@ -346,8 +498,9 @@
 
         function closeLightbox() {
           if (!lightbox) return
+          stopLightboxVideo()
           lightbox.hidden = true
-          lightboxImage.src = ''
+          if (lightboxImage) lightboxImage.src = ''
           document.body.style.overflow = ''
         }
 
@@ -366,13 +519,52 @@
           if (e.key === 'ArrowRight') openLightbox(currentIndex + 1)
         })
 
-        document.getElementById('photos-album-open')?.addEventListener('click', () => {
-          if (albumModal) albumModal.hidden = false
-        })
+        const albumForm = document.getElementById('photos-album-form')
+        const albumModalTitle = document.getElementById('photos-album-modal-title')
+        const albumNameInput = document.getElementById('photos-album-name')
+        const albumDescInput = document.getElementById('photos-album-description')
+        const albumSubmit = document.getElementById('photos-album-submit')
+        const selectedAlbum = @json($selectedAlbum);
+
+        function openAlbumModal(mode) {
+          if (!albumModal || !albumForm) return
+          if (mode === 'edit' && selectedAlbum) {
+            albumModalTitle.textContent = 'アルバム名を変更'
+            albumForm.action = `/photos/albums/${selectedAlbum.id}/update`
+            albumNameInput.value = selectedAlbum.name || ''
+            albumDescInput.value = selectedAlbum.description || ''
+            albumSubmit.textContent = '保存'
+          } else {
+            albumModalTitle.textContent = 'アルバムを作成'
+            albumForm.action = '/photos/albums'
+            albumNameInput.value = ''
+            albumDescInput.value = ''
+            albumSubmit.textContent = '作成'
+          }
+          albumModal.hidden = false
+          albumNameInput.focus()
+        }
+
+        document.getElementById('photos-album-open')?.addEventListener('click', () => openAlbumModal('create'))
+        document.getElementById('photos-album-edit')?.addEventListener('click', () => openAlbumModal('edit'))
         document.querySelectorAll('[data-close-album-modal]').forEach((el) => {
           el.addEventListener('click', () => {
             if (albumModal) albumModal.hidden = true
           })
+        })
+
+        document.querySelectorAll('.photos-tile-video, .photos-cover-video').forEach((video) => {
+          const showFrame = () => {
+            try {
+              if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
+                video.currentTime = Math.min(0.25, video.duration * 0.05)
+              } else if (video.readyState >= 2) {
+                video.currentTime = 0.1
+              }
+            } catch (_) {}
+          }
+          video.addEventListener('loadedmetadata', showFrame)
+          video.addEventListener('loadeddata', showFrame)
         })
 
         if ('serviceWorker' in navigator) {

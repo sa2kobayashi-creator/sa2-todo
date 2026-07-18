@@ -1,8 +1,11 @@
 <?php
 
 return [
-    /** 1ファイルのアップロード上限（バイト） */
+    /** 画像1ファイルのアップロード上限（バイト） */
     'max_upload_bytes' => (int) env('PHOTO_MAX_UPLOAD_BYTES', 12 * 1024 * 1024),
+
+    /** 動画1ファイルのアップロード上限（バイト）。初期値 100MB */
+    'max_video_upload_bytes' => (int) env('PHOTO_MAX_VIDEO_UPLOAD_BYTES', 100 * 1024 * 1024),
 
     /** ユーザーあたりの保存上限（バイト）。ロリポップ等の共有サーバー向け初期値 500MB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 500 * 1024 * 1024),

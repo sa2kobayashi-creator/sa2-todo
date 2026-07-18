@@ -18,9 +18,36 @@ class PhotoService
         'image/heif',
     ];
 
+    public const ALLOWED_VIDEO_MIMES = [
+        'video/mp4',
+    ];
+
     public function maxUploadBytes(): int
     {
         return max(1, (int) config('photos.max_upload_bytes', 12 * 1024 * 1024));
+    }
+
+    public function maxVideoUploadBytes(): int
+    {
+        return max(1, (int) config('photos.max_video_upload_bytes', 100 * 1024 * 1024));
+    }
+
+    public function isVideoMime(?string $mime, ?string $extension = null): bool
+    {
+        $mime = strtolower((string) $mime);
+        $extension = strtolower((string) $extension);
+        if ($extension === 'mp4') {
+            return true;
+        }
+
+        return in_array($mime, self::ALLOWED_VIDEO_MIMES, true)
+            || str_starts_with($mime, 'video/mp4')
+            || $mime === 'application/mp4';
+    }
+
+    public function isVideoUpload(UploadedFile $file): bool
+    {
+        return $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension());
     }
 
     public function userQuotaBytes(): int
@@ -148,6 +175,28 @@ class PhotoService
         return $this->albumToArray($album->loadCount('photos'));
     }
 
+    public function updateAlbum(int $userId, int $albumId, string $name, ?string $description = null): array
+    {
+        $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
+        if (! $album) {
+            throw new \InvalidArgumentException('アルバムが見つかりません');
+        }
+
+        $name = trim($name);
+        if ($name === '') {
+            throw new \InvalidArgumentException('アルバム名を入力してください');
+        }
+
+        $album->name = mb_substr($name, 0, 120);
+        $album->description = $description !== null ? mb_substr(trim($description), 0, 500) : null;
+        if ($album->description === '') {
+            $album->description = null;
+        }
+        $album->save();
+
+        return $this->albumToArray($album->loadCount('photos'));
+    }
+
     public function setAlbumCover(int $userId, int $albumId, int $photoId): array
     {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -170,8 +219,11 @@ class PhotoService
         return $this->albumToArray($album->loadCount('photos'));
     }
 
-    /** @param list<UploadedFile> $files */
-    public function uploadPhotos(int $userId, array $files, ?int $albumId = null): array
+    /**
+     * @param  list<UploadedFile>  $files
+     * @param  array<int, UploadedFile>  $videoThumbsByIndex  photos[] のインデックス => サムネ JPEG
+     */
+    public function uploadPhotos(int $userId, array $files, ?int $albumId = null, array $videoThumbsByIndex = []): array
     {
         if ($albumId !== null) {
             $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -181,17 +233,22 @@ class PhotoService
         }
 
         $stats = $this->storageStats($userId);
-        $incoming = 0;
+        $incomingEstimate = 0;
         foreach ($files as $file) {
-            if ($file instanceof UploadedFile && $file->isValid()) {
-                $incoming += (int) $file->getSize();
+            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+            $size = (int) $file->getSize();
+            if ($this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())) {
+                $incomingEstimate += $size;
+            } else {
+                $incomingEstimate += (int) ($size * 0.35);
             }
         }
-        // 圧縮後は小さくなる想定だが、上限超過の粗いガード
         if ($stats['usedBytes'] >= $stats['quotaBytes']) {
-            throw new \InvalidArgumentException('写真の保存容量上限（'.$stats['formattedQuota'].'）に達しています');
+            throw new \InvalidArgumentException('保存容量上限（'.$stats['formattedQuota'].'）に達しています');
         }
-        if ($stats['usedBytes'] + (int) ($incoming * 0.35) > $stats['quotaBytes']) {
+        if ($stats['usedBytes'] + $incomingEstimate > $stats['quotaBytes']) {
             throw new \InvalidArgumentException('保存容量が不足しています（使用中 '.$stats['formattedUsed'].' / '.$stats['formattedQuota'].'）');
         }
 
@@ -199,14 +256,21 @@ class PhotoService
         $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
         $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
 
-        foreach ($files as $file) {
-            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+        foreach ($files as $index => $file) {
+            if (! $file instanceof UploadedFile) {
+                continue;
+            }
+            if (! $file->isValid()) {
+                $this->throwUploadError($file);
                 continue;
             }
             $this->assertValidUpload($file);
 
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
-            $stored = $this->storeOptimizedImage($file, $dir);
+            $videoThumb = $videoThumbsByIndex[$index] ?? null;
+            $stored = $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())
+                ? $this->storeVideo($file, $dir, $videoThumb instanceof UploadedFile ? $videoThumb : null)
+                : $this->storeOptimizedImage($file, $dir);
             if ($stored === null) {
                 continue;
             }
@@ -237,7 +301,7 @@ class PhotoService
         }
 
         if ($created === []) {
-            throw new \InvalidArgumentException('アップロードできる画像がありません');
+            throw new \InvalidArgumentException('アップロードできるファイルがありません');
         }
 
         return $created;
@@ -284,16 +348,169 @@ class PhotoService
 
     private function assertValidUpload(UploadedFile $file): void
     {
-        if ($file->getSize() > $this->maxUploadBytes()) {
-            throw new \InvalidArgumentException('ファイルサイズは'.$this->formatBytes($this->maxUploadBytes()).'以下にしてください');
-        }
-
         $mime = (string) $file->getMimeType();
         $ext = strtolower((string) $file->getClientOriginalExtension());
-        $okExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true);
-        if (! in_array($mime, self::ALLOWED_MIMES, true) && ! $okExt) {
-            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC です');
+        $isVideo = $this->isVideoMime($mime, $ext);
+
+        $max = $isVideo ? $this->maxVideoUploadBytes() : $this->maxUploadBytes();
+        if ($file->getSize() > $max) {
+            throw new \InvalidArgumentException(
+                ($isVideo ? '動画' : '画像').'は'.$this->formatBytes($max).'以下にしてください'
+            );
         }
+
+        $okImageExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true);
+        $okVideoExt = $ext === 'mp4';
+        $okMime = in_array($mime, self::ALLOWED_MIMES, true) || in_array($mime, self::ALLOWED_VIDEO_MIMES, true);
+
+        if (! $okMime && ! ($isVideo ? $okVideoExt : $okImageExt)) {
+            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 です');
+        }
+    }
+
+    private function throwUploadError(UploadedFile $file): void
+    {
+        $code = $file->getError();
+        if (in_array($code, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            throw new \InvalidArgumentException(
+                'ファイルが PHP のアップロード上限を超えています（upload_max_filesize='
+                .ini_get('upload_max_filesize')
+                .' / post_max_size='
+                .ini_get('post_max_size')
+                .'）。128M 以上に上げてサーバーを再起動してください。'
+            );
+        }
+        if ($code !== UPLOAD_ERR_NO_FILE) {
+            throw new \InvalidArgumentException('ファイルのアップロードに失敗しました（エラーコード: '.$code.'）');
+        }
+    }
+
+    /**
+     * MP4 を保存し、クライアント生成サムネがあればそれを使う（なければ仮サムネ）。
+     *
+     * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
+     */
+    private function storeVideo(UploadedFile $file, string $dir, ?UploadedFile $thumbFile = null): ?array
+    {
+        // 動画を丸ごとメモリに載せない（128MB制限で 500 になるのを防ぐ）
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '256M');
+        }
+
+        $basename = str_replace('.', '', uniqid('vid_', true));
+        $filename = $basename.'.mp4';
+        $dir = trim($dir, '/');
+
+        try {
+            $path = $this->storage()->putFileAs($dir, $file, $filename, [
+                'visibility' => 'public',
+                'ContentType' => 'video/mp4',
+                'mimetype' => 'video/mp4',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new \InvalidArgumentException(
+                '動画の保存に失敗しました。サイズを小さくするか、しばらくして再試行してください。'
+            );
+        }
+
+        if (! is_string($path) || $path === '') {
+            throw new \InvalidArgumentException(
+                '動画の保存に失敗しました。ストレージ設定（R2 / ディスク）を確認してください。'
+            );
+        }
+
+        $width = 1280;
+        $height = 720;
+        $thumbPath = $this->storeUploadedVideoThumb($thumbFile, $dir.'/'.$basename.'_thumb.jpg', $width, $height)
+            ?? $this->storeVideoPlaceholderThumb($dir.'/'.$basename.'_thumb.jpg');
+
+        return [
+            'path' => $path,
+            'thumbPath' => $thumbPath,
+            'mime' => 'video/mp4',
+            'sizeBytes' => (int) $file->getSize(),
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    private function storeUploadedVideoThumb(?UploadedFile $thumbFile, string $thumbPath, int &$width, int &$height): ?string
+    {
+        if (! $thumbFile instanceof UploadedFile || ! $thumbFile->isValid()) {
+            return null;
+        }
+        $mime = strtolower((string) $thumbFile->getMimeType());
+        if (! str_contains($mime, 'jpeg') && ! str_contains($mime, 'jpg') && ! str_contains($mime, 'png')) {
+            return null;
+        }
+        if ($thumbFile->getSize() > 5 * 1024 * 1024) {
+            return null;
+        }
+
+        $source = $thumbFile->getRealPath();
+        if (! $source) {
+            return null;
+        }
+        $size = @getimagesize($source);
+        if (is_array($size) && ($size[0] ?? 0) > 0 && ($size[1] ?? 0) > 0) {
+            $width = (int) $size[0];
+            $height = (int) $size[1];
+        }
+
+        try {
+            $this->putFileContents($thumbPath, (string) file_get_contents($source), 'image/jpeg');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+
+        return $this->storage()->exists($thumbPath) ? $thumbPath : null;
+    }
+
+    private function storeVideoPlaceholderThumb(string $thumbPath): ?string
+    {
+        if (! function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $w = 640;
+        $h = 360;
+        $im = imagecreatetruecolor($w, $h);
+        $bg = imagecolorallocate($im, 26, 31, 36);
+        $accent = imagecolorallocate($im, 47, 111, 126);
+        $white = imagecolorallocate($im, 245, 247, 248);
+        imagefilledrectangle($im, 0, 0, $w, $h, $bg);
+
+        // 再生ボタン（三角）
+        $cx = (int) ($w / 2);
+        $cy = (int) ($h / 2);
+        $r = 48;
+        imagefilledellipse($im, $cx, $cy, $r * 2, $r * 2, $accent);
+        $triangle = [
+            $cx - 14, $cy - 22,
+            $cx - 14, $cy + 22,
+            $cx + 24, $cy,
+        ];
+        imagefilledpolygon($im, $triangle, $white);
+
+        $tmp = tempnam(sys_get_temp_dir(), 'vth');
+        if ($tmp === false) {
+            imagedestroy($im);
+
+            return null;
+        }
+        imagejpeg($im, $tmp, 82);
+        imagedestroy($im);
+
+        try {
+            $this->putFileContents($thumbPath, (string) file_get_contents($tmp), 'image/jpeg');
+        } finally {
+            @unlink($tmp);
+        }
+
+        return $this->storage()->exists($thumbPath) ? $thumbPath : null;
     }
 
     /**
@@ -467,13 +684,22 @@ class PhotoService
             $cover = Photo::query()->where('album_id', $album->id)->orderByDesc('id')->first();
         }
 
+        $coverIsVideo = $cover
+            ? $this->isVideoMime((string) $cover->mime, pathinfo((string) $cover->path, PATHINFO_EXTENSION))
+            : false;
+
         return [
             'id' => $album->id,
             'name' => $album->name,
             'description' => $album->description,
             'coverPhotoId' => $album->cover_photo_id,
             'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
-            'coverUrl' => $cover ? $this->publicUrl($cover->thumb_path ?: $cover->path) : null,
+            'coverUrl' => $cover
+                ? ($coverIsVideo
+                    ? $this->publicUrl($cover->path)
+                    : $this->publicUrl($cover->thumb_path ?: $cover->path))
+                : null,
+            'coverMediaKind' => $coverIsVideo ? 'video' : 'image',
             'sortOrder' => (int) $album->sort_order,
         ];
     }
@@ -483,14 +709,20 @@ class PhotoService
     {
         $takenAt = $photo->taken_at?->format('Y-m-d H:i');
         $takenDate = $photo->taken_at?->format('Y-m-d');
+        $mime = (string) ($photo->mime ?? '');
+        $mediaKind = $this->isVideoMime($mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION))
+            ? 'video'
+            : 'image';
 
         return [
             'id' => $photo->id,
             'albumId' => $photo->album_id,
             'url' => $this->publicUrl($photo->path),
-            'thumbUrl' => $this->publicUrl($photo->thumb_path ?: $photo->path),
+            'thumbUrl' => $this->publicUrl($photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png'),
             'originalName' => $photo->original_name,
             'caption' => $photo->caption,
+            'mime' => $mime,
+            'mediaKind' => $mediaKind,
             'width' => $photo->width,
             'height' => $photo->height,
             'takenAt' => $takenAt,

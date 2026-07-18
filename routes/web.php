@@ -91,6 +91,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/photos', [PhotoController::class, 'index']);
     Route::post('/photos', [PhotoController::class, 'store']);
     Route::post('/photos/albums', [PhotoController::class, 'storeAlbum']);
+    Route::post('/photos/albums/{id}/update', [PhotoController::class, 'updateAlbum'])->whereNumber('id');
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
