@@ -62,6 +62,10 @@
   const resultsBox = document.getElementById('transit-search-results')
   const resultsTitle = document.getElementById('transit-search-results-title')
   const linksBox = document.getElementById('transit-search-links')
+  const itinerariesBox = document.getElementById('transit-itineraries')
+  const preferenceSelect = document.getElementById('transit-preference')
+  const preferNishitetsuInput = document.getElementById('transit-prefer-nishitetsu')
+  const csrfToken = config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || ''
 
   function enc(value) {
     return encodeURIComponent(value)
@@ -155,7 +159,108 @@
       '&m2=' + (minutes % 10)
   }
 
-  function runSearch() {
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  }
+
+  function renderItineraries(data) {
+    if (!itinerariesBox) return
+    const list = data.itineraries || []
+    if (!data.ok) {
+      itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">' + escapeHtml(data.message || '経路が見つかりませんでした') + '</p>'
+      return
+    }
+    if (list.length === 0) {
+      itinerariesBox.innerHTML = '<p class="hint">条件に合う経路がありません。地名を「天神」「博多」「姪浜」「福岡空港」などに変えて試してください。</p>'
+      return
+    }
+    itinerariesBox.innerHTML = list.map(function (it, index) {
+      const badge = it.usesNishitetsuBus
+        ? '<span class="transit-itinerary-badge is-nishitetsu">西鉄バス優先</span>'
+        : ''
+      const legs = (it.legs || []).map(function (leg) {
+        if (leg.type === 'walk') {
+          return '<li class="is-walk">徒歩 ' + escapeHtml(leg.from) + ' → ' + escapeHtml(leg.to) + '（' + escapeHtml(String(Math.round((leg.durationSec || 0) / 60))) + '分）</li>'
+        }
+        return '<li class="is-ride"><strong>' + escapeHtml(leg.routeName || '') + '</strong> '
+          + escapeHtml(leg.boardTime || '') + ' ' + escapeHtml(leg.from || '')
+          + ' → ' + escapeHtml(leg.alightTime || '') + ' ' + escapeHtml(leg.to || '')
+          + (leg.waitSec ? ' <span class="hint">待ち' + Math.round(leg.waitSec / 60) + '分</span>' : '')
+          + '</li>'
+      }).join('')
+      return '<article class="transit-itinerary-card">'
+        + '<div class="transit-itinerary-head">'
+        + '<strong>#' + (index + 1) + ' ' + escapeHtml(it.summary || '') + '</strong>'
+        + badge
+        + '</div>'
+        + '<div class="transit-itinerary-meta">'
+        + escapeHtml(it.departureTime) + ' → ' + escapeHtml(it.arrivalTime)
+        + ' · ' + escapeHtml(it.durationLabel)
+        + ' · 待ち ' + escapeHtml(it.waitLabel || '0分')
+        + ' · 乗換 ' + escapeHtml(String(it.transfers || 0)) + '回'
+        + ' · ' + escapeHtml(it.fareLabel || '')
+        + '</div>'
+        + '<ol class="transit-itinerary-legs">' + legs + '</ol>'
+        + '</article>'
+    }).join('')
+  }
+
+  function appendExternalLinks(fromRaw, toRaw, from, to) {
+    const timeParams = yahooTimeParams()
+    linksBox.innerHTML = ''
+    const title = document.createElement('h4')
+    title.className = 'transit-external-title'
+    title.textContent = '外部サービスでも確認'
+    linksBox.appendChild(title)
+    linksBox.appendChild(makeLink(
+      'Google Maps でルート',
+      'https://www.google.com/maps/dir/?api=1&travelmode=transit&origin=' + enc(fromRaw) + '&destination=' + enc(toRaw),
+      false
+    ))
+    linksBox.appendChild(makeLink(
+      'Yahoo!路線でルート',
+      'https://transit.yahoo.co.jp/search/result?from=' + enc(from) + '&to=' + enc(to) + timeParams,
+      false
+    ))
+    if (category === 'nishitetsu_bus') {
+      linksBox.appendChild(makeLink('西鉄バスナビ', 'https://busnavi.nishitetsu.jp/', false))
+    }
+  }
+
+  async function runRaptorSearch(from, to) {
+    const hour = hourSelect ? hourSelect.value : '08'
+    const minute = minuteSelect ? minuteSelect.value : '00'
+    const year = yearSelect ? yearSelect.value : String(new Date().getFullYear())
+    const month = monthSelect ? monthSelect.value : '01'
+    const day = daySelect ? daySelect.value : '01'
+    const departureAt = year + '-' + month + '-' + day + 'T' + hour + ':' + minute
+    const response = await fetch('/transit/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({
+        from: from,
+        to: to,
+        preference: preferenceSelect ? preferenceSelect.value : 'fastest',
+        preferNishitetsuBus: preferNishitetsuInput ? preferNishitetsuInput.checked : true,
+        minTransferMin: 2,
+        maxTransferWaitMin: 10,
+        departureAt: departureAt,
+        hour: parseInt(hour, 10),
+        minute: parseInt(minute, 10),
+      }),
+    })
+    return response.json()
+  }
+
+  async function runSearch() {
     const fromRaw = fromInput.value.trim()
     const toRaw = toInput.value.trim()
 
@@ -166,46 +271,48 @@
 
     const from = cleanForTransit(fromRaw)
     const to = cleanForTransit(toRaw)
-    const timeParams = yahooTimeParams()
-
     linksBox.innerHTML = ''
+    if (itinerariesBox) itinerariesBox.innerHTML = '<p class="hint">RAPTOR で検索中…</p>'
+    resultsBox.removeAttribute('hidden')
 
     if (fromRaw && toRaw) {
-      resultsTitle.textContent = from + ' → ' + to + ' の検索結果'
-      linksBox.appendChild(makeLink(
-        'Google Maps でルート',
-        'https://www.google.com/maps/dir/?api=1&travelmode=transit&origin=' + enc(fromRaw) + '&destination=' + enc(toRaw),
-        true
-      ))
-      linksBox.appendChild(makeLink(
-        'Yahoo!路線でルート',
-        'https://transit.yahoo.co.jp/search/result?from=' + enc(from) + '&to=' + enc(to) + timeParams,
-        false
-      ))
-    } else {
-      const placeRaw = fromRaw || toRaw
-      const place = from || to
-      resultsTitle.textContent = place + ' の時刻表・地図'
-      let query = placeRaw
-      if (category === 'nishitetsu_bus') query = placeRaw + ' バス停'
-      else if (category === 'ferry') query = placeRaw + ' 渡船場'
-      else if (category !== 'all') query = placeRaw + ' 駅'
-      linksBox.appendChild(makeLink(
-        'Google Maps で開く',
-        'https://www.google.com/maps/search/?api=1&query=' + enc(query),
-        true
-      ))
-      linksBox.appendChild(makeLink(
-        'Yahoo!路線で時刻表',
-        'https://transit.yahoo.co.jp/search/result?from=' + enc(place) + timeParams,
-        false
-      ))
-      if (category === 'nishitetsu_bus') {
-        linksBox.appendChild(makeLink('西鉄バスナビ', 'https://busnavi.nishitetsu.jp/', false))
+      resultsTitle.textContent = from + ' → ' + to + '（RAPTOR）'
+      try {
+        const data = await runRaptorSearch(from, to)
+        renderItineraries(data)
+      } catch (err) {
+        if (itinerariesBox) {
+          itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">検索に失敗しました。再読み込みして再度お試しください。</p>'
+        }
       }
+      appendExternalLinks(fromRaw, toRaw, from, to)
+      return
     }
 
-    resultsBox.removeAttribute('hidden')
+    const placeRaw = fromRaw || toRaw
+    const place = from || to
+    resultsTitle.textContent = place + ' の時刻表・地図'
+    if (itinerariesBox) {
+      itinerariesBox.innerHTML = '<p class="hint">到着地も入力すると RAPTOR で乗換経路を出せます。</p>'
+    }
+    let query = placeRaw
+    if (category === 'nishitetsu_bus') query = placeRaw + ' バス停'
+    else if (category === 'ferry') query = placeRaw + ' 渡船場'
+    else if (category !== 'all') query = placeRaw + ' 駅'
+    const timeParams = yahooTimeParams()
+    linksBox.appendChild(makeLink(
+      'Google Maps で開く',
+      'https://www.google.com/maps/search/?api=1&query=' + enc(query),
+      true
+    ))
+    linksBox.appendChild(makeLink(
+      'Yahoo!路線で時刻表',
+      'https://transit.yahoo.co.jp/search/result?from=' + enc(place) + timeParams,
+      false
+    ))
+    if (category === 'nishitetsu_bus') {
+      linksBox.appendChild(makeLink('西鉄バスナビ', 'https://busnavi.nishitetsu.jp/', false))
+    }
   }
 
   if (searchForm) {
@@ -214,6 +321,7 @@
       runSearch()
     })
   }
+
 
   const saveSearchBtn = document.getElementById('transit-save-search')
   if (saveSearchBtn) {

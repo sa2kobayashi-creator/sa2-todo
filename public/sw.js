@@ -1,6 +1,7 @@
 /* Sa2 Photos PWA service worker — cache app shell only */
-const CACHE = 'sa2-photos-shell-v1'
+const CACHE = 'sa2-photos-shell-v3'
 const SHELL = [
+  '/photos-start.html',
   '/app.css',
   '/manifest.webmanifest',
   '/icons/pwa-192.png',
@@ -28,10 +29,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
 
-  // HTML / API はネットワーク優先（ログイン状態を壊さない）
-  if (req.mode === 'navigate' || url.pathname.startsWith('/photos') && !url.pathname.includes('.')) {
+  // HTML / Photos API はネットワーク優先（ログイン状態を壊さない）
+  if (req.mode === 'navigate' || (url.pathname.startsWith('/photos') && !url.pathname.includes('.'))) {
     event.respondWith(
-      fetch(req).catch(() => caches.match('/photos').then((r) => r || caches.match(req)))
+      fetch(req).catch(() => caches.match('/photos-start.html').then((r) => r || caches.match(req)))
     )
     return
   }
@@ -39,7 +40,16 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetched = fetch(req).then((res) => {
-        if (res && res.ok && (url.pathname.endsWith('.css') || url.pathname.startsWith('/icons/'))) {
+        if (
+          res &&
+          res.ok &&
+          (
+            url.pathname.endsWith('.css')
+            || url.pathname.startsWith('/icons/')
+            || url.pathname.endsWith('.webmanifest')
+            || url.pathname.endsWith('photos-start.html')
+          )
+        ) {
           const copy = res.clone()
           caches.open(CACHE).then((cache) => cache.put(req, copy))
         }

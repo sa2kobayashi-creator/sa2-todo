@@ -8,13 +8,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Sa2 Photos" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}" />
-    <link rel="apple-touch-icon" href="{{ asset('icons/pwa-192.png') }}" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
     <title>Photos - Sa2 ToDo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    <link rel="stylesheet" href="/app.css" />
   </head>
   <body class="photos-page">
     @include('partials.header', ['active' => 'photos'])
@@ -60,7 +60,6 @@
               <button type="submit" class="photos-secondary-btn photos-danger-btn">アルバム削除</button>
             </form>
           @endif
-          <button type="button" class="photos-secondary-btn" id="photos-pwa-install" hidden>ホーム画面に追加</button>
         </div>
       </section>
 
@@ -82,8 +81,11 @@
       </aside>
 
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
-        <strong>スマホ同期 / アプリ化</strong>
-        <span>スマホブラウザでこのページを開き「写真・動画を追加」。対応端末では「ホーム画面に追加」でアプリのように使えます。動画は MP4 のみです。</span>
+        <div class="photos-sync-tip-copy">
+          <strong>スマホ同期 / アプリ化</strong>
+          <span>このページをスマホで開き「写真・動画を追加」。下のボタンからホーム画面に追加できます（iPhone は案内を表示）。動画は MP4 のみです。</span>
+        </div>
+        <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">ホーム画面に追加</button>
       </aside>
 
       <section class="photos-album-covers" aria-label="アルバム">
@@ -244,6 +246,24 @@
             <button type="submit" id="photos-album-submit">作成</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="photos-pwa-guide-modal" hidden>
+      <div class="modal-backdrop" data-close-pwa-guide></div>
+      <div class="modal-dialog" role="dialog" aria-labelledby="photos-pwa-guide-title">
+        <div class="modal-header">
+          <h2 id="photos-pwa-guide-title">ホーム画面に追加</h2>
+          <button type="button" class="modal-close" data-close-pwa-guide aria-label="閉じる">×</button>
+        </div>
+        <div class="photos-pwa-guide-body" id="photos-pwa-guide-body">
+          <p class="photos-pwa-guide-lead" id="photos-pwa-guide-lead"></p>
+          <ol class="photos-pwa-guide-steps" id="photos-pwa-guide-steps"></ol>
+          <p class="hint" id="photos-pwa-guide-note"></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="button-link" data-close-pwa-guide>閉じる</button>
+        </div>
       </div>
     </div>
 
@@ -568,21 +588,166 @@
         })
 
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register(@json(asset('sw.js'))).catch(() => {})
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then((reg) => reg.update().catch(() => {}))
+            .catch((err) => {
+              console.warn('Photos SW registration failed', err)
+            })
+        }
+
+        const pwaGuideModal = document.getElementById('photos-pwa-guide-modal')
+        const pwaGuideLead = document.getElementById('photos-pwa-guide-lead')
+        const pwaGuideSteps = document.getElementById('photos-pwa-guide-steps')
+        const pwaGuideNote = document.getElementById('photos-pwa-guide-note')
+        const installButtons = [installBtn].filter(Boolean)
+
+        function isPhotosStandalone() {
+          return window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true
+        }
+
+        function isIosDevice() {
+          return /iphone|ipad|ipod/i.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+        }
+
+        function isChromeBrowser() {
+          const ua = navigator.userAgent
+          return /Chrome|CriOS|Edg\//i.test(ua) && !/OPR\//i.test(ua)
+        }
+
+        function isSecureForPwa() {
+          return window.isSecureContext === true
+        }
+
+        function hideInstallButtons() {
+          installButtons.forEach((btn) => {
+            btn.hidden = true
+          })
+        }
+
+        function showPwaGuide(extraNote = '') {
+          const ios = isIosDevice()
+          const secure = isSecureForPwa()
+          const chrome = isChromeBrowser()
+          if (pwaGuideLead) {
+            if (!secure) {
+              pwaGuideLead.textContent = 'Chrome のワンタップ追加には HTTPS または localhost が必要です。'
+            } else if (ios) {
+              pwaGuideLead.textContent = 'iPhone / iPad では、Safari の共有メニューから追加します。'
+            } else if (chrome) {
+              pwaGuideLead.textContent = '自動プロンプトがまだ来ていません。次の手順で追加できます。'
+            } else {
+              pwaGuideLead.textContent = 'ブラウザのメニューからホーム画面に追加してください。'
+            }
+          }
+          if (pwaGuideSteps) {
+            let steps
+            if (!secure && chrome) {
+              steps = [
+                'PC なら http://localhost:8000/photos で開き直す',
+                'スマホなら PC と同じ Wi‑Fi でも HTTP のままでは Chrome 追加不可（localhost / HTTPS が必要）',
+                'アドレスバー右のインストールアイコン、またはメニュー「アプリをインストール」を選ぶ',
+              ]
+            } else if (ios) {
+              steps = [
+                'Safari でこのページを開く',
+                '共有ボタン（□と↑）をタップ',
+                '「ホーム画面に追加」→「追加」',
+              ]
+            } else if (chrome) {
+              steps = [
+                'ページを再読み込みする（Service Worker 更新）',
+                'アドレスバー右の「インストール」アイコンを押す',
+                'またはメニュー（⋮）→「アプリをインストール」 / 「Cast, save, and share」→「Install page as app」',
+              ]
+            } else {
+              steps = [
+                'ブラウザのメニューを開く',
+                '「アプリをインストール」または「ホーム画面に追加」を選ぶ',
+                '確認画面で追加する',
+              ]
+            }
+            pwaGuideSteps.innerHTML = steps.map((step) => `<li>${step}</li>`).join('')
+          }
+          if (pwaGuideNote) {
+            const notes = []
+            notes.push(`いまのURL: ${location.origin}`)
+            if (!secure) {
+              notes.push('この接続は安全なコンテキストではありません（HTTP の LAN IP など）。')
+            }
+            if (extraNote) notes.push(extraNote)
+            pwaGuideNote.textContent = notes.join(' ')
+          }
+          pwaGuideModal?.removeAttribute('hidden')
+        }
+
+        function closePwaGuide() {
+          pwaGuideModal?.setAttribute('hidden', '')
+        }
+
+        async function waitForInstallPrompt(ms = 1500) {
+          if (deferredPrompt) return deferredPrompt
+          if (!('serviceWorker' in navigator)) return null
+          try {
+            await navigator.serviceWorker.ready
+          } catch (_) {}
+          const started = Date.now()
+          while (!deferredPrompt && Date.now() - started < ms) {
+            await new Promise((resolve) => setTimeout(resolve, 150))
+          }
+          return deferredPrompt
+        }
+
+        async function handleInstallClick() {
+          if (isPhotosStandalone()) {
+            window.alert('すでにホーム画面アプリとして開いています。')
+            return
+          }
+          const promptEvent = deferredPrompt || await waitForInstallPrompt()
+          if (promptEvent) {
+            promptEvent.prompt()
+            await promptEvent.userChoice
+            deferredPrompt = null
+            hideInstallButtons()
+            return
+          }
+          let extra = ''
+          if (!isSecureForPwa()) {
+            extra = 'Chrome では localhost か HTTPS で開き直してください。'
+          } else if ('serviceWorker' in navigator) {
+            const ready = await navigator.serviceWorker.getRegistration('/')
+            if (!ready) extra = 'Service Worker 未登録です。再読み込み後にもう一度試してください。'
+          }
+          showPwaGuide(extra)
+        }
+
+        if (isPhotosStandalone()) {
+          hideInstallButtons()
         }
 
         window.addEventListener('beforeinstallprompt', (e) => {
           e.preventDefault()
           deferredPrompt = e
-          if (installBtn) installBtn.hidden = false
+          installButtons.forEach((btn) => {
+            btn.hidden = false
+          })
         })
 
-        installBtn?.addEventListener('click', async () => {
-          if (!deferredPrompt) return
-          deferredPrompt.prompt()
-          await deferredPrompt.userChoice
+        window.addEventListener('appinstalled', () => {
           deferredPrompt = null
-          installBtn.hidden = true
+          hideInstallButtons()
+          closePwaGuide()
+        })
+
+        installButtons.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            handleInstallClick().catch(() => showPwaGuide())
+          })
+        })
+
+        document.querySelectorAll('[data-close-pwa-guide]').forEach((el) => {
+          el.addEventListener('click', closePwaGuide)
         })
       })()
     </script>

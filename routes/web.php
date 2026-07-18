@@ -83,6 +83,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
 
     Route::get('/transit', [TransitController::class, 'index']);
+    Route::post('/transit/search', [TransitController::class, 'search']);
     Route::post('/transit', [TransitController::class, 'store']);
     Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
     Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');

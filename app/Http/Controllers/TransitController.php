@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\MapService;
+use App\Services\Transit\Raptor\ItineraryScorer;
+use App\Services\Transit\Raptor\RaptorRouter;
+use App\Services\Transit\Raptor\TransitTimetable;
 use App\Services\TransitService;
 use Illuminate\Http\Request;
 
@@ -33,12 +36,61 @@ class TransitController extends Controller
             'tabLabels' => TransitService::TAB_LABELS,
             'tabIcons' => TransitService::TAB_ICONS,
             'externalSearch' => TransitService::EXTERNAL_SEARCH,
+            'preferenceLabels' => [
+                ItineraryScorer::PREF_FASTEST => '最速',
+                ItineraryScorer::PREF_CHEAPEST => '最安',
+                ItineraryScorer::PREF_FEWEST_TRANSFERS => '乗換少ない',
+            ],
             'returnTo' => $returnTo,
             'googleMapsApiKey' => $this->maps->getApiKey(),
             'hasGoogleMapsApiKey' => $this->maps->hasApiKey(),
             'buildTransitQuery' => fn (array $f) => $this->transit->buildTransitQuery($f),
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function search(Request $request)
+    {
+        $from = (string) $request->input('from', '');
+        $to = (string) $request->input('to', '');
+        $preference = (string) $request->input('preference', ItineraryScorer::PREF_FASTEST);
+        $departureSec = $this->parseDepartureSec($request);
+        $preferNishitetsu = $request->boolean('preferNishitetsuBus', true);
+
+        try {
+            $router = new RaptorRouter(TransitTimetable::loadDefault());
+            $result = $router->search([
+                'from' => $from,
+                'to' => $to,
+                'departureSec' => $departureSec,
+                'preference' => $preference,
+                'minTransferMin' => (int) $request->input('minTransferMin', 2),
+                'maxTransferWaitMin' => (int) $request->input('maxTransferWaitMin', 10),
+                'preferNishitetsuBus' => $preferNishitetsu,
+                'limit' => 5,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => '経路検索に失敗しました: '.$e->getMessage(),
+                'itineraries' => [],
+            ], 500);
+        }
+
+        return response()->json($result, ! empty($result['ok']) ? 200 : 422);
+    }
+
+    private function parseDepartureSec(Request $request): int
+    {
+        $raw = (string) $request->input('departureAt', '');
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/', $raw, $m)) {
+            return ((int) $m[4]) * 3600 + ((int) $m[5]) * 60;
+        }
+
+        $hour = (int) $request->input('hour', date('G'));
+        $minute = (int) $request->input('minute', (int) date('i'));
+
+        return max(0, min(24 * 3600 - 60, $hour * 3600 + $minute * 60));
     }
 
     public function store(Request $request)

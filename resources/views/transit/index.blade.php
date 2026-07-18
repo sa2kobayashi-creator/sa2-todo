@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>路線検索 - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
@@ -63,14 +64,29 @@
               <label><input type="radio" name="transit-time-type" value="0" /> 指定なし</label>
             </div>
           </div>
-          <div class="transit-search-actions">
-            <button type="submit" class="button-link" id="transit-search-run">検索</button>
+          <div class="transit-preference-row">
+            <label>
+              検索の好み
+              <select id="transit-preference">
+                @foreach($preferenceLabels as $key => $label)
+                  <option value="{{ $key }}" @selected($key === 'fastest')>{{ $label }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label class="inline-check transit-nishitetsu-prefer">
+              <input type="checkbox" id="transit-prefer-nishitetsu" checked />
+              福岡は西鉄バスを優先
+            </label>
           </div>
-          <p class="hint">出発だけ入力すると、そのバス停・駅の時刻表／地図を検索します。出発と到着の両方でルート検索します。時刻を指定すると Yahoo!路線に反映されます。</p>
+          <div class="transit-search-actions">
+            <button type="submit" class="button-link" id="transit-search-run">RAPTORで検索</button>
+          </div>
+          <p class="hint">福岡都心の簡易ダイヤで RAPTOR 検索します（乗換2〜10分・待ち時間・乗換回数を評価）。外部の Yahoo! / Google も併用できます。</p>
         </form>
 
         <div class="transit-search-results" id="transit-search-results" hidden>
           <h3 class="transit-search-results-title" id="transit-search-results-title"></h3>
+          <div class="transit-itineraries" id="transit-itineraries"></div>
           <div class="transit-search-links" id="transit-search-links"></div>
           <div class="transit-search-save">
             <button type="button" class="text-btn" id="transit-save-search">＋ この経路をよく使う路線に登録</button>
@@ -193,9 +209,12 @@
     </div>
 
     <script>
-      window.TRANSIT_CONFIG = { category: @json($filters['category']) };
+      window.TRANSIT_CONFIG = {
+        category: @json($filters['category']),
+        csrfToken: @json(csrf_token()),
+      };
     </script>
-    <script src="{{ asset('transit.js') }}?v=8"></script>
+    <script src="{{ asset('transit.js') }}?v=9"></script>
     @if($hasGoogleMapsApiKey)
       <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsApiKey }}&libraries=places&callback=initTransitAutocomplete"></script>
     @endif

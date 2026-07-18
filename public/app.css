@@ -7963,8 +7963,9 @@ body.map-page {
 .photos-sync-tip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
-  align-items: baseline;
+  gap: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 18px;
   padding: 12px 16px;
   border: 1px solid var(--photos-line);
@@ -7974,6 +7975,44 @@ body.map-page {
   font-size: 13px;
   line-height: 1.5;
   color: var(--photos-muted);
+}
+
+.photos-sync-tip-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.photos-sync-tip strong {
+  color: var(--photos-ink);
+  font-weight: 600;
+}
+
+.photos-pwa-tip-btn {
+  flex: 0 0 auto;
+}
+
+.photos-pwa-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.photos-pwa-guide-lead {
+  margin: 0;
+  color: var(--photos-ink, #202124);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.photos-pwa-guide-steps {
+  margin: 0;
+  padding-left: 1.25em;
+  color: var(--photos-ink, #202124);
+  line-height: 1.7;
 }
 
 .photos-storage {
@@ -8022,12 +8061,6 @@ body.map-page {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--photos-muted);
-}
-
-.photos-sync-tip strong {
-  color: var(--photos-ink);
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .photos-album-covers {
@@ -8716,4 +8749,85 @@ body.map-page {
   .ai-chat-sidebar {
     max-height: 280px;
   }
+}
+
+.transit-preference-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: end;
+  margin: 10px 0;
+}
+
+.transit-preference-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.transit-nishitetsu-prefer {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  min-height: 42px;
+}
+
+.transit-itineraries {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.transit-itinerary-card {
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.transit-itinerary-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.transit-itinerary-badge.is-nishitetsu {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.transit-itinerary-meta {
+  color: #5f6368;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.transit-itinerary-legs {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.transit-itinerary-legs .is-walk {
+  color: #5f6368;
+}
+
+.transit-external-title {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.transit-raptor-error {
+  color: #c5221f;
 }
