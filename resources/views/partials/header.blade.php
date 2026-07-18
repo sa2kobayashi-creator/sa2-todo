@@ -10,6 +10,7 @@
       <a href="/transit" class="{{ ($active ?? '') === 'transit' ? 'active' : '' }}">路線検索</a>
       <a href="/map" class="{{ ($active ?? '') === 'map' ? 'active' : '' }}">マップ</a>
       <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">Photos</a>
+      <a href="/ai-chat" class="{{ ($active ?? '') === 'ai-chat' ? 'active' : '' }}">AI相談</a>
       <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin']) ? 'is-active' : '' }}" id="settings-dropdown">
         <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
           設定
@@ -17,7 +18,7 @@
         </button>
         <div class="nav-dropdown-menu" role="menu">
           <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">休日設定</a>
-          <a href="/settings?section=translation" class="{{ ($navSettingsSection ?? '') === 'translation' ? 'active' : '' }}" role="menuitem">AI翻訳</a>
+          <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">AI設定</a>
           <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">LINE連携</a>
           <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">通知設定</a>
           @if(!empty($isAdmin))

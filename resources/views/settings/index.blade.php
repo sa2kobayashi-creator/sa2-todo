@@ -16,7 +16,7 @@
 
       <nav class="settings-subnav" aria-label="設定メニュー">
         <a href="{{ $settingsPath('holidays') }}" @class(['active' => ($section ?? '') === 'holidays'])>休日設定</a>
-        <a href="{{ $settingsPath('translation') }}" @class(['active' => ($section ?? '') === 'translation'])>AI翻訳</a>
+        <a href="/settings?section=ai&tab=translation" @class(['active' => ($section ?? '') === 'ai'])>AI設定</a>
         <a href="{{ $settingsPath('integration') }}" @class(['active' => ($section ?? '') === 'integration'])>LINE連携</a>
         <a href="{{ $settingsPath('notifications') }}" @class(['active' => ($section ?? '') === 'notifications'])>通知設定</a>
       </nav>
@@ -184,10 +184,18 @@
           </tbody>
         </table>
       </div>
-      @elseif(($section ?? '') === 'translation')
-      <div class="panel" id="translation-settings">
-        <h2>AI翻訳（DeepL）</h2>
-        <p class="hint">複数のAPIキーを登録すると、使用制限に達した場合に自動的に次のキーへ切り替わります。優先順位が高く、使用量が少ないキーから使用されます。</p>
+      @elseif(($section ?? '') === 'ai')
+      <div class="panel" id="ai-settings">
+        <h2>AI設定</h2>
+        <p class="hint">翻訳は DeepL、相談チャットは OpenAI / Gemini のAPIキーを登録します。無料枠・有料の区分と日次／月次上限を設定できます。</p>
+        <div class="ai-settings-tabs" role="tablist">
+          <a href="/settings?section=ai&tab=translation" @class(['ai-settings-tab', 'is-active' => ($aiTab ?? 'translation') === 'translation'])>翻訳（DeepL）</a>
+          <a href="/settings?section=ai&tab=chat" @class(['ai-settings-tab', 'is-active' => ($aiTab ?? '') === 'chat'])>チャット（OpenAI / Gemini）</a>
+        </div>
+
+        @if(($aiTab ?? 'translation') === 'translation')
+        <h3 class="ai-settings-subtitle">AI翻訳（DeepL）</h3>
+        <p class="hint">複数のAPIキーを登録すると、使用制限に達した場合に自動的に次のキーへ切り替わります。</p>
 
         <div class="translation-toolbar">
           <button type="button" class="button-link" id="translation-add-btn">APIキーを追加</button>
@@ -260,8 +268,54 @@
             @endforeach
           </tbody>
         </table>
+        @else
+        <h3 class="ai-settings-subtitle">AI相談チャット（OpenAI / Gemini）</h3>
+        <p class="hint">AI相談ページで使うAPIキーです。プラン区分とトークン目安の上限を設定できます。</p>
+        <div class="translation-toolbar">
+          <button type="button" class="button-link" id="ai-key-add-btn">APIキーを追加</button>
+        </div>
+        <table class="holiday-table translation-key-table">
+          <thead>
+            <tr><th>識別名</th><th>プロバイダ</th><th>プラン</th><th>モデル</th><th>状態</th><th>使用量</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            @if(count($aiChatKeys) === 0)
+              <tr><td colspan="7" class="empty-cell">チャット用APIキーがありません。OpenAI または Gemini のキーを追加してください。</td></tr>
+            @endif
+            @foreach($aiChatKeys as $key)
+              <tr>
+                <td>
+                  <strong>{{ $key->name }}</strong>
+                  <div class="hint inline-hint">{{ $key->maskedKey() }}</div>
+                  @if($key->notes)<div class="hint inline-hint">{{ $key->notes }}</div>@endif
+                </td>
+                <td>{{ $key->providerLabel() }}</td>
+                <td>{{ $key->planLabel() }}</td>
+                <td><code>{{ $key->default_model }}</code></td>
+                <td><span class="holiday-type {{ $key->is_active ? 'national' : '' }}">{{ $key->is_active ? '有効' : '無効' }}</span></td>
+                <td class="translation-usage-cell">
+                  <div>日次: {{ number_format($key->current_daily_usage) }}@if($key->daily_limit) / {{ number_format($key->daily_limit) }}@endif</div>
+                  <div>月次: {{ number_format($key->current_monthly_usage) }}@if($key->monthly_limit) / {{ number_format($key->monthly_limit) }}@endif</div>
+                </td>
+                <td class="translation-key-row-actions">
+                  <button type="button" class="mini-btn secondary ai-key-edit-btn" data-id="{{ $key->id }}">編集</button>
+                  <form method="post" action="/settings/ai-keys/{{ $key->id }}/reset-usage" class="inline-form" onsubmit="return confirm('使用量をリセットしますか？')">
+                    @csrf
+                    <button type="submit" class="mini-btn secondary">↺</button>
+                  </form>
+                  <form method="post" action="/settings/ai-keys/{{ $key->id }}/delete" class="inline-form" onsubmit="return confirm('「{{ $key->name }}」を削除しますか？')">
+                    @csrf
+                    <button type="submit" class="danger mini-btn">削除</button>
+                  </form>
+                </td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+        @endif
       </div>
 
+      @if(($aiTab ?? 'translation') === 'translation')
       <div class="modal modal-centered" id="translation-key-modal" hidden>
         <div class="modal-backdrop" data-close-translation-modal></div>
         <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="translation-modal-title">
@@ -309,6 +363,66 @@
           </form>
         </div>
       </div>
+      @else
+      <div class="modal modal-centered" id="ai-key-modal" hidden>
+        <div class="modal-backdrop" data-close-ai-key-modal></div>
+        <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="ai-key-modal-title">
+          <div class="modal-header">
+            <h2 id="ai-key-modal-title">チャットAPIキーを追加</h2>
+            <button type="button" class="modal-close" data-close-ai-key-modal aria-label="閉じる">×</button>
+          </div>
+          <form method="post" action="/settings/ai-keys" id="ai-key-form" class="modal-form translation-modal-form">
+            @csrf
+            <input type="hidden" name="editing_id" id="ai-key-editing-id" value="" />
+            <label>識別名<input type="text" name="name" id="ai-key-name" placeholder="OpenAI メイン" required /></label>
+            <label>
+              プロバイダ
+              <select name="provider" id="ai-key-provider" required>
+                @foreach($aiProviders as $value => $meta)
+                  <option value="{{ $value }}">{{ $meta['label'] ?? $value }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label>
+              プラン区分
+              <select name="plan" id="ai-key-plan">
+                @foreach($aiPlans as $value => $label)
+                  <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label>
+              デフォルトモデル
+              <select name="default_model" id="ai-key-model"></select>
+            </label>
+            <label>
+              APIキー
+              <span class="translation-key-input">
+                <input type="password" name="api_key" id="ai-key-input" placeholder="sk-... / AIza..." autocomplete="off" />
+                <button type="button" class="mini-btn secondary" id="ai-key-toggle">表示</button>
+              </span>
+            </label>
+            <div class="translation-form-grid">
+              <label>優先順位<input type="number" name="priority" id="ai-key-priority" value="0" min="0" /></label>
+              <label>日次上限（トークン目安）<input type="number" name="daily_limit" id="ai-key-daily-limit" min="0" placeholder="無制限" /></label>
+              <label>月次上限（トークン目安）<input type="number" name="monthly_limit" id="ai-key-monthly-limit" min="0" placeholder="無制限" /></label>
+              <label>日次使用量<input type="number" name="current_daily_usage" id="ai-key-daily-usage" min="0" placeholder="0" /></label>
+              <label>月次使用量<input type="number" name="current_monthly_usage" id="ai-key-monthly-usage" min="0" placeholder="0" /></label>
+            </div>
+            <label>メモ<input type="text" name="notes" id="ai-key-notes" placeholder="用途など" /></label>
+            <label class="checkbox-inline"><input type="checkbox" name="is_active" id="ai-key-is-active" value="1" checked /> 有効にする</label>
+            <div class="translation-form-actions">
+              <button type="button" class="secondary" id="ai-key-test-btn">接続テスト</button>
+              <span class="translation-test-result hint" id="ai-key-test-result"></span>
+              <div class="translation-modal-submit-actions">
+                <button type="button" class="secondary" data-close-ai-key-modal>キャンセル</button>
+                <button type="submit" id="ai-key-submit-btn">保存</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      @endif
       @elseif(($section ?? '') === 'integration')
       <div class="panel"><h2>LINE 連携</h2><p class="hint">次のフェーズで移植予定です。</p></div>
       @elseif(($section ?? '') === 'notifications')
@@ -385,7 +499,7 @@
       })();
     </script>
     @endif
-    @if(($section ?? '') === 'translation')
+    @if(($section ?? '') === 'ai' && ($aiTab ?? 'translation') === 'translation')
     <script>
       (function () {
         const modal = document.getElementById('translation-key-modal');
@@ -596,6 +710,118 @@
           }
         });
       })();
+    </script>
+    @endif
+    @if(($section ?? '') === 'ai' && ($aiTab ?? '') === 'chat')
+    <script>
+      (function () {
+        const providers = @json($aiProviders);
+        const modal = document.getElementById('ai-key-modal')
+        const form = document.getElementById('ai-key-form')
+        const modalTitle = document.getElementById('ai-key-modal-title')
+        const providerSelect = document.getElementById('ai-key-provider')
+        const modelSelect = document.getElementById('ai-key-model')
+        const keyInput = document.getElementById('ai-key-input')
+        const resultEl = document.getElementById('ai-key-test-result')
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        let editingId = null
+
+        function fillModels(provider, selected) {
+          const models = providers[provider]?.models || {}
+          const defaultModel = providers[provider]?.default_model || Object.keys(models)[0] || ''
+          modelSelect.innerHTML = Object.entries(models).map(([value, label]) =>
+            `<option value="${value}">${label}</option>`
+          ).join('')
+          modelSelect.value = selected && models[selected] ? selected : defaultModel
+        }
+
+        function setField(id, value) {
+          const el = document.getElementById(id)
+          if (el) el.value = value ?? ''
+        }
+
+        function openAdd() {
+          editingId = null
+          modalTitle.textContent = 'チャットAPIキーを追加'
+          form.action = '/settings/ai-keys'
+          form.reset()
+          document.getElementById('ai-key-is-active').checked = true
+          fillModels(providerSelect.value)
+          keyInput.required = true
+          resultEl.textContent = ''
+          modal.hidden = false
+        }
+
+        async function openEdit(id) {
+          const res = await fetch(`/settings/ai-keys/${id}/edit`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }
+          })
+          if (!res.ok) {
+            window.alert('取得に失敗しました')
+            return
+          }
+          const data = await res.json()
+          editingId = id
+          modalTitle.textContent = 'チャットAPIキーを編集'
+          form.action = `/settings/ai-keys/${id}/update`
+          setField('ai-key-name', data.name)
+          providerSelect.value = data.provider
+          fillModels(data.provider, data.default_model)
+          document.getElementById('ai-key-plan').value = data.plan || 'paid'
+          setField('ai-key-input', '')
+          keyInput.required = false
+          keyInput.placeholder = '変更する場合のみ入力'
+          setField('ai-key-priority', data.priority ?? 0)
+          setField('ai-key-daily-limit', data.daily_limit ?? '')
+          setField('ai-key-monthly-limit', data.monthly_limit ?? '')
+          setField('ai-key-daily-usage', data.current_daily_usage ?? 0)
+          setField('ai-key-monthly-usage', data.current_monthly_usage ?? 0)
+          setField('ai-key-notes', data.notes ?? '')
+          document.getElementById('ai-key-is-active').checked = !!data.is_active
+          resultEl.textContent = ''
+          modal.hidden = false
+        }
+
+        providerSelect?.addEventListener('change', () => fillModels(providerSelect.value))
+        document.getElementById('ai-key-add-btn')?.addEventListener('click', openAdd)
+        document.querySelectorAll('.ai-key-edit-btn').forEach((btn) => {
+          btn.addEventListener('click', () => openEdit(btn.dataset.id))
+        })
+        document.querySelectorAll('[data-close-ai-key-modal]').forEach((el) => {
+          el.addEventListener('click', () => { modal.hidden = true })
+        })
+        document.getElementById('ai-key-toggle')?.addEventListener('click', () => {
+          const isPassword = keyInput.type === 'password'
+          keyInput.type = isPassword ? 'text' : 'password'
+          document.getElementById('ai-key-toggle').textContent = isPassword ? '隠す' : '表示'
+        })
+        document.getElementById('ai-key-test-btn')?.addEventListener('click', async () => {
+          resultEl.className = 'translation-test-result hint'
+          resultEl.textContent = 'テスト中…'
+          try {
+            const res = await fetch('/settings/ai-keys/test', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+              },
+              body: JSON.stringify({
+                provider: providerSelect.value,
+                api_key: keyInput.value,
+                default_model: modelSelect.value,
+              }),
+            })
+            const data = await res.json()
+            resultEl.className = 'translation-test-result hint ' + (data.ok ? 'is-ok' : 'is-error')
+            resultEl.textContent = data.message || (data.ok ? 'OK' : '失敗')
+          } catch (_) {
+            resultEl.className = 'translation-test-result hint is-error'
+            resultEl.textContent = 'テストに失敗しました'
+          }
+        })
+        fillModels(providerSelect?.value || 'openai')
+      })()
     </script>
     @endif
   </body>

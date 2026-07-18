@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AiApiKeyController;
+use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -96,6 +98,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
 
+    Route::get('/ai-chat', [AiChatController::class, 'index']);
+    Route::post('/ai-chat/conversations', [AiChatController::class, 'store']);
+    Route::get('/ai-chat/conversations/{id}', [AiChatController::class, 'show'])->whereNumber('id');
+    Route::post('/ai-chat/conversations/{id}/stream', [AiChatController::class, 'stream'])->whereNumber('id');
+    Route::post('/ai-chat/conversations/{id}/delete', [AiChatController::class, 'destroy'])->whereNumber('id');
+
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);
     Route::post('/settings/holidays/add', [SettingsController::class, 'addHoliday']);
@@ -112,6 +120,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+
+    Route::post('/settings/ai-keys', [AiApiKeyController::class, 'store']);
+    Route::post('/settings/ai-keys/test', [AiApiKeyController::class, 'test']);
+    Route::get('/settings/ai-keys/{id}/edit', [AiApiKeyController::class, 'edit'])->whereNumber('id');
+    Route::post('/settings/ai-keys/{id}/update', [AiApiKeyController::class, 'update'])->whereNumber('id');
+    Route::post('/settings/ai-keys/{id}/delete', [AiApiKeyController::class, 'destroy'])->whereNumber('id');
+    Route::post('/settings/ai-keys/{id}/reset-usage', [AiApiKeyController::class, 'resetUsage'])->whereNumber('id');
 
     Route::view('/mypage', 'mypage.stub');
 

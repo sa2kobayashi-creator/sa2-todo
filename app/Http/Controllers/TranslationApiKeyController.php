@@ -12,7 +12,7 @@ class TranslationApiKeyController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
-    private const SETTINGS_PATH = '/settings?section=translation';
+    private const SETTINGS_PATH = '/settings?section=ai&tab=translation';
 
     public function store(Request $request)
     {

@@ -22,7 +22,7 @@ class NoteController extends Controller
         if (! $translator->isConfigured()) {
             return response()->json([
                 'ok' => false,
-                'message' => 'AI翻訳が設定されていません。設定 > AI翻訳 からDeepL APIキーを登録してください。',
+                'message' => 'AI翻訳が設定されていません。設定 > AI設定 からDeepL APIキーを登録してください。',
             ], 422);
         }
 

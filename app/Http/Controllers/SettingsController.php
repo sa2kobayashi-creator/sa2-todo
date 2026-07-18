@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiApiKey;
 use App\Models\TranslationApiKey;
 use App\Services\CalendarService;
 use App\Services\HolidayService;
@@ -17,10 +18,12 @@ class SettingsController extends Controller
     {
         $year = (int) ($request->query('year') ?: date('Y'));
         $section = $this->parseSection($request->query('section'));
+        $aiTab = $request->query('tab') === 'chat' ? 'chat' : 'translation';
 
         return view('settings.index', [
             'section' => $section,
             'settingsSection' => $section,
+            'aiTab' => $aiTab,
             'holidayYear' => $year,
             'holidays' => $this->holidays->listByYear($year),
             'weekdayRules' => $this->holidays->listWeekdayRules(),
@@ -30,9 +33,14 @@ class SettingsController extends Controller
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
             'lineConfigured' => false,
             'pushConfigured' => false,
-            'translationKeys' => $section === 'translation'
+            'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
+            'aiChatKeys' => $section === 'ai'
+                ? AiApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
+                : collect(),
+            'aiProviders' => config('ai_chat.providers', []),
+            'aiPlans' => config('ai_chat.plans', []),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -128,12 +136,19 @@ class SettingsController extends Controller
 
     private function parseSection(?string $value): string
     {
-        return in_array($value, ['integration', 'notifications', 'translation', 'holidays'], true) ? $value : 'holidays';
+        if ($value === 'translation') {
+            return 'ai';
+        }
+
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string
     {
         $params = ['section' => $section];
+        if ($section === 'ai') {
+            $params['tab'] = 'translation';
+        }
         if ($year) {
             $params['year'] = $year;
         }

@@ -23,6 +23,10 @@
     <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
     <span class="mobile-nav-label">Photos</span>
   </a>
+  <a href="/ai-chat" class="mobile-nav-item {{ ($active ?? '') === 'ai-chat' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">💬</span>
+    <span class="mobile-nav-label">AI相談</span>
+  </a>
   <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
     <span class="mobile-nav-icon" aria-hidden="true">💰</span>
     <span class="mobile-nav-label">入出金</span>
