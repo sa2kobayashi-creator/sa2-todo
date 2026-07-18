@@ -18,11 +18,19 @@
   class="note-card {{ $colorClass }}@if(!empty($highlightId) && $highlightId === $note['id']) is-highlighted @endif"
   id="note-{{ $note['id'] }}"
   style="--note-bg: {{ $palette['bg'] }}; --note-border: {{ $palette['border'] }}"
+  data-note-id="{{ $note['id'] }}"
   data-note-b64="{{ base64_encode(json_encode($notePayload, JSON_UNESCAPED_UNICODE)) }}"
 >
   <label class="note-bulk-check">
     <input type="checkbox" class="note-check" value="{{ $note['id'] }}" aria-label="{{ ($note['title'] ?? 'メモ') }}を選択" />
   </label>
+  <button
+    type="button"
+    class="note-drag-handle"
+    draggable="true"
+    aria-label="{{ ($note['title'] ?? 'メモ') }} の表示順を変更"
+    title="ドラッグして並び替え"
+  >⠿</button>
   <div class="note-card-view">
     @if(!empty($note['pinned']))<div class="note-pin-badge" title="ピン留め">📌</div>@endif
     <div class="note-card-meta">
@@ -31,8 +39,13 @@
     </div>
     @if(!empty($note['title']))<h3 class="note-card-title">{{ $note['title'] }}</h3>@endif
     @if(($note['type'] ?? '') === 'checklist' && !empty($note['items']))
-      <ul class="note-checklist-preview">
-        @foreach($note['items'] as $item)
+      @php
+        $checklistPreviewLimit = 20;
+        $checklistPreviewItems = array_slice($note['items'], 0, $checklistPreviewLimit);
+        $checklistTruncated = count($note['items']) > $checklistPreviewLimit;
+      @endphp
+      <ul @class(['note-checklist-preview', 'is-truncated' => $checklistTruncated])>
+        @foreach($checklistPreviewItems as $item)
           <li class="{{ !empty($item['checked']) ? 'is-done' : '' }}">
             <span class="check-icon" aria-hidden="true">{{ !empty($item['checked']) ? '☑' : '☐' }}</span>
             <span>{{ $item['text'] }}</span>

@@ -159,6 +159,22 @@ class NoteController extends Controller
         return redirect($returnTo);
     }
 
+    public function reorder(Request $request)
+    {
+        $noteIds = $request->input('noteIds', []);
+        if (! is_array($noteIds)) {
+            return response()->json(['ok' => false, 'message' => '不正なリクエストです'], 422);
+        }
+
+        try {
+            $this->notes->reorderNotes($noteIds);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     public function archive(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');

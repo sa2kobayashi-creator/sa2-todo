@@ -19,6 +19,10 @@
     <span class="mobile-nav-icon" aria-hidden="true">🗺</span>
     <span class="mobile-nav-label">マップ</span>
   </a>
+  <a href="/photos" class="mobile-nav-item {{ ($active ?? '') === 'photos' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
+    <span class="mobile-nav-label">Photos</span>
+  </a>
   <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
     <span class="mobile-nav-icon" aria-hidden="true">💰</span>
     <span class="mobile-nav-label">入出金</span>

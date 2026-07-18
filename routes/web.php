@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
@@ -50,6 +51,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/bulk/archive', [NoteController::class, 'bulkArchive']);
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);
     Route::post('/notes/bulk/append', [NoteController::class, 'bulkAppend']);
+    Route::post('/notes/reorder', [NoteController::class, 'reorder']);
     Route::post('/notes/{id}/update', [NoteController::class, 'update'])->whereNumber('id');
     Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
@@ -85,6 +87,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/map', [MapController::class, 'store']);
     Route::post('/map/{id}/update', [MapController::class, 'update'])->whereNumber('id');
     Route::post('/map/{id}/delete', [MapController::class, 'destroy'])->whereNumber('id');
+
+    Route::get('/photos', [PhotoController::class, 'index']);
+    Route::post('/photos', [PhotoController::class, 'store']);
+    Route::post('/photos/albums', [PhotoController::class, 'storeAlbum']);
+    Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
+    Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
+    Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);

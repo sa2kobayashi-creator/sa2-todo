@@ -170,11 +170,13 @@ class NoteService
             $items = $this->parseChecklistFromBody((string) $input['body']);
         }
 
+        $pinned = ($input['pinned'] ?? false) === true;
         $note = Note::create([
             'title' => trim((string) ($input['title'] ?? '')),
             'body' => $type === 'text' ? trim((string) ($input['body'] ?? '')) : '',
             'color' => $this->normalizeColor($input['color'] ?? 'default'),
-            'pinned' => ($input['pinned'] ?? false) === true,
+            'pinned' => $pinned,
+            'sort_order' => $this->nextFrontSortOrder($pinned, false),
             'archived' => false,
             'type' => $type,
             'category' => $this->normalizeCategory($input['category'] ?? null),
@@ -241,9 +243,66 @@ class NoteService
             return null;
         }
         $note->pinned = ! $note->pinned;
+        $note->sort_order = $this->nextFrontSortOrder($note->pinned, $note->archived);
         $note->save();
 
         return $this->toArray($note);
+    }
+
+    /** @param list<int|string> $orderedIds */
+    public function reorderNotes(array $orderedIds): bool
+    {
+        $orderedIds = array_values(array_unique(array_filter(array_map('intval', $orderedIds))));
+        if ($orderedIds === []) {
+            throw new \InvalidArgumentException('並び替えるメモがありません');
+        }
+
+        $notes = Note::query()->whereIn('id', $orderedIds)->get()->keyBy('id');
+        if ($notes->count() !== count($orderedIds)) {
+            throw new \InvalidArgumentException('無効なメモが含まれています');
+        }
+
+        $pinnedFlags = $notes->pluck('pinned')->unique();
+        $archivedFlags = $notes->pluck('archived')->unique();
+        if ($pinnedFlags->count() > 1 || $archivedFlags->count() > 1) {
+            throw new \InvalidArgumentException('同じグループのメモのみ並び替えできます');
+        }
+
+        $pinned = (bool) $pinnedFlags->first();
+        $archived = (bool) $archivedFlags->first();
+
+        $fullIds = Note::query()
+            ->where('pinned', $pinned)
+            ->where('archived', $archived)
+            ->orderBy('sort_order')
+            ->orderByDesc('registered_date')
+            ->orderByDesc('updated_at')
+            ->pluck('id')
+            ->all();
+
+        $orderedSet = array_flip($orderedIds);
+        $positions = [];
+        foreach ($fullIds as $index => $id) {
+            if (isset($orderedSet[$id])) {
+                $positions[] = $index;
+            }
+        }
+
+        if (count($positions) !== count($orderedIds)) {
+            throw new \InvalidArgumentException('無効なメモが含まれています');
+        }
+
+        foreach ($positions as $i => $pos) {
+            $fullIds[$pos] = $orderedIds[$i];
+        }
+
+        foreach ($fullIds as $index => $id) {
+            Note::query()->where('id', $id)->update([
+                'sort_order' => ($index + 1) * 10,
+            ]);
+        }
+
+        return true;
     }
 
     public function toggleArchive(int $id): ?array
@@ -256,6 +315,7 @@ class NoteService
         if ($note->archived) {
             $note->pinned = false;
         }
+        $note->sort_order = $this->nextFrontSortOrder($note->pinned, $note->archived);
         $note->save();
 
         return $this->toArray($note);
@@ -439,6 +499,7 @@ class NoteService
             'body' => $note->body,
             'color' => $note->color,
             'pinned' => $note->pinned,
+            'sortOrder' => (int) $note->sort_order,
             'archived' => $note->archived,
             'type' => $note->type,
             'category' => $this->normalizeCategory($note->category ?? null),
@@ -491,12 +552,26 @@ class NoteService
         return true;
     }
 
+    private function nextFrontSortOrder(bool $pinned, bool $archived): int
+    {
+        $min = Note::query()
+            ->where('pinned', $pinned)
+            ->where('archived', $archived)
+            ->min('sort_order');
+
+        return $min === null ? 0 : ((int) $min - 10);
+    }
+
     /** @param list<array<string, mixed>> $list */
     private function sortNotesForDisplay(array $list): array
     {
         usort($list, function ($a, $b) {
             if (($a['pinned'] ?? false) !== ($b['pinned'] ?? false)) {
                 return ($a['pinned'] ?? false) ? -1 : 1;
+            }
+            $orderCmp = ((int) ($a['sortOrder'] ?? 0)) <=> ((int) ($b['sortOrder'] ?? 0));
+            if ($orderCmp !== 0) {
+                return $orderCmp;
             }
             $dateCmp = strcmp($this->getRegisteredDate($b), $this->getRegisteredDate($a));
             if ($dateCmp !== 0) {

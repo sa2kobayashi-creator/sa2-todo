@@ -11,6 +11,7 @@ class Note extends Model
         'body',
         'color',
         'pinned',
+        'sort_order',
         'archived',
         'type',
         'category',
@@ -23,6 +24,7 @@ class Note extends Model
         return [
             'pinned' => 'boolean',
             'archived' => 'boolean',
+            'sort_order' => 'integer',
             'items' => 'array',
             'registered_date' => 'date:Y-m-d',
         ];

@@ -1,24 +1,51 @@
-self.addEventListener('push', (event) => {
-  let data = { title: 'ToDo リマインダー', body: '', url: '/todos', silent: false }
-  try {
-    if (event.data) data = { ...data, ...event.data.json() }
-  } catch {
-    // ignore
-  }
+/* Sa2 Photos PWA service worker — cache app shell only */
+const CACHE = 'sa2-photos-shell-v1'
+const SHELL = [
+  '/app.css',
+  '/manifest.webmanifest',
+  '/icons/pwa-192.png',
+  '/icons/pwa-512.png',
+]
 
-  const silent = data.silent === true
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      silent,
-      vibrate: silent ? [] : [300, 100, 300, 100, 300],
-      data: { url: data.url || '/todos' }
-    })
+    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
   )
 })
 
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-  const url = event.notification.data?.url || '/todos'
-  event.waitUntil(clients.openWindow(url))
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+    ).then(() => self.clients.claim())
+  )
+})
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request
+  if (req.method !== 'GET') return
+
+  const url = new URL(req.url)
+  if (url.origin !== self.location.origin) return
+
+  // HTML / API はネットワーク優先（ログイン状態を壊さない）
+  if (req.mode === 'navigate' || url.pathname.startsWith('/photos') && !url.pathname.includes('.')) {
+    event.respondWith(
+      fetch(req).catch(() => caches.match('/photos').then((r) => r || caches.match(req)))
+    )
+    return
+  }
+
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      const fetched = fetch(req).then((res) => {
+        if (res && res.ok && (url.pathname.endsWith('.css') || url.pathname.startsWith('/icons/'))) {
+          const copy = res.clone()
+          caches.open(CACHE).then((cache) => cache.put(req, copy))
+        }
+        return res
+      }).catch(() => cached)
+      return cached || fetched
+    })
+  )
 })

@@ -843,6 +843,71 @@
             window.alert('対象が選択されていません')
           }
         })
+
+        let draggedNoteCard = null
+
+        function getDragAfterNoteCard(container, x, y) {
+          const cards = [...container.querySelectorAll('.note-card:not(.is-dragging)')]
+          return cards.reduce((closest, child) => {
+            const box = child.getBoundingClientRect()
+            const offset = (y - box.top - box.height / 2) * 10000 + (x - box.left - box.width / 2)
+            if (offset < 0 && offset > closest.offset) {
+              return { offset, element: child }
+            }
+            return closest
+          }, { offset: Number.NEGATIVE_INFINITY }).element
+        }
+
+        async function saveNoteOrder(container) {
+          const noteIds = Array.from(container.querySelectorAll('.note-card'))
+            .map((card) => parseInt(card.dataset.noteId, 10))
+            .filter((id) => id > 0)
+          if (noteIds.length === 0) return
+
+          try {
+            const response = await fetch('/notes/reorder', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken || '',
+              },
+              body: JSON.stringify({ noteIds }),
+            })
+            if (!response.ok) throw new Error('reorder failed')
+          } catch (_) {
+            window.location.reload()
+          }
+        }
+
+        document.querySelectorAll('.note-drag-handle').forEach((handle) => {
+          handle.addEventListener('dragstart', (event) => {
+            draggedNoteCard = handle.closest('.note-card')
+            if (!draggedNoteCard) return
+            draggedNoteCard.classList.add('is-dragging')
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', draggedNoteCard.dataset.noteId || '')
+          })
+          handle.addEventListener('dragend', () => {
+            draggedNoteCard?.classList.remove('is-dragging')
+            draggedNoteCard = null
+          })
+        })
+
+        document.querySelectorAll('.notes-grid').forEach((container) => {
+          container.addEventListener('dragover', (event) => {
+            event.preventDefault()
+            if (!draggedNoteCard || draggedNoteCard.closest('.notes-grid') !== container) return
+            const after = getDragAfterNoteCard(container, event.clientX, event.clientY)
+            if (after == null) container.appendChild(draggedNoteCard)
+            else container.insertBefore(draggedNoteCard, after)
+          })
+          container.addEventListener('drop', (event) => {
+            event.preventDefault()
+            if (!draggedNoteCard || draggedNoteCard.closest('.notes-grid') !== container) return
+            saveNoteOrder(container)
+          })
+        })
       })()
     </script>
   </body>
