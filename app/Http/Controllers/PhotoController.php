@@ -179,6 +179,36 @@ class PhotoController extends Controller
         return $this->redirectWithMessage($returnTo, '写真を削除しました');
     }
 
+    public function bulkDestroy(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $count = $this->photos->bulkDeletePhotos(
+            (int) $request->user()->id,
+            $this->photos->parseIdList($request->input('ids'))
+        );
+
+        return $this->redirectWithMessage($returnTo, $count.'件のメディアを削除しました');
+    }
+
+    public function bulkMove(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $albumRaw = $request->input('album_id');
+        $albumId = ($albumRaw === null || $albumRaw === '') ? null : (int) $albumRaw;
+
+        try {
+            $count = $this->photos->bulkMovePhotos(
+                (int) $request->user()->id,
+                $this->photos->parseIdList($request->input('ids')),
+                $albumId
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, $count.'件のメディアを移動しました');
+    }
+
     public function destroyAlbum(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');

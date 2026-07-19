@@ -2,9 +2,9 @@
   <div class="cal-week-header">
     <div class="cal-week-gutter-spacer" aria-hidden="true"></div>
     @foreach($weekView['days'] as $day)
-      <div @class(['cal-week-day-head', 'is-today' => !empty($day['isToday']), 'is-holiday' => !empty($day['isHoliday']), 'sun' => ($day['weekdayLabel'] ?? '') === '日', 'sat' => ($day['weekdayLabel'] ?? '') === '土'])>
+      <div @class(['cal-week-day-head', 'is-today' => !empty($day['isToday']), 'is-holiday' => !empty($day['isHoliday']), 'sun' => ($day['weekday'] ?? null) === 0, 'sat' => ($day['weekday'] ?? null) === 6])>
         <span class="cal-week-weekday">{{ $day['weekdayLabel'] }}</span>
-        <a class="cal-week-daynum" href="{{ $buildDashboardQuery('day', $day['date']) }}" title="日表示へ">{{ $day['day'] }}</a>
+        <a class="cal-week-daynum" href="{{ $buildDashboardQuery('day', $day['date']) }}" title="{{ __('日表示へ') }}">{{ $day['day'] }}</a>
         @if(!empty($day['holidayName']))
           <span class="cal-week-holiday" title="{{ $day['holidayName'] }}">{{ $day['holidayName'] }}</span>
         @endif
@@ -13,7 +13,7 @@
   </div>
 
   <div class="cal-allday-row cal-week-allday">
-    <div class="cal-allday-label">終日</div>
+    <div class="cal-allday-label">{{ __('終日') }}</div>
     <div class="cal-week-allday-cols">
       @foreach($weekView['days'] as $day)
         <div class="cal-week-allday-col">
@@ -36,7 +36,7 @@
               <span class="event-title">📝 {{ $truncateTitle($getNoteDisplayTitle($note), 14) }}</span>
             </button>
           @endforeach
-          <button type="button" class="day-add-btn" data-date="{{ $day['date'] }}" title="ToDo を追加">+</button>
+          <button type="button" class="day-add-btn" data-date="{{ $day['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
         </div>
       @endforeach
     </div>
@@ -47,7 +47,7 @@
       <div class="cal-time-gutter" aria-hidden="true">
         @foreach($weekView['hours'] as $hour)
           <div class="cal-time-slot">
-            <span class="cal-time-label">{{ $hour }}時</span>
+            <span class="cal-time-label">{{ \App\Services\CalendarService::formatHourLabel((int) $hour) }}</span>
           </div>
         @endforeach
       </div>

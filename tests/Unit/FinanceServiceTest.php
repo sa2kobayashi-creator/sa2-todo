@@ -836,6 +836,11 @@ class FinanceServiceTest extends TestCase
         $this->assertSame('Rakuten Card Amazon', $this->service->formatDisplayMemo('カード引落: Rakuten Card Amazon [schedule:3]'));
         $this->assertSame('スーパー', $this->service->formatDisplayMemo('スーパー'));
         $this->assertSame('', $this->service->formatDisplayMemo(''));
+        $this->assertSame('', $this->service->formatDisplayMemo('[予算CSV] カード利用 楽天VISAプレミアム', '楽天VISAプレミアム'));
+        $this->assertSame('コンビニ', $this->service->formatDisplayMemo('[予算CSV] カード利用 楽天VISAプレミアム コンビニ', '楽天VISAプレミアム'));
+        $this->assertSame('', $this->service->formatDisplayMemo('[予算CSV] 残高 Petty Cash'));
+        $this->assertSame('給与', $this->service->formatDisplayMemo('[予算CSV] IN 給与'));
+        $this->assertSame('', $this->service->formatDisplayMemo('[予算CSV] IN'));
     }
 
     public function test_future_transactions_do_not_affect_balance_until_due(): void

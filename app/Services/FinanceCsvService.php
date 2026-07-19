@@ -16,39 +16,53 @@ class FinanceCsvService
 
     public const FORMAT_ACCOUNTS = 'accounts';
 
-    /** @var array<string, string> */
+    /**
+     * マニュアル運用の予算監視CSVヘッダー（この順序で入出力）
+     *
+     * @var list<string>
+     */
+    public const BUDGET_MONITOR_HEADERS = [
+        'Date', 'Day', 'Balance', 'IN', 'OUT', '送金',
+        '楽天銀行', 'PAYPAY銀行', 'セブン銀行', '三井住友銀行', 'Petty Cash',
+        'BPI', 'PH Bank In', 'PH Bank Out', 'PH Petty Cash',
+        'Comment',
+        '楽天VISA', '楽天VISAプレミアム', 'Amazon Master', 'PayPAY Visa', 'JAL JCB', 'セブンJCB', 'ファミJCB', 'EPOS VISA', '三井住友CL',
+        'Total',
+        'BPI', 'PH Bank In', 'PH Bank Out', 'PH G/Cash', 'BPI Master', 'Bankard Gold Master', 'Bankard Airmiles Visa',
+        'Total',
+    ];
+
+    /** @var array<string, string> ラベル => income|expense:口座名（同名列は先頭） */
     private const BUDGET_MONITOR_FLOW_COLUMNS = [
-        'IN' => 'income:jp_bank_rakuten',
-        'OUT' => 'expense:jp_bank_rakuten',
-        'PH Bank In' => 'income:ph_bank_bpi',
-        'PH Bank Out' => 'expense:ph_bank_bpi',
+        'IN' => 'income:楽天銀行',
+        'OUT' => 'expense:楽天銀行',
+        'PH Bank In' => 'income:BPI',
+        'PH Bank Out' => 'expense:BPI',
     ];
 
-    /** @var array<int, string> */
-    private const BUDGET_MONITOR_JP_BANK_BALANCE_COLUMNS = [
-        5 => 'jp_bank_rakuten',
-        6 => 'jp_bank_paypay',
-        7 => 'jp_bank_seven',
-        8 => 'jp_bank_smbc',
-        9 => 'jp_cash_petty',
+    /**
+     * 残高スナップショット列（0埋めの日は更新なしとみなす）
+     *
+     * @var list<array{label: string, region?: string, kind?: string}>
+     */
+    private const BUDGET_MONITOR_BALANCE_COLUMNS = [
+        ['label' => '楽天銀行', 'region' => 'jp'],
+        ['label' => 'PAYPAY銀行', 'region' => 'jp'],
+        ['label' => 'セブン銀行', 'region' => 'jp'],
+        ['label' => '三井住友銀行', 'region' => 'jp'],
+        ['label' => 'Petty Cash', 'region' => 'jp', 'kind' => 'cash'],
+        ['label' => 'BPI', 'region' => 'ph', 'kind' => 'bank'],
+        ['label' => 'PH Petty Cash', 'region' => 'ph', 'kind' => 'cash'],
+        ['label' => 'PH G/Cash', 'region' => 'ph'],
     ];
 
-    /** @var array<int, string> */
-    private const BUDGET_MONITOR_JP_CARD_BALANCE_COLUMNS = [
-        10 => 'jp_card_rakuten',
-        11 => 'jp_card_amazon',
-        12 => 'jp_card_paypay',
-        13 => 'jp_card_jal',
-        14 => 'jp_card_seven',
-        15 => 'jp_card_fami',
-        16 => 'jp_card_epos',
-        17 => 'jp_card_smbc_cl',
-    ];
-
-    /** @var array<int, string> */
-    private const BUDGET_MONITOR_PH_CARD_BALANCE_COLUMNS = [
-        24 => 'ph_card_bpi_mc',
-        25 => 'ph_card_bankard_mc_gold',
+    /** @var list<string> */
+    private const BUDGET_MONITOR_JP_BANK_SLUGS = [
+        'jp_bank_rakuten',
+        'jp_bank_paypay',
+        'jp_bank_seven',
+        'jp_bank_smbc',
+        'jp_cash_petty',
     ];
 
     public function __construct(private FinanceService $finance) {}
@@ -65,7 +79,10 @@ class FinanceCsvService
             return self::FORMAT_ACCOUNTS;
         }
 
-        if (str_contains($firstLine, 'Balance') && str_contains($firstLine, 'PH Bank In')) {
+        if (
+            str_contains($firstLine, 'Balance')
+            && (str_contains($firstLine, 'PH Bank In') || str_contains($firstLine, '楽天銀行') || str_contains($firstLine, '送金'))
+        ) {
             return self::FORMAT_BUDGET_MONITOR;
         }
 
@@ -121,20 +138,12 @@ class FinanceCsvService
 
         $header = array_shift($rows);
         $columnMap = $this->buildBudgetMonitorColumnMap($header);
-        $accountsBySlug = FinanceAccount::query()->where('is_active', true)->get()->keyBy('slug');
-        $previousBalances = [];
+        $accounts = FinanceAccount::query()->where('is_active', true)->get();
         $created = 0;
         $skipped = 0;
-        $dates = [];
+        $missingAccounts = [];
 
-        if ($replace) {
-            $deleted = FinanceTransaction::query()
-                ->where('memo', 'like', '%'.self::IMPORT_MEMO_MARKER.'%')
-                ->delete();
-        } else {
-            $deleted = 0;
-        }
-
+        $parsed = [];
         foreach ($rows as $row) {
             $date = $this->parseBudgetMonitorDate($row[0] ?? null);
             if ($date === null) {
@@ -142,12 +151,37 @@ class FinanceCsvService
 
                 continue;
             }
+            $parsed[] = ['date' => $date, 'row' => $row];
+        }
 
-            $dates[] = $date;
-            $comment = trim((string) ($row[$columnMap['Comment'] ?? 27] ?? ''));
+        $dates = array_values(array_unique(array_column($parsed, 'date')));
+        sort($dates);
+        $from = $dates[0] ?? null;
+        $to = $dates !== [] ? $dates[array_key_last($dates)] : null;
+
+        if ($replace) {
+            $deleteQuery = FinanceTransaction::query()
+                ->where('memo', 'like', '%'.self::IMPORT_MEMO_MARKER.'%');
+            if ($from && $to) {
+                $deleteQuery
+                    ->whereDate('transaction_date', '>=', $from)
+                    ->whereDate('transaction_date', '<=', $to);
+            }
+            $deleted = $deleteQuery->delete();
+        } else {
+            $deleted = 0;
+        }
+
+        foreach ($parsed as $item) {
+            $date = $item['date'];
+            $row = $item['row'];
+            $comment = trim((string) ($row[$columnMap['Comment'][0] ?? -1] ?? ''));
+            if ($comment === '' && isset($columnMap['comment'][0])) {
+                $comment = trim((string) ($row[$columnMap['comment'][0]] ?? ''));
+            }
 
             foreach (self::BUDGET_MONITOR_FLOW_COLUMNS as $headerLabel => $mapping) {
-                $index = $columnMap[$headerLabel] ?? null;
+                $index = $columnMap[$headerLabel][0] ?? null;
                 if ($index === null) {
                     continue;
                 }
@@ -157,79 +191,112 @@ class FinanceCsvService
                     continue;
                 }
 
-                [$type, $slug] = explode(':', $mapping, 2);
-                $account = $accountsBySlug->get($slug);
+                [$type, $accountName] = explode(':', $mapping, 2);
+                $account = $this->findAccountByLabel($accountName, $accounts);
                 if (! $account) {
+                    $missingAccounts[$accountName] = true;
                     $skipped++;
 
                     continue;
                 }
 
-                $memo = trim(self::IMPORT_MEMO_MARKER.' '.$headerLabel.($comment !== '' ? ' '.$comment : ''));
-                if ($this->transactionExists($date, $type, $account->id, $amount, $memo)) {
-                    $skipped++;
-
-                    continue;
-                }
-
-                FinanceTransaction::query()->create([
-                    'transaction_date' => $date,
-                    'type' => $type,
-                    'account_id' => $account->id,
-                    'amount' => $amount,
-                    'currency' => $account->currency,
-                    'memo' => $memo,
-                ]);
-                $created++;
+                $created += $this->createBudgetImportTransaction(
+                    $date,
+                    $type,
+                    $account,
+                    $amount,
+                    trim(self::IMPORT_MEMO_MARKER.' '.$headerLabel.($comment !== '' ? ' '.$comment : '')),
+                    $skipped
+                );
             }
 
             if ($includeCardDeltas) {
-                foreach (self::BUDGET_MONITOR_JP_CARD_BALANCE_COLUMNS + self::BUDGET_MONITOR_PH_CARD_BALANCE_COLUMNS as $index => $slug) {
-                    $current = $this->parseAmount($row[$index] ?? null);
-                    $previous = $previousBalances[$index] ?? null;
-                    $previousBalances[$index] = $current;
-
-                    if ($previous === null || $current <= $previous) {
+                foreach ($this->resolveBudgetMonitorCardAccounts($columnMap, $header, $accounts) as $index => $account) {
+                    $amount = $this->parseAmount($row[$index] ?? null);
+                    if ($amount <= 0) {
                         continue;
                     }
 
-                    $delta = round($current - $previous, 2);
-                    if ($delta <= 0) {
-                        continue;
-                    }
-
-                    $account = $accountsBySlug->get($slug);
-                    if (! $account) {
-                        $skipped++;
-
-                        continue;
-                    }
-
-                    $memo = trim(self::IMPORT_MEMO_MARKER.' カード利用'.($comment !== '' ? ' '.$comment : ''));
-                    if ($this->transactionExists($date, 'expense', $account->id, $delta, $memo)) {
-                        $skipped++;
-
-                        continue;
-                    }
-
-                    FinanceTransaction::query()->create([
-                        'transaction_date' => $date,
-                        'type' => 'expense',
-                        'account_id' => $account->id,
-                        'amount' => $delta,
-                        'currency' => $account->currency,
-                        'memo' => $memo,
-                    ]);
-                    $created++;
+                    $created += $this->createBudgetImportTransaction(
+                        $date,
+                        'expense',
+                        $account,
+                        $amount,
+                        trim(self::IMPORT_MEMO_MARKER.' カード利用 '.$account->name.($comment !== '' ? ' '.$comment : '')),
+                        $skipped
+                    );
                 }
             }
 
-            foreach (self::BUDGET_MONITOR_JP_BANK_BALANCE_COLUMNS as $index => $slug) {
-                $previousBalances[$index] = $this->parseAmount($row[$index] ?? null);
+            // JP 銀行列がすべて 0 の日は「未記入」扱い（残高同期しない）
+            $jpBankLabels = ['楽天銀行', 'PAYPAY銀行', 'セブン銀行', '三井住友銀行', 'Petty Cash'];
+            $jpBankFilled = false;
+            foreach ($jpBankLabels as $label) {
+                $idx = $columnMap[$label][0] ?? null;
+                if ($idx !== null && $this->parseAmount($row[$idx] ?? null) > 0) {
+                    $jpBankFilled = true;
+                    break;
+                }
+            }
+
+            foreach (self::BUDGET_MONITOR_BALANCE_COLUMNS as $spec) {
+                $label = $spec['label'];
+                $isJpBank = in_array($label, $jpBankLabels, true);
+                if ($isJpBank && ! $jpBankFilled) {
+                    continue;
+                }
+
+                $indexes = $columnMap[$label] ?? [];
+                if ($indexes === []) {
+                    // エイリアス見出し
+                    if ($label === 'PH G/Cash') {
+                        $indexes = $columnMap['PH G/Cash'] ?? $columnMap['PH GCash'] ?? $columnMap['Gcash'] ?? [];
+                    } elseif ($label === 'PH Petty Cash') {
+                        $indexes = $columnMap['PH Petty Cash'] ?? [];
+                    }
+                }
+                if ($indexes === []) {
+                    continue;
+                }
+
+                // 同名列は後勝ち（当日の最終残高）
+                $target = null;
+                foreach ($indexes as $index) {
+                    $raw = $row[$index] ?? null;
+                    if ($raw === null || trim((string) $raw) === '') {
+                        continue;
+                    }
+                    $target = $this->parseAmount($raw);
+                }
+                if ($target === null) {
+                    continue;
+                }
+                if ($isJpBank && $target <= 0) {
+                    continue;
+                }
+
+                $account = $this->findAccountByLabel($label, $accounts, $spec['region'] ?? null, $spec['kind'] ?? null);
+                if (! $account) {
+                    $missingAccounts[$label] = true;
+                    $skipped++;
+
+                    continue;
+                }
+
+                $created += $this->syncAccountBalanceToTarget(
+                    $account,
+                    $date,
+                    $target,
+                    trim(self::IMPORT_MEMO_MARKER.' 残高 '.$account->name.($comment !== '' ? ' '.$comment : '')),
+                    $skipped
+                );
             }
         }
 
-        sort($dates);
+        $messages = ['予算監視CSVを口座名照合でインポートしました（入出金'.($includeCardDeltas ? '・クレカ' : '').'・残高同期）。'];
+        if ($missingAccounts !== []) {
+            $messages[] = '未検出の口座: '.implode('、', array_keys($missingAccounts)).'（口座マスターの名称をCSV見出しと揃えてください）';
+        }
 
         return [
             'format' => self::FORMAT_BUDGET_MONITOR,
@@ -237,12 +304,128 @@ class FinanceCsvService
             'updated' => 0,
             'skipped' => $skipped,
             'deleted' => $deleted,
-            'from' => $dates[0] ?? null,
-            'to' => $dates !== [] ? $dates[array_key_last($dates)] : null,
-            'messages' => [
-                '予算監視CSVから入出金を展開しました（IN/OUT・PH Bank In/Out'.($includeCardDeltas ? '・クレカ増加' : '').'）。',
-            ],
+            'from' => $from,
+            'to' => $to,
+            'messages' => $messages,
         ];
+    }
+
+    private function createBudgetImportTransaction(
+        string $date,
+        string $type,
+        FinanceAccount $account,
+        float $amount,
+        string $memo,
+        int &$skipped,
+    ): int {
+        if ($this->transactionExists($date, $type, $account->id, $amount, $memo)) {
+            $skipped++;
+
+            return 0;
+        }
+
+        FinanceTransaction::query()->create([
+            'transaction_date' => $date,
+            'type' => $type,
+            'account_id' => $account->id,
+            'amount' => $amount,
+            'currency' => $account->currency,
+            'memo' => $memo,
+        ]);
+
+        return 1;
+    }
+
+    private function syncAccountBalanceToTarget(
+        FinanceAccount $account,
+        string $date,
+        float $target,
+        string $memo,
+        int &$skipped,
+    ): int {
+        $until = FinanceTransaction::query()
+            ->whereDate('transaction_date', '<=', $date)
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+        $current = $this->finance->calculateAccountBalance($account, $until);
+        $delta = round($target - $current, 2);
+        if (abs($delta) < 0.01) {
+            return 0;
+        }
+
+        $type = $delta > 0 ? 'income' : 'expense';
+        $amount = abs($delta);
+
+        return $this->createBudgetImportTransaction($date, $type, $account, $amount, $memo, $skipped);
+    }
+
+    /**
+     * @param Collection<int, FinanceAccount> $accounts
+     */
+    private function findAccountByLabel(
+        string $label,
+        Collection $accounts,
+        ?string $preferRegion = null,
+        ?string $preferKind = null,
+    ): ?FinanceAccount {
+        $normalized = $this->normalizeAccountLabel($label);
+        $aliases = [
+            'ph g/cash' => ['gcash', 'g/cash', 'ph g/cash', 'ph gcash', 'ph g cash'],
+            'ph petty cash' => ['ph petty cash', 'petty cash'],
+            'petty cash' => ['petty cash'],
+            'bpi' => ['bpi'],
+            '楽天visa' => ['楽天visa', 'rakuten visa', 'rakuten'],
+            '楽天visaプレミアム' => ['楽天visaプレミアム', 'rakuten visa premium'],
+            'amazon master' => ['amazon master', 'amazon'],
+            'paypay visa' => ['paypay visa', 'paypay'],
+            'jal jcb' => ['jal jcb', 'jal'],
+            'セブンjcb' => ['セブンjcb', 'seven jcb', 'seven'],
+            'ファミjcb' => ['ファミjcb', 'fami jcb', 'fami'],
+            'epos visa' => ['epos visa', 'epos'],
+            '三井住友cl' => ['三井住友cl', '三井住友 (cl)', 'smbc cl'],
+            'bpi master' => ['bpi master', 'bpi mastercard'],
+            'bankard gold master' => ['bankard gold master', 'bankard mastercard gold', 'bankard'],
+            'bankard airmiles visa' => ['bankard airmiles visa'],
+            'paypay銀行' => ['paypay銀行'],
+            '楽天銀行' => ['楽天銀行'],
+        ];
+
+        $candidates = $aliases[$normalized] ?? [$normalized];
+        $matches = $accounts->filter(function (FinanceAccount $account) use ($candidates) {
+            $name = $this->normalizeAccountLabel($account->name);
+
+            return in_array($name, $candidates, true);
+        })->values();
+
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        if ($preferRegion !== null) {
+            $regionMatches = $matches->where('region', $preferRegion)->values();
+            if ($regionMatches->isNotEmpty()) {
+                $matches = $regionMatches;
+            }
+        }
+
+        if ($preferKind !== null) {
+            $kindMatches = $matches->where('kind', $preferKind)->values();
+            if ($kindMatches->isNotEmpty()) {
+                $matches = $kindMatches;
+            }
+        }
+
+        return $matches->first();
+    }
+
+    private function normalizeAccountLabel(string $label): string
+    {
+        $value = trim(mb_strtolower($label));
+        $value = str_replace(['　', '_'], ' ', $value);
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+        return $value;
     }
 
     /**
@@ -364,15 +547,25 @@ class FinanceCsvService
         $accounts = FinanceAccount::query()->where('is_active', true)->orderBy('sort_order')->get()->keyBy('slug');
         $allTransactions = FinanceTransaction::query()->with(['account', 'toAccount'])->orderBy('transaction_date')->orderBy('id')->get();
 
-        $header = [
-            'Date', 'Day', 'Balance', 'IN', 'OUT',
-            'Rakuten', 'Paypay', 'Seven', '三井住友', 'Cash',
-            'Rakuten', 'Amazon', 'Paypay', 'JAL', 'Seven', 'Fami', 'EPOS', '(CL)', 'Total',
-            'PH', 'BPI', 'PH Bank In', 'PH Bank Out', 'PH G/Cash', 'BPI Master', 'BanKard', 'Total', 'Comment',
+        $lines = [self::BUDGET_MONITOR_HEADERS];
+        $dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
+        $jpCardSlugs = [
+            'jp_card_rakuten',
+            'jp_card_rakuten_premium',
+            'jp_card_amazon',
+            'jp_card_paypay',
+            'jp_card_jal',
+            'jp_card_seven',
+            'jp_card_fami',
+            'jp_card_epos',
+            'jp_card_smbc_cl',
+        ];
+        $phCardSlugs = [
+            'ph_card_bpi_mc',
+            'ph_card_bankard_mc_gold',
+            'ph_card_bankard_airmiles',
         ];
 
-        $lines = [$header];
-        $dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
         $cursor = strtotime($monthStart);
         $end = strtotime($monthEnd);
 
@@ -381,66 +574,76 @@ class FinanceCsvService
             $dayTransactions = $allTransactions->filter(
                 fn (FinanceTransaction $transaction) => $transaction->transaction_date->format('Y-m-d') === $date
             );
+            $until = $this->transactionsUntilDate($allTransactions, $date);
 
             $jpIncome = $this->sumByAccountKind($dayTransactions, 'income', 'jp', ['bank', 'cash', 'wallet']);
             $jpExpense = $this->sumByAccountKind($dayTransactions, 'expense', 'jp', ['bank', 'cash', 'wallet']);
             $phBankIn = $this->sumForAccountSlug($dayTransactions, 'income', 'ph_bank_bpi');
             $phBankOut = $this->sumForAccountSlug($dayTransactions, 'expense', 'ph_bank_bpi');
+            $transferOut = $dayTransactions
+                ->filter(fn (FinanceTransaction $t) => $t->type === 'transfer')
+                ->sum(fn (FinanceTransaction $t) => (float) $t->amount);
+
             $comment = $dayTransactions
-                ->map(fn (FinanceTransaction $transaction) => trim((string) $transaction->memo))
+                ->map(function (FinanceTransaction $transaction) {
+                    $memo = trim((string) $transaction->memo);
+
+                    return str_starts_with($memo, self::IMPORT_MEMO_MARKER)
+                        ? trim(mb_substr($memo, mb_strlen(self::IMPORT_MEMO_MARKER)))
+                        : $memo;
+                })
                 ->filter()
+                ->unique()
                 ->implode(' / ');
 
             $jpBankBalances = [];
-            foreach (self::BUDGET_MONITOR_JP_BANK_BALANCE_COLUMNS as $slug) {
+            foreach (self::BUDGET_MONITOR_JP_BANK_SLUGS as $slug) {
                 $account = $accounts->get($slug);
-                $jpBankBalances[] = $account
-                    ? $this->finance->calculateAccountBalance($account, $this->transactionsUntilDate($allTransactions, $date))
-                    : 0;
+                $jpBankBalances[] = $account ? $this->finance->calculateAccountBalance($account, $until) : 0.0;
             }
 
-            $jpCardBalances = [];
-            foreach (self::BUDGET_MONITOR_JP_CARD_BALANCE_COLUMNS as $slug) {
-                $account = $accounts->get($slug);
-                $jpCardBalances[] = $account
-                    ? $this->finance->calculateAccountBalance($account, $this->transactionsUntilDate($allTransactions, $date))
-                    : 0;
+            $jpCardAmounts = [];
+            foreach ($jpCardSlugs as $slug) {
+                $jpCardAmounts[] = $this->sumForAccountSlug($dayTransactions, 'expense', $slug);
             }
 
-            $phCardBalances = [];
-            foreach (self::BUDGET_MONITOR_PH_CARD_BALANCE_COLUMNS as $slug) {
-                $account = $accounts->get($slug);
-                $phCardBalances[] = $account
-                    ? $this->finance->calculateAccountBalance($account, $this->transactionsUntilDate($allTransactions, $date))
-                    : 0;
+            $phCardAmounts = [];
+            foreach ($phCardSlugs as $slug) {
+                $phCardAmounts[] = $this->sumForAccountSlug($dayTransactions, 'expense', $slug);
             }
 
-            $jpBalance = array_sum($jpBankBalances) + array_sum($jpCardBalances);
             $bpiBalance = $accounts->get('ph_bank_bpi')
-                ? $this->finance->calculateAccountBalance($accounts->get('ph_bank_bpi'), $this->transactionsUntilDate($allTransactions, $date))
-                : 0;
+                ? $this->finance->calculateAccountBalance($accounts->get('ph_bank_bpi'), $until)
+                : 0.0;
             $phCashBalance = $accounts->get('ph_cash_petty')
-                ? $this->finance->calculateAccountBalance($accounts->get('ph_cash_petty'), $this->transactionsUntilDate($allTransactions, $date))
-                : 0;
-            $phBalance = $bpiBalance + $phCashBalance + array_sum($phCardBalances);
+                ? $this->finance->calculateAccountBalance($accounts->get('ph_cash_petty'), $until)
+                : 0.0;
+            $jpBalance = array_sum($jpBankBalances);
+
+            $fmt = fn (float $amount) => $this->formatBudgetMonitorAmount($amount);
+            $fmtBlankZero = fn (float $amount) => $amount > 0 ? $this->formatBudgetMonitorAmount($amount) : '';
 
             $lines[] = [
                 $this->formatBudgetMonitorDate($date),
                 $dayLabels[(int) date('w', $cursor)],
-                $this->formatCsvAmount($jpBalance),
-                $this->formatCsvAmount($jpIncome),
-                $this->formatCsvAmount($jpExpense),
-                ...array_map(fn (float $amount) => $this->formatCsvAmount($amount), $jpBankBalances),
-                ...array_map(fn (float $amount) => $amount > 0 ? $this->formatCsvAmount($amount) : '', $jpCardBalances),
-                $this->formatCsvAmount(array_sum($jpCardBalances)),
-                $this->formatCsvAmount($phBalance),
-                $this->formatCsvAmount($bpiBalance),
-                $this->formatCsvAmount($phBankIn),
-                $this->formatCsvAmount($phBankOut),
-                $this->formatCsvAmount($phCashBalance),
-                ...array_map(fn (float $amount) => $amount > 0 ? $this->formatCsvAmount($amount) : '', $phCardBalances),
-                $this->formatCsvAmount(array_sum($phCardBalances)),
+                $fmt($jpBalance),
+                $fmt($jpIncome),
+                $fmt($jpExpense),
+                $transferOut > 0 ? $fmt((float) $transferOut) : ($jpIncome > 0 ? $fmt($jpIncome) : ''),
+                ...array_map($fmt, $jpBankBalances),
+                $fmt($bpiBalance),
+                $fmt($phBankIn),
+                $fmt($phBankOut),
+                $fmt($phCashBalance),
                 $comment,
+                ...array_map($fmtBlankZero, $jpCardAmounts),
+                $fmt(array_sum($jpCardAmounts)),
+                $fmt($bpiBalance),
+                $fmt($phBankIn),
+                $fmt($phBankOut),
+                $fmt($phCashBalance),
+                ...array_map($fmtBlankZero, $phCardAmounts),
+                $fmt(array_sum($phCardAmounts)),
             ];
 
             $cursor = strtotime('+1 day', $cursor);
@@ -810,15 +1013,90 @@ class FinanceCsvService
         return $rows;
     }
 
-    /** @param list<string|null> $header @return array<string, int> */
+    /**
+     * @param list<string|null> $header
+     * @return array<string, list<int>> ラベル => 出現インデックス一覧（先頭から）
+     */
     private function buildBudgetMonitorColumnMap(array $header): array
     {
         $map = [];
         foreach ($header as $index => $label) {
-            $map[trim((string) $label)] = $index;
+            $key = trim((string) $label);
+            if ($key === '') {
+                continue;
+            }
+            $map[$key] ??= [];
+            $map[$key][] = (int) $index;
         }
 
         return $map;
+    }
+
+    /**
+     * クレカ列を「見出し名 = 口座名」で解決
+     *
+     * @param array<string, list<int>> $columnMap
+     * @param list<string|null> $header
+     * @param Collection<int, FinanceAccount> $accounts
+     * @return array<int, FinanceAccount> index => account
+     */
+    private function resolveBudgetMonitorCardAccounts(array $columnMap, array $header, Collection $accounts): array
+    {
+        $commentIndex = $columnMap['Comment'][0] ?? $columnMap['comment'][0] ?? null;
+        $skip = [
+            'date', 'day', 'balance', 'in', 'out', '送金', 'comment', 'total', 'ph',
+            '楽天銀行', 'paypay銀行', 'セブン銀行', '三井住友銀行', 'petty cash',
+            'bpi', 'ph bank in', 'ph bank out', 'ph petty cash', 'ph g/cash', 'ph gcash', 'gcash',
+        ];
+        $cards = $accounts->where('kind', 'credit_card')->values();
+
+        $resolveFrom = function (bool $requireAfterComment) use ($header, $commentIndex, $skip, $cards): array {
+            $resolved = [];
+            $usedIds = [];
+            foreach ($header as $index => $label) {
+                $label = trim((string) $label);
+                if ($label === '') {
+                    continue;
+                }
+                if ($requireAfterComment && $commentIndex !== null && $index <= $commentIndex) {
+                    continue;
+                }
+                $key = $this->normalizeAccountLabel($label);
+                if (in_array($key, $skip, true)) {
+                    continue;
+                }
+                $account = $this->findAccountByLabel($label, $cards);
+                if (! $account || isset($usedIds[$account->id])) {
+                    continue;
+                }
+                $resolved[(int) $index] = $account;
+                $usedIds[$account->id] = true;
+            }
+
+            return $resolved;
+        };
+
+        $resolved = $resolveFrom(true);
+        if (count($resolved) < 1) {
+            $resolved = $resolveFrom(false);
+        }
+
+        ksort($resolved);
+
+        return $resolved;
+    }
+
+    private function formatBudgetMonitorAmount(float $amount): string
+    {
+        if (abs($amount) < 0.00001) {
+            return '0';
+        }
+
+        if (fmod($amount, 1.0) === 0.0) {
+            return (string) (int) round($amount);
+        }
+
+        return rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
     }
 
     /** @param list<string> $header @return array<string, int> */
@@ -935,7 +1213,12 @@ class FinanceCsvService
         $csv = stream_get_contents($output);
         fclose($output);
 
-        return $csv === false ? '' : $csv;
+        if ($csv === false || $csv === '') {
+            return '';
+        }
+
+        // Excel（日本語 Windows）が UTF-8 を正しく開くための BOM
+        return "\xEF\xBB\xBF".$csv;
     }
 
     /** @param Collection<int, FinanceAccount> $accountsById @param Collection<string, FinanceAccount> $accountsByName */

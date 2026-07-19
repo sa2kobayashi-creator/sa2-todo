@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>ダッシュボード - Sa2 ToDo</title>
+    <title>{{ __('ダッシュボード') }} - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body>
@@ -19,12 +19,12 @@
         <div class="calendar-toolbar">
           <div class="nav-group">
             <a class="button-link secondary icon-btn" href="{{ $prevUrl }}">‹</a>
-            <a class="button-link secondary" href="{{ $todayUrl }}">今日</a>
+            <a class="button-link secondary" href="{{ $todayUrl }}">{{ __('今日') }}</a>
             <a class="button-link secondary icon-btn" href="{{ $nextUrl }}">›</a>
           </div>
           <div class="month-label">{{ $periodLabel }}</div>
           <div class="calendar-toolbar-links">
-            <div class="calendar-view-switch" role="group" aria-label="表示切替">
+            <div class="calendar-view-switch" role="group" aria-label="{{ __('表示切替') }}">
               @foreach($viewLabels as $viewKey => $viewLabel)
                 <a
                   href="{{ $buildViewUrl($viewKey) }}"
@@ -33,8 +33,8 @@
                 >{{ $viewLabel }}</a>
               @endforeach
             </div>
-            <a class="button-link secondary" href="/notes">メモ</a>
-            <a class="button-link" href="/todos">Todo 管理へ</a>
+            <a class="button-link secondary" href="/notes">{{ __('メモ') }}</a>
+            <a class="button-link" href="/todos">{{ __('Todo 管理へ') }}</a>
           </div>
         </div>
 
@@ -73,8 +73,8 @@
                           type="button"
                           class="day-note-badge"
                           data-date="{{ $cell['date'] }}"
-                          title="メモ {{ count($cellNotes) }}件"
-                          aria-label="{{ $cell['date'] }} のメモ {{ count($cellNotes) }}件"
+                          title="{{ __('メモ') }} {{ count($cellNotes) }}{{ __('件') }}"
+                          aria-label="{{ $cell['date'] }} {{ __('のメモ') }} {{ count($cellNotes) }}{{ __('件') }}"
                         >
                           <span class="day-note-badge-icon" aria-hidden="true">📝</span>
                           @if(count($cellNotes) > 1)
@@ -82,7 +82,7 @@
                           @endif
                         </button>
                       @endif
-                      <button type="button" class="day-add-btn" data-date="{{ $cell['date'] }}" title="ToDo を追加">+</button>
+                      <button type="button" class="day-add-btn" data-date="{{ $cell['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
                     </div>
                   </div>
                   @if(!empty($cell['holidayName']))
@@ -117,7 +117,7 @@
                     @endforeach
                     @if(($cellData['hiddenCount'] ?? 0) > 0)
                       <button type="button" class="event-more" data-date="{{ $cell['date'] }}">
-                        他 {{ $cellData['hiddenCount'] }} 件
+                        {{ __('他') }} {{ $cellData['hiddenCount'] }} {{ __('件') }}
                       </button>
                     @endif
                   </div>
@@ -139,7 +139,7 @@
                     @endforeach
                     @if(($cellData['hiddenCount'] ?? 0) > 0)
                       <button type="button" class="event-more" data-date="{{ $cell['date'] }}">
-                        他 {{ $cellData['hiddenCount'] }} 件
+                        {{ __('他') }} {{ $cellData['hiddenCount'] }} {{ __('件') }}
                       </button>
                     @endif
                   </div>
@@ -152,10 +152,10 @@
       </div>
 
       @if($view === 'month')
-      <section class="mobile-month-agenda panel" aria-label="{{ $month }}月の予定一覧">
-        <h3>{{ $month }}月の予定（{{ count($monthAgenda) }}件）</h3>
+      <section class="mobile-month-agenda panel" aria-label="{{ $month }}{{ __('月の予定一覧') }}">
+        <h3>{{ $month }}{{ __('月の予定') }}（{{ count($monthAgenda) }}{{ __('件') }}）</h3>
         @if(count($monthAgenda) === 0)
-          <p class="hint">今月の予定はありません。カレンダーの + から ToDo を追加するか、<a href="/notes">メモ</a>を作成できます。</p>
+          <p class="hint">{{ __('今月の予定はありません。カレンダーの + から ToDo を追加するか、') }}<a href="/notes">{{ __('メモ') }}</a>{{ __('を作成できます。') }}</p>
         @else
           <ul class="mobile-agenda-list">
             @foreach($monthAgenda as $item)
@@ -164,7 +164,7 @@
                   <button type="button" class="mobile-agenda-item mobile-agenda-note" data-note-id="{{ $item['note']['id'] }}">
                     <span class="mobile-agenda-date">{{ $getNoteRegisteredDate($item['note']) }}</span>
                     <span class="mobile-agenda-title">📝 {{ $getNoteDisplayTitle($item['note']) }}</span>
-                    <span class="mobile-agenda-meta">メモ</span>
+                    <span class="mobile-agenda-meta">{{ __('メモ') }}</span>
                   </button>
                 </li>
               @elseif(($item['kind'] ?? '') === 'todo')
@@ -177,7 +177,7 @@
                       @if(!empty($todo['startTime']))
                         {{ $todo['startTime'] }}@if(!empty($todo['endTime']) && $todo['endTime'] !== $todo['startTime'])～{{ $todo['endTime'] }}@endif
                       @else
-                        終日
+                        {{ __('終日') }}
                       @endif
                     </span>
                   </button>
@@ -191,7 +191,7 @@
 
       @if(count($undated) > 0)
         <div class="panel calendar-sidebar">
-          <h3>期間未設定（{{ count($undated) }}件）</h3>
+          <h3>{{ __('期間未設定') }}（{{ count($undated) }}{{ __('件') }}）</h3>
           <ul class="undated-list">
             @foreach($undated as $todo)
               <li @class(['done' => !empty($todo['completed'])])>
@@ -211,8 +211,8 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="day-modal-title">
         <div class="modal-header">
-          <h2 id="day-modal-title">この日の予定</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="day-modal-title">{{ __('この日の予定') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <ul class="modal-day-list" id="day-modal-list"></ul>
       </div>
@@ -222,50 +222,50 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="todo-modal-title">
         <div class="modal-header">
-          <h2 id="todo-modal-title">ToDo 編集</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="todo-modal-title">{{ __('ToDo 編集') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" id="todo-edit-form" class="modal-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <label>
-            タイトル
+            {{ __('タイトル') }}
             <textarea name="title" rows="4" required></textarea>
           </label>
-          <div class="modal-date-mode" role="group" aria-label="指定方法">
-            <span class="field-label">指定方法</span>
+          <div class="modal-date-mode" role="group" aria-label="{{ __('指定方法') }}">
+            <span class="field-label">{{ __('指定方法') }}</span>
             <label class="radio-inline">
               <input type="radio" name="dateMode" id="modal-date-mode-single" value="single" />
-              単日
+              {{ __('単日') }}
             </label>
             <label class="radio-inline">
               <input type="radio" name="dateMode" id="modal-date-mode-range" value="range" />
-              期間
+              {{ __('期間') }}
             </label>
           </div>
           <label id="modal-start-date-label">
-            <span id="modal-start-date-text">開始日</span>
+            <span id="modal-start-date-text">{{ __('開始日') }}</span>
             <input type="date" name="startDate" id="modal-start-date" />
           </label>
           <label id="modal-end-date-label">
-            終了日
+            {{ __('終了日') }}
             <input type="date" name="endDate" id="modal-end-date" />
           </label>
           <div class="schedule-option">
             <label class="schedule-toggle">
               <input type="checkbox" id="modal-enable-time-range" />
-              時間帯を追加
+              {{ __('時間帯を追加') }}
             </label>
             <div class="time-range-panel date-panel-hidden" id="modal-time-range-panel">
               <div class="time-range-inputs">
-                <input type="time" name="startTime" id="modal-start-time" aria-label="開始時刻" disabled />
+                <input type="time" name="startTime" id="modal-start-time" aria-label="{{ __('開始時刻') }}" disabled />
                 <span class="time-range-separator" aria-hidden="true">～</span>
-                <input type="time" name="endTime" id="modal-end-time" aria-label="終了時刻" disabled />
+                <input type="time" name="endTime" id="modal-end-time" aria-label="{{ __('終了時刻') }}" disabled />
               </div>
             </div>
           </div>
           <label>
-            重要度
+            {{ __('重要度') }}
             <select name="importance" id="modal-importance">
               @foreach($importanceLabels as $value => $label)
                 <option value="{{ $value }}">{{ $label }}</option>
@@ -273,7 +273,7 @@
             </select>
           </label>
           <label>
-            ステータス
+            {{ __('ステータス') }}
             <select name="category" id="modal-category">
               @foreach($categoryLabels as $value => $label)
                 <option value="{{ $value }}">{{ $label }}</option>
@@ -282,18 +282,18 @@
           </label>
           <label class="inline-check" id="modal-completed-label">
             <input type="checkbox" name="completed" value="1" />
-            完了
+            {{ __('完了') }}
           </label>
         </form>
-        <form method="post" id="todo-delete-form" class="modal-delete-form" onsubmit="return confirm('この ToDo を削除しますか？')">
+        <form method="post" id="todo-delete-form" class="modal-delete-form" onsubmit='return confirm(@json(__('この ToDo を削除しますか？')))'>
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
         </form>
         <div class="modal-actions">
-          <button type="button" class="secondary" data-close-modal>キャンセル</button>
-          <button type="submit" form="todo-edit-form" id="todo-modal-save">保存</button>
-          <button type="button" class="secondary" id="todo-modal-copy" title="コピーして新規作成">コピー</button>
-          <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">削除</button>
+          <button type="button" class="secondary" data-close-modal>{{ __('キャンセル') }}</button>
+          <button type="submit" form="todo-edit-form" id="todo-modal-save">{{ __('保存') }}</button>
+          <button type="button" class="secondary" id="todo-modal-copy" title="{{ __('コピーして新規作成') }}">{{ __('コピー') }}</button>
+          <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">{{ __('削除') }}</button>
         </div>
       </div>
     </div>
@@ -302,8 +302,8 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="note-day-modal-title">
         <div class="modal-header">
-          <h2 id="note-day-modal-title">この日のメモ</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="note-day-modal-title">{{ __('この日のメモ') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <ul class="modal-day-list note-day-list" id="note-day-modal-list"></ul>
       </div>
@@ -313,13 +313,13 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog note-modal-dialog" role="dialog" aria-labelledby="note-modal-title">
         <div class="modal-header">
-          <h2 id="note-modal-title">メモ</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="note-modal-title">{{ __('メモ') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <p class="note-modal-meta" id="note-modal-meta"></p>
         <div class="note-modal-content" id="note-modal-content"></div>
         <div class="modal-actions">
-          <button type="button" class="secondary" data-close-modal>閉じる</button>
+          <button type="button" class="secondary" data-close-modal>{{ __('閉じる') }}</button>
         </div>
       </div>
     </div>
@@ -328,8 +328,8 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog note-modal-dialog" role="dialog" aria-labelledby="note-compose-modal-title">
         <div class="modal-header">
-          <h2 id="note-compose-modal-title">メモを追加</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="note-compose-modal-title">{{ __('メモを追加') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" action="/notes" id="note-compose-form" class="modal-form note-compose-form">
           @csrf
@@ -337,19 +337,19 @@
           <input type="hidden" name="type" value="text" />
           <input type="hidden" name="color" id="note-compose-color" value="default" />
           <label class="note-date-field">
-            <span class="field-label">登録日</span>
+            <span class="field-label">{{ __('登録日') }}</span>
             <input type="date" name="registeredDate" id="note-compose-date" required />
           </label>
           <label>
-            タイトル
-            <input type="text" name="title" id="note-compose-title" placeholder="タイトル" autocomplete="off" />
+            {{ __('タイトル') }}
+            <input type="text" name="title" id="note-compose-title" placeholder="{{ __('タイトル') }}" autocomplete="off" />
           </label>
           <label>
-            本文
-            <textarea name="body" id="note-compose-body" rows="6" placeholder="メモを入力..."></textarea>
+            {{ __('本文') }}
+            <textarea name="body" id="note-compose-body" rows="6" placeholder="{{ __('メモを入力...') }}"></textarea>
           </label>
           <div class="note-composer-footer">
-            <div class="note-color-picker" role="group" aria-label="色">
+            <div class="note-color-picker" role="group" aria-label="{{ __('色') }}">
               @foreach($colorKeys as $key)
                 <button
                   type="button"
@@ -362,8 +362,8 @@
               @endforeach
             </div>
             <div class="note-composer-actions">
-              <button type="button" class="secondary" data-close-modal>キャンセル</button>
-              <button type="submit" class="button-link">保存</button>
+              <button type="button" class="secondary" data-close-modal>{{ __('キャンセル') }}</button>
+              <button type="submit" class="button-link">{{ __('保存') }}</button>
             </div>
           </div>
         </form>
@@ -374,8 +374,8 @@
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="quick-add-modal-title">
         <div class="modal-header">
-          <h2 id="quick-add-modal-title">ToDo を追加</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="閉じる">×</button>
+          <h2 id="quick-add-modal-title">{{ __('ToDo を追加') }}</h2>
+          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" action="/todos" id="quick-add-modal-form" class="modal-form quick-add-modal-form">
           @csrf
@@ -384,13 +384,13 @@
           <input type="hidden" name="endDate" id="quick-add-end" />
           <input type="hidden" name="splitByLine" value="1" />
           <label>
-            タイトル（1行1件）
-            <textarea name="titles" id="quick-add-titles" rows="6" placeholder="1行1件で入力" required></textarea>
+            {{ __('タイトル（1行1件）') }}
+            <textarea name="titles" id="quick-add-titles" rows="6" placeholder="{{ __('1行1件で入力') }}" required></textarea>
           </label>
           <div class="modal-actions quick-add-modal-actions">
-            <button type="button" class="secondary" id="quick-add-memo-btn">メモを追加</button>
-            <button type="button" class="secondary" data-close-modal>閉じる</button>
-            <button type="submit">追加</button>
+            <button type="button" class="secondary" id="quick-add-memo-btn">{{ __('メモを追加') }}</button>
+            <button type="button" class="secondary" data-close-modal>{{ __('閉じる') }}</button>
+            <button type="submit">{{ __('追加') }}</button>
           </div>
         </form>
       </div>
@@ -447,10 +447,10 @@
         if (note.title && note.title.trim()) return note.title.trim()
         if (note.type === 'checklist' && note.items && note.items.length) {
           const first = note.items.find((item) => !item.checked) || note.items[0]
-          return first?.text || '（無題）'
+          return first?.text || @json(__('（無題）'));
         }
         const line = String(note.body || '').split(/\r\n|\r|\n/).find((row) => row.trim())
-        return line?.trim() || '（無題）'
+        return line?.trim() || @json(__('（無題）'));
       }
 
       function notesForDate(date) {
@@ -478,7 +478,7 @@
       function openNoteComposeModal(date) {
         if (!noteComposeModal || !noteComposeForm) return
         closeModals()
-        document.getElementById('note-compose-modal-title').textContent = `${date} にメモを追加`
+        document.getElementById('note-compose-modal-title').textContent = @json(__(':date にメモを追加')).replace(':date', date);
         if (noteComposeDate) noteComposeDate.value = date
         if (noteComposeTitle) noteComposeTitle.value = ''
         if (noteComposeBody) noteComposeBody.value = ''
@@ -495,7 +495,7 @@
         if (!quickAddModal) return
         quickAddDate = date
         closeModals()
-        document.getElementById('quick-add-modal-title').textContent = `${date} に ToDo を追加`
+        document.getElementById('quick-add-modal-title').textContent = @json(__(':date に ToDo を追加')).replace(':date', date);
         if (quickAddStart) quickAddStart.value = date
         if (quickAddEnd) quickAddEnd.value = date
         if (quickAddTitles) quickAddTitles.value = ''
@@ -554,7 +554,7 @@
         const isSingle = mode === 'single'
         if (modalDateModeSingle) modalDateModeSingle.checked = isSingle
         if (modalDateModeRange) modalDateModeRange.checked = !isSingle
-        if (modalStartDateText) modalStartDateText.textContent = isSingle ? '日付' : '開始日'
+        if (modalStartDateText) modalStartDateText.textContent = isSingle ? @json(__('日付')) : @json(__('開始日'));
         if (modalEndDateLabel) modalEndDateLabel.classList.toggle('date-panel-hidden', isSingle)
         if (isSingle) {
           const start = editForm?.querySelector('#modal-start-date')?.value
@@ -588,7 +588,7 @@
       function setTodoModalMode(mode) {
         todoModalMode = mode
         const isCopy = mode === 'copy'
-        if (todoModalTitle) todoModalTitle.textContent = isCopy ? 'ToDo をコピーして追加' : 'ToDo 編集'
+        if (todoModalTitle) todoModalTitle.textContent = isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集'));
         if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isCopy
         if (todoModalCopyBtn) todoModalCopyBtn.hidden = isCopy
         if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isCopy)
@@ -670,9 +670,9 @@
         const title = note.title && note.title.trim() ? note.title.trim() : noteDisplayTitle(note)
         document.getElementById('note-modal-title').textContent = title
         const meta = []
-        meta.push(`登録日: ${noteRegisteredDate(note)}`)
-        if (note.pinned) meta.push('ピン留め')
-        if (note.type === 'checklist') meta.push('チェックリスト')
+        meta.push(`${@json(__('登録日:'))} ${noteRegisteredDate(note)}`);
+        if (note.pinned) meta.push(@json(__('ピン留め')));
+        if (note.type === 'checklist') meta.push(@json(__('チェックリスト')));
         document.getElementById('note-modal-meta').textContent = meta.join(' / ')
         const content = document.getElementById('note-modal-content')
         if (note.type === 'checklist' && note.items && note.items.length) {
@@ -686,7 +686,7 @@
           const body = String(note.body || '').trim()
           content.innerHTML = body
             ? `<div class="note-modal-body">${escapeHtml(body).replace(/\r\n|\r|\n/g, '<br>')}</div>`
-            : '<p class="hint">本文はありません。</p>'
+            : `<p class="hint">${@json(__('本文はありません。'))}</p>`
         }
         noteModal.hidden = false
       }
@@ -701,7 +701,7 @@
         dayModal.hidden = true
         todoModal.hidden = true
         noteModal.hidden = true
-        document.getElementById('note-day-modal-title').textContent = `${date} のメモ`
+        document.getElementById('note-day-modal-title').textContent = @json(__(':date のメモ')).replace(':date', date);
         const list = document.getElementById('note-day-modal-list')
         list.innerHTML = ''
         dayNotes.forEach((note) => {
@@ -739,7 +739,7 @@
         if (todos.length === 0 && dayNotes.length === 0) return
         const list = document.getElementById('day-modal-list')
         list.innerHTML = ''
-        document.getElementById('day-modal-title').textContent = `${date} の予定`
+        document.getElementById('day-modal-title').textContent = @json(__(':date の予定')).replace(':date', date);
         todos.forEach((todo) => {
           const li = document.createElement('li')
           const btn = document.createElement('button')
@@ -848,12 +848,12 @@
             })
             const data = await res.json()
             if (!res.ok || !data.ok) {
-              window.alert(data.message || '移動に失敗しました')
+              window.alert(data.message || @json(__('移動に失敗しました')));
               return
             }
             window.location.reload()
           } catch (_) {
-            window.alert('移動中に通信エラーが発生しました')
+            window.alert(@json(__('移動中に通信エラーが発生しました')));
           }
         })
       })
@@ -893,11 +893,11 @@
           document.body.removeChild(ta)
         }
         const copyBtn = eventTooltip?.querySelector('.event-hover-tooltip-copy')
-        if (copyBtn) copyBtn.textContent = 'コピーしました'
+        if (copyBtn) copyBtn.textContent = @json(__('コピーしました'));
         if (eventTooltip) eventTooltip.classList.add('is-copied')
         clearTimeout(tooltipCopiedTimer)
         tooltipCopiedTimer = setTimeout(() => {
-          if (copyBtn) copyBtn.textContent = 'クリップボードにコピー'
+          if (copyBtn) copyBtn.textContent = @json(__('クリップボードにコピー'));
           eventTooltip?.classList.remove('is-copied')
         }, 1500)
       }
@@ -907,7 +907,7 @@
           eventTooltip.hidden = true
           eventTooltip.classList.remove('is-copied')
           const copyBtn = eventTooltip.querySelector('.event-hover-tooltip-copy')
-          if (copyBtn) copyBtn.textContent = 'クリップボードにコピー'
+          if (copyBtn) copyBtn.textContent = @json(__('クリップボードにコピー'));
         }
         currentTooltipSource = null
       }
@@ -940,7 +940,7 @@
           `<span class="event-hover-tooltip-title">${escapeHtml(el.dataset.tipTitle)}</span>`,
           `<span class="event-hover-tooltip-date">${escapeHtml(el.dataset.tipDate || '')}</span>`,
           `<span class="event-hover-tooltip-time">${escapeHtml(el.dataset.tipTime || '—')}</span>`,
-          '<button type="button" class="event-hover-tooltip-copy">クリップボードにコピー</button>'
+          `<button type="button" class="event-hover-tooltip-copy">${@json(__('クリップボードにコピー'))}</button>`
         ].join('')
         eventTooltip.hidden = false
         eventTooltip.classList.remove('is-copied')

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>メモ - Sa2 ToDo</title>
+    <title>{{ __('メモ') }} - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="notes-page">
@@ -16,8 +16,8 @@
 
       @if($filterDate)
         <p class="hint inline-hint notes-date-filter">
-          登録日: <strong>{{ $filterDate }}</strong>
-          <a href="{{ $buildNotesQuery($filters) }}">日付フィルタを解除</a>
+          {{ __('登録日:') }} <strong>{{ $filterDate }}</strong>
+          <a href="{{ $buildNotesQuery($filters) }}">{{ __('日付フィルタを解除') }}</a>
         </p>
       @endif
 
@@ -26,17 +26,17 @@
           @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
           @if($filterDate)<input type="hidden" name="date" value="{{ $filterDate }}" />@endif
           <label class="notes-period-label">
-            表示月
+            {{ __('表示月') }}
             <input type="month" name="period" id="notes-period" value="{{ $periodValue }}" @disabled($filterDate) />
           </label>
           <label class="notes-search-label">
-            <span class="visually-hidden">メモを検索</span>
-            <input type="search" name="q" value="{{ $searchQuery }}" placeholder="メモを検索" aria-label="メモを検索" />
+            <span class="visually-hidden">{{ __('メモを検索') }}</span>
+            <input type="search" name="q" value="{{ $searchQuery }}" placeholder="{{ __('メモを検索') }}" aria-label="{{ __('メモを検索') }}" />
           </label>
           <label class="notes-category-filter">
-            カテゴリー
-            <select name="category" id="notes-category-filter" aria-label="カテゴリー">
-              <option value="" @selected($filterCategory === '')>すべて</option>
+            {{ __('カテゴリー') }}
+            <select name="category" id="notes-category-filter" aria-label="{{ __('カテゴリー') }}">
+              <option value="" @selected($filterCategory === '')>{{ __('すべて') }}</option>
               @foreach($noteCategories as $key => $label)
                 <option value="{{ $key }}" @selected($filterCategory === $key)>{{ $label }}</option>
               @endforeach
@@ -44,9 +44,9 @@
           </label>
         </form>
         @if($showArchived)
-          <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => false])) }}" class="button-link secondary">メモに戻る</a>
+          <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => false])) }}" class="button-link secondary">{{ __('メモに戻る') }}</a>
         @else
-          <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => true])) }}" class="button-link secondary">アーカイブ</a>
+          <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => true])) }}" class="button-link secondary">{{ __('アーカイブ') }}</a>
         @endif
       </div>
 
@@ -58,17 +58,17 @@
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
               <input type="hidden" name="type" id="composer-type" value="text" />
               <input type="hidden" name="color" id="composer-color" value="default" />
-              <div class="note-composer-collapsed" id="composer-collapsed" tabindex="0" role="button" aria-label="メモを作成">
-                メモを入力...
+              <div class="note-composer-collapsed" id="composer-collapsed" tabindex="0" role="button" aria-label="{{ __('メモを作成') }}">
+                {{ __('メモを入力...') }}
               </div>
               <div class="note-composer-expanded date-panel-hidden" id="composer-expanded">
                 <div class="note-composer-meta">
                   <label class="note-date-field">
-                    <span class="field-label">登録日</span>
+                    <span class="field-label">{{ __('登録日') }}</span>
                     <input type="date" name="registeredDate" id="composer-registered-date" value="{{ $defaultRegisteredDate }}" />
                   </label>
                   <label class="note-category-field">
-                    <span class="field-label">カテゴリー</span>
+                    <span class="field-label">{{ __('カテゴリー') }}</span>
                     <select name="category" id="composer-category">
                       @foreach($noteCategories as $key => $label)
                         <option value="{{ $key }}" @selected($key === $defaultCategory)>{{ $label }}</option>
@@ -76,16 +76,16 @@
                     </select>
                   </label>
                 </div>
-                <input type="text" name="title" id="composer-title" placeholder="タイトル" autocomplete="off" />
+                <input type="text" name="title" id="composer-title" placeholder="{{ __('タイトル') }}" autocomplete="off" />
                 <div class="composer-text-panel" id="composer-text-panel">
-                  <textarea name="body" id="composer-body" placeholder="メモを入力..." rows="4"></textarea>
+                  <textarea name="body" id="composer-body" placeholder="{{ __('メモを入力...') }}" rows="4"></textarea>
                 </div>
                 <div class="composer-checklist-panel date-panel-hidden" id="composer-checklist-panel">
                   <div class="checklist-editor" id="composer-checklist"></div>
-                  <button type="button" class="text-btn" id="composer-add-item">項目を追加</button>
+                  <button type="button" class="text-btn" id="composer-add-item">{{ __('項目を追加') }}</button>
                 </div>
                 <div class="note-composer-footer">
-                  <div class="note-color-picker" role="group" aria-label="色">
+                  <div class="note-color-picker" role="group" aria-label="{{ __('色') }}">
                     @foreach($colorKeys as $key)
                       <button
                         type="button"
@@ -98,9 +98,9 @@
                     @endforeach
                   </div>
                   <div class="note-composer-actions">
-                    <button type="button" class="text-btn" id="composer-toggle-type">チェックリスト</button>
-                    <button type="button" class="text-btn" id="composer-close">閉じる</button>
-                    <button type="submit" class="button-link">保存</button>
+                    <button type="button" class="text-btn" id="composer-toggle-type">{{ __('チェックリスト') }}</button>
+                    <button type="button" class="text-btn" id="composer-close">{{ __('閉じる') }}</button>
+                    <button type="submit" class="button-link">{{ __('保存') }}</button>
                   </div>
                 </div>
               </div>
@@ -108,9 +108,9 @@
           </section>
         @endif
 
-        <div class="notes-view-toggle" role="group" aria-label="表示切替">
-          <button type="button" class="notes-view-btn is-active" data-view="gallery" title="ギャラリー表示" aria-pressed="true" aria-label="ギャラリー表示">⊞</button>
-          <button type="button" class="notes-view-btn" data-view="list" title="リスト表示" aria-pressed="false" aria-label="リスト表示">☰</button>
+        <div class="notes-view-toggle" role="group" aria-label="{{ __('表示切替') }}">
+          <button type="button" class="notes-view-btn is-active" data-view="gallery" title="{{ __('ギャラリー表示') }}" aria-pressed="true" aria-label="{{ __('ギャラリー表示') }}">⊞</button>
+          <button type="button" class="notes-view-btn" data-view="list" title="{{ __('リスト表示') }}" aria-pressed="false" aria-label="{{ __('リスト表示') }}">☰</button>
         </div>
       </div>
 
@@ -118,18 +118,18 @@
         <input type="hidden" id="notes-bulk-return-to" value="{{ $returnTo }}" />
         <label class="note-bulk-select-all-label">
           <input type="checkbox" id="notes-select-all" />
-          全選択
+          {{ __('全選択') }}
         </label>
         <div class="bulk-actions notes-bulk-actions">
           @if($showArchived)
-            <button type="button" class="secondary notes-bulk-btn" data-bulk-url="/notes/bulk/archive" data-bulk-unarchive="1">一括で戻す</button>
+            <button type="button" class="secondary notes-bulk-btn" data-bulk-url="/notes/bulk/archive" data-bulk-unarchive="1">{{ __('一括で戻す') }}</button>
           @else
-            <button type="button" class="secondary notes-bulk-btn" data-bulk-url="/notes/bulk/archive">一括アーカイブ</button>
+            <button type="button" class="secondary notes-bulk-btn" data-bulk-url="/notes/bulk/archive">{{ __('一括アーカイブ') }}</button>
           @endif
-          <button type="button" class="secondary" id="notes-bulk-edit-open">一括編集</button>
-          <button type="button" class="danger notes-bulk-btn" data-bulk-url="/notes/bulk/delete" data-confirm="選択したメモを削除しますか？">一括削除</button>
+          <button type="button" class="secondary" id="notes-bulk-edit-open">{{ __('一括編集') }}</button>
+          <button type="button" class="danger notes-bulk-btn" data-bulk-url="/notes/bulk/delete" data-confirm="{{ __('選択したメモを削除しますか？') }}">{{ __('一括削除') }}</button>
         </div>
-        <span class="notes-page-summary">{{ $pagination['total'] }}件中 {{ $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}件を表示</span>
+        <span class="notes-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
       </div>
 
       <div class="notes-content notes-view-gallery notes-cols-4" id="notes-content">
@@ -137,18 +137,18 @@
         <div class="notes-section-header">
           <h2 class="notes-section-title">
             @if(count($pinnedNotes) > 0)
-              ピン留め
+              {{ __('ピン留め') }}
             @endif
           </h2>
-          <div class="notes-cols-toggle" id="notes-cols-toggle" role="group" aria-label="横の枚数">
+            <div class="notes-cols-toggle" id="notes-cols-toggle" role="group" aria-label="{{ __('横の枚数') }}">
             @for($n = 1; $n <= 5; $n++)
               <button
                 type="button"
                 class="notes-cols-btn{{ $n === 4 ? ' is-active' : '' }}"
                 data-cols="{{ $n }}"
-                title="横に{{ $n }}枚"
+                title="{{ __('横に') }}{{ $n }}{{ __('枚') }}"
                 aria-pressed="{{ $n === 4 ? 'true' : 'false' }}"
-                aria-label="横に{{ $n }}枚"
+                aria-label="{{ __('横に') }}{{ $n }}{{ __('枚') }}"
               >{{ $n }}</button>
             @endfor
           </div>
@@ -163,8 +163,8 @@
         </div>
       @endif
 
-      @if(count($otherNotes) > 0)
-        @if(count($pinnedNotes) > 0)<h2 class="notes-section-title">その他</h2>@endif
+        @if(count($otherNotes) > 0)
+        @if(count($pinnedNotes) > 0)<h2 class="notes-section-title">{{ __('その他') }}</h2>@endif
         <div class="notes-grid">
           @foreach($otherNotes as $note)
             @include('partials.note-card', ['note' => $note, 'returnTo' => $returnTo, 'showArchived' => $showArchived, 'highlightId' => $highlightId])
@@ -173,18 +173,18 @@
       @endif
 
       @if(count($pinnedNotes) === 0 && count($otherNotes) === 0)
-        <p class="notes-empty">{{ $showArchived ? 'アーカイブされたメモはありません。' : 'メモがありません。上の欄から追加できます。' }}</p>
+        <p class="notes-empty">{{ $showArchived ? __('アーカイブされたメモはありません。') : __('メモがありません。上の欄から追加できます。') }}</p>
       @endif
       </div>
 
       @if(($pagination['totalPages'] ?? 1) > 1)
-        <nav class="notes-pagination" aria-label="メモ一覧のページ">
+        <nav class="notes-pagination" aria-label="{{ __('メモ一覧のページ') }}">
           @if($pagination['page'] > 1)
-            <a class="button-link secondary" href="{{ $buildNotesQuery($filters, ['page' => $pagination['page'] - 1, 'note' => $highlightId]) }}">‹ 前へ</a>
+            <a class="button-link secondary" href="{{ $buildNotesQuery($filters, ['page' => $pagination['page'] - 1, 'note' => $highlightId]) }}">{{ __('‹ 前へ') }}</a>
           @endif
           <span class="notes-pagination-label">{{ $pagination['page'] }} / {{ $pagination['totalPages'] }}</span>
           @if($pagination['page'] < $pagination['totalPages'])
-            <a class="button-link secondary" href="{{ $buildNotesQuery($filters, ['page' => $pagination['page'] + 1, 'note' => $highlightId]) }}">次へ ›</a>
+            <a class="button-link secondary" href="{{ $buildNotesQuery($filters, ['page' => $pagination['page'] + 1, 'note' => $highlightId]) }}">{{ __('次へ ›') }}</a>
           @endif
         </nav>
       @endif
@@ -194,8 +194,8 @@
       <div class="modal-backdrop" data-close-note-edit></div>
       <div class="modal-dialog note-edit-dialog" role="dialog" aria-labelledby="note-edit-modal-title">
         <div class="modal-header">
-          <h2 id="note-edit-modal-title">メモを編集</h2>
-          <button type="button" class="modal-close" data-close-note-edit aria-label="閉じる">×</button>
+          <h2 id="note-edit-modal-title">{{ __('メモを編集') }}</h2>
+          <button type="button" class="modal-close" data-close-note-edit aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" action="" id="note-edit-form" class="modal-form note-edit-form">
           @csrf
@@ -204,11 +204,11 @@
           <input type="hidden" name="color" id="note-edit-color" value="default" />
           <div class="note-composer-meta">
             <label class="note-date-field">
-              <span class="field-label">登録日</span>
+              <span class="field-label">{{ __('登録日') }}</span>
               <input type="date" name="registeredDate" id="note-edit-date" required />
             </label>
             <label class="note-category-field">
-              <span class="field-label">カテゴリー</span>
+              <span class="field-label">{{ __('カテゴリー') }}</span>
               <select name="category" id="note-edit-category">
                 @foreach($noteCategories as $key => $label)
                   <option value="{{ $key }}">{{ $label }}</option>
@@ -217,22 +217,22 @@
             </label>
           </div>
           <label>
-            タイトル
-            <input type="text" name="title" id="note-edit-title" placeholder="タイトル" autocomplete="off" />
+            {{ __('タイトル') }}
+            <input type="text" name="title" id="note-edit-title" placeholder="{{ __('タイトル') }}" autocomplete="off" />
           </label>
           <div id="note-edit-text-panel">
             <label>
-              メモ
-              <textarea name="body" id="note-edit-body" rows="6" placeholder="メモを入力..."></textarea>
+              {{ __('メモ') }}
+              <textarea name="body" id="note-edit-body" rows="6" placeholder="{{ __('メモを入力...') }}"></textarea>
             </label>
           </div>
           <div id="note-edit-checklist-panel" class="date-panel-hidden">
-            <div class="field-label" style="margin-bottom:6px">チェックリスト</div>
+            <div class="field-label" style="margin-bottom:6px">{{ __('チェックリスト') }}</div>
             <div class="checklist-editor" id="note-edit-checklist"></div>
-            <button type="button" class="text-btn" id="note-edit-add-item">項目を追加</button>
+            <button type="button" class="text-btn" id="note-edit-add-item">{{ __('項目を追加') }}</button>
           </div>
           <div class="note-composer-footer">
-            <div class="note-color-picker" id="note-edit-colors" role="group" aria-label="色">
+            <div class="note-color-picker" id="note-edit-colors" role="group" aria-label="{{ __('色') }}">
               @foreach($colorKeys as $key)
                 <button
                   type="button"
@@ -245,12 +245,12 @@
               @endforeach
             </div>
             <div class="note-composer-actions">
-              <button type="button" class="text-btn" id="note-edit-toggle-type">チェックリスト</button>
+              <button type="button" class="text-btn" id="note-edit-toggle-type">{{ __('チェックリスト') }}</button>
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="secondary" data-close-note-edit>キャンセル</button>
-            <button type="submit">保存</button>
+            <button type="button" class="secondary" data-close-note-edit>{{ __('キャンセル') }}</button>
+            <button type="submit">{{ __('保存') }}</button>
           </div>
         </form>
       </div>
@@ -260,21 +260,21 @@
       <div class="modal-backdrop" data-close-bulk-edit></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="note-bulk-edit-title">
         <div class="modal-header">
-          <h2 id="note-bulk-edit-title">一括編集（末尾に追記）</h2>
-          <button type="button" class="modal-close" data-close-bulk-edit aria-label="閉じる">×</button>
+          <h2 id="note-bulk-edit-title">{{ __('一括編集（末尾に追記）') }}</h2>
+          <button type="button" class="modal-close" data-close-bulk-edit aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" action="/notes/bulk/append" id="note-bulk-append-form" class="modal-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <div id="note-bulk-append-ids"></div>
           <label>
-            追加する内容
-            <textarea name="appendText" id="note-bulk-append-text" rows="6" placeholder="選択したメモの末尾に追記します（既存の内容は削除しません）" required></textarea>
+            {{ __('追加する内容') }}
+            <textarea name="appendText" id="note-bulk-append-text" rows="6" placeholder="{{ __('選択したメモの末尾に追記します（既存の内容は削除しません）') }}" required></textarea>
           </label>
-          <p class="hint inline-hint">チェックリスト形式のメモには、行ごとに項目として追加されます。</p>
+          <p class="hint inline-hint">{{ __('チェックリスト形式のメモには、行ごとに項目として追加されます。') }}</p>
           <div class="modal-actions">
-            <button type="button" class="secondary" data-close-bulk-edit>キャンセル</button>
-            <button type="submit">追記する</button>
+            <button type="button" class="secondary" data-close-bulk-edit>{{ __('キャンセル') }}</button>
+            <button type="submit">{{ __('追記する') }}</button>
           </div>
         </form>
       </div>
@@ -386,7 +386,7 @@
         })
 
         closeBtn?.addEventListener('click', () => {
-          if (!isComposerDirty() || window.confirm('入力内容を破棄して閉じますか？')) {
+          if (!isComposerDirty() || window.confirm(@json(__('入力内容を破棄して閉じますか？')))) {
             form?.reset()
             syncComposerType('text')
             selectColor('default')
@@ -456,7 +456,7 @@
             const hasItem = [...(checklistEditor?.querySelectorAll('.checklist-text') || [])].some((el) => el.value.trim())
             if (!hasItem) {
               e.preventDefault()
-              alert('メモの内容を入力してください')
+              alert(@json(__('メモの内容を入力してください')));
             }
           }
         })
@@ -671,7 +671,7 @@
               state.translated = false
               btn.classList.remove('is-translated')
               btn.setAttribute('aria-pressed', 'false')
-              btn.title = '日本語⇔英語に翻訳'
+              btn.title = @json(__('日本語⇔英語に翻訳'));
               return
             }
 
@@ -681,7 +681,7 @@
               state.translated = true
               btn.classList.add('is-translated')
               btn.setAttribute('aria-pressed', 'true')
-              btn.title = '原文に戻す'
+              btn.title = @json(__('原文に戻す'));
               return
             }
 
@@ -699,7 +699,7 @@
               })
               const data = await res.json()
               if (!res.ok || !data.ok) {
-                window.alert(data.message || '翻訳に失敗しました')
+                window.alert(data.message || @json(__('翻訳に失敗しました')));
                 return
               }
               captureOriginal()
@@ -708,9 +708,9 @@
               state.translated = true
               btn.classList.add('is-translated')
               btn.setAttribute('aria-pressed', 'true')
-              btn.title = '原文に戻す'
+              btn.title = @json(__('原文に戻す'));
             } catch (err) {
-              window.alert('翻訳中に通信エラーが発生しました')
+              window.alert(@json(__('翻訳中に通信エラーが発生しました')));
             } finally {
               state.loading = false
               btn.classList.remove('is-loading')
@@ -748,7 +748,7 @@
         function submitBulkAction(url, confirmMsg, extraFields = {}) {
           const ids = getCheckedNoteIds()
           if (ids.length === 0) {
-            window.alert('対象が選択されていません')
+            window.alert(@json(__('対象が選択されていません')));
             return
           }
           if (confirmMsg && !window.confirm(confirmMsg)) return
@@ -764,10 +764,16 @@
           returnTo.value = bulkReturnTo?.value || '/notes'
           form.appendChild(returnTo)
 
+          const csrf = document.createElement('input')
+          csrf.type = 'hidden'
+          csrf.name = '_token'
+          csrf.value = csrfToken || ''
+          form.appendChild(csrf)
+
           ids.forEach((id) => {
             const idInput = document.createElement('input')
             idInput.type = 'hidden'
-            idInput.name = 'ids'
+            idInput.name = 'ids[]'
             idInput.value = id
             form.appendChild(idInput)
           })
@@ -816,7 +822,7 @@
         document.getElementById('notes-bulk-edit-open')?.addEventListener('click', () => {
           const ids = getCheckedNoteIds()
           if (ids.length === 0) {
-            window.alert('対象が選択されていません')
+            window.alert(@json(__('対象が選択されていません')));
             return
           }
           if (bulkAppendIds) {
@@ -824,7 +830,7 @@
             ids.forEach((id) => {
               const input = document.createElement('input')
               input.type = 'hidden'
-              input.name = 'ids'
+              input.name = 'ids[]'
               input.value = id
               bulkAppendIds.appendChild(input)
             })
@@ -840,7 +846,7 @@
         bulkAppendForm?.addEventListener('submit', (e) => {
           if (getCheckedNoteIds().length === 0) {
             e.preventDefault()
-            window.alert('対象が選択されていません')
+            window.alert(@json(__('対象が選択されていません')));
           }
         })
 

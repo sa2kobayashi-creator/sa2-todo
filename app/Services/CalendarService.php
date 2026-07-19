@@ -20,6 +20,36 @@ class CalendarService
     /** Hour slots for day/week timed grid (0-23) */
     public const DAY_HOURS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
+    /** Weekday shorts; keeps 日/月 distinct from calendar view Day/Month in English. */
+    public static function translatedWeekdayLabels(): array
+    {
+        if (app()->getLocale() === 'en') {
+            return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        }
+
+        return self::WEEKDAY_LABELS;
+    }
+
+    /** View toggles; avoids clashing with weekday 日/月 JSON keys. */
+    public static function translatedViewLabels(): array
+    {
+        if (app()->getLocale() === 'en') {
+            return [
+                'day' => 'Day',
+                'week' => 'Week',
+                'month' => 'Month',
+                'year' => 'Year',
+            ];
+        }
+
+        return self::VIEW_LABELS;
+    }
+
+    public static function formatHourLabel(int $hour): string
+    {
+        return __(':hour時', ['hour' => $hour]);
+    }
+
     public function __construct(
         private TodoService $todos,
         private DisplayService $display,
@@ -140,9 +170,19 @@ class CalendarService
     public function formatPeriodLabel(string $view, string $focusDate): string
     {
         $focus = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'));
+        $weekdayLabels = self::translatedWeekdayLabels();
+
+        if (app()->getLocale() === 'en') {
+            return match ($view) {
+                'day' => $focus->copy()->locale('en')->isoFormat('ddd, MMM D, YYYY'),
+                'week' => $this->formatWeekLabel($focus),
+                'year' => $focus->format('Y'),
+                default => $focus->copy()->locale('en')->isoFormat('MMMM YYYY'),
+            };
+        }
 
         return match ($view) {
-            'day' => $focus->format('Y年n月j日').'（'.self::WEEKDAY_LABELS[$focus->dayOfWeek].'）',
+            'day' => $focus->format('Y年n月j日').'（'.$weekdayLabels[$focus->dayOfWeek].'）',
             'week' => $this->formatWeekLabel($focus),
             'year' => $focus->format('Y年'),
             default => $focus->format('Y年n月'),
@@ -153,6 +193,18 @@ class CalendarService
     {
         $start = $focus->copy()->startOfWeek(Carbon::SUNDAY);
         $end = $focus->copy()->endOfWeek(Carbon::SATURDAY);
+
+        if (app()->getLocale() === 'en') {
+            if ($start->format('Y-m') === $end->format('Y-m')) {
+                return $start->copy()->locale('en')->isoFormat('MMM D').' – '.$end->copy()->locale('en')->isoFormat('D, YYYY');
+            }
+            if ($start->format('Y') === $end->format('Y')) {
+                return $start->copy()->locale('en')->isoFormat('MMM D').' – '.$end->copy()->locale('en')->isoFormat('MMM D, YYYY');
+            }
+
+            return $start->copy()->locale('en')->isoFormat('MMM D, YYYY').' – '.$end->copy()->locale('en')->isoFormat('MMM D, YYYY');
+        }
+
         if ($start->format('Y-m') === $end->format('Y-m')) {
             return $start->format('Y年n月j日').'〜'.$end->format('j日');
         }
@@ -281,7 +333,8 @@ class CalendarService
                 $holidayMap[$date] ?? null
             );
             $cell['notes'] = $notesByDate[$date] ?? [];
-            $cell['weekdayLabel'] = self::WEEKDAY_LABELS[$day->dayOfWeek];
+            $cell['weekday'] = $day->dayOfWeek;
+            $cell['weekdayLabel'] = self::translatedWeekdayLabels()[$day->dayOfWeek];
             $cell['allDay'] = $allDay;
             $cell['timed'] = $timed;
             $days[] = $cell;
@@ -308,7 +361,9 @@ class CalendarService
             $months[] = [
                 'year' => $year,
                 'month' => $month,
-                'label' => $month.'月',
+                'label' => app()->getLocale() === 'en'
+                    ? Carbon::create($year, $month, 1)->locale('en')->isoFormat('MMM')
+                    : $month.'月',
                 'weeks' => $grid['weeks'],
             ];
         }

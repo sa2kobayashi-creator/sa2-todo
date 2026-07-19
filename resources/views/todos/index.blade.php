@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>Todo - Sa2 ToDo</title>
+    <title>{{ __('Todo') }} - Sa2 ToDo</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body>
@@ -15,37 +15,37 @@
       @if($error)<div class="banner error">{{ $error }}</div>@endif
 
       <div class="panel">
-        <h2>ToDo を追加（複数行可）</h2>
-        <p class="hint">改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。定休日の設定は <a href="/settings?section=holidays#weekday-holidays">設定 → 休日設定</a> で行います。</p>
+        <h2>{{ __('ToDo を追加（複数行可）') }}</h2>
+        <p class="hint">{{ __('改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}</p>
         <form class="add" method="post" action="/todos" id="add-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />
-          <textarea id="titles-input" name="titles" placeholder="買い物に行く&#10;レポートを書く" required></textarea>
+          <textarea id="titles-input" name="titles" placeholder="{{ __('買い物に行く') }}&#10;{{ __('レポートを書く') }}" required></textarea>
           <div class="add-form-grid">
             <div class="form-grid-row form-grid-row-top">
-              <span class="field-label">指定方法</span>
+              <span class="field-label">{{ __('指定方法') }}</span>
               <label class="radio-inline">
                 <input type="radio" name="dateMode" value="single" checked />
-                単日
+                {{ __('単日') }}
               </label>
               <label class="radio-inline">
                 <input type="radio" name="dateMode" value="range" />
-                期間
+                {{ __('期間') }}
               </label>
               <span class="form-grid-spacer"></span>
             </div>
             <div class="form-grid-row form-grid-row-labels">
-              <span class="field-label" id="label-start">開始日</span>
-              <span class="field-label" id="label-end">終了日</span>
-              <span class="field-label">重要度</span>
-              <span class="field-label">ステータス</span>
+              <span class="field-label" id="label-start">{{ __('開始日') }}</span>
+              <span class="field-label" id="label-end">{{ __('終了日') }}</span>
+              <span class="field-label">{{ __('重要度') }}</span>
+              <span class="field-label">{{ __('ステータス') }}</span>
             </div>
             <div class="form-grid-row form-grid-row-inputs">
               <div class="form-grid-cell">
-                <input type="date" name="startDate" id="start-date" value="{{ $defaultStartDate }}" aria-label="開始日" />
+                <input type="date" name="startDate" id="start-date" value="{{ $defaultStartDate }}" aria-label="{{ __('開始日') }}" />
               </div>
               <div class="form-grid-cell" id="cell-end">
-                <input type="date" name="endDate" id="end-date" value="{{ $defaultEndDate }}" aria-label="終了日" />
+                <input type="date" name="endDate" id="end-date" value="{{ $defaultEndDate }}" aria-label="{{ __('終了日') }}" />
               </div>
               <div class="form-grid-cell">
                 <select name="importance" id="importance">
@@ -63,7 +63,7 @@
               </div>
             </div>
             <fieldset class="weekday-checkboxes add-weekday-panel date-panel-hidden" id="add-weekday-panel">
-              <legend>登録する曜日（期間内の該当日のみ）</legend>
+              <legend>{{ __('登録する曜日（期間内の該当日のみ）') }}</legend>
               <div class="weekday-check-row">
                 @foreach($weekdayLabels as $index => $label)
                   <label class="weekday-check">
@@ -75,30 +75,30 @@
               <label class="weekday-check exclude-holiday-check">
                 <input type="checkbox" id="exclude-holidays" class="add-exclude-holidays" checked />
                 <input type="hidden" name="excludeHolidays" id="exclude-holidays-value" value="1" />
-                祝日を除く（日本の祝日のみ）
+                {{ __('祝日を除く（日本の祝日のみ）') }}
               </label>
               <label class="weekday-check exclude-holiday-check">
                 <input type="checkbox" id="exclude-closures" class="add-exclude-closures" checked />
                 <input type="hidden" name="excludeClosures" id="exclude-closures-value" value="1" />
-                休業日を除く（会社休業日・定休日）
+                {{ __('休業日を除く（会社休業日・定休日）') }}
               </label>
-              <p class="hint inline-hint">未選択の場合は、期間全体を1件の ToDo として登録します。「祝日を除く」は日本の祝日（例: 山の日）のみ、「休業日を除く」は会社休業日・定休日のみです（PH祝日は除きません）。既に登録済みの予定は自動では消えません。</p>
+              <p class="hint inline-hint">{{ __('未選択の場合は、期間全体を1件の ToDo として登録します。「祝日を除く」は日本の祝日（例: 山の日）のみ、「休業日を除く」は会社休業日・定休日のみです（PH祝日は除きません）。既に登録済みの予定は自動では消えません。') }}</p>
             </fieldset>
             <div class="schedule-option">
               <label class="schedule-toggle">
                 <input type="checkbox" id="enable-time-range" />
-                時間帯を追加
+                {{ __('時間帯を追加') }}
               </label>
               <div class="time-range-panel date-panel-hidden" id="time-range-panel">
                 <div class="time-range-inputs">
-                  <input type="time" name="startTime" id="todo-start-time" aria-label="開始時刻" disabled />
+                  <input type="time" name="startTime" id="todo-start-time" aria-label="{{ __('開始時刻') }}" disabled />
                   <span class="time-range-separator" aria-hidden="true">～</span>
-                  <input type="time" name="endTime" id="todo-end-time" aria-label="終了時刻" disabled />
+                  <input type="time" name="endTime" id="todo-end-time" aria-label="{{ __('終了時刻') }}" disabled />
                 </div>
               </div>
             </div>
             <fieldset class="reminder-checkboxes">
-              <legend>通知タイミング</legend>
+              <legend>{{ __('通知タイミング') }}</legend>
               <div class="reminder-check-row">
                 @foreach($reminderOptions as $key)
                   <label class="reminder-check">
@@ -109,7 +109,7 @@
               </div>
             </fieldset>
             <fieldset class="notify-via-fieldset">
-              <legend>通知方法</legend>
+              <legend>{{ __('通知方法') }}</legend>
               <div class="notify-via-row">
                 @foreach($notifyViaOptions as $key)
                   <label class="notify-via-option">
@@ -118,19 +118,19 @@
                   </label>
                 @endforeach
               </div>
-              <p class="hint inline-hint">通知タイミングを選ぶ場合は、いずれか1つを選択してください。</p>
+              <p class="hint inline-hint">{{ __('通知タイミングを選ぶ場合は、いずれか1つを選択してください。') }}</p>
             </fieldset>
           </div>
           <label class="split-option">
             <input type="checkbox" id="split-by-line" name="splitByLine" value="1" checked />
-            改行ごとに別の ToDo として登録する
+            {{ __('改行ごとに別の ToDo として登録する') }}
           </label>
           <div class="preview" id="line-preview" hidden>
-            <h3>登録プレビュー（<span id="preview-count">0</span>件）</h3>
+            <h3>{{ __('登録プレビュー') }}（<span id="preview-count">0</span>{{ __('件') }}）</h3>
             <ol id="preview-list"></ol>
           </div>
           <div class="form-actions">
-            <button type="submit">追加</button>
+            <button type="submit">{{ __('追加') }}</button>
           </div>
         </form>
       </div>
@@ -141,15 +141,15 @@
             <input type="hidden" name="display" value="calendar" />
           @endif
           <div class="filter-group filter-group-period">
-            <label>期間@if(($filters['scope'] ?? '') === 'today') <span class="filter-scope-hint">（今日で表示中）</span>@endif</label>
-            <div class="filter-period-mode" role="group" aria-label="期間の指定方法">
+            <label>{{ __('期間') }}@if(($filters['scope'] ?? '') === 'today') <span class="filter-scope-hint">{{ __('（今日で表示中）') }}</span>@endif</label>
+            <div class="filter-period-mode" role="group" aria-label="{{ __('期間の指定方法') }}">
               <label class="radio-inline filter-period-mode-option">
                 <input type="radio" name="periodMode" value="month" @checked(($filters['periodMode'] ?? $periodMode ?? 'month') === 'month') />
-                月
+                {{ __('月') }}
               </label>
               <label class="radio-inline filter-period-mode-option">
                 <input type="radio" name="periodMode" value="year" @checked(($filters['periodMode'] ?? '') === 'year' || ($filters['scope'] ?? '') === 'year' || ($periodMode ?? '') === 'year') />
-                年
+                {{ __('年') }}
               </label>
             </div>
             <input
@@ -158,7 +158,7 @@
               id="filter-period-month"
               class="filter-period-input"
               value="{{ ($filters['scope'] ?? '') === 'today' ? '' : ($periodValue ?? '') }}"
-              @if(($filters['scope'] ?? '') === 'today') placeholder="未設定" @endif
+              @if(($filters['scope'] ?? '') === 'today') placeholder="{{ __('未設定') }}" @endif
             />
             <input
               type="number"
@@ -169,19 +169,19 @@
               max="2100"
               step="1"
               value="{{ $periodYearValue ?? $filters['year'] }}"
-              aria-label="年"
+              aria-label="{{ __('年') }}"
             />
           </div>
           <div class="filter-group">
-            <label>完了</label>
+            <label>{{ __('完了') }}</label>
             <select name="status">
-              <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>すべて</option>
-              <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>未完了</option>
-              <option value="done" @selected(($filters['status'] ?? '') === 'done')>完了</option>
+              <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
+              <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>{{ __('未完了') }}</option>
+              <option value="done" @selected(($filters['status'] ?? '') === 'done')>{{ __('完了') }}</option>
             </select>
           </div>
           <div class="filter-group filter-group-categories">
-            <label for="filter-category-trigger">ステータス</label>
+            <label for="filter-category-trigger">{{ __('ステータス') }}</label>
             <div class="filter-dropdown" id="filter-category-dropdown">
               <button
                 type="button"
@@ -192,7 +192,7 @@
                 aria-controls="filter-category-panel"
               >
                 <span class="filter-dropdown-label" id="filter-category-label">
-                  @if(empty($filters['categories']))すべて@else
+                  @if(empty($filters['categories'])){{ __('すべて') }}@else
                     {{ collect($filters['categories'] ?? [])->map(fn($v) => $categoryLabels[$v] ?? $v)->join('、') }}
                   @endif
                 </span>
@@ -216,32 +216,32 @@
             </div>
           </div>
           <div class="filter-group">
-            <label>重要度</label>
+            <label>{{ __('重要度') }}</label>
             <select name="importance">
-              <option value="all" @selected(($filters['importance'] ?? 'all') === 'all')>すべて</option>
+              <option value="all" @selected(($filters['importance'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
               @foreach($importanceLabels as $value => $label)
                 <option value="{{ $value }}" @selected(($filters['importance'] ?? '') === $value)>{{ $label }}</option>
               @endforeach
             </select>
           </div>
           <div class="filter-bar-actions">
-            <button type="submit" class="secondary">絞り込み</button>
+            <button type="submit" class="secondary">{{ __('絞り込み') }}</button>
             <a
               href="{{ $todayFilterHref }}"
               class="filter-today-btn {{ ($filters['scope'] ?? '') === 'today' ? 'active' : '' }}"
               id="filter-today-btn"
-            >今日</a>
+            >{{ __('今日') }}</a>
             <a
               href="{{ $clearFiltersHref ?? '/todos#todo-list-panel' }}"
               class="filter-clear-btn"
               id="filter-clear-btn"
-            >クリア</a>
+            >{{ __('クリア') }}</a>
           </div>
         </form>
         @if(($filters['scope'] ?? '') === 'today' && !empty($filters['todayDate']))
-          <p class="hint filter-today-note">表示中: {{ $filters['todayDate'] }} の予定</p>
+          <p class="hint filter-today-note">{{ __('表示中:') }} {{ $filters['todayDate'] }} {{ __('の予定') }}</p>
         @elseif(($filters['scope'] ?? '') === 'year')
-          <p class="hint filter-period-note">表示中: {{ $filters['year'] }}年</p>
+          <p class="hint filter-period-note">{{ __('表示中:') }} {{ $filters['year'] }}{{ __('年') }}</p>
         @endif
 
         <input type="hidden" id="bulk-return-to" value="{{ $listReturnTo }}" />
@@ -249,28 +249,28 @@
         <div class="list-toolbar">
           <h2>
             @if(($displayMode ?? 'list') === 'calendar')
-              カレンダー（{{ $calendarYear }}年{{ $calendarMonth }}月）
+              {{ __('カレンダー') }}（{{ app()->getLocale() === 'en' ? sprintf('%s %04d', \Carbon\Carbon::create($calendarYear, $calendarMonth, 1)->locale('en')->isoFormat('MMM'), $calendarYear) : $calendarYear.__('年').$calendarMonth.__('月') }}）
             @else
-              一覧（{{ $pagination['total'] }}件）
+              {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
             @endif
           </h2>
-          <div class="todos-display-toggle" role="group" aria-label="表示切替">
-            <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'list') === 'list' ? 'is-active' : '' }}">一覧</a>
-            <a href="{{ $buildTodosQuery(['display' => 'calendar']) }}#todo-list-panel" class="{{ ($displayMode ?? '') === 'calendar' ? 'is-active' : '' }}">カレンダー</a>
+          <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
+            <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'list') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
+            <a href="{{ $buildTodosQuery(['display' => 'calendar']) }}#todo-list-panel" class="{{ ($displayMode ?? '') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
           </div>
           @if(($displayMode ?? 'list') === 'list' && ($pagination['total'] ?? 0) > 0)
-            <span class="todo-page-summary">{{ $pagination['total'] }}件中 {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}件を表示</span>
+            <span class="todo-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
           @endif
           @if(($displayMode ?? 'list') === 'list')
           <div class="bulk-actions">
-            <button type="button" class="secondary" id="select-all-btn">全選択</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/complete">一括完了</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/uncomplete">一括で未完了</button>
-            <button type="button" class="danger bulk-btn" data-bulk-url="/todos/bulk/delete" data-confirm="選択した ToDo を削除しますか？">一括削除</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">コピー</button>
+            <button type="button" class="secondary" id="select-all-btn">{{ __('全選択') }}</button>
+            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/complete">{{ __('一括完了') }}</button>
+            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/uncomplete">{{ __('一括で未完了') }}</button>
+            <button type="button" class="danger bulk-btn" data-bulk-url="/todos/bulk/delete" data-confirm="{{ __('選択した ToDo を削除しますか？') }}">{{ __('一括削除') }}</button>
+            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">{{ __('コピー') }}</button>
           </div>
           @else
-            <p class="hint inline-hint">ドラッグ＆ドロップや詳細編集は <a href="{{ $dashboardMonthUrl }}">ダッシュボード</a> でも操作できます。</p>
+            <p class="hint inline-hint">{{ __('ドラッグ＆ドロップや詳細編集は') }} <a href="{{ $dashboardMonthUrl }}">{{ __('ダッシュボード') }}</a> {{ __('でも操作できます。') }}</p>
           @endif
         </div>
 
@@ -300,7 +300,7 @@
                           <a
                             class="day-note-badge"
                             href="/notes?date={{ $cell['date'] }}"
-                            title="メモ {{ count($cellNotes) }}件"
+                            title="{{ __('メモ') }} {{ count($cellNotes) }}{{ __('件') }}"
                           >
                             <span class="day-note-badge-icon" aria-hidden="true">📝</span>
                             @if(count($cellNotes) > 1)
@@ -325,7 +325,7 @@
                           </a>
                         @endforeach
                         @if(($cellData['hiddenCount'] ?? 0) > 0)
-                          <span class="event-more">他 {{ $cellData['hiddenCount'] }} 件</span>
+                          <span class="event-more">{{ __('他') }} {{ $cellData['hiddenCount'] }} {{ __('件') }}</span>
                         @endif
                       </div>
                     </div>
@@ -406,22 +406,22 @@
         @endif
         @if(($displayMode ?? 'list') === 'list')
         @if(($pagination['totalPages'] ?? 1) > 1)
-          <nav class="todo-pagination" aria-label="ToDo 一覧のページ">
+          <nav class="todo-pagination" aria-label="{{ __('ToDo 一覧のページ') }}">
             @if($pagination['page'] > 1)
-              <a class="button-link secondary" href="{{ $buildTodosQuery(['page' => $pagination['page'] - 1]) }}#todo-list-panel">‹ 前へ</a>
+              <a class="button-link secondary" href="{{ $buildTodosQuery(['page' => $pagination['page'] - 1]) }}#todo-list-panel">{{ __('‹ 前へ') }}</a>
             @endif
             <span class="todo-pagination-label">{{ $pagination['page'] }} / {{ $pagination['totalPages'] }}</span>
             @if($pagination['page'] < $pagination['totalPages'])
-              <a class="button-link secondary" href="{{ $buildTodosQuery(['page' => $pagination['page'] + 1]) }}#todo-list-panel">次へ ›</a>
+              <a class="button-link secondary" href="{{ $buildTodosQuery(['page' => $pagination['page'] + 1]) }}#todo-list-panel">{{ __('次へ ›') }}</a>
             @endif
           </nav>
         @endif
         @if(count($todos) === 0)
-          <p class="empty-msg">条件に一致する ToDo がありません。</p>
+          <p class="empty-msg">{{ __('条件に一致する ToDo がありません。') }}</p>
         @endif
 
         @if(count($undatedTodos) > 0)
-          <h3 class="undated-heading">期間未設定（{{ count($undatedTodos) }}件）</h3>
+          <h3 class="undated-heading">{{ __('期間未設定') }}（{{ count($undatedTodos) }}{{ __('件') }}）</h3>
           <div class="todo-table-wrap undated-section">
             <table class="todo-table">
               @include('partials.todo-table-colgroup')
@@ -467,8 +467,8 @@
       const excludeClosuresInput = document.getElementById('exclude-closures')
       const excludeHolidaysValue = document.getElementById('exclude-holidays-value')
       const excludeClosuresValue = document.getElementById('exclude-closures-value')
-      let nationalHolidayDatesCache = new Set(@json($nationalHolidayDates ?? []))
-      let closureDatesCache = new Set(@json($closureDates ?? []))
+      let nationalHolidayDatesCache = new Set(@json($nationalHolidayDates ?? []));
+      let closureDatesCache = new Set(@json($closureDates ?? []));
 
       function syncExcludeFields() {
         if (excludeHolidaysValue) excludeHolidaysValue.value = excludeHolidaysInput?.checked ? '1' : '0'
@@ -487,7 +487,7 @@
         const isRange = mode === 'range'
         cellEnd?.classList.toggle('date-panel-hidden', !isRange)
         labelEnd?.classList.toggle('date-panel-hidden', !isRange)
-        if (labelStart) labelStart.textContent = isRange ? '開始日' : '日付'
+        if (labelStart) labelStart.textContent = isRange ? @json(__('開始日')) : @json(__('日付'));
         addWeekdayPanel?.classList.toggle('date-panel-hidden', !isRange)
         addWeekdayInputs.forEach((input) => {
           if (!isRange) input.checked = false
@@ -729,7 +729,7 @@
           if (excludeHolidays || excludeClosures) {
             if (weekdays.length === 0) {
               e.preventDefault()
-              window.alert('祝日または休業日を除く場合は曜日を選択してください')
+              window.alert(@json(__('祝日または休業日を除く場合は曜日を選択してください')));
               return
             }
           }
@@ -752,7 +752,7 @@
         const all = checks()
         const shouldCheck = all.some((c) => !c.checked)
         all.forEach((c) => { c.checked = shouldCheck })
-        selectAllBtn.textContent = shouldCheck ? '全解除' : '全選択'
+        selectAllBtn.textContent = shouldCheck ? @json(__('全解除')) : @json(__('全選択'));
       })
 
       ;(function () {
@@ -799,8 +799,8 @@
           if (!categoryLabel) return
           const checked = Array.from(categoryCheckboxes).filter((cb) => cb.checked)
           categoryLabel.textContent = checked.length === 0
-            ? 'すべて'
-            : checked.map((cb) => cb.dataset.label || cb.value).join('、')
+            ? @json(__('すべて'))
+            : checked.map((cb) => cb.dataset.label || cb.value).join('、');
         }
 
         categoryTrigger?.addEventListener('click', (e) => {
@@ -827,7 +827,7 @@
         function submitBulkAction(url, confirmMsg) {
           const checked = document.querySelectorAll('.todo-check:checked')
           if (checked.length === 0) {
-            window.alert('対象が選択されていません')
+            window.alert(@json(__('対象が選択されていません')));
             return
           }
           if (confirmMsg && !window.confirm(confirmMsg)) return
@@ -853,7 +853,7 @@
           checked.forEach((cb) => {
             const idInput = document.createElement('input')
             idInput.type = 'hidden'
-            idInput.name = 'ids'
+            idInput.name = 'ids[]'
             idInput.value = cb.value
             form.appendChild(idInput)
           })

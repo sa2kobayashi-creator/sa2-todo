@@ -149,6 +149,27 @@ class FinanceController extends Controller
         return $this->redirectWithMessage($returnTo, '取引を削除しました（カード引落の場合は支払予定も削除しました）');
     }
 
+    public function bulkDestroy(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+        $ids = $request->input('ids', []);
+        if (! is_array($ids)) {
+            $ids = [$ids];
+        }
+        // ids[] / ids のどちらでも受け取る
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $ids),
+            fn (int $id) => $id > 0
+        )));
+        if ($ids === []) {
+            return $this->redirectWithMessage($returnTo, '削除する取引が選択されていません', 'error');
+        }
+
+        $count = $this->finance->bulkDeleteTransactions($ids);
+
+        return $this->redirectWithMessage($returnTo, $count.'件の取引を削除しました');
+    }
+
     public function storeExpenseCategory(Request $request)
     {
         try {
@@ -379,7 +400,10 @@ class FinanceController extends Controller
                 echo $csv;
             },
             $filename,
-            ['Content-Type' => 'text/csv; charset=UTF-8']
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]
         );
     }
 

@@ -109,16 +109,20 @@
   function initDatetimeSelects() {
     const now = new Date()
     const year = now.getFullYear()
-    fillSelect(yearSelect, year, year + 1, year, '年', false)
-    fillSelect(monthSelect, 1, 12, now.getMonth() + 1, '月', false)
-    fillSelect(daySelect, 1, 31, now.getDate(), '日', false)
-    fillSelect(hourSelect, 0, 23, now.getHours(), '時', false)
+    const units = (window.TRANSIT_CONFIG && window.TRANSIT_CONFIG.datetimeUnits) || {
+      year: '年', month: '月', day: '日', hour: '時', minute: '分',
+    }
+    fillSelect(yearSelect, year, year + 1, year, units.year || '', false)
+    fillSelect(monthSelect, 1, 12, now.getMonth() + 1, units.month || '', false)
+    fillSelect(daySelect, 1, 31, now.getDate(), units.day || '', false)
+    fillSelect(hourSelect, 0, 23, now.getHours(), units.hour || '', false)
     // 分は5分刻み（現在の分を切り捨て）
     if (minuteSelect) {
       let html = ''
       const currentMin = Math.floor(now.getMinutes() / 5) * 5
+      const minuteUnit = units.minute || ''
       for (let m = 0; m < 60; m += 5) {
-        html += '<option value="' + pad2(m) + '"' + (m === currentMin ? ' selected' : '') + '>' + pad2(m) + '分</option>'
+        html += '<option value="' + pad2(m) + '"' + (m === currentMin ? ' selected' : '') + '>' + pad2(m) + minuteUnit + '</option>'
       }
       minuteSelect.innerHTML = html
     }

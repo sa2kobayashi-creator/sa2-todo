@@ -61,7 +61,7 @@ class MapService
             'destinationLat' => $route->destination_lat !== null ? (float) $route->destination_lat : null,
             'destinationLng' => $route->destination_lng !== null ? (float) $route->destination_lng : null,
             'travelMode' => $route->travel_mode,
-            'travelModeLabel' => self::TRAVEL_MODE_LABELS[$route->travel_mode] ?? $route->travel_mode,
+            'travelModeLabel' => __(self::TRAVEL_MODE_LABELS[$route->travel_mode] ?? $route->travel_mode),
             'sortOrder' => $route->sort_order,
             'googleMapsUrl' => $this->buildGoogleMapsUrl($route),
             'googleNavUrl' => $this->buildGoogleNavUrl($route),

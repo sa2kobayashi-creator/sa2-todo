@@ -31,20 +31,33 @@ class TransitController extends Controller
             'isAll' => $isAll,
             'favorites' => $favorites,
             'groupedFavorites' => $this->transit->groupFavoritesByCategory($userId),
-            'categoryLabels' => TransitService::CATEGORY_LABELS,
+            'categoryLabels' => collect(TransitService::CATEGORY_LABELS)->map(fn (string $label) => __($label))->all(),
             'categoryIcons' => TransitService::CATEGORY_ICONS,
-            'tabLabels' => TransitService::TAB_LABELS,
+            'tabLabels' => collect(TransitService::TAB_LABELS)->map(fn (string $label) => __($label))->all(),
             'tabIcons' => TransitService::TAB_ICONS,
-            'externalSearch' => TransitService::EXTERNAL_SEARCH,
+            'externalSearch' => collect(TransitService::EXTERNAL_SEARCH)->map(fn (array $item) => [
+                'label' => __($item['label']),
+                'url' => $item['url'],
+            ])->all(),
             'preferenceLabels' => [
-                ItineraryScorer::PREF_FASTEST => '最速',
-                ItineraryScorer::PREF_CHEAPEST => '最安',
-                ItineraryScorer::PREF_FEWEST_TRANSFERS => '乗換少ない',
+                ItineraryScorer::PREF_FASTEST => __('最速'),
+                ItineraryScorer::PREF_CHEAPEST => __('最安'),
+                ItineraryScorer::PREF_FEWEST_TRANSFERS => __('乗換少ない'),
             ],
             'returnTo' => $returnTo,
             'googleMapsApiKey' => $this->maps->getApiKey(),
             'hasGoogleMapsApiKey' => $this->maps->hasApiKey(),
             'buildTransitQuery' => fn (array $f) => $this->transit->buildTransitQuery($f),
+            'datetimeUnitLabels' => app()->getLocale() === 'en'
+                ? ['year' => '', 'month' => '', 'day' => '', 'hour' => '', 'minute' => '']
+                : ['year' => '年', 'month' => '月', 'day' => '日', 'hour' => '時', 'minute' => '分'],
+            'datetimeAriaLabels' => [
+                'year' => __('年'),
+                'month' => __('月'),
+                'day' => __('日付'),
+                'hour' => __('時'),
+                'minute' => __('分'),
+            ],
             ...$this->flashFromQuery($request),
         ]);
     }

@@ -83,13 +83,17 @@ class FinanceService
     /** @return array<string, string> */
     public function expenseCategoryOther(): array
     {
-        return self::EXPENSE_CATEGORY_OTHER + $this->customExpenseCategoryLabels();
+        return collect(self::EXPENSE_CATEGORY_OTHER)
+            ->map(fn (string $label) => __($label))
+            ->all() + $this->customExpenseCategoryLabels();
     }
 
     /** @return array<string, string> */
     public function expenseCategoryLabels(): array
     {
-        return self::EXPENSE_CATEGORY_PRIMARY + $this->expenseCategoryOther();
+        return collect(self::EXPENSE_CATEGORY_PRIMARY)
+            ->map(fn (string $label) => __($label))
+            ->all() + $this->expenseCategoryOther();
     }
 
     public function normalizeExpenseCategory(?string $category, string $type): ?string
@@ -181,21 +185,22 @@ class FinanceService
         ['slug' => 'jp_bank_seven', 'region' => 'jp', 'kind' => 'bank', 'name' => 'セブン銀行', 'currency' => 'JPY', 'sort_order' => 20],
         ['slug' => 'jp_bank_paypay', 'region' => 'jp', 'kind' => 'bank', 'name' => 'PAYPAY銀行', 'currency' => 'JPY', 'sort_order' => 30],
         ['slug' => 'jp_bank_smbc', 'region' => 'jp', 'kind' => 'bank', 'name' => '三井住友銀行', 'currency' => 'JPY', 'sort_order' => 40],
-        ['slug' => 'jp_cash_petty', 'region' => 'jp', 'kind' => 'cash', 'name' => '手持ち現金（Petty cash）', 'currency' => 'JPY', 'sort_order' => 50],
-        ['slug' => 'jp_card_rakuten', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Rakuten', 'currency' => 'JPY', 'sort_order' => 110, 'linked_slug' => 'jp_bank_rakuten'],
-        ['slug' => 'jp_card_amazon', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Amazon', 'currency' => 'JPY', 'sort_order' => 120],
-        ['slug' => 'jp_card_paypay', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Paypay', 'currency' => 'JPY', 'sort_order' => 130, 'linked_slug' => 'jp_bank_paypay'],
-        ['slug' => 'jp_card_jal', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'JAL', 'currency' => 'JPY', 'sort_order' => 140],
-        ['slug' => 'jp_card_seven', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Seven', 'currency' => 'JPY', 'sort_order' => 150, 'linked_slug' => 'jp_bank_seven'],
-        ['slug' => 'jp_card_fami', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Fami', 'currency' => 'JPY', 'sort_order' => 160],
-        ['slug' => 'jp_card_epos', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'EPOS', 'currency' => 'JPY', 'sort_order' => 170],
-        ['slug' => 'jp_card_smbc_cl', 'region' => 'jp', 'kind' => 'credit_card', 'name' => '三井住友 (CL)', 'currency' => 'JPY', 'sort_order' => 180, 'linked_slug' => 'jp_bank_smbc'],
+        ['slug' => 'jp_cash_petty', 'region' => 'jp', 'kind' => 'cash', 'name' => 'Petty Cash', 'currency' => 'JPY', 'sort_order' => 50],
+        ['slug' => 'jp_card_rakuten', 'region' => 'jp', 'kind' => 'credit_card', 'name' => '楽天VISA', 'currency' => 'JPY', 'sort_order' => 110, 'linked_slug' => 'jp_bank_rakuten'],
+        ['slug' => 'jp_card_rakuten_premium', 'region' => 'jp', 'kind' => 'credit_card', 'name' => '楽天VISAプレミアム', 'currency' => 'JPY', 'sort_order' => 115, 'linked_slug' => 'jp_bank_rakuten'],
+        ['slug' => 'jp_card_amazon', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'Amazon Master', 'currency' => 'JPY', 'sort_order' => 120],
+        ['slug' => 'jp_card_paypay', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'PayPAY Visa', 'currency' => 'JPY', 'sort_order' => 130, 'linked_slug' => 'jp_bank_paypay'],
+        ['slug' => 'jp_card_jal', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'JAL JCB', 'currency' => 'JPY', 'sort_order' => 140],
+        ['slug' => 'jp_card_seven', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'セブンJCB', 'currency' => 'JPY', 'sort_order' => 150, 'linked_slug' => 'jp_bank_seven'],
+        ['slug' => 'jp_card_fami', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'ファミJCB', 'currency' => 'JPY', 'sort_order' => 160],
+        ['slug' => 'jp_card_epos', 'region' => 'jp', 'kind' => 'credit_card', 'name' => 'EPOS VISA', 'currency' => 'JPY', 'sort_order' => 170],
+        ['slug' => 'jp_card_smbc_cl', 'region' => 'jp', 'kind' => 'credit_card', 'name' => '三井住友CL', 'currency' => 'JPY', 'sort_order' => 180, 'linked_slug' => 'jp_bank_smbc'],
         ['slug' => 'ph_bank_bpi', 'region' => 'ph', 'kind' => 'bank', 'name' => 'BPI', 'currency' => 'PHP', 'sort_order' => 210],
         ['slug' => 'ph_wallet_maya', 'region' => 'ph', 'kind' => 'wallet', 'name' => 'Maya', 'currency' => 'PHP', 'sort_order' => 220],
         ['slug' => 'ph_wallet_wize', 'region' => 'ph', 'kind' => 'wallet', 'name' => 'Wize', 'currency' => 'PHP', 'sort_order' => 230],
-        ['slug' => 'ph_cash_petty', 'region' => 'ph', 'kind' => 'cash', 'name' => '手持ち現金（Petty cash）', 'currency' => 'PHP', 'sort_order' => 240],
-        ['slug' => 'ph_card_bpi_mc', 'region' => 'ph', 'kind' => 'credit_card', 'name' => 'BPI Mastercard', 'currency' => 'PHP', 'sort_order' => 310, 'linked_slug' => 'ph_bank_bpi'],
-        ['slug' => 'ph_card_bankard_mc_gold', 'region' => 'ph', 'kind' => 'credit_card', 'name' => 'Bankard Mastercard Gold', 'currency' => 'PHP', 'sort_order' => 320],
+        ['slug' => 'ph_cash_petty', 'region' => 'ph', 'kind' => 'cash', 'name' => 'PH Petty Cash', 'currency' => 'PHP', 'sort_order' => 240],
+        ['slug' => 'ph_card_bpi_mc', 'region' => 'ph', 'kind' => 'credit_card', 'name' => 'BPI Master', 'currency' => 'PHP', 'sort_order' => 310, 'linked_slug' => 'ph_bank_bpi'],
+        ['slug' => 'ph_card_bankard_mc_gold', 'region' => 'ph', 'kind' => 'credit_card', 'name' => 'Bankard Gold Master', 'currency' => 'PHP', 'sort_order' => 320],
         ['slug' => 'ph_card_bankard_airmiles', 'region' => 'ph', 'kind' => 'credit_card', 'name' => 'Bankard Airmiles Visa', 'currency' => 'PHP', 'sort_order' => 330],
     ];
 
@@ -255,7 +260,7 @@ class FinanceService
 
                 $groups[] = [
                     'region' => $region,
-                    'regionLabel' => self::REGION_LABELS[$region] ?? $region,
+                    'regionLabel' => __(self::REGION_LABELS[$region] ?? $region),
                     'kinds' => $kinds,
                 ];
             }
@@ -270,7 +275,7 @@ class FinanceService
 
         return [[
             'region' => in_array($tab, ['jp', 'ph'], true) ? $tab : null,
-            'regionLabel' => self::REGION_LABELS[$tab] ?? null,
+            'regionLabel' => isset(self::REGION_LABELS[$tab]) ? __(self::REGION_LABELS[$tab]) : null,
             'kinds' => $kinds,
         ]];
     }
@@ -322,14 +327,39 @@ class FinanceService
         return $filters;
     }
 
-    /** @return array{tab: string, year: int, month: int, accountId: ?int} */
+    /** @return array{tab: string, year: int, month: int, day: ?int, accountId: ?int} */
     public function parseFilters(array $query): array
     {
         $tab = $this->normalizeTab($query['tab'] ?? 'jp');
-        $period = is_string($query['period'] ?? null) ? $query['period'] : date('Y-m');
-        if (! preg_match('/^(\d{4})-(\d{2})$/', $period, $matches)) {
-            $period = date('Y-m');
-            preg_match('/^(\d{4})-(\d{2})$/', $period, $matches);
+
+        $year = isset($query['year']) ? (int) $query['year'] : null;
+        $month = isset($query['month']) ? (int) $query['month'] : null;
+        $period = is_string($query['period'] ?? null) ? $query['period'] : null;
+
+        if ($year === null || $month === null) {
+            if (is_string($period) && preg_match('/^(\d{4})-(\d{2})$/', $period, $matches)) {
+                $year = (int) $matches[1];
+                $month = (int) $matches[2];
+            } else {
+                $year = (int) date('Y');
+                $month = (int) date('n');
+            }
+        }
+
+        if ($year < 2000 || $year > 2100) {
+            $year = (int) date('Y');
+        }
+        if ($month < 1 || $month > 12) {
+            $month = (int) date('n');
+        }
+
+        $day = null;
+        if (isset($query['day']) && $query['day'] !== '' && $query['day'] !== null) {
+            $day = (int) $query['day'];
+            $daysInMonth = (int) date('t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+            if ($day < 1 || $day > $daysInMonth) {
+                $day = null;
+            }
         }
 
         $accountId = isset($query['account']) ? (int) $query['account'] : null;
@@ -339,8 +369,9 @@ class FinanceService
 
         return [
             'tab' => $tab,
-            'year' => (int) $matches[1],
-            'month' => (int) $matches[2],
+            'year' => $year,
+            'month' => $month,
+            'day' => $day,
             'accountId' => $accountId,
         ];
     }
@@ -370,11 +401,14 @@ class FinanceService
         return $region === 'ph' ? 'PHP' : 'JPY';
     }
 
-    /** @param array{tab?: string, year?: int, month?: int, accountId?: ?int} $filters */
+    /** @param array{tab?: string, year?: int, month?: int, day?: ?int, accountId?: ?int} $filters */
     public function buildFinanceQuery(array $filters, array $extra = []): string
     {
         $params = array_filter([
             'tab' => $filters['tab'] ?? null,
+            'year' => $filters['year'] ?? null,
+            'month' => isset($filters['month']) ? sprintf('%02d', (int) $filters['month']) : null,
+            'day' => ! empty($filters['day']) ? sprintf('%02d', (int) $filters['day']) : null,
             'period' => isset($filters['year'], $filters['month'])
                 ? sprintf('%04d-%02d', $filters['year'], $filters['month'])
                 : null,
@@ -504,7 +538,7 @@ class FinanceService
 
         return [
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
-            'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
+            'monthLabel' => __(':year年:month月', ['year' => $filters['year'], 'month' => $filters['month']]),
             'year' => $filters['year'],
             'month' => $filters['month'],
             'summary' => $summary,
@@ -577,9 +611,9 @@ class FinanceService
             'id' => $account->id,
             'slug' => $account->slug,
             'region' => $account->region,
-            'regionLabel' => self::REGION_LABELS[$account->region] ?? $account->region,
+            'regionLabel' => __(self::REGION_LABELS[$account->region] ?? $account->region),
             'kind' => $account->kind,
-            'kindLabel' => self::KIND_LABELS[$account->kind] ?? $account->kind,
+            'kindLabel' => __(self::KIND_LABELS[$account->kind] ?? $account->kind),
             'name' => $account->name,
             'currency' => $account->currency,
             'sortOrder' => $account->sort_order,
@@ -587,7 +621,7 @@ class FinanceService
             'initialBalance' => (float) $account->initial_balance,
             'adjustmentAmount' => (float) ($account->adjustment_amount ?? 0),
             'balance' => $balance,
-            'balanceLabel' => $account->kind === 'credit_card' ? '利用額' : '残高',
+            'balanceLabel' => __($account->kind === 'credit_card' ? '利用額' : '残高'),
             'showInOverview' => (bool) ($account->show_in_overview ?? false),
         ];
     }
@@ -691,9 +725,10 @@ class FinanceService
         foreach ($transactions as $transaction) {
             if ((int) $transaction->account_id === (int) $account->id && $transaction->type === 'expense') {
                 $memo = trim((string) ($transaction->memo ?? ''));
+                $label = $this->formatDisplayMemo($memo, $account->name);
                 $charges[] = [
                     'id' => $transaction->id,
-                    'label' => $memo !== '' ? $memo : '支払い',
+                    'label' => $label !== '' ? $label : '利用',
                     'date' => $transaction->transaction_date->format('Y-m-d'),
                     'displayDate' => $transaction->transaction_date->format('Y/n/j'),
                     'amount' => round((float) $transaction->amount, 2),
@@ -908,15 +943,9 @@ class FinanceService
                     return $accountRow;
                 }
 
-                $model = FinanceAccount::query()->find($accountRow['id']);
-                if ($model) {
-                    $breakdown = $this->buildCreditCardUsageBreakdown($model, $allTransactions);
-                    $accountRow['usageConfigured'] = $breakdown['configured'];
-                    $accountRow['usageHistory'] = $breakdown['items'];
-                } else {
-                    $accountRow['usageConfigured'] = null;
-                    $accountRow['usageHistory'] = [];
-                }
+                // 請求内訳 UI は非表示。残高計算用ロジックは別途残す。
+                $accountRow['usageConfigured'] = null;
+                $accountRow['usageHistory'] = [];
 
                 return $accountRow;
             });
@@ -993,7 +1022,7 @@ class FinanceService
             'transactionBalanceContext' => $transactionBalanceContext,
             'filters' => $filters,
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
-            'monthLabel' => sprintf('%d年%d月', $filters['year'], $filters['month']),
+            'monthLabel' => __(':year年:month月', ['year' => $filters['year'], 'month' => $filters['month']]),
             'tabContextLabel' => $this->tabContextLabel($filters['tab']),
         ];
     }
@@ -1176,7 +1205,7 @@ class FinanceService
                     $item = $this->summaryDetailItem($transaction, $amount, $labels);
                     $expenseItems[] = $item;
                     $slug = $item['category'] ?? '';
-                    $label = $item['categoryLabel'] ?: '未分類';
+                    $label = $item['categoryLabel'] ?: __('未分類');
                     if (! isset($expenseCategories[$slug])) {
                         $expenseCategories[$slug] = [
                             'slug' => $slug,
@@ -1285,19 +1314,19 @@ class FinanceService
         $category = $transaction->category;
         $categoryLabel = $category
             ? ($categoryLabels[$category] ?? $category)
-            : ($transaction->type === 'expense' ? '未分類' : null);
+            : ($transaction->type === 'expense' ? __('未分類') : null);
 
         return [
             'id' => $transaction->id,
             'transactionDate' => $transaction->transaction_date->format('Y-m-d'),
             'type' => $transaction->type,
-            'typeLabel' => self::TYPE_LABELS[$transaction->type] ?? $transaction->type,
+            'typeLabel' => __(self::TYPE_LABELS[$transaction->type] ?? $transaction->type),
             'transferSide' => $transferSide,
             'category' => $category ?? '',
             'categoryLabel' => $categoryLabel,
             'accountName' => $transaction->account?->name,
             'toAccountName' => $transaction->toAccount?->name,
-            'memo' => $this->formatDisplayMemo($transaction->memo),
+            'memo' => $this->formatDisplayMemo($transaction->memo, $transaction->account?->name),
             'amount' => round($amount, 2),
             'currency' => $transferSide === 'transferIn'
                 ? ($transaction->to_currency ?: $transaction->currency)
@@ -1413,7 +1442,7 @@ class FinanceService
     /**
      * @param Collection<int, FinanceTransaction> $monthTransactions
      * @param Collection<int, FinanceAccountSchedule> $allSchedules
-     * @param array{tab?: string, accountId?: ?int} $filters
+     * @param array{tab?: string, accountId?: ?int, day?: ?int, year?: int, month?: int} $filters
      * @param Collection<int, FinanceTransaction> $allTransactions
      * @param list<array<string, mixed>> $accounts
      * @return list<array<string, mixed>>
@@ -1429,17 +1458,32 @@ class FinanceService
     ): array {
         $tab = $filters['tab'] ?? 'all';
         $accountId = $filters['accountId'] ?? null;
+        $day = $filters['day'] ?? null;
         $displayContext = $this->buildTransactionDisplayContext($accounts, $allTransactions);
 
-        $rows = $this->filterTransactionsForTab($monthTransactions, $tab, $accountId)
+        $scopedTransactions = $monthTransactions;
+        if ($day !== null && isset($filters['year'], $filters['month'])) {
+            $dayIso = sprintf('%04d-%02d-%02d', $filters['year'], $filters['month'], $day);
+            $scopedTransactions = $monthTransactions->filter(
+                fn (FinanceTransaction $t) => $t->transaction_date->format('Y-m-d') === $dayIso
+            );
+        }
+
+        $rows = $this->filterTransactionsForTab($scopedTransactions, $tab, $accountId)
             ->map(fn (FinanceTransaction $transaction) => $this->transactionToArray($transaction, $displayContext))
             ->values()
             ->all();
 
-        $monthSchedules = $allSchedules->filter(function (FinanceAccountSchedule $schedule) use ($monthStart, $monthEnd) {
+        $monthSchedules = $allSchedules->filter(function (FinanceAccountSchedule $schedule) use ($monthStart, $monthEnd, $day, $filters) {
             $date = $schedule->scheduled_date->format('Y-m-d');
+            if ($date < $monthStart || $date > $monthEnd) {
+                return false;
+            }
+            if ($day !== null && isset($filters['year'], $filters['month'])) {
+                return $date === sprintf('%04d-%02d-%02d', $filters['year'], $filters['month'], $day);
+            }
 
-            return $date >= $monthStart && $date <= $monthEnd;
+            return true;
         });
 
         foreach ($this->filterSchedulesForTab($monthSchedules, $tab, $accountId) as $schedule) {
@@ -1457,7 +1501,9 @@ class FinanceService
             $monthStart,
             $monthEnd,
             $tab,
-            $accountId
+            $accountId,
+            $day,
+            $filters
         ) {
             if ($transaction->account?->kind !== 'credit_card' || $transaction->type !== 'expense') {
                 return false;
@@ -1475,6 +1521,12 @@ class FinanceService
             $paymentDate = $displayContext['paymentDates'][$cardAccountId] ?? null;
             if (! $paymentDate || $paymentDate < $monthStart || $paymentDate > $monthEnd) {
                 return false;
+            }
+
+            if ($day !== null && isset($filters['year'], $filters['month'])) {
+                if ($paymentDate !== sprintf('%04d-%02d-%02d', $filters['year'], $filters['month'], $day)) {
+                    return false;
+                }
             }
 
             $txDate = $transaction->transaction_date->format('Y-m-d');
@@ -1498,28 +1550,147 @@ class FinanceService
             return ($b['id'] ?? $b['scheduleId'] ?? 0) <=> ($a['id'] ?? $a['scheduleId'] ?? 0);
         });
 
-        return $this->attachBalancesToDisplayRows($rows, $allTransactions, $accountId);
+        return $this->attachBalancesToDisplayRows($rows, $allTransactions, $accountId, $tab, $accounts);
     }
 
     /**
      * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $accountRows
      * @return list<array<string, mixed>>
      */
-    public function attachBalancesToDisplayRows(array $rows, Collection $allTransactions, ?int $filterAccountId): array
-    {
+    public function attachBalancesToDisplayRows(
+        array $rows,
+        Collection $allTransactions,
+        ?int $filterAccountId,
+        string $tab = 'all',
+        array $accountRows = [],
+    ): array {
         if ($rows === []) {
             return $rows;
         }
 
         $effective = $this->filterEffectiveTransactions($allTransactions);
         $accounts = FinanceAccount::query()->where('is_active', true)->get()->keyBy('id');
+        $today = $this->todayIso();
+
+        $visibleAccountIds = [];
+        $region = in_array($tab, ['jp', 'ph'], true) ? $tab : null;
+        foreach ($accountRows !== [] ? $accountRows : $accounts->map(fn (FinanceAccount $a) => [
+            'id' => $a->id,
+            'region' => $a->region,
+            'kind' => $a->kind,
+            'currency' => $a->currency,
+        ])->all() as $accountRow) {
+            if ($region !== null && ($accountRow['region'] ?? null) !== $region) {
+                continue;
+            }
+            $visibleAccountIds[] = (int) $accountRow['id'];
+        }
+        $visibleAccountIds = array_values(array_unique($visibleAccountIds));
+
+        $sorted = $effective
+            ->filter(fn (FinanceTransaction $t) => $t->transaction_date->format('Y-m-d') <= $today)
+            ->sortBy(fn (FinanceTransaction $t) => sprintf(
+                '%s-%010d',
+                $t->transaction_date->format('Y-m-d'),
+                $t->id
+            ))
+            ->values();
+
+        /** @var array<int, float> $balances */
+        $balances = [];
+        /** @var array<int, float> $cardPayments */
+        $cardPayments = [];
+        foreach ($visibleAccountIds as $id) {
+            if (! $accounts->has($id)) {
+                continue;
+            }
+            $account = $accounts->get($id);
+            $balances[$id] = $this->accountConfiguredStartingBalance($account);
+            if ($account->kind === 'credit_card') {
+                $cardPayments[$id] = 0.0;
+            }
+        }
+
+        /** @var array<int, array{total: float, bank: float, cash: float, cardPayment: float, cardRemaining: float, currency: string}> $portfolioByTx */
+        $portfolioByTx = [];
         /** @var array<int, array<int, float>> $maps */
         $maps = [];
-        $today = $this->todayIso();
+
+        foreach ($sorted as $transaction) {
+            $txId = (int) $transaction->id;
+            foreach (array_keys($balances) as $accountId) {
+                if (! $this->transactionAffectsAccount($transaction, $accountId)) {
+                    continue;
+                }
+                $account = $accounts->get($accountId);
+                $balances[$accountId] = round(
+                    $this->applyTransactionEffectForAccount($account, $balances[$accountId], $transaction, $accountId),
+                    2
+                );
+                $maps[$accountId][$txId] = $balances[$accountId];
+
+                if ($account->kind === 'credit_card') {
+                    if ((int) $transaction->account_id === $accountId) {
+                        if ($transaction->type === 'income') {
+                            $cardPayments[$accountId] = round($cardPayments[$accountId] + (float) $transaction->amount, 2);
+                        } elseif ($transaction->type === 'transfer') {
+                            $cardPayments[$accountId] = round($cardPayments[$accountId] + (float) $transaction->amount, 2);
+                        }
+                    }
+                    if ($transaction->type === 'transfer' && (int) $transaction->to_account_id === $accountId) {
+                        $cardPayments[$accountId] = round(
+                            $cardPayments[$accountId] + (float) ($transaction->to_amount ?? $transaction->amount),
+                            2
+                        );
+                    }
+                }
+            }
+
+            $bank = 0.0;
+            $cash = 0.0;
+            $wallet = 0.0;
+            $cardRemaining = 0.0;
+            $cardPayment = 0.0;
+            $currency = 'JPY';
+            foreach ($visibleAccountIds as $accountId) {
+                if (! $accounts->has($accountId)) {
+                    continue;
+                }
+                $account = $accounts->get($accountId);
+                $balance = $balances[$accountId] ?? 0.0;
+                $currency = $account->currency;
+                if ($account->kind === 'bank') {
+                    $bank += $balance;
+                } elseif ($account->kind === 'cash') {
+                    $cash += $balance;
+                } elseif ($account->kind === 'wallet') {
+                    $wallet += $balance;
+                } elseif ($account->kind === 'credit_card') {
+                    $cardRemaining += max(0, $balance);
+                    $cardPayment += $cardPayments[$accountId] ?? 0.0;
+                }
+            }
+
+            $portfolioByTx[$txId] = [
+                'total' => round($bank + $cash + $wallet, 2),
+                'bank' => round($bank, 2),
+                'cash' => round($cash, 2),
+                'cardPayment' => round($cardPayment, 2),
+                'cardRemaining' => round($cardRemaining, 2),
+                'currency' => $currency,
+            ];
+        }
 
         foreach ($rows as &$row) {
             $row['balanceAfter'] = null;
             $row['balanceCurrency'] = null;
+            $row['portfolioTotal'] = null;
+            $row['portfolioBank'] = null;
+            $row['portfolioCash'] = null;
+            $row['portfolioCardPayment'] = null;
+            $row['portfolioCardRemaining'] = null;
+            $row['portfolioCurrency'] = null;
 
             if (! empty($row['isScheduleOnly']) || empty($row['id'])) {
                 continue;
@@ -1530,24 +1701,24 @@ class FinanceService
                 continue;
             }
 
-            $balanceAccountId = $filterAccountId ?? (int) ($row['accountId'] ?? 0);
-            if ($balanceAccountId <= 0 || ! $accounts->has($balanceAccountId)) {
-                continue;
-            }
-
-            if (! isset($maps[$balanceAccountId])) {
-                $maps[$balanceAccountId] = $this->buildBalanceAfterMapForAccount(
-                    $accounts->get($balanceAccountId),
-                    $effective,
-                    $balanceAccountId
-                );
-            }
-
             $transactionId = (int) $row['id'];
-            if (isset($maps[$balanceAccountId][$transactionId])) {
-                $account = $accounts->get($balanceAccountId);
+            if (isset($portfolioByTx[$transactionId])) {
+                $snap = $portfolioByTx[$transactionId];
+                $row['portfolioTotal'] = $snap['total'];
+                $row['portfolioBank'] = $snap['bank'];
+                $row['portfolioCash'] = $snap['cash'];
+                $row['portfolioCardPayment'] = $snap['cardPayment'];
+                $row['portfolioCardRemaining'] = $snap['cardRemaining'];
+                $row['portfolioCurrency'] = $snap['currency'];
+                $row['balanceCurrency'] = $snap['currency'];
+            }
+
+            $balanceAccountId = $filterAccountId ?? (int) ($row['accountId'] ?? 0);
+            if ($balanceAccountId > 0 && isset($maps[$balanceAccountId][$transactionId])) {
                 $row['balanceAfter'] = $maps[$balanceAccountId][$transactionId];
-                $row['balanceCurrency'] = $account->currency;
+                if ($accounts->has($balanceAccountId)) {
+                    $row['balanceCurrency'] = $accounts->get($balanceAccountId)->currency;
+                }
             }
         }
         unset($row);
@@ -1747,7 +1918,7 @@ class FinanceService
             'currency' => $transaction->currency,
             'toCurrency' => $transaction->to_currency,
             'memo' => $transaction->memo ?? '',
-            'displayMemo' => $this->formatDisplayMemo($transaction->memo),
+            'displayMemo' => $this->formatDisplayMemo($transaction->memo, $transaction->account?->name),
             'isCrossRegion' => $transaction->type === 'transfer'
                 && $transaction->account?->region !== $transaction->toAccount?->region,
             'scheduleId' => $scheduleId,
@@ -1887,7 +2058,7 @@ class FinanceService
         return (int) $matches[1];
     }
 
-    public function formatDisplayMemo(?string $memo): string
+    public function formatDisplayMemo(?string $memo, ?string $accountName = null): string
     {
         if (! is_string($memo) || trim($memo) === '') {
             return '';
@@ -1900,6 +2071,35 @@ class FinanceService
 
         if (preg_match('/^(入金予定|カード引落):\s*(.+)$/u', $clean, $matches)) {
             return trim($matches[2]);
+        }
+
+        $marker = FinanceCsvService::IMPORT_MEMO_MARKER;
+        $fromBudgetCsv = str_starts_with($clean, $marker);
+        if ($fromBudgetCsv) {
+            $clean = trim(mb_substr($clean, mb_strlen($marker)));
+        }
+
+        if ($accountName !== null && $accountName !== '') {
+            foreach (['カード利用 '.$accountName, '残高 '.$accountName] as $prefix) {
+                if (str_starts_with($clean, $prefix)) {
+                    $clean = trim(mb_substr($clean, mb_strlen($prefix)));
+                    break;
+                }
+            }
+        } elseif ($fromBudgetCsv) {
+            if (preg_match('/^(カード利用|残高)\s+/u', $clean)) {
+                return '';
+            }
+        }
+
+        if ($fromBudgetCsv) {
+            $flowOnly = ['IN', 'OUT', 'PH Bank In', 'PH Bank Out', '送金'];
+            if (in_array($clean, $flowOnly, true)) {
+                return '';
+            }
+            if (preg_match('/^(IN|OUT|PH Bank In|PH Bank Out|送金)\s+(.+)$/u', $clean, $matches)) {
+                return trim($matches[2]);
+            }
         }
 
         return $clean;
@@ -1926,6 +2126,19 @@ class FinanceService
         }
 
         return $deleted;
+    }
+
+    /** @param list<int> $ids */
+    public function bulkDeleteTransactions(array $ids): int
+    {
+        $count = 0;
+        foreach (array_values(array_unique(array_map('intval', $ids))) as $id) {
+            if ($id > 0 && $this->deleteTransaction($id)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     public function updateAccountInitialBalance(int $id, float $balance, ?float $adjustmentAmount = null): bool
@@ -2167,7 +2380,7 @@ class FinanceService
 
         $accountRow['scheduleType'] = $this->scheduleTypeForAccountKind($accountRow['kind'] ?? null);
         $accountRow['scheduleTypeLabel'] = $accountRow['scheduleType']
-            ? (self::SCHEDULE_TYPE_LABELS[$accountRow['scheduleType']] ?? '')
+            ? __(self::SCHEDULE_TYPE_LABELS[$accountRow['scheduleType']] ?? '')
             : '';
         $accountRow['schedules'] = $scheduleItems;
         $today = $this->todayIso();

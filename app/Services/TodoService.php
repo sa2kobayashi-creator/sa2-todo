@@ -265,8 +265,8 @@ class TodoService
             ...$item,
             'dateLabel' => $item['listDateLabel'],
             'timeLabel' => $item['listTimeLabel'],
-            'categoryLabel' => self::CATEGORY_LABELS[$item['category']] ?? $item['category'],
-            'importanceLabel' => self::IMPORTANCE_LABELS[$item['importance']] ?? $item['importance'],
+            'categoryLabel' => __(self::CATEGORY_LABELS[$item['category']] ?? $item['category']),
+            'importanceLabel' => __(self::IMPORTANCE_LABELS[$item['importance']] ?? $item['importance']),
         ];
     }
 
@@ -484,12 +484,14 @@ class TodoService
     /** @param list<int> $ids */
     public function bulkSetCompleted(array $ids, bool $completed): int
     {
-        $idSet = array_filter($ids, fn ($id) => is_int($id) && $id > 0);
-        if (empty($idSet)) {
+        $idSet = array_values(array_filter($ids, fn ($id) => is_int($id) && $id > 0));
+        if ($idSet === []) {
             return 0;
         }
 
-        return Todo::query()->whereIn('id', $idSet)->update(['completed' => $completed]);
+        return Todo::query()
+            ->whereIn('id', $idSet)
+            ->update(['completed' => $completed ? 1 : 0]);
     }
 
     /** @param mixed $raw @return list<int> */

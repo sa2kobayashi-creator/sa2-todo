@@ -79,7 +79,7 @@ class DashboardController extends Controller
 
         return view('dashboard', [
             'view' => $view,
-            'viewLabels' => CalendarService::VIEW_LABELS,
+            'viewLabels' => CalendarService::translatedViewLabels(),
             'focusDate' => $focusDate,
             'periodLabel' => $this->calendar->formatPeriodLabel($view, $focusDate),
             'year' => $y,
@@ -89,7 +89,7 @@ class DashboardController extends Controller
             'todayUrl' => $this->calendar->buildDashboardQuery('day', $today),
             'buildViewUrl' => fn (string $targetView) => $this->calendar->buildDashboardQuery($targetView, $focusDate),
             'buildDashboardQuery' => fn (string $targetView, string $date) => $this->calendar->buildDashboardQuery($targetView, $date),
-            'weekdayLabels' => CalendarService::WEEKDAY_LABELS,
+            'weekdayLabels' => CalendarService::translatedWeekdayLabels(),
             'weeks' => $weeks,
             'dayView' => $dayView,
             'weekView' => $weekView,

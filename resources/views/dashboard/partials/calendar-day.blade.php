@@ -1,6 +1,6 @@
 <div class="calendar-day-view" data-date="{{ $dayView['date'] }}">
   <div class="cal-allday-row">
-    <div class="cal-allday-label">終日</div>
+    <div class="cal-allday-label">{{ __('終日') }}</div>
     <div class="cal-allday-events">
       @foreach($dayView['allDay'] as $todo)
         <button
@@ -14,7 +14,7 @@
           data-todo-id="{{ $todo['id'] }}"
           data-tip-title="{{ $todo['title'] }}"
           data-tip-date="{{ $formatPeriodLabel($todo) }}"
-          data-tip-time="終日"
+          data-tip-time="{{ __('終日') }}"
         >
           <span class="event-title">{{ $truncateTitle($todo['title'], 40) }}</span>
         </button>
@@ -31,9 +31,9 @@
         </button>
       @endforeach
       @if(count($dayView['allDay']) === 0 && count($dayView['cell']['notes'] ?? []) === 0)
-        <span class="cal-allday-empty">終日の予定はありません</span>
+        <span class="cal-allday-empty">{{ __('終日の予定はありません') }}</span>
       @endif
-      <button type="button" class="day-add-btn cal-allday-add" data-date="{{ $dayView['date'] }}" title="ToDo を追加">+</button>
+      <button type="button" class="day-add-btn cal-allday-add" data-date="{{ $dayView['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
     </div>
   </div>
 
@@ -42,7 +42,7 @@
       <div class="cal-time-gutter" aria-hidden="true">
         @foreach($dayView['hours'] as $hour)
           <div class="cal-time-slot">
-            <span class="cal-time-label">{{ $hour }}時</span>
+            <span class="cal-time-label">{{ \App\Services\CalendarService::formatHourLabel((int) $hour) }}</span>
           </div>
         @endforeach
       </div>

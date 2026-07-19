@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -10,7 +10,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
-    <title>Photos - Sa2 ToDo</title>
+    <title>{{ __('Photos') }} - Sa2 ToDo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -24,13 +24,13 @@
 
       <section class="photos-hero">
         <div class="photos-hero-copy">
-          <p class="photos-kicker">Album</p>
-          <h1 class="photos-title">{{ $selectedAlbum['name'] ?? 'Photos' }}</h1>
+          <p class="photos-kicker">{{ __('Album') }}</p>
+          <h1 class="photos-title">{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
           <p class="photos-lead">
             @if($selectedAlbum)
-              {{ $selectedAlbum['photoCount'] }}枚 · 表紙を選んでアルバムらしく
+              {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }} · {{ __('表紙を選んでアルバムらしく') }}
             @else
-              旅・日常・お気に入りを、見ていて気持ちよく残す場所。
+              {{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}
             @endif
           </p>
         </div>
@@ -44,20 +44,20 @@
               multiple
               hidden
             />
-            <span class="photos-upload-btn-label">写真・動画を追加</span>
+            <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
           </label>
-          <button type="button" class="photos-secondary-btn" id="photos-album-open">アルバム作成</button>
+          <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
           @if($selectedAlbum)
-            <button type="button" class="photos-secondary-btn" id="photos-album-edit">名前変更</button>
+            <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('名前変更') }}</button>
             <form
               method="post"
               action="/photos/albums/{{ $selectedAlbumId }}/delete"
               class="photos-album-delete-form"
-              onsubmit="return confirm({{ json_encode('「'.$selectedAlbum['name'].'」を削除しますか？'."\n".'アルバム内の写真・動画もすべて削除されます。', JSON_UNESCAPED_UNICODE) }})"
+              onsubmit="return confirm({{ json_encode(__('このアルバムを削除しますか？') . "\n" . $selectedAlbum['name'] . "\n" . __('アルバム内の写真・動画もすべて削除されます。'), JSON_UNESCAPED_UNICODE) }})"
             >
               @csrf
               <input type="hidden" name="returnTo" value="/photos" />
-              <button type="submit" class="photos-secondary-btn photos-danger-btn">アルバム削除</button>
+              <button type="submit" class="photos-secondary-btn photos-danger-btn">{{ __('アルバム削除') }}</button>
             </form>
           @endif
         </div>
@@ -65,33 +65,41 @@
 
       <aside class="photos-storage" aria-label="保存容量">
         <div class="photos-storage-head">
-          <strong>保存容量</strong>
-          <span>{{ $storageStats['formattedUsed'] }} / {{ $storageStats['formattedQuota'] }}（{{ $storageStats['photoCount'] }}枚）</span>
+          <strong>{{ __('保存容量') }}</strong>
+          <span>
+            {{ $storageStats['formattedUsed'] }}
+            / {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}
+            {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+            @if(!empty($storageStats['overFreeTier']))
+              <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+            @endif
+          </span>
         </div>
-        <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) $storageStats['percent'] }}">
-          <span class="photos-storage-bar-fill{{ $storageStats['percent'] >= 90 ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
+        <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}">
+          <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
         </div>
         <p class="photos-storage-note">
-          画像は長辺1920pxへ自動圧縮。動画は MP4（最大 {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）に対応。
-          保存先: {{ $storageStats['diskLabel'] }}
+          {{ __('画像は長辺1920pxへ自動圧縮。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
+          {{ __('保存先:') }} {{ $storageStats['diskLabel'] }}。
+          {{ __('Cloudflare R2 の無料枠は') }} {{ $storageStats['formattedQuota'] }}{{ __('（超過分は約') }} {{ $storageStats['overagePriceLabel'] }} {{ __('の従量課金）。') }}
           @if(($storageStats['disk'] ?? '') === 'public')
-            （本番では PHOTO_DISK=r2 で Cloudflare R2 に切り替え可能）
+            {{ __('（本番では PHOTO_DISK=r2 で Cloudflare R2 に切り替え可能）') }}
           @endif
         </p>
       </aside>
 
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
-          <strong>スマホ同期 / アプリ化</strong>
-          <span>このページをスマホで開き「写真・動画を追加」。下のボタンからホーム画面に追加できます（iPhone は案内を表示）。動画は MP4 のみです。</span>
+          <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
+          <span>{{ __('このページをスマホで開き「写真・動画を追加」。下のボタンからホーム画面に追加できます（iPhone は案内を表示）。動画は MP4 のみです。') }}</span>
         </div>
-        <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">ホーム画面に追加</button>
+        <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
       </aside>
 
       <section class="photos-album-covers" aria-label="アルバム">
         <a href="/photos" @class(['photos-cover-card', 'is-all', 'is-active' => !$selectedAlbumId])>
-          <span class="photos-cover-all-label">すべて</span>
-          <span class="photos-cover-meta">{{ count($photos) }}枚を表示中</span>
+          <span class="photos-cover-all-label">{{ __('すべて') }}</span>
+          <span class="photos-cover-meta">{{ count($photos) }}{{ __('枚を表示中') }}</span>
         </a>
         @foreach($albums as $album)
           <a
@@ -117,7 +125,7 @@
             <span class="photos-cover-shade"></span>
             <span class="photos-cover-text">
               <strong>{{ $album['name'] }}</strong>
-              <span>{{ $album['photoCount'] }}枚</span>
+              <span>{{ __(':count枚', ['count' => $album['photoCount']]) }}</span>
             </span>
           </a>
         @endforeach
@@ -137,51 +145,86 @@
       @if(count($photos) === 0)
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
-            <p class="photos-empty-title">まだメディアがありません</p>
-            <p class="photos-empty-text">写真または MP4 動画を追加できます。<br />ドラッグ＆ドロップ、またはボタンから。</p>
+            <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
+            <p class="photos-empty-text">{{ __('写真または MP4 動画を追加できます。') }}<br />{{ __('ドラッグ＆ドロップ、またはボタンから。') }}</p>
             <label class="photos-upload-btn photos-upload-btn-large">
-              <span class="photos-upload-btn-label">最初の一枚を入れる</span>
+              <span class="photos-upload-btn-label">{{ __('最初の一枚を入れる') }}</span>
             </label>
           </div>
         </div>
       @else
-        <div class="photos-timeline" id="photos-gallery">
+        <div class="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
+          <div class="photos-mode-toggle" role="group" aria-label="{{ __('表示モード') }}">
+            <button type="button" class="photos-mode-btn is-active" data-photos-mode="normal" aria-pressed="true">{{ __('通常') }}</button>
+            <button type="button" class="photos-mode-btn" data-photos-mode="select" aria-pressed="false">{{ __('選択') }}</button>
+            <button type="button" class="photos-mode-btn" data-photos-mode="list" aria-pressed="false">{{ __('一覧') }}</button>
+          </div>
+          <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
+            <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
+            <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
+            <label class="photos-bulk-move" id="photos-bulk-move-wrap" hidden>
+              <span>{{ __('アルバムへ移動') }}</span>
+              <select id="photos-bulk-move-album">
+                <option value="">{{ __('アルバムなし') }}</option>
+                @foreach($albums as $album)
+                  <option value="{{ $album['id'] }}">{{ $album['name'] }}</option>
+                @endforeach
+              </select>
+              <button type="button" class="photos-secondary-btn" id="photos-bulk-move">{{ __('移動') }}</button>
+            </label>
+          </div>
+        </div>
+
+        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal">
           @php $flatIndex = 0; @endphp
           @foreach($photoGroups as $group)
             <section class="photos-day-group">
               <header class="photos-day-header">
                 <h2 class="photos-day-label">{{ $group['label'] }}</h2>
-                <span class="photos-day-count">{{ count($group['photos']) }}枚</span>
+                <span class="photos-day-count">{{ __(':count枚', ['count' => count($group['photos'])]) }}</span>
               </header>
               <div class="photos-masonry">
                 @foreach($group['photos'] as $photo)
-                  <button
-                    type="button"
-                    @class(['photos-tile', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
-                    style="--photo-ratio: {{ max(0.66, min(1.45, ($photo['height'] && $photo['width']) ? ($photo['height'] / $photo['width']) : (($photo['mediaKind'] ?? '') === 'video' ? 0.75 : 1))) }}"
+                  <div
+                    @class(['photos-tile-wrap', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
+                    data-photo-id="{{ $photo['id'] }}"
                     data-photo-index="{{ $flatIndex }}"
-                    aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: ((($photo['mediaKind'] ?? '') === 'video') ? '動画を再生' : '写真を表示')) }}"
                   >
-                    @if(($photo['mediaKind'] ?? '') === 'video')
-                      <video
-                        class="photos-tile-video"
-                        src="{{ $photo['url'] }}#t=0.1"
-                        muted
-                        playsinline
-                        preload="metadata"
-                        aria-hidden="true"
-                      ></video>
-                      <span class="photos-play-badge" aria-hidden="true">▶</span>
-                    @else
-                      <img
-                        src="{{ $photo['thumbUrl'] }}"
-                        alt="{{ $photo['caption'] ?: ($photo['originalName'] ?: 'メディア') }}"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    @endif
-                    <span class="photos-tile-glow" aria-hidden="true"></span>
-                  </button>
+                    <label class="photos-tile-check">
+                      <input type="checkbox" class="photo-check" value="{{ $photo['id'] }}" aria-label="{{ __('選択') }}" />
+                    </label>
+                    <button
+                      type="button"
+                      @class(['photos-tile', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
+                      style="--photo-ratio: {{ max(0.66, min(1.45, ($photo['height'] && $photo['width']) ? ($photo['height'] / $photo['width']) : (($photo['mediaKind'] ?? '') === 'video' ? 0.75 : 1))) }}"
+                      data-photo-index="{{ $flatIndex }}"
+                      aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: ((($photo['mediaKind'] ?? '') === 'video') ? __('動画を再生') : __('写真を表示'))) }}"
+                    >
+                      @if(($photo['mediaKind'] ?? '') === 'video')
+                        <video
+                          class="photos-tile-video"
+                          src="{{ $photo['url'] }}#t=0.1"
+                          muted
+                          playsinline
+                          preload="metadata"
+                          aria-hidden="true"
+                        ></video>
+                        <span class="photos-play-badge" aria-hidden="true">▶</span>
+                      @else
+                        <img
+                          src="{{ $photo['thumbUrl'] }}"
+                          alt="{{ $photo['caption'] ?: ($photo['originalName'] ?: __('メディア')) }}"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      @endif
+                      <span class="photos-tile-glow" aria-hidden="true"></span>
+                    </button>
+                    <div class="photos-list-meta">
+                      <strong>{{ $photo['caption'] ?: ($photo['originalName'] ?: __('メディア')) }}</strong>
+                      <span>{{ $photo['takenAt'] ?? '' }}</span>
+                    </div>
+                  </div>
                   @php $flatIndex++; @endphp
                 @endforeach
               </div>
@@ -196,9 +239,16 @@
       <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="写真プレビュー">
         <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
         <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">‹</button>
-        <img src="" alt="" id="photos-lightbox-image" />
-        <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
+        <div class="photos-lightbox-media" id="photos-lightbox-media">
+          <img src="" alt="" id="photos-lightbox-image" />
+          <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
+        </div>
         <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">›</button>
+        <div class="photos-lightbox-zoom" role="group" aria-label="{{ __('拡大') }}">
+          <button type="button" id="photos-zoom-out" aria-label="{{ __('縮小') }}">−</button>
+          <button type="button" id="photos-zoom-reset" aria-label="{{ __('リセット') }}">100%</button>
+          <button type="button" id="photos-zoom-in" aria-label="{{ __('拡大') }}">＋</button>
+        </div>
         <div class="photos-lightbox-meta">
           <div>
             <p class="photos-lightbox-caption" id="photos-lightbox-caption"></p>
@@ -210,13 +260,13 @@
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
                 <input type="hidden" name="photo_id" id="photos-cover-photo-id" value="" />
-                <button type="submit" class="photos-cover-btn" id="photos-cover-btn">表紙にする</button>
+                <button type="submit" class="photos-cover-btn" id="photos-cover-btn">{{ __('表紙にする') }}</button>
               </form>
             @endif
-            <form method="post" action="" id="photos-delete-form" onsubmit="return confirm('このメディアを削除しますか？')">
+            <form method="post" action="" id="photos-delete-form" onsubmit='return confirm(@json(__('このメディアを削除しますか？')))'>
               @csrf
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <button type="submit" class="photos-delete-btn">削除</button>
+              <button type="submit" class="photos-delete-btn">{{ __('削除') }}</button>
             </form>
           </div>
         </div>
@@ -227,23 +277,23 @@
       <div class="modal-backdrop" data-close-album-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="photos-album-modal-title">
         <div class="modal-header">
-          <h2 id="photos-album-modal-title">アルバムを作成</h2>
-          <button type="button" class="modal-close" data-close-album-modal aria-label="閉じる">×</button>
+          <h2 id="photos-album-modal-title">{{ __('アルバムを作成') }}</h2>
+          <button type="button" class="modal-close" data-close-album-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="post" action="/photos/albums" class="modal-form" id="photos-album-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" id="photos-album-return-to" />
           <label>
-            アルバム名
-            <input type="text" name="name" id="photos-album-name" required maxlength="120" placeholder="例: 旅行 2026" autocomplete="off" />
+            {{ __('アルバム名') }}
+            <input type="text" name="name" id="photos-album-name" required maxlength="120" placeholder="{{ __('例: 旅行 2026') }}" autocomplete="off" />
           </label>
           <label>
-            説明（任意）
-            <input type="text" name="description" id="photos-album-description" maxlength="500" placeholder="短いメモ" autocomplete="off" />
+            {{ __('説明（任意）') }}
+            <input type="text" name="description" id="photos-album-description" maxlength="500" placeholder="{{ __('短いメモ') }}" autocomplete="off" />
           </label>
           <div class="modal-actions">
-            <button type="button" class="secondary" data-close-album-modal>キャンセル</button>
-            <button type="submit" id="photos-album-submit">作成</button>
+            <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
+            <button type="submit" id="photos-album-submit">{{ __('作成') }}</button>
           </div>
         </form>
       </div>
@@ -253,8 +303,8 @@
       <div class="modal-backdrop" data-close-pwa-guide></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="photos-pwa-guide-title">
         <div class="modal-header">
-          <h2 id="photos-pwa-guide-title">ホーム画面に追加</h2>
-          <button type="button" class="modal-close" data-close-pwa-guide aria-label="閉じる">×</button>
+          <h2 id="photos-pwa-guide-title">{{ __('ホーム画面に追加') }}</h2>
+          <button type="button" class="modal-close" data-close-pwa-guide aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <div class="photos-pwa-guide-body" id="photos-pwa-guide-body">
           <p class="photos-pwa-guide-lead" id="photos-pwa-guide-lead"></p>
@@ -262,7 +312,7 @@
           <p class="hint" id="photos-pwa-guide-note"></p>
         </div>
         <div class="modal-actions">
-          <button type="button" class="button-link" data-close-pwa-guide>閉じる</button>
+          <button type="button" class="button-link" data-close-pwa-guide>{{ __('閉じる') }}</button>
         </div>
       </div>
     </div>
@@ -428,8 +478,8 @@
             form.submit()
           } catch (_) {
             uploading = false
-            if (uploadLabel) uploadLabel.textContent = '写真・動画を追加'
-            window.alert('ファイルの処理に失敗しました。別の形式で試してください。')
+            if (uploadLabel) uploadLabel.textContent = @json(__('写真・動画を追加'));
+            window.alert(@json(__('ファイルの処理に失敗しました。別の形式で試してください。')));
           }
         }
 
@@ -510,10 +560,11 @@
             const inAlbum = Number(photo.albumId) === Number(selectedAlbumId)
             coverBtn.hidden = !inAlbum
             coverBtn.disabled = !!isCover
-            coverBtn.textContent = isCover ? '表紙に設定済み' : '表紙にする'
+            coverBtn.textContent = isCover ? @json(__('表紙に設定済み')) : @json(__('表紙にする'));
           }
           lightbox.hidden = false
           document.body.style.overflow = 'hidden'
+          setLightboxZoom(1)
         }
 
         function closeLightbox() {
@@ -522,10 +573,136 @@
           lightbox.hidden = true
           if (lightboxImage) lightboxImage.src = ''
           document.body.style.overflow = ''
+          setLightboxZoom(1)
         }
 
+        let lightboxZoom = 1
+        const lightboxMedia = document.getElementById('photos-lightbox-media')
+        const zoomResetBtn = document.getElementById('photos-zoom-reset')
+        function setLightboxZoom(next) {
+          lightboxZoom = Math.max(1, Math.min(4, Number(next) || 1))
+          if (lightboxMedia) lightboxMedia.style.transform = `scale(${lightboxZoom})`
+          if (zoomResetBtn) zoomResetBtn.textContent = `${Math.round(lightboxZoom * 100)}%`
+        }
+        document.getElementById('photos-zoom-in')?.addEventListener('click', () => setLightboxZoom(lightboxZoom + 0.25))
+        document.getElementById('photos-zoom-out')?.addEventListener('click', () => setLightboxZoom(lightboxZoom - 0.25))
+        zoomResetBtn?.addEventListener('click', () => setLightboxZoom(1))
+        lightboxMedia?.addEventListener('wheel', (e) => {
+          if (lightbox?.hidden) return
+          e.preventDefault()
+          setLightboxZoom(lightboxZoom + (e.deltaY < 0 ? 0.15 : -0.15))
+        }, { passive: false })
+
+        const gallery = document.getElementById('photos-gallery')
+        const bulkBar = document.getElementById('photos-bulk-bar')
+        const bulkCount = document.getElementById('photos-bulk-count')
+        const bulkMoveWrap = document.getElementById('photos-bulk-move-wrap')
+        const PHOTOS_MODE_KEY = 'photos-view-mode'
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
+        const photosReturnTo = @json($returnTo);
+
+        function photoChecks() {
+          return Array.from(document.querySelectorAll('.photo-check'))
+        }
+        function selectedPhotoIds() {
+          return photoChecks().filter((cb) => cb.checked).map((cb) => cb.value)
+        }
+        function currentPhotosMode() {
+          return gallery?.dataset.photosMode || 'normal'
+        }
+        function updatePhotosBulkUi() {
+          const mode = currentPhotosMode()
+          const ids = selectedPhotoIds()
+          if (bulkCount) bulkCount.textContent = @json(__(':count件選択')).replace(':count', String(ids.length));
+          if (bulkBar) bulkBar.hidden = mode === 'normal' || ids.length === 0
+          if (bulkMoveWrap) bulkMoveWrap.hidden = mode !== 'list'
+        }
+        function setPhotosMode(mode) {
+          const next = ['normal', 'select', 'list'].includes(mode) ? mode : 'normal'
+          if (gallery) gallery.dataset.photosMode = next
+          document.querySelectorAll('[data-photos-mode]').forEach((btn) => {
+            const active = btn.dataset.photosMode === next
+            btn.classList.toggle('is-active', active)
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false')
+          })
+          if (next === 'normal') {
+            photoChecks().forEach((cb) => { cb.checked = false })
+          }
+          try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
+          updatePhotosBulkUi()
+        }
+        document.querySelectorAll('[data-photos-mode]').forEach((btn) => {
+          btn.addEventListener('click', () => setPhotosMode(btn.dataset.photosMode))
+        })
+        try {
+          const savedMode = localStorage.getItem(PHOTOS_MODE_KEY)
+          setPhotosMode(savedMode || 'normal')
+        } catch (_) {
+          setPhotosMode('normal')
+        }
+        photoChecks().forEach((cb) => cb.addEventListener('change', updatePhotosBulkUi))
+
+        function submitPhotosBulk(url, extra = {}) {
+          const ids = selectedPhotoIds()
+          if (ids.length === 0) {
+            window.alert(@json(__('対象が選択されていません')));
+            return
+          }
+          const form = document.createElement('form')
+          form.method = 'POST'
+          form.action = url
+          form.style.display = 'none'
+          const token = document.createElement('input')
+          token.type = 'hidden'
+          token.name = '_token'
+          token.value = csrfToken
+          form.appendChild(token)
+          const returnTo = document.createElement('input')
+          returnTo.type = 'hidden'
+          returnTo.name = 'returnTo'
+          returnTo.value = photosReturnTo || '/photos'
+          form.appendChild(returnTo)
+          ids.forEach((id) => {
+            const input = document.createElement('input')
+            input.type = 'hidden'
+            input.name = 'ids[]'
+            input.value = id
+            form.appendChild(input)
+          })
+          Object.entries(extra).forEach(([name, value]) => {
+            const input = document.createElement('input')
+            input.type = 'hidden'
+            input.name = name
+            input.value = value
+            form.appendChild(input)
+          })
+          document.body.appendChild(form)
+          form.submit()
+        }
+        document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
+          if (!window.confirm(@json(__('選択したメディアを削除しますか？')))) return
+          submitPhotosBulk('/photos/bulk/delete')
+        })
+        document.getElementById('photos-bulk-move')?.addEventListener('click', () => {
+          const albumId = document.getElementById('photos-bulk-move-album')?.value ?? ''
+          submitPhotosBulk('/photos/bulk/move', { album_id: albumId })
+        })
+
         document.querySelectorAll('.photos-tile').forEach((tile) => {
-          tile.addEventListener('click', () => openLightbox(Number(tile.dataset.photoIndex || 0)))
+          tile.addEventListener('click', (e) => {
+            const mode = currentPhotosMode()
+            if (mode === 'select' || mode === 'list') {
+              e.preventDefault()
+              const wrap = tile.closest('.photos-tile-wrap')
+              const check = wrap?.querySelector('.photo-check')
+              if (check) {
+                check.checked = !check.checked
+                updatePhotosBulkUi()
+              }
+              return
+            }
+            openLightbox(Number(tile.dataset.photoIndex || 0))
+          })
         })
         document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
           el.addEventListener('click', closeLightbox)
@@ -537,6 +714,8 @@
           if (e.key === 'Escape') closeLightbox()
           if (e.key === 'ArrowLeft') openLightbox(currentIndex - 1)
           if (e.key === 'ArrowRight') openLightbox(currentIndex + 1)
+          if (e.key === '+' || e.key === '=') setLightboxZoom(lightboxZoom + 0.25)
+          if (e.key === '-') setLightboxZoom(lightboxZoom - 0.25)
         })
 
         const albumForm = document.getElementById('photos-album-form')
@@ -701,7 +880,7 @@
 
         async function handleInstallClick() {
           if (isPhotosStandalone()) {
-            window.alert('すでにホーム画面アプリとして開いています。')
+            window.alert(@json(__('すでにホーム画面アプリとして開いています。')));
             return
           }
           const promptEvent = deferredPrompt || await waitForInstallPrompt()

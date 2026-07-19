@@ -23,7 +23,9 @@ class MapController extends Controller
             'googleMapsApiKey' => $this->maps->getApiKey(),
             'hasGoogleMapsApiKey' => $this->maps->hasApiKey(),
             'defaultCenter' => MapService::DEFAULT_CENTER,
-            'travelModeLabels' => MapService::TRAVEL_MODE_LABELS,
+            'travelModeLabels' => collect(MapService::TRAVEL_MODE_LABELS)
+                ->map(fn (string $label) => __($label))
+                ->all(),
             'returnTo' => '/map'.($selectedId > 0 ? '?route='.$selectedId : ''),
             ...$this->flashFromQuery($request),
         ]);

@@ -1,12 +1,11 @@
 <?php
 
-use App\Http\Controllers\AiApiKeyController;
-use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
@@ -21,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return auth()->check() ? redirect('/dashboard') : redirect('/login');
 });
+
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -65,6 +66,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/finance/report', [FinanceController::class, 'report']);
     Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
     Route::post('/finance/import', [FinanceController::class, 'importCsv']);
+    Route::post('/finance/bulk/delete', [FinanceController::class, 'bulkDestroy']);
     Route::post('/finance', [FinanceController::class, 'store']);
     Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
     Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
@@ -100,12 +102,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
-
-    Route::get('/ai-chat', [AiChatController::class, 'index']);
-    Route::post('/ai-chat/conversations', [AiChatController::class, 'store']);
-    Route::get('/ai-chat/conversations/{id}', [AiChatController::class, 'show'])->whereNumber('id');
-    Route::post('/ai-chat/conversations/{id}/stream', [AiChatController::class, 'stream'])->whereNumber('id');
-    Route::post('/ai-chat/conversations/{id}/delete', [AiChatController::class, 'destroy'])->whereNumber('id');
+    Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
+    Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
 
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);
@@ -123,13 +121,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
     Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
-
-    Route::post('/settings/ai-keys', [AiApiKeyController::class, 'store']);
-    Route::post('/settings/ai-keys/test', [AiApiKeyController::class, 'test']);
-    Route::get('/settings/ai-keys/{id}/edit', [AiApiKeyController::class, 'edit'])->whereNumber('id');
-    Route::post('/settings/ai-keys/{id}/update', [AiApiKeyController::class, 'update'])->whereNumber('id');
-    Route::post('/settings/ai-keys/{id}/delete', [AiApiKeyController::class, 'destroy'])->whereNumber('id');
-    Route::post('/settings/ai-keys/{id}/reset-usage', [AiApiKeyController::class, 'resetUsage'])->whereNumber('id');
 
     Route::view('/mypage', 'mypage.stub');
 

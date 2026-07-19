@@ -70,7 +70,7 @@ class TodoController extends Controller
             'weeks' => $weeks,
             'calendarYear' => $calendarYear,
             'calendarMonth' => $calendarMonth,
-            'weekdayLabels' => CalendarService::WEEKDAY_LABELS,
+            'weekdayLabels' => CalendarService::translatedWeekdayLabels(),
             'truncateTitle' => fn ($title, $max = 24) => $this->display->truncateTitle((string) $title, $max),
             'limitTodosForCell' => fn ($todos, $limit = 4) => $this->display->limitTodosForCell($todos, $limit),
             'formatPeriodLabel' => fn ($todo) => $this->todos->formatPeriodLabel($todo),

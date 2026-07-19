@@ -52,7 +52,12 @@ class PhotoService
 
     public function userQuotaBytes(): int
     {
-        return max(1, (int) config('photos.user_quota_bytes', 500 * 1024 * 1024));
+        return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
+    }
+
+    public function overagePricePerGbMonthUsd(): float
+    {
+        return max(0, (float) config('photos.overage_price_per_gb_month_usd', 0.015));
     }
 
     public function diskName(): string
@@ -72,7 +77,7 @@ class PhotoService
         return $this->diskDriver() === 's3';
     }
 
-    /** @return array{usedBytes: int, quotaBytes: int, percent: float, photoCount: int, remainingBytes: int, formattedUsed: string, formattedQuota: string, disk: string, diskLabel: string} */
+    /** @return array{usedBytes: int, quotaBytes: int, percent: float, photoCount: int, remainingBytes: int, formattedUsed: string, formattedQuota: string, disk: string, diskLabel: string, overFreeTier: bool, overagePriceLabel: string} */
     public function storageStats(int $userId): array
     {
         $used = (int) Photo::query()->where('user_id', $userId)->sum('size_bytes');
@@ -83,8 +88,9 @@ class PhotoService
             ->count() * 80_000; // おおよそ 80KB/枚
         $usedApprox = $used + $thumbExtra;
         $quota = $this->userQuotaBytes();
-        $percent = min(100, round(($usedApprox / $quota) * 100, 1));
+        $percent = round(($usedApprox / $quota) * 100, 1);
         $disk = $this->diskName();
+        $price = $this->overagePricePerGbMonthUsd();
 
         return [
             'usedBytes' => $usedApprox,
@@ -95,7 +101,9 @@ class PhotoService
             'formattedUsed' => $this->formatBytes($usedApprox),
             'formattedQuota' => $this->formatBytes($quota),
             'disk' => $disk,
-            'diskLabel' => $disk === 'r2' ? 'Cloudflare R2' : ($disk === 'public' ? 'サーバーローカル' : $disk),
+            'diskLabel' => $disk === 'r2' ? 'Cloudflare R2' : ($disk === 'public' ? __('サーバーローカル') : $disk),
+            'overFreeTier' => $usedApprox > $quota,
+            'overagePriceLabel' => '$'.rtrim(rtrim(number_format($price, 3, '.', ''), '0'), '.').__('/GB/月'),
         ];
     }
 
@@ -232,26 +240,6 @@ class PhotoService
             }
         }
 
-        $stats = $this->storageStats($userId);
-        $incomingEstimate = 0;
-        foreach ($files as $file) {
-            if (! $file instanceof UploadedFile || ! $file->isValid()) {
-                continue;
-            }
-            $size = (int) $file->getSize();
-            if ($this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())) {
-                $incomingEstimate += $size;
-            } else {
-                $incomingEstimate += (int) ($size * 0.35);
-            }
-        }
-        if ($stats['usedBytes'] >= $stats['quotaBytes']) {
-            throw new \InvalidArgumentException('保存容量上限（'.$stats['formattedQuota'].'）に達しています');
-        }
-        if ($stats['usedBytes'] + $incomingEstimate > $stats['quotaBytes']) {
-            throw new \InvalidArgumentException('保存容量が不足しています（使用中 '.$stats['formattedUsed'].' / '.$stats['formattedQuota'].'）');
-        }
-
         $created = [];
         $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
         $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
@@ -328,6 +316,72 @@ class PhotoService
         $photo->delete();
 
         return true;
+    }
+
+    /** @param list<int> $ids */
+    public function bulkDeletePhotos(int $userId, array $ids): int
+    {
+        $count = 0;
+        foreach ($this->parseIdList($ids) as $id) {
+            if ($this->deletePhoto($userId, $id)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /** @param list<int> $ids */
+    public function bulkMovePhotos(int $userId, array $ids, ?int $albumId): int
+    {
+        $idSet = $this->parseIdList($ids);
+        if ($idSet === []) {
+            return 0;
+        }
+
+        if ($albumId !== null) {
+            $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
+            if (! $album) {
+                throw new \InvalidArgumentException('アルバムが見つかりません');
+            }
+        }
+
+        $photos = Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->get();
+
+        $moved = 0;
+        foreach ($photos as $photo) {
+            $oldAlbumId = $photo->album_id ? (int) $photo->album_id : null;
+            $photo->album_id = $albumId;
+            $photo->save();
+            $moved++;
+
+            if ($oldAlbumId && $oldAlbumId !== $albumId) {
+                PhotoAlbum::query()
+                    ->where('user_id', $userId)
+                    ->where('id', $oldAlbumId)
+                    ->where('cover_photo_id', $photo->id)
+                    ->update(['cover_photo_id' => null]);
+            }
+        }
+
+        return $moved;
+    }
+
+    /** @param mixed $raw @return list<int> */
+    public function parseIdList(mixed $raw): array
+    {
+        if ($raw === null) {
+            return [];
+        }
+        $list = is_array($raw) ? $raw : [$raw];
+
+        return array_values(array_unique(array_filter(
+            array_map(static fn ($v) => (int) $v, $list),
+            static fn ($id) => $id > 0
+        )));
     }
 
     public function deleteAlbum(int $userId, int $albumId): bool
@@ -734,19 +788,21 @@ class PhotoService
     private function formatDateGroupLabel(string $date, string $today, string $yesterday): string
     {
         if ($date === 'unknown') {
-            return '日付不明';
+            return __('日付不明');
         }
         if ($date === $today) {
-            return '今日';
+            return __('今日');
         }
         if ($date === $yesterday) {
-            return '昨日';
+            return __('昨日');
         }
 
         try {
             $carbon = \Carbon\Carbon::createFromFormat('Y-m-d', $date, config('app.timezone', 'Asia/Tokyo'));
 
-            return $carbon->format('Y年n月j日');
+            return app()->getLocale() === 'en'
+                ? $carbon->locale('en')->isoFormat('MMM D, YYYY')
+                : $carbon->format('Y年n月j日');
         } catch (\Throwable) {
             return $date;
         }

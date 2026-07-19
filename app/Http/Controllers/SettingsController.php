@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AiApiKey;
 use App\Models\TranslationApiKey;
 use App\Services\CalendarService;
 use App\Services\HolidayService;
@@ -18,16 +17,14 @@ class SettingsController extends Controller
     {
         $year = (int) ($request->query('year') ?: date('Y'));
         $section = $this->parseSection($request->query('section'));
-        $aiTab = $request->query('tab') === 'chat' ? 'chat' : 'translation';
 
         return view('settings.index', [
             'section' => $section,
             'settingsSection' => $section,
-            'aiTab' => $aiTab,
             'holidayYear' => $year,
             'holidays' => $this->holidays->listByYear($year),
             'weekdayRules' => $this->holidays->listWeekdayRules(),
-            'weekdayLabels' => CalendarService::WEEKDAY_LABELS,
+            'weekdayLabels' => CalendarService::translatedWeekdayLabels(),
             'prevHolidayYear' => $year - 1,
             'nextHolidayYear' => $year + 1,
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
@@ -36,11 +33,6 @@ class SettingsController extends Controller
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
-            'aiChatKeys' => $section === 'ai'
-                ? AiApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
-                : collect(),
-            'aiProviders' => config('ai_chat.providers', []),
-            'aiPlans' => config('ai_chat.plans', []),
             ...$this->flashFromQuery($request),
         ]);
     }
