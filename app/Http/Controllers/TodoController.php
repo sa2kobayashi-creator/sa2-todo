@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CalendarService;
 use App\Services\DisplayService;
+use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
@@ -19,13 +20,15 @@ class TodoController extends Controller
         private HolidayService $holidays,
         private NoteService $notes,
         private DisplayService $display,
+        private GroupService $groups,
     ) {}
 
     public function index(Request $request)
     {
+        $userId = (int) $request->user()->id;
         $filters = $this->todos->parseFilters($request->query());
         $displayMode = ($request->query('display') === 'calendar') ? 'calendar' : 'list';
-        $pageResult = $this->todos->filterTodosPage($this->todos->listTodos(), $filters);
+        $pageResult = $this->todos->filterTodosPage($this->todos->listTodos($userId), $filters);
         $editId = (int) $request->query('edit');
         $listQuery = $this->todos->buildTodosQuery($filters, [
             'display' => $displayMode === 'calendar' ? 'calendar' : null,
@@ -42,7 +45,7 @@ class TodoController extends Controller
             $neighbor = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1);
             $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($neighbor['year']));
 
-            $allTodos = $this->todos->listTodos()->all();
+            $allTodos = $this->todos->listTodos($userId)->all();
             $activeNotes = $this->notes->listActiveNotesForCalendar();
             $grid = $this->calendar->buildMonthGrid($calendarYear, $calendarMonth, $allTodos, $holidayMap);
             $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
@@ -81,8 +84,10 @@ class TodoController extends Controller
                 'month',
                 sprintf('%04d-%02d-01', $calendarYear, $calendarMonth)
             ),
+            'approvedGroups' => $this->groups->listApprovedForUser($userId),
             ...$this->flashFromQuery($request),
-        ]);    }
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -102,19 +107,25 @@ class TodoController extends Controller
         $startDate = $request->input('startDate');
         $endDate = $dateMode === 'range' ? $request->input('endDate') : $startDate;
 
-        $this->todos->addTodos($titles, [
-            'startDate' => $startDate,
-            'endDate' => $endDate,
-            'importance' => $request->input('importance'),
-            'category' => $request->input('category'),
-            'startTime' => $request->input('startTime'),
-            'endTime' => $request->input('endTime'),
-            'reminders' => $request->input('reminders', []),
-            'notifyVia' => $this->todos->parseNotifyViaFromBody($request->input('notifyVia')),
-            'weekdays' => $request->input('weekdays', []),
-            'excludeHolidays' => $request->input('excludeHolidays'),
-            'excludeClosures' => $request->input('excludeClosures'),
-        ]);
+        try {
+            $this->todos->addTodos($titles, [
+                'userId' => (int) $request->user()->id,
+                'groupId' => $request->input('groupId'),
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'importance' => $request->input('importance'),
+                'category' => $request->input('category'),
+                'startTime' => $request->input('startTime'),
+                'endTime' => $request->input('endTime'),
+                'reminders' => $request->input('reminders', []),
+                'notifyVia' => $this->todos->parseNotifyViaFromBody($request->input('notifyVia')),
+                'weekdays' => $request->input('weekdays', []),
+                'excludeHolidays' => $request->input('excludeHolidays'),
+                'excludeClosures' => $request->input('excludeClosures'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
 
         $count = count($titles);
 
@@ -124,6 +135,10 @@ class TodoController extends Controller
     public function update(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
+        if (! $this->canAccessTodo($request, $id)) {
+            return $this->redirectWithMessage($returnTo, __('この ToDo を操作する権限がありません。'), 'error');
+        }
+
         $dateMode = $request->input('dateMode', 'range');
         $startDate = $request->input('startDate');
         $endDate = $dateMode === 'single' ? $startDate : $request->input('endDate');
@@ -151,6 +166,9 @@ class TodoController extends Controller
     public function toggle(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
+        if (! $this->canAccessTodo($request, $id)) {
+            return $this->redirectWithMessage($returnTo, __('この ToDo を操作する権限がありません。'), 'error');
+        }
         $this->todos->toggleTodo($id);
 
         return redirect($returnTo);
@@ -159,6 +177,9 @@ class TodoController extends Controller
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
+        if (! $this->canAccessTodo($request, $id)) {
+            return $this->redirectWithMessage($returnTo, __('この ToDo を操作する権限がありません。'), 'error');
+        }
         $this->todos->deleteTodo($id);
 
         return $this->redirectWithMessage($returnTo, 'ToDo を削除しました');
@@ -167,6 +188,9 @@ class TodoController extends Controller
     public function duplicate(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
+        if (! $this->canAccessTodo($request, $id)) {
+            return $this->redirectWithMessage($returnTo, __('この ToDo を操作する権限がありません。'), 'error');
+        }
         $this->todos->duplicateTodo($id);
 
         return $this->redirectWithMessage($returnTo, 'ToDo を複製しました');
@@ -174,6 +198,18 @@ class TodoController extends Controller
 
     public function reschedule(Request $request, int $id)
     {
+        if (! $this->canAccessTodo($request, $id)) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => __('この ToDo を操作する権限がありません。')], 403);
+            }
+
+            return $this->redirectWithMessage(
+                $this->safeReturnTo($request->input('returnTo')),
+                __('この ToDo を操作する権限がありません。'),
+                'error'
+            );
+        }
+
         $date = (string) ($request->input('date') ?: $request->json('date') ?: '');
         $updated = $this->todos->rescheduleTodo($id, $date);
         if ($request->expectsJson() || $request->ajax()) {
@@ -205,7 +241,7 @@ class TodoController extends Controller
     public function bulkDelete(Request $request)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
-        $ids = $this->todos->parseIdList($request->input('ids'));
+        $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkDelete($ids);
 
         return $this->redirectWithMessage($returnTo, "{$count} 件削除しました");
@@ -214,7 +250,7 @@ class TodoController extends Controller
     public function bulkDuplicate(Request $request)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
-        $ids = $this->todos->parseIdList($request->input('ids'));
+        $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkDuplicate($ids);
 
         return $this->redirectWithMessage($returnTo, "{$count} 件複製しました");
@@ -223,10 +259,28 @@ class TodoController extends Controller
     private function bulkSetCompleted(Request $request, bool $completed, string $message)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
-        $ids = $this->todos->parseIdList($request->input('ids'));
+        $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkSetCompleted($ids, $completed);
 
         return $this->redirectWithMessage($returnTo, "{$count} 件{$message}");
     }
-}
 
+    private function canAccessTodo(Request $request, int $id): bool
+    {
+        return $this->todos->userCanAccessTodo(
+            (int) $request->user()->id,
+            $this->todos->getTodo($id)
+        );
+    }
+
+    /** @return list<int> */
+    private function accessibleTodoIds(Request $request): array
+    {
+        $userId = (int) $request->user()->id;
+
+        return array_values(array_filter(
+            $this->todos->parseIdList($request->input('ids')),
+            fn (int $id) => $this->todos->userCanAccessTodo($userId, $this->todos->getTodo($id))
+        ));
+    }
+}

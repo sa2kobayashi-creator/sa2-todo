@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GroupService;
 use App\Services\PhotoService;
 use Illuminate\Http\Request;
 
@@ -9,7 +10,10 @@ class PhotoController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
-    public function __construct(private PhotoService $photos) {}
+    public function __construct(
+        private PhotoService $photos,
+        private GroupService $groups,
+    ) {}
 
     public function index(Request $request)
     {
@@ -22,13 +26,17 @@ class PhotoController extends Controller
             ? collect($albums)->firstWhere('id', $albumId)
             : null;
         $photoList = $this->photos->listPhotos($userId, $albumId);
+        $ownedAlbums = array_values(array_filter($albums, fn ($a) => ! empty($a['canManage'])));
 
         return view('photos.index', [
             'albums' => $albums,
+            'ownedAlbums' => $ownedAlbums,
             'photos' => $photoList,
             'photoGroups' => $this->photos->groupPhotosByDate($photoList),
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
+            'canManageSelected' => ! empty($selectedAlbum['canManage']),
+            'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'storageStats' => $this->photos->storageStats($userId),
             'returnTo' => '/photos'.($albumId ? '?album='.$albumId : ''),
             ...$this->flashFromQuery($request),
@@ -42,7 +50,9 @@ class PhotoController extends Controller
             $album = $this->photos->createAlbum(
                 (int) $request->user()->id,
                 (string) $request->input('name'),
-                $request->input('description')
+                $request->input('description'),
+                (string) $request->input('visibility', 'private'),
+                $request->input('group_id')
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -59,7 +69,9 @@ class PhotoController extends Controller
                 (int) $request->user()->id,
                 $id,
                 (string) $request->input('name'),
-                $request->input('description')
+                $request->input('description'),
+                (string) $request->input('visibility', 'private'),
+                $request->input('group_id')
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -126,6 +138,65 @@ class PhotoController extends Controller
         return $this->redirectWithMessage($returnTo, $count.'件の'.$label.'を追加しました');
     }
 
+    public function editImage(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $image = $request->file('image');
+        if (! $image) {
+            return $this->redirectWithMessage($returnTo, __('編集画像を選択してください。'), 'error');
+        }
+
+        try {
+            $this->photos->saveEditedImage(
+                (int) $request->user()->id,
+                $id,
+                $image,
+                $request->input('label')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('編集版を保存しました。'));
+    }
+
+    public function file(Request $request, int $id)
+    {
+        $photo = $this->photos->findViewablePhoto((int) $request->user()->id, $id);
+        if (! $photo) {
+            abort(404);
+        }
+
+        try {
+            $file = $this->photos->readPhotoFile($photo);
+        } catch (\InvalidArgumentException $e) {
+            abort(404, $e->getMessage());
+        }
+
+        return response($file['contents'], 200, [
+            'Content-Type' => $file['mime'],
+            'Content-Disposition' => 'inline; filename="'.addslashes($file['name']).'"',
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
+    public function trimVideo(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        try {
+            $this->photos->trimVideo(
+                (int) $request->user()->id,
+                $id,
+                (float) $request->input('start', 0),
+                (float) $request->input('end', 0)
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('切り出し動画を保存しました。'));
+    }
+
     private function uploadLimitMessage(Request $request): ?string
     {
         $contentLength = (int) $request->server('CONTENT_LENGTH', 0);
@@ -147,6 +218,7 @@ class PhotoController extends Controller
         }
         $unit = strtolower(substr($value, -1));
         $number = (float) $value;
+
         return (int) match ($unit) {
             'g' => $number * 1024 * 1024 * 1024,
             'm' => $number * 1024 * 1024,

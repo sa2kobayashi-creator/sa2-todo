@@ -16,8 +16,16 @@ class FinanceController extends Controller
         private FinanceCsvService $financeCsv,
     ) {}
 
+    private function actAsUser(Request $request): void
+    {
+        $userId = (int) $request->user()->id;
+        $this->finance->actingAs($userId);
+        $this->financeCsv->actingAs($userId);
+    }
+
     public function index(Request $request)
     {
+        $this->actAsUser($request);
         $filters = $this->finance->parseFilters($request->query());
         $pageData = $this->finance->buildPageData($filters);
         $filters = $pageData['filters'];
@@ -62,6 +70,7 @@ class FinanceController extends Controller
 
     public function report(Request $request)
     {
+        $this->actAsUser($request);
         $filters = $this->finance->parseFilters($request->query());
         unset($filters['accountId']);
         $reportData = $this->finance->buildReportData($filters);
@@ -86,6 +95,7 @@ class FinanceController extends Controller
 
     public function store(Request $request)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -115,6 +125,7 @@ class FinanceController extends Controller
 
     public function update(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -141,6 +152,7 @@ class FinanceController extends Controller
 
     public function destroy(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteTransaction($id)) {
             return $this->redirectWithMessage($returnTo, '取引が見つかりません', 'error');
@@ -151,6 +163,7 @@ class FinanceController extends Controller
 
     public function bulkDestroy(Request $request)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $ids = $request->input('ids', []);
         if (! is_array($ids)) {
@@ -172,6 +185,7 @@ class FinanceController extends Controller
 
     public function storeExpenseCategory(Request $request)
     {
+        $this->actAsUser($request);
         try {
             $category = $this->finance->createExpenseCategory((string) $request->input('label', ''));
         } catch (\InvalidArgumentException $e) {
@@ -186,8 +200,9 @@ class FinanceController extends Controller
         ]);
     }
 
-    public function destroyExpenseCategory(string $slug)
+    public function destroyExpenseCategory(Request $request, string $slug)
     {
+        $this->actAsUser($request);
         try {
             $this->finance->deleteExpenseCategory($slug);
         } catch (\InvalidArgumentException $e) {
@@ -201,6 +216,7 @@ class FinanceController extends Controller
 
     public function updateAccountBalance(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $balance = (float) $request->input('initialBalance', 0);
         $adjustmentAmount = $request->has('adjustmentAmount')
@@ -215,6 +231,7 @@ class FinanceController extends Controller
 
     public function updateLinkedBank(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $linkedBankId = $request->input('linkedBankId');
         $linkedBankId = $linkedBankId !== null && $linkedBankId !== '' ? (int) $linkedBankId : null;
@@ -228,6 +245,7 @@ class FinanceController extends Controller
 
     public function storeAccount(Request $request)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -251,6 +269,7 @@ class FinanceController extends Controller
 
     public function updateAccountOverview(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $show = $request->boolean('show');
 
@@ -266,6 +285,7 @@ class FinanceController extends Controller
 
     public function updateAccount(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -289,6 +309,7 @@ class FinanceController extends Controller
 
     public function destroyAccount(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteAccount($id)) {
             return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
@@ -299,6 +320,7 @@ class FinanceController extends Controller
 
     public function storeAccountSchedule(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -316,6 +338,7 @@ class FinanceController extends Controller
 
     public function upsertAccountSchedule(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -333,6 +356,7 @@ class FinanceController extends Controller
 
     public function destroyAccountSchedule(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteSchedule($id)) {
             return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
@@ -343,6 +367,7 @@ class FinanceController extends Controller
 
     public function updateAccountSchedule(Request $request, int $id)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
 
         try {
@@ -362,6 +387,7 @@ class FinanceController extends Controller
 
     public function reorderAccounts(Request $request)
     {
+        $this->actAsUser($request);
         $accountIds = $request->input('accountIds', []);
         if (! is_array($accountIds)) {
             return response()->json(['ok' => false, 'message' => '不正なリクエストです'], 422);
@@ -378,6 +404,7 @@ class FinanceController extends Controller
 
     public function exportCsv(Request $request): StreamedResponse
     {
+        $this->actAsUser($request);
         $filters = $this->finance->parseFilters($request->query());
         $format = $request->query('format', FinanceCsvService::FORMAT_TRANSACTIONS);
         if (! in_array($format, [
@@ -409,6 +436,7 @@ class FinanceController extends Controller
 
     public function importCsv(Request $request)
     {
+        $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:4096'],

@@ -7,6 +7,9 @@ return [
     /** 動画1ファイルのアップロード上限（バイト）。初期値 100MB */
     'max_video_upload_bytes' => (int) env('PHOTO_MAX_VIDEO_UPLOAD_BYTES', 100 * 1024 * 1024),
 
+    /** ffmpeg 実行ファイル（PATH 上の名前、または絶対パス） */
+    'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
+
     /** ユーザーあたりの無料枠目安（バイト）。Cloudflare R2 無料枠相当の 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 

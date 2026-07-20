@@ -47,7 +47,8 @@ class DashboardController extends Controller
             $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
         }
 
-        $allTodos = $this->todos->listTodos()->all();
+        $userId = (int) $request->user()->id;
+        $allTodos = $this->todos->listTodos($userId)->all();
         $activeNotes = $this->notes->listActiveNotesForCalendar();
         $undated = array_values(array_filter(
             $allTodos,
@@ -96,7 +97,7 @@ class DashboardController extends Controller
             'yearView' => $yearView,
             'undated' => $undated,
             'returnTo' => $returnTo,
-            'monthAgenda' => $view === 'month' ? $this->listMonthAgenda($y, $m) : [],
+            'monthAgenda' => $view === 'month' ? $this->listMonthAgenda($y, $m, $userId) : [],
             'truncateTitle' => fn ($title, $max = 24) => $this->display->truncateTitle((string) $title, $max),
             'limitTodosForCell' => fn ($todos, $limit = 4) => $this->display->limitTodosForCell($todos, $limit),
             'limitCellItems' => fn ($todos, $notes, $limit = 4) => $this->display->limitCellItems($todos, $notes, $limit),
@@ -120,13 +121,13 @@ class DashboardController extends Controller
     }
 
     /** @return list<array<string, mixed>> */
-    private function listMonthAgenda(int $year, int $month): array
+    private function listMonthAgenda(int $year, int $month, int $userId): array
     {
         $monthStart = sprintf('%04d-%02d-01', $year, $month);
         $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year));
 
         $items = [];
-        foreach ($this->todos->listTodos() as $todo) {
+        foreach ($this->todos->listTodos($userId) as $todo) {
             $range = $this->todos->getTodoRange($todo);
             if (! $range || $range['start'] > $monthEnd || $range['end'] < $monthStart) {
                 continue;

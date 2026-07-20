@@ -67,6 +67,30 @@ class FinanceCsvService
 
     public function __construct(private FinanceService $finance) {}
 
+    public function actingAs(int $userId): self
+    {
+        $this->finance->actingAs($userId);
+
+        return $this;
+    }
+
+    private function userId(): int
+    {
+        return $this->finance->requireUserId();
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\FinanceAccount> */
+    private function accountsQuery()
+    {
+        return FinanceAccount::query()->where('user_id', $this->userId());
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\FinanceTransaction> */
+    private function transactionsQuery()
+    {
+        return FinanceTransaction::query()->where('user_id', $this->userId());
+    }
+
     public function detectFormat(string $content): string
     {
         $content = $this->normalizeCsvEncoding($content);
@@ -138,7 +162,7 @@ class FinanceCsvService
 
         $header = array_shift($rows);
         $columnMap = $this->buildBudgetMonitorColumnMap($header);
-        $accounts = FinanceAccount::query()->where('is_active', true)->get();
+        $accounts = $this->accountsQuery()->where('is_active', true)->get();
         $created = 0;
         $skipped = 0;
         $missingAccounts = [];
@@ -160,7 +184,7 @@ class FinanceCsvService
         $to = $dates !== [] ? $dates[array_key_last($dates)] : null;
 
         if ($replace) {
-            $deleteQuery = FinanceTransaction::query()
+            $deleteQuery = $this->transactionsQuery()
                 ->where('memo', 'like', '%'.self::IMPORT_MEMO_MARKER.'%');
             if ($from && $to) {
                 $deleteQuery
@@ -324,7 +348,8 @@ class FinanceCsvService
             return 0;
         }
 
-        FinanceTransaction::query()->create([
+        $this->transactionsQuery()->create([
+            'user_id' => $this->userId(),
             'transaction_date' => $date,
             'type' => $type,
             'account_id' => $account->id,
@@ -343,7 +368,7 @@ class FinanceCsvService
         string $memo,
         int &$skipped,
     ): int {
-        $until = FinanceTransaction::query()
+        $until = $this->transactionsQuery()
             ->whereDate('transaction_date', '<=', $date)
             ->orderBy('transaction_date')
             ->orderBy('id')
@@ -440,14 +465,14 @@ class FinanceCsvService
 
         $header = array_map(fn ($value) => strtolower(trim((string) $value)), array_shift($rows) ?: []);
         $indexes = $this->mapTransactionHeaderIndexes($header);
-        $accountsById = FinanceAccount::query()->where('is_active', true)->get()->keyBy('id');
-        $accountsByName = FinanceAccount::query()->where('is_active', true)->get()->keyBy(fn (FinanceAccount $a) => mb_strtolower($a->name));
+        $accountsById = $this->accountsQuery()->where('is_active', true)->get()->keyBy('id');
+        $accountsByName = $this->accountsQuery()->where('is_active', true)->get()->keyBy(fn (FinanceAccount $a) => mb_strtolower($a->name));
         $created = 0;
         $skipped = 0;
         $dates = [];
 
         if ($replace) {
-            $deleted = FinanceTransaction::query()
+            $deleted = $this->transactionsQuery()
                 ->where('memo', 'like', '%'.self::IMPORT_MEMO_MARKER.'%')
                 ->delete();
         } else {
@@ -482,7 +507,8 @@ class FinanceCsvService
                 continue;
             }
 
-            FinanceTransaction::query()->create([
+            $this->transactionsQuery()->create([
+                'user_id' => $this->userId(),
                 'transaction_date' => $date,
                 'type' => $type,
                 'account_id' => $account->id,
@@ -514,7 +540,7 @@ class FinanceCsvService
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
-        $transactions = FinanceTransaction::query()
+        $transactions = $this->transactionsQuery()
             ->with(['account', 'toAccount'])
             ->whereDate('transaction_date', '>=', $monthStart)
             ->whereDate('transaction_date', '<=', $monthEnd)
@@ -544,8 +570,8 @@ class FinanceCsvService
         $filters = $this->finance->parseFilters($filters);
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
-        $accounts = FinanceAccount::query()->where('is_active', true)->orderBy('sort_order')->get()->keyBy('slug');
-        $allTransactions = FinanceTransaction::query()->with(['account', 'toAccount'])->orderBy('transaction_date')->orderBy('id')->get();
+        $accounts = $this->accountsQuery()->where('is_active', true)->orderBy('sort_order')->get()->keyBy('slug');
+        $allTransactions = $this->transactionsQuery()->with(['account', 'toAccount'])->orderBy('transaction_date')->orderBy('id')->get();
 
         $lines = [self::BUDGET_MONITOR_HEADERS];
         $dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
@@ -693,10 +719,10 @@ class FinanceCsvService
 
             $account = null;
             if ($slug !== '') {
-                $account = FinanceAccount::query()->where('slug', $slug)->first();
+                $account = $this->accountsQuery()->where('slug', $slug)->first();
             }
             if ($account === null && $updateExisting) {
-                $account = FinanceAccount::query()
+                $account = $this->accountsQuery()
                     ->where('is_active', true)
                     ->where('name', $name)
                     ->where('region', $region)
@@ -729,7 +755,7 @@ class FinanceCsvService
                 $updated++;
                 $accountSlug = $account->slug;
             } else {
-                if ($slug !== '' && FinanceAccount::query()->where('slug', $slug)->exists()) {
+                if ($slug !== '' && $this->accountsQuery()->where('slug', $slug)->exists()) {
                     throw new \InvalidArgumentException("識別子 slug が重複しています: {$slug}");
                 }
 
@@ -760,8 +786,8 @@ class FinanceCsvService
         }
 
         if ($pendingLinks !== []) {
-            $accountsBySlug = FinanceAccount::query()->where('is_active', true)->get()->keyBy('slug');
-            $accountsByName = FinanceAccount::query()
+            $accountsBySlug = $this->accountsQuery()->where('is_active', true)->get()->keyBy('slug');
+            $accountsByName = $this->accountsQuery()
                 ->where('is_active', true)
                 ->get()
                 ->keyBy(fn (FinanceAccount $account) => mb_strtolower($account->name));
@@ -801,7 +827,7 @@ class FinanceCsvService
 
     private function exportAccounts(): string
     {
-        $accounts = FinanceAccount::query()
+        $accounts = $this->accountsQuery()
             ->where('is_active', true)
             ->with('linkedBank')
             ->orderBy('sort_order')
@@ -1244,7 +1270,7 @@ class FinanceCsvService
 
     private function transactionExists(string $date, string $type, int $accountId, float $amount, string $memo): bool
     {
-        return FinanceTransaction::query()
+        return $this->transactionsQuery()
             ->whereDate('transaction_date', $date)
             ->where('type', $type)
             ->where('account_id', $accountId)

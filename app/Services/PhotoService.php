@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AlbumVisibility;
 use App\Models\Photo;
 use App\Models\PhotoAlbum;
 use Illuminate\Http\UploadedFile;
@@ -21,6 +22,11 @@ class PhotoService
     public const ALLOWED_VIDEO_MIMES = [
         'video/mp4',
     ];
+
+    public function __construct(
+        private GroupService $groups,
+        private FfmpegService $ffmpeg,
+    ) {}
 
     public function maxUploadBytes(): int
     {
@@ -110,29 +116,85 @@ class PhotoService
     /** @return list<array<string, mixed>> */
     public function listAlbums(int $userId): array
     {
+        $groupIds = $this->groups->approvedGroupIdsForUser($userId);
+
         return PhotoAlbum::query()
-            ->where('user_id', $userId)
+            ->with(['group', 'user'])
             ->withCount('photos')
+            ->where(function ($q) use ($userId, $groupIds) {
+                $q->where('user_id', $userId)
+                    ->orWhere('visibility', AlbumVisibility::Public->value);
+                if ($groupIds !== []) {
+                    $q->orWhere(function ($groupQ) use ($groupIds) {
+                        $groupQ->where('visibility', AlbumVisibility::Group->value)
+                            ->whereIn('group_id', $groupIds);
+                    });
+                }
+            })
+            ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$userId])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
-            ->map(fn (PhotoAlbum $album) => $this->albumToArray($album))
+            ->map(fn (PhotoAlbum $album) => $this->albumToArray($album, $userId))
             ->all();
+    }
+
+    public function canViewAlbum(int $userId, PhotoAlbum $album): bool
+    {
+        if ((int) $album->user_id === $userId) {
+            return true;
+        }
+        $visibility = $album->visibilityEnum();
+        if ($visibility === AlbumVisibility::Public) {
+            return true;
+        }
+        if ($visibility === AlbumVisibility::Group && $album->group_id) {
+            return $this->groups->userBelongsToApprovedGroup($userId, (int) $album->group_id);
+        }
+
+        return false;
+    }
+
+    public function canManageAlbum(int $userId, PhotoAlbum $album): bool
+    {
+        return (int) $album->user_id === $userId;
+    }
+
+    public function findViewableAlbum(int $userId, int $albumId): ?PhotoAlbum
+    {
+        $album = PhotoAlbum::query()->with(['group', 'user'])->find($albumId);
+        if (! $album || ! $this->canViewAlbum($userId, $album)) {
+            return null;
+        }
+
+        return $album;
     }
 
     /** @return list<array<string, mixed>> */
     public function listPhotos(int $userId, ?int $albumId = null): array
     {
-        $query = Photo::query()->where('user_id', $userId);
         if ($albumId !== null) {
-            $query->where('album_id', $albumId);
+            $album = $this->findViewableAlbum($userId, $albumId);
+            if (! $album) {
+                return [];
+            }
+
+            return Photo::query()
+                ->where('album_id', $albumId)
+                ->orderByDesc('taken_at')
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (Photo $photo) => $this->photoToArray($photo, $userId))
+                ->all();
         }
 
-        return $query
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereNull('album_id')
             ->orderByDesc('taken_at')
             ->orderByDesc('id')
             ->get()
-            ->map(fn (Photo $photo) => $this->photoToArray($photo))
+            ->map(fn (Photo $photo) => $this->photoToArray($photo, $userId))
             ->all();
     }
 
@@ -165,26 +227,41 @@ class PhotoService
         return array_values($groups);
     }
 
-    public function createAlbum(int $userId, string $name, ?string $description = null): array
-    {
+    public function createAlbum(
+        int $userId,
+        string $name,
+        ?string $description = null,
+        string $visibility = 'private',
+        mixed $groupId = null,
+    ): array {
         $name = trim($name);
         if ($name === '') {
             throw new \InvalidArgumentException('アルバム名を入力してください');
         }
+
+        [$visibilityEnum, $resolvedGroupId] = $this->normalizeAlbumVisibility($userId, $visibility, $groupId);
 
         $max = (int) PhotoAlbum::query()->where('user_id', $userId)->max('sort_order');
         $album = PhotoAlbum::create([
             'user_id' => $userId,
             'name' => mb_substr($name, 0, 120),
             'description' => $description !== null ? mb_substr(trim($description), 0, 500) : null,
+            'visibility' => $visibilityEnum,
+            'group_id' => $resolvedGroupId,
             'sort_order' => $max + 10,
         ]);
 
-        return $this->albumToArray($album->loadCount('photos'));
+        return $this->albumToArray($album->load(['group', 'user'])->loadCount('photos'), $userId);
     }
 
-    public function updateAlbum(int $userId, int $albumId, string $name, ?string $description = null): array
-    {
+    public function updateAlbum(
+        int $userId,
+        int $albumId,
+        string $name,
+        ?string $description = null,
+        ?string $visibility = null,
+        mixed $groupId = null,
+    ): array {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
         if (! $album) {
             throw new \InvalidArgumentException('アルバムが見つかりません');
@@ -200,9 +277,29 @@ class PhotoService
         if ($album->description === '') {
             $album->description = null;
         }
+        if ($visibility !== null) {
+            [$visibilityEnum, $resolvedGroupId] = $this->normalizeAlbumVisibility($userId, $visibility, $groupId);
+            $album->visibility = $visibilityEnum;
+            $album->group_id = $resolvedGroupId;
+        }
         $album->save();
 
-        return $this->albumToArray($album->loadCount('photos'));
+        return $this->albumToArray($album->load(['group', 'user'])->loadCount('photos'), $userId);
+    }
+
+    /** @return array{0: \App\Enums\AlbumVisibility, 1: ?int} */
+    private function normalizeAlbumVisibility(int $userId, string $visibility, mixed $groupId): array
+    {
+        $visibilityEnum = AlbumVisibility::tryFrom($visibility) ?? AlbumVisibility::Private;
+        $resolvedGroupId = null;
+        if ($visibilityEnum === AlbumVisibility::Group) {
+            $resolvedGroupId = (int) $groupId;
+            if ($resolvedGroupId <= 0 || ! $this->groups->userBelongsToApprovedGroup($userId, $resolvedGroupId)) {
+                throw new \InvalidArgumentException(__('グループのみ公開には有効なグループが必要です。'));
+            }
+        }
+
+        return [$visibilityEnum, $resolvedGroupId];
     }
 
     public function setAlbumCover(int $userId, int $albumId, int $photoId): array
@@ -224,7 +321,7 @@ class PhotoService
         $album->cover_photo_id = $photo->id;
         $album->save();
 
-        return $this->albumToArray($album->loadCount('photos'));
+        return $this->albumToArray($album->loadCount('photos'), $userId);
     }
 
     /**
@@ -277,7 +374,7 @@ class PhotoService
                 'sort_order' => $nextOrder,
             ]);
             $nextOrder -= 10;
-            $created[] = $this->photoToArray($photo);
+            $created[] = $this->photoToArray($photo, $userId);
 
             if ($albumId !== null) {
                 $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -727,8 +824,143 @@ class PhotoService
         return round($bytes / (1024 * 1024 * 1024), 2).' GB';
     }
 
+    /**
+     * Save an edited image as a new photo (original untouched).
+     */
+    public function findOwnedPhoto(int $userId, int $photoId): ?Photo
+    {
+        return Photo::query()->where('user_id', $userId)->find($photoId);
+    }
+
+    public function findViewablePhoto(int $userId, int $photoId): ?Photo
+    {
+        $photo = Photo::query()->with('album')->find($photoId);
+        if (! $photo) {
+            return null;
+        }
+        if ((int) $photo->user_id === $userId) {
+            return $photo;
+        }
+        if ($photo->album_id) {
+            $album = $photo->album ?: $this->findViewableAlbum($userId, (int) $photo->album_id);
+            if ($album && $this->canViewAlbum($userId, $album)) {
+                return $photo;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array{contents: string, mime: string, name: string} */
+    public function readPhotoFile(Photo $photo): array
+    {
+        $disk = $this->storage();
+        if (! $disk->exists($photo->path)) {
+            throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
+        }
+
+        return [
+            'contents' => $disk->get($photo->path),
+            'mime' => (string) ($photo->mime ?: 'application/octet-stream'),
+            'name' => (string) ($photo->original_name ?: basename((string) $photo->path)),
+        ];
+    }
+
+    public function saveEditedImage(int $userId, int $photoId, UploadedFile $image, ?string $label = null): array
+    {
+        $source = Photo::query()->where('user_id', $userId)->find($photoId);
+        if (! $source) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+        if ($this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
+            throw new \InvalidArgumentException(__('動画は画像編集できません。動画トリムを使ってください。'));
+        }
+
+        $dir = 'photos/'.$userId;
+        $stored = $this->storeOptimizedImage($image, $dir);
+        if (! $stored) {
+            throw new \InvalidArgumentException(__('編集画像の保存に失敗しました。'));
+        }
+
+        $minSort = (int) Photo::query()->where('user_id', $userId)->min('sort_order');
+        $photo = Photo::create([
+            'user_id' => $userId,
+            'album_id' => $source->album_id,
+            'parent_photo_id' => $source->id,
+            'path' => $stored['path'],
+            'thumb_path' => $stored['thumbPath'],
+            'original_name' => $source->original_name,
+            'mime' => $stored['mime'],
+            'size_bytes' => $stored['sizeBytes'],
+            'width' => $stored['width'],
+            'height' => $stored['height'],
+            'caption' => $source->caption,
+            'edit_label' => $label ? mb_substr(trim($label), 0, 120) : __('編集版'),
+            'taken_at' => $source->taken_at,
+            'sort_order' => $minSort - 10,
+        ]);
+
+        return $this->photoToArray($photo, $userId);
+    }
+
+    public function trimVideo(int $userId, int $photoId, float $startSec, float $endSec): array
+    {
+        $source = Photo::query()->where('user_id', $userId)->find($photoId);
+        if (! $source) {
+            throw new \InvalidArgumentException(__('動画が見つかりません'));
+        }
+        if (! $this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
+            throw new \InvalidArgumentException(__('動画以外はトリムできません。'));
+        }
+
+        $disk = $this->storage();
+        $tmpIn = tempnam(sys_get_temp_dir(), 'vid_in_');
+        $tmpOut = sys_get_temp_dir().DIRECTORY_SEPARATOR.uniqid('vid_out_', true).'.mp4';
+        if ($tmpIn === false) {
+            throw new \RuntimeException(__('一時ファイルを作成できません。'));
+        }
+
+        try {
+            file_put_contents($tmpIn, $disk->get($source->path));
+            $this->ffmpeg->trim($tmpIn, $tmpOut, $startSec, $endSec);
+
+            $basename = str_replace('.', '', uniqid('vid_trim_', true)).'.mp4';
+            $dir = 'photos/'.$userId;
+            $path = $disk->putFileAs($dir, new UploadedFile($tmpOut, $basename, 'video/mp4', null, true), $basename, [
+                'visibility' => 'public',
+                'ContentType' => 'video/mp4',
+            ]);
+            if (! is_string($path) || $path === '') {
+                throw new \RuntimeException(__('切り出し動画の保存に失敗しました。'));
+            }
+
+            $minSort = (int) Photo::query()->where('user_id', $userId)->min('sort_order');
+            $photo = Photo::create([
+                'user_id' => $userId,
+                'album_id' => $source->album_id,
+                'parent_photo_id' => $source->id,
+                'path' => $path,
+                'thumb_path' => $source->thumb_path,
+                'original_name' => $source->original_name,
+                'mime' => 'video/mp4',
+                'size_bytes' => (int) filesize($tmpOut),
+                'width' => $source->width,
+                'height' => $source->height,
+                'caption' => $source->caption,
+                'edit_label' => sprintf('%s %.1f-%.1fs', __('トリム'), $startSec, $endSec),
+                'taken_at' => $source->taken_at,
+                'sort_order' => $minSort - 10,
+            ]);
+
+            return $this->photoToArray($photo, $userId);
+        } finally {
+            @unlink($tmpIn);
+            @unlink($tmpOut);
+        }
+    }
+
     /** @return array<string, mixed> */
-    public function albumToArray(PhotoAlbum $album): array
+    public function albumToArray(PhotoAlbum $album, ?int $viewerUserId = null): array
     {
         $cover = null;
         if ($album->cover_photo_id) {
@@ -742,10 +974,21 @@ class PhotoService
             ? $this->isVideoMime((string) $cover->mime, pathinfo((string) $cover->path, PATHINFO_EXTENSION))
             : false;
 
+        $visibility = $album->visibilityEnum();
+        $isOwner = $viewerUserId !== null && (int) $album->user_id === $viewerUserId;
+
         return [
             'id' => $album->id,
             'name' => $album->name,
             'description' => $album->description,
+            'visibility' => $visibility->value,
+            'visibilityLabel' => __($visibility->label()),
+            'groupId' => $album->group_id,
+            'groupName' => $album->relationLoaded('group') ? $album->group?->name : null,
+            'ownerUserId' => $album->user_id,
+            'ownerName' => $album->relationLoaded('user') ? $album->user?->display_name : null,
+            'isOwner' => $isOwner,
+            'canManage' => $isOwner,
             'coverPhotoId' => $album->cover_photo_id,
             'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
             'coverUrl' => $cover
@@ -759,7 +1002,7 @@ class PhotoService
     }
 
     /** @return array<string, mixed> */
-    public function photoToArray(Photo $photo): array
+    public function photoToArray(Photo $photo, ?int $viewerUserId = null): array
     {
         $takenAt = $photo->taken_at?->format('Y-m-d H:i');
         $takenDate = $photo->taken_at?->format('Y-m-d');
@@ -771,6 +1014,8 @@ class PhotoService
         return [
             'id' => $photo->id,
             'albumId' => $photo->album_id,
+            'parentPhotoId' => $photo->parent_photo_id,
+            'editLabel' => $photo->edit_label,
             'url' => $this->publicUrl($photo->path),
             'thumbUrl' => $this->publicUrl($photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png'),
             'originalName' => $photo->original_name,
@@ -782,6 +1027,8 @@ class PhotoService
             'takenAt' => $takenAt,
             'takenDate' => $takenDate,
             'createdAt' => $photo->created_at?->toIso8601String(),
+            'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
+            'fileUrl' => '/photos/'.$photo->id.'/file',
         ];
     }
 

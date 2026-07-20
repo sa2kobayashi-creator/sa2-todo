@@ -1,7 +1,10 @@
 @php $navSettingsSection = $settingsSection ?? ''; @endphp
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="/dashboard" class="site-logo">Sa2 ToDo</a>
+    <a href="/dashboard" class="site-logo">
+      <img src="{{ asset('icons/app-icon.png') }}?v=8" alt="" class="site-logo-icon" width="36" height="36" />
+      <span>{{ config('app.name', 'Sa2 Studio') }}</span>
+    </a>
     <nav class="site-nav">
       <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">{{ __('ダッシュボード') }}</a>
       <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">{{ __('Todo') }}</a>
@@ -17,8 +20,8 @@
       @endif
       <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
       @if(!empty($canSettings) || !empty($canAdminUsers))
-        <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin']) ? 'is-active' : '' }}" id="settings-dropdown">
-          <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
+        <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'is-active' : '' }}" id="settings-dropdown">
+          <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
             {{ !empty($canSettings) ? __('設定') : __('管理') }}
             <span class="nav-dropdown-caret" aria-hidden="true">▾</span>
           </button>
@@ -31,6 +34,7 @@
             @endif
             @if(!empty($canAdminUsers))
               <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
+              <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
             @endif
           </div>
         </div>
@@ -63,8 +67,10 @@
               <span class="role-badge {{ $currentUser['role'] }}">{{ $currentUser['roleLabel'] }}</span>
             </div>
             <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
+            <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
             @if(!empty($canAdminUsers))
               <a href="/admin/users" role="menuitem">{{ __('ユーザー管理') }}</a>
+              <a href="/admin/groups" role="menuitem">{{ __('グループ管理') }}</a>
             @endif
             <form method="post" action="/logout" class="logout-form">
               @csrf

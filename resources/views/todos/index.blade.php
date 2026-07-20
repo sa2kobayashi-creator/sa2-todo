@@ -2,10 +2,11 @@
 <html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
+    @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('Todo') }} - Sa2 ToDo</title>
+    <title>{{ __('Todo') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body>
@@ -120,6 +121,19 @@
               </div>
               <p class="hint inline-hint">{{ __('通知タイミングを選ぶ場合は、いずれか1つを選択してください。') }}</p>
             </fieldset>
+            <div class="form-grid-row form-grid-row-labels">
+              <span class="field-label">{{ __('共有先') }}</span>
+            </div>
+            <div class="form-grid-row form-grid-row-inputs">
+              <div class="form-grid-cell">
+                <select name="groupId" id="todo-group-id" aria-label="{{ __('共有先') }}">
+                  <option value="">{{ __('個人（自分のみ）') }}</option>
+                  @foreach($approvedGroups ?? [] as $group)
+                    <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
           </div>
           <label class="split-option">
             <input type="checkbox" id="split-by-line" name="splitByLine" value="1" checked />

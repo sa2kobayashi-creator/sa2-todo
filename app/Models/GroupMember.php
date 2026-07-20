@@ -5,20 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class FinanceExpenseCategory extends Model
+class GroupMember extends Model
 {
     protected $fillable = [
+        'group_id',
         'user_id',
-        'slug',
-        'label',
-        'sort_order',
+        'role',
     ];
 
-    protected function casts(): array
+    public function group(): BelongsTo
     {
-        return [
-            'sort_order' => 'integer',
-        ];
+        return $this->belongsTo(Group::class);
     }
 
     public function user(): BelongsTo

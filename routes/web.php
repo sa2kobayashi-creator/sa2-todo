@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MyPageController;
@@ -71,9 +73,17 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/update', [PhotoController::class, 'updateAlbum'])->whereNumber('id');
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
+    Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
+    Route::post('/photos/{id}/trim-video', [PhotoController::class, 'trimVideo'])->whereNumber('id');
+    Route::get('/photos/{id}/file', [PhotoController::class, 'file'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
     Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
+
+    Route::get('/groups', [GroupController::class, 'index']);
+    Route::post('/groups', [GroupController::class, 'store']);
+    Route::post('/groups/{id}/members', [GroupController::class, 'addMember'])->whereNumber('id');
+    Route::post('/groups/{id}/members/remove', [GroupController::class, 'removeMember'])->whereNumber('id');
 
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
@@ -142,5 +152,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/users/{id}/update', [AdminUserController::class, 'update'])->whereNumber('id');
         Route::post('/admin/users/{id}/password', [AdminUserController::class, 'updatePassword'])->whereNumber('id');
         Route::post('/admin/users/{id}/delete', [AdminUserController::class, 'destroy'])->whereNumber('id');
+
+        Route::get('/admin/groups', [AdminGroupController::class, 'index']);
+        Route::post('/admin/groups/{id}/approve', [AdminGroupController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/groups/{id}/reject', [AdminGroupController::class, 'reject'])->whereNumber('id');
     });
 });

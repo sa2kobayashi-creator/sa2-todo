@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Todo extends Model
 {
     protected $fillable = [
+        'user_id',
+        'group_id',
         'title',
         'completed',
         'start_date',
@@ -31,11 +34,24 @@ class Todo extends Model
         ];
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
             'id' => $this->id,
+            'userId' => $this->user_id,
+            'groupId' => $this->group_id,
+            'groupName' => $this->relationLoaded('group') ? $this->group?->name : null,
             'title' => $this->title,
             'completed' => $this->completed,
             'startDate' => $this->start_date?->format('Y-m-d'),

@@ -34,11 +34,22 @@ a {
 }
 
 .site-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 600;
   text-decoration: none;
   color: #111827;
   white-space: nowrap;
+}
+
+.site-logo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .site-nav {
@@ -1244,9 +1255,9 @@ a.filter-clear-btn {
 
 .todo-table .todo-col-title {
   font-size: 14px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .todo-table .todo-col-category,
@@ -7749,13 +7760,22 @@ body.map-page {
 }
 
 .auth-brand {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   text-align: center;
   font-size: 24px;
   font-weight: 700;
   color: #1a73e8;
   text-decoration: none;
   margin-bottom: 24px;
+}
+
+.auth-brand .site-logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
 }
 
 .auth-card h1 {
@@ -7899,6 +7919,77 @@ body.map-page {
   margin-top: 8px;
 }
 
+.admin-users-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 780px;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-users-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f9fafb;
+  white-space: nowrap;
+}
+
+.admin-users-table input,
+.admin-users-table select {
+  width: 100%;
+  max-width: 220px;
+  padding: 7px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.admin-users-row-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.admin-users-self-tag {
+  white-space: nowrap;
+}
+
+.admin-users-password-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+.admin-users-password-row input {
+  max-width: 140px;
+}
+
+.admin-users-actions {
+  white-space: nowrap;
+}
+
+.admin-users-actions .inline-form {
+  display: inline;
+  margin-left: 4px;
+}
+
 @media (max-width: 768px) {
   .profile-dl {
     grid-template-columns: 1fr;
@@ -7912,6 +8003,14 @@ body.map-page {
   .admin-user-form,
   .admin-user-password-form {
     grid-template-columns: 1fr;
+  }
+
+  .admin-users-password-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-users-password-row input {
+    max-width: none;
   }
 }
 
@@ -8859,6 +8958,92 @@ body.map-page {
 
 .photos-lightbox-zoom button:hover {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.photos-crop-dialog {
+  width: min(920px, 96vw);
+  max-width: 96vw;
+}
+
+.photos-crop-hint {
+  margin: 0 0 10px;
+}
+
+.photos-crop-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.photos-crop-stage {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  background: #111827;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.photos-crop-frame {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.photos-crop-stage canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.photos-crop-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.photos-crop-shade {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.photos-crop-box {
+  position: absolute;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  cursor: move;
+  pointer-events: auto;
+  touch-action: none;
+  box-sizing: border-box;
+}
+
+.photos-crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border: 1px solid #111827;
+  border-radius: 2px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.photos-crop-handle[data-handle="nw"] { left: -7px; top: -7px; cursor: nwse-resize; }
+.photos-crop-handle[data-handle="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
+.photos-crop-handle[data-handle="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.photos-crop-handle[data-handle="se"] { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
+.photos-trim-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .photos-toolbar {

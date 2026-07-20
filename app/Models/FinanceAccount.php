@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FinanceAccount extends Model
 {
     protected $fillable = [
+        'user_id',
         'slug',
         'region',
         'kind',
@@ -31,6 +32,11 @@ class FinanceAccount extends Model
             'show_in_overview' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function linkedBank(): BelongsTo

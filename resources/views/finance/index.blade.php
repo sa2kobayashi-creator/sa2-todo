@@ -2,10 +2,11 @@
 <html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
+    @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('入出金経費') }} - Sa2 ToDo</title>
+    <title>{{ __('入出金経費') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="finance-page">
@@ -78,6 +79,7 @@
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
               <input type="hidden" name="import_type" value="accounts" />
               <p class="finance-csv-form-title">{{ __('口座マスターインポート') }}</p>
+              <p class="hint">{{ __('口座マスターはログイン中のユーザー専用です。他のユーザーとは共有されません。') }}</p>
               <label class="finance-csv-file-label">
                 {{ __('CSVファイル') }}
                 <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />

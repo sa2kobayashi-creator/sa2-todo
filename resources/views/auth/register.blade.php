@@ -2,8 +2,9 @@
 <html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
+    @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>{{ __('会員登録') }} - Sa2 ToDo</title>
+    <title>{{ __('会員登録') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="auth-body">
@@ -22,7 +23,10 @@
       </form>
     </div>
     <main class="auth-shell">
-      <a href="/" class="auth-brand">Sa2 ToDo</a>
+      <a href="/" class="auth-brand">
+        <img src="{{ asset('icons/app-icon.png') }}" alt="" class="site-logo-icon" width="40" height="40" />
+        <span>{{ config('app.name') }}</span>
+      </a>
       <div class="auth-card panel">
         <h1>{{ __('会員登録') }}</h1>
         @if(session('error'))<div class="banner error">{{ session('error') }}</div>@endif

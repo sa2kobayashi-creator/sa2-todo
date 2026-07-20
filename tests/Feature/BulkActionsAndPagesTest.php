@@ -51,6 +51,7 @@ class BulkActionsAndPagesTest extends TestCase
     public function test_todo_bulk_complete_updates_all_selected_ids(): void
     {
         $todos = collect(range(1, 3))->map(fn ($i) => Todo::create([
+            'user_id' => $this->user->id,
             'title' => "Todo {$i}",
             'completed' => false,
             'start_date' => '2026-07-19',
@@ -73,6 +74,7 @@ class BulkActionsAndPagesTest extends TestCase
     public function test_todo_bulk_uncomplete_updates_all_selected_ids(): void
     {
         $todos = collect(range(1, 2))->map(fn ($i) => Todo::create([
+            'user_id' => $this->user->id,
             'title' => "Done {$i}",
             'completed' => true,
             'start_date' => '2026-07-19',

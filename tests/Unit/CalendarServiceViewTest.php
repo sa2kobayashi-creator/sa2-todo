@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\CalendarService;
 use App\Services\DisplayService;
+use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\TodoService;
 use Tests\TestCase;
@@ -16,7 +17,7 @@ class CalendarServiceViewTest extends TestCase
     {
         parent::setUp();
         $this->calendar = new CalendarService(
-            new TodoService(new HolidayService),
+            new TodoService(new HolidayService, new GroupService),
             new DisplayService
         );
     }

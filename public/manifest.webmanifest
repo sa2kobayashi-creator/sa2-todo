@@ -1,8 +1,8 @@
 {
-  "id": "/photos",
-  "name": "Sa2 Photos",
-  "short_name": "Photos",
-  "description": "Sa2 ToDo のフォトアルバム",
+  "id": "/",
+  "name": "Sa2 Studio",
+  "short_name": "Sa2 Studio",
+  "description": "Sa2 Studio",
   "start_url": "/photos-start.html",
   "scope": "/",
   "display": "standalone",

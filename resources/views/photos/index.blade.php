@@ -2,15 +2,16 @@
 <html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
+    @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a1f24" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Sa2 Photos" />
+    <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Sa2 Studio') }}" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
-    <title>{{ __('Photos') }} - Sa2 ToDo</title>
+    <title>{{ __('Photos') }} - {{ config('app.name') }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -35,19 +36,21 @@
           </p>
         </div>
         <div class="photos-hero-actions">
-          <label class="photos-upload-btn">
-            <input
-              type="file"
-              name="photos[]"
-              id="photos-file-input"
-              accept="image/*,video/mp4,.heic,.heif,.mp4"
-              multiple
-              hidden
-            />
-            <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
-          </label>
+          @if(empty($selectedAlbum) || !empty($canManageSelected))
+            <label class="photos-upload-btn">
+              <input
+                type="file"
+                name="photos[]"
+                id="photos-file-input"
+                accept="image/*,video/mp4,.heic,.heif,.mp4"
+                multiple
+                hidden
+              />
+              <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
+            </label>
+          @endif
           <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
-          @if($selectedAlbum)
+          @if($selectedAlbum && !empty($canManageSelected))
             <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('名前変更') }}</button>
             <form
               method="post"
@@ -125,7 +128,12 @@
             <span class="photos-cover-shade"></span>
             <span class="photos-cover-text">
               <strong>{{ $album['name'] }}</strong>
-              <span>{{ __(':count枚', ['count' => $album['photoCount']]) }}</span>
+              <span>
+                {{ __(':count枚', ['count' => $album['photoCount']]) }}
+                @if(!empty($album['visibilityLabel']))
+                  · {{ $album['visibilityLabel'] }}
+                @endif
+              </span>
             </span>
           </a>
         @endforeach
@@ -166,7 +174,7 @@
               <span>{{ __('アルバムへ移動') }}</span>
               <select id="photos-bulk-move-album">
                 <option value="">{{ __('アルバムなし') }}</option>
-                @foreach($albums as $album)
+                @foreach($ownedAlbums ?? $albums as $album)
                   <option value="{{ $album['id'] }}">{{ $album['name'] }}</option>
                 @endforeach
               </select>
@@ -255,7 +263,7 @@
             <p class="photos-lightbox-date" id="photos-lightbox-date"></p>
           </div>
           <div class="photos-lightbox-actions">
-            @if($selectedAlbumId)
+            @if($selectedAlbumId && !empty($canManageSelected))
               <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
@@ -263,6 +271,20 @@
                 <button type="submit" class="photos-cover-btn" id="photos-cover-btn">{{ __('表紙にする') }}</button>
               </form>
             @endif
+            <button type="button" class="photos-secondary-btn" id="photos-open-crop-btn" hidden>{{ __('画像をトリム') }}</button>
+            <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <input type="hidden" name="label" value="{{ __('トリム') }}" />
+              <input type="file" name="image" accept="image/*" id="photos-edit-image-input" hidden />
+            </form>
+            <form method="post" action="" id="photos-trim-video-form" class="photos-trim-form" hidden>
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <label>{{ __('開始秒') }} <input type="number" name="start" id="photos-trim-start" min="0" step="0.1" value="0" style="width:4.5rem;" /></label>
+              <label>{{ __('終了秒') }} <input type="number" name="end" id="photos-trim-end" min="0.1" step="0.1" value="5" style="width:4.5rem;" /></label>
+              <button type="submit" class="photos-secondary-btn">{{ __('動画をトリム') }}</button>
+            </form>
             <form method="post" action="" id="photos-delete-form" onsubmit='return confirm(@json(__('このメディアを削除しますか？')))'>
               @csrf
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
@@ -291,11 +313,65 @@
             {{ __('説明（任意）') }}
             <input type="text" name="description" id="photos-album-description" maxlength="500" placeholder="{{ __('短いメモ') }}" autocomplete="off" />
           </label>
+          <label>
+            {{ __('公開範囲') }}
+            <select name="visibility" id="photos-album-visibility">
+              <option value="private">{{ __('非公開') }}</option>
+              <option value="group">{{ __('グループのみ') }}</option>
+              <option value="public">{{ __('登録ユーザーに公開') }}</option>
+            </select>
+          </label>
+          <label id="photos-album-group-wrap" hidden>
+            {{ __('共有グループ') }}
+            <select name="group_id" id="photos-album-group-id">
+              <option value="">{{ __('グループを選択') }}</option>
+              @foreach($approvedGroups ?? [] as $group)
+                <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+              @endforeach
+            </select>
+          </label>
           <div class="modal-actions">
             <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
             <button type="submit" id="photos-album-submit">{{ __('作成') }}</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="photos-crop-modal" hidden>
+      <div class="modal-backdrop" data-close-crop-modal></div>
+      <div class="modal-dialog photos-crop-dialog" role="dialog" aria-labelledby="photos-crop-modal-title">
+        <div class="modal-header">
+          <h2 id="photos-crop-modal-title">{{ __('画像をトリム') }}</h2>
+          <button type="button" class="modal-close" data-close-crop-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <p class="hint photos-crop-hint">{{ __('枠をドラッグして切り抜き範囲を選び、「トリムして保存」で別ファイルとして保存します。') }}</p>
+        <div class="photos-crop-toolbar">
+          <button type="button" class="secondary mini-btn" id="photos-crop-rotate-left">↺ {{ __('左回転') }}</button>
+          <button type="button" class="secondary mini-btn" id="photos-crop-rotate-right">↻ {{ __('右回転') }}</button>
+          <button type="button" class="secondary mini-btn" id="photos-crop-reset">{{ __('リセット') }}</button>
+        </div>
+        <div class="photos-crop-stage" id="photos-crop-stage">
+          <div class="photos-crop-frame" id="photos-crop-frame">
+            <canvas id="photos-crop-canvas"></canvas>
+            <div class="photos-crop-overlay" id="photos-crop-overlay" hidden>
+              <div class="photos-crop-shade photos-crop-shade-top"></div>
+              <div class="photos-crop-shade photos-crop-shade-left"></div>
+              <div class="photos-crop-shade photos-crop-shade-right"></div>
+              <div class="photos-crop-shade photos-crop-shade-bottom"></div>
+              <div class="photos-crop-box" id="photos-crop-box">
+                <span class="photos-crop-handle" data-handle="nw"></span>
+                <span class="photos-crop-handle" data-handle="ne"></span>
+                <span class="photos-crop-handle" data-handle="sw"></span>
+                <span class="photos-crop-handle" data-handle="se"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="secondary" data-close-crop-modal>{{ __('キャンセル') }}</button>
+          <button type="button" id="photos-crop-save">{{ __('トリムして保存') }}</button>
+        </div>
       </div>
     </div>
 
@@ -553,7 +629,30 @@
           }
           lightboxCaption.textContent = photo.caption || photo.originalName || ''
           lightboxDate.textContent = (isVideo ? '動画 · ' : '') + (photo.takenAt || '')
+          if (photo.editLabel) {
+            lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + photo.editLabel
+          }
           deleteForm.action = `/photos/${photo.id}/delete`
+          const editForm = document.getElementById('photos-edit-image-form')
+          const trimForm = document.getElementById('photos-trim-video-form')
+          const cropBtn = document.getElementById('photos-open-crop-btn')
+          const canEdit = !!photo.canEdit
+          if (editForm) {
+            editForm.action = `/photos/${photo.id}/edit-image`
+            editForm.hidden = true
+          }
+          if (cropBtn) {
+            cropBtn.hidden = !canEdit || isVideo
+            cropBtn.dataset.photoId = String(photo.id)
+            cropBtn.dataset.photoUrl = photo.fileUrl || (`/photos/${photo.id}/file`)
+          }
+          if (trimForm) {
+            trimForm.action = `/photos/${photo.id}/trim-video`
+            trimForm.hidden = !canEdit || !isVideo
+          }
+          if (deleteForm) {
+            deleteForm.hidden = !canEdit
+          }
           if (coverPhotoInput) coverPhotoInput.value = String(photo.id)
           if (coverBtn && selectedAlbumId) {
             const isCover = coverPhotoId && Number(coverPhotoId) === Number(photo.id)
@@ -722,24 +821,40 @@
         const albumModalTitle = document.getElementById('photos-album-modal-title')
         const albumNameInput = document.getElementById('photos-album-name')
         const albumDescInput = document.getElementById('photos-album-description')
+        const albumVisibility = document.getElementById('photos-album-visibility')
+        const albumGroupWrap = document.getElementById('photos-album-group-wrap')
+        const albumGroupId = document.getElementById('photos-album-group-id')
         const albumSubmit = document.getElementById('photos-album-submit')
         const selectedAlbum = @json($selectedAlbum);
+
+        function syncAlbumGroupVisibility() {
+          if (!albumVisibility || !albumGroupWrap) return
+          const showGroup = albumVisibility.value === 'group'
+          albumGroupWrap.hidden = !showGroup
+          if (albumGroupId) albumGroupId.required = showGroup
+        }
+        albumVisibility?.addEventListener('change', syncAlbumGroupVisibility)
 
         function openAlbumModal(mode) {
           if (!albumModal || !albumForm) return
           if (mode === 'edit' && selectedAlbum) {
-            albumModalTitle.textContent = 'アルバム名を変更'
+            albumModalTitle.textContent = @json(__('アルバムを編集'));
             albumForm.action = `/photos/albums/${selectedAlbum.id}/update`
             albumNameInput.value = selectedAlbum.name || ''
             albumDescInput.value = selectedAlbum.description || ''
-            albumSubmit.textContent = '保存'
+            if (albumVisibility) albumVisibility.value = selectedAlbum.visibility || 'private'
+            if (albumGroupId) albumGroupId.value = selectedAlbum.groupId || ''
+            albumSubmit.textContent = @json(__('保存'));
           } else {
-            albumModalTitle.textContent = 'アルバムを作成'
+            albumModalTitle.textContent = @json(__('アルバムを作成'));
             albumForm.action = '/photos/albums'
             albumNameInput.value = ''
             albumDescInput.value = ''
-            albumSubmit.textContent = '作成'
+            if (albumVisibility) albumVisibility.value = 'private'
+            if (albumGroupId) albumGroupId.value = ''
+            albumSubmit.textContent = @json(__('作成'));
           }
+          syncAlbumGroupVisibility()
           albumModal.hidden = false
           albumNameInput.focus()
         }
@@ -750,6 +865,264 @@
           el.addEventListener('click', () => {
             if (albumModal) albumModal.hidden = true
           })
+        })
+
+        const cropModal = document.getElementById('photos-crop-modal')
+        const cropStage = document.getElementById('photos-crop-stage')
+        const cropCanvas = document.getElementById('photos-crop-canvas')
+        const cropOverlay = document.getElementById('photos-crop-overlay')
+        const cropBox = document.getElementById('photos-crop-box')
+        const cropCtx = cropCanvas?.getContext('2d')
+        const cropState = {
+          photoId: null,
+          source: null,
+          rotation: 0,
+          box: { x: 0, y: 0, w: 0, h: 0 },
+          drag: null,
+        }
+
+        function closeCropModal() {
+          if (cropModal) cropModal.hidden = true
+          cropState.source = null
+          cropState.drag = null
+          if (cropOverlay) cropOverlay.hidden = true
+        }
+
+        function naturalSize() {
+          const img = cropState.source
+          if (!img) return { w: 0, h: 0 }
+          const rotated = cropState.rotation % 180 !== 0
+          return {
+            w: rotated ? img.naturalHeight : img.naturalWidth,
+            h: rotated ? img.naturalWidth : img.naturalHeight,
+          }
+        }
+
+        function drawCropCanvas() {
+          if (!cropCanvas || !cropCtx || !cropState.source || !cropStage) return
+          const size = naturalSize()
+          const maxW = Math.max(280, cropStage.clientWidth || 640)
+          const maxH = Math.min(520, Math.floor(window.innerHeight * 0.55))
+          const scale = Math.min(1, maxW / size.w, maxH / size.h)
+          const cw = Math.max(1, Math.round(size.w * scale))
+          const ch = Math.max(1, Math.round(size.h * scale))
+          cropCanvas.width = cw
+          cropCanvas.height = ch
+          cropCtx.save()
+          cropCtx.clearRect(0, 0, cw, ch)
+          cropCtx.translate(cw / 2, ch / 2)
+          cropCtx.rotate((cropState.rotation * Math.PI) / 180)
+          const img = cropState.source
+          const drawW = cropState.rotation % 180 !== 0 ? ch : cw
+          const drawH = cropState.rotation % 180 !== 0 ? cw : ch
+          cropCtx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+          cropCtx.restore()
+          syncCropOverlay()
+        }
+
+        function syncCropOverlay() {
+          if (!cropOverlay || !cropBox || !cropCanvas) return
+          cropOverlay.hidden = false
+          cropOverlay.style.width = `${cropCanvas.width}px`
+          cropOverlay.style.height = `${cropCanvas.height}px`
+          const b = cropState.box
+          cropBox.style.left = `${b.x}px`
+          cropBox.style.top = `${b.y}px`
+          cropBox.style.width = `${b.w}px`
+          cropBox.style.height = `${b.h}px`
+          const top = cropOverlay.querySelector('.photos-crop-shade-top')
+          const left = cropOverlay.querySelector('.photos-crop-shade-left')
+          const right = cropOverlay.querySelector('.photos-crop-shade-right')
+          const bottom = cropOverlay.querySelector('.photos-crop-shade-bottom')
+          if (top) Object.assign(top.style, { left: '0', top: '0', width: '100%', height: `${b.y}px` })
+          if (left) Object.assign(left.style, { left: '0', top: `${b.y}px`, width: `${b.x}px`, height: `${b.h}px` })
+          if (right) Object.assign(right.style, {
+            left: `${b.x + b.w}px`,
+            top: `${b.y}px`,
+            width: `${Math.max(0, cropCanvas.width - b.x - b.w)}px`,
+            height: `${b.h}px`,
+          })
+          if (bottom) Object.assign(bottom.style, {
+            left: '0',
+            top: `${b.y + b.h}px`,
+            width: '100%',
+            height: `${Math.max(0, cropCanvas.height - b.y - b.h)}px`,
+          })
+        }
+
+        function resetCropBox() {
+          if (!cropCanvas) return
+          const insetX = Math.round(cropCanvas.width * 0.08)
+          const insetY = Math.round(cropCanvas.height * 0.08)
+          cropState.box = {
+            x: insetX,
+            y: insetY,
+            w: Math.max(40, cropCanvas.width - insetX * 2),
+            h: Math.max(40, cropCanvas.height - insetY * 2),
+          }
+          syncCropOverlay()
+        }
+
+        function clampCropBox() {
+          if (!cropCanvas) return
+          const min = 40
+          let { x, y, w, h } = cropState.box
+          w = Math.max(min, Math.min(w, cropCanvas.width))
+          h = Math.max(min, Math.min(h, cropCanvas.height))
+          x = Math.max(0, Math.min(x, cropCanvas.width - w))
+          y = Math.max(0, Math.min(y, cropCanvas.height - h))
+          cropState.box = { x, y, w, h }
+        }
+
+        async function openCropModal(photoId, photoUrl) {
+          if (!cropModal || !photoUrl) return
+          const img = new Image()
+          try {
+            const res = await fetch(photoUrl, {
+              credentials: 'same-origin',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+            if (!res.ok) throw new Error('fetch '+res.status)
+            const blob = await res.blob()
+            const objUrl = URL.createObjectURL(blob)
+            await new Promise((resolve, reject) => {
+              img.onload = () => resolve()
+              img.onerror = reject
+              img.src = objUrl
+            })
+          } catch (_) {
+            window.alert(@json(__('画像の読み込みに失敗しました。')));
+            return
+          }
+          if (!img.naturalWidth) {
+            window.alert(@json(__('画像の読み込みに失敗しました。')));
+            return
+          }
+          cropState.photoId = photoId
+          cropState.source = img
+          cropState.rotation = 0
+          cropModal.hidden = false
+          requestAnimationFrame(() => {
+            drawCropCanvas()
+            resetCropBox()
+          })
+        }
+
+        document.getElementById('photos-open-crop-btn')?.addEventListener('click', () => {
+          const btn = document.getElementById('photos-open-crop-btn')
+          openCropModal(btn?.dataset.photoId, btn?.dataset.photoUrl)
+        })
+        document.querySelectorAll('[data-close-crop-modal]').forEach((el) => {
+          el.addEventListener('click', closeCropModal)
+        })
+        document.getElementById('photos-crop-rotate-left')?.addEventListener('click', () => {
+          cropState.rotation = (cropState.rotation + 270) % 360
+          drawCropCanvas()
+          resetCropBox()
+        })
+        document.getElementById('photos-crop-rotate-right')?.addEventListener('click', () => {
+          cropState.rotation = (cropState.rotation + 90) % 360
+          drawCropCanvas()
+          resetCropBox()
+        })
+        document.getElementById('photos-crop-reset')?.addEventListener('click', () => {
+          cropState.rotation = 0
+          drawCropCanvas()
+          resetCropBox()
+        })
+
+        function pointerPos(e) {
+          const rect = cropOverlay.getBoundingClientRect()
+          const point = e.touches ? e.touches[0] : e
+          return { x: point.clientX - rect.left, y: point.clientY - rect.top }
+        }
+
+        function startCropDrag(e) {
+          if (!cropOverlay || cropOverlay.hidden) return
+          const handle = e.target?.dataset?.handle || 'move'
+          if (e.target !== cropBox && !e.target?.dataset?.handle) return
+          e.preventDefault()
+          const p = pointerPos(e)
+          cropState.drag = {
+            handle,
+            startX: p.x,
+            startY: p.y,
+            origin: { ...cropState.box },
+          }
+        }
+
+        function moveCropDrag(e) {
+          if (!cropState.drag) return
+          e.preventDefault()
+          const p = pointerPos(e)
+          const dx = p.x - cropState.drag.startX
+          const dy = p.y - cropState.drag.startY
+          const o = cropState.drag.origin
+          let box = { ...o }
+          const h = cropState.drag.handle
+          if (h === 'move') {
+            box.x = o.x + dx
+            box.y = o.y + dy
+          } else {
+            if (h.includes('n')) {
+              box.y = o.y + dy
+              box.h = o.h - dy
+            }
+            if (h.includes('s')) box.h = o.h + dy
+            if (h.includes('w')) {
+              box.x = o.x + dx
+              box.w = o.w - dx
+            }
+            if (h.includes('e')) box.w = o.w + dx
+          }
+          cropState.box = box
+          clampCropBox()
+          syncCropOverlay()
+        }
+
+        function endCropDrag() {
+          cropState.drag = null
+        }
+
+        cropBox?.addEventListener('mousedown', startCropDrag)
+        cropBox?.addEventListener('touchstart', startCropDrag, { passive: false })
+        window.addEventListener('mousemove', moveCropDrag)
+        window.addEventListener('touchmove', moveCropDrag, { passive: false })
+        window.addEventListener('mouseup', endCropDrag)
+        window.addEventListener('touchend', endCropDrag)
+
+        document.getElementById('photos-crop-save')?.addEventListener('click', async () => {
+          if (!cropCanvas || !cropState.source || !cropState.photoId) return
+          const saveBtn = document.getElementById('photos-crop-save')
+          if (saveBtn) {
+            saveBtn.disabled = true
+            saveBtn.textContent = @json(__('保存中…'));
+          }
+          try {
+            const b = cropState.box
+            const out = document.createElement('canvas')
+            out.width = Math.max(1, Math.round(b.w))
+            out.height = Math.max(1, Math.round(b.h))
+            const ctx = out.getContext('2d')
+            ctx.drawImage(cropCanvas, b.x, b.y, b.w, b.h, 0, 0, out.width, out.height)
+            const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/jpeg', 0.92))
+            if (!blob) throw new Error('blob')
+            const form = document.getElementById('photos-edit-image-form')
+            const input = document.getElementById('photos-edit-image-input')
+            if (!form || !input) throw new Error('form')
+            form.action = `/photos/${cropState.photoId}/edit-image`
+            const file = new File([blob], `trim-${cropState.photoId}.jpg`, { type: 'image/jpeg' })
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            input.files = dt.files
+            form.submit()
+          } catch (_) {
+            window.alert(@json(__('トリム画像の保存に失敗しました。')));
+            if (saveBtn) {
+              saveBtn.disabled = false
+              saveBtn.textContent = @json(__('トリムして保存'));
+            }
+          }
         })
 
         document.querySelectorAll('.photos-tile-video, .photos-cover-video').forEach((video) => {

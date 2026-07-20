@@ -33,7 +33,17 @@ class DatabaseSeeder extends Seeder
         $holidayService->importNationalHolidays($year);
         $holidayService->importNationalHolidays($year + 1);
 
-        app(\App\Services\FinanceService::class)->ensureDefaultAccounts();
+        $financeUserId = User::query()
+            ->where('role', 'admin')
+            ->orderBy('id')
+            ->value('id')
+            ?? User::query()->orderBy('id')->value('id');
+
+        if ($financeUserId) {
+            app(\App\Services\FinanceService::class)
+                ->actingAs((int) $financeUserId)
+                ->ensureDefaultAccounts();
+        }
 
         $this->resetSequences();
     }

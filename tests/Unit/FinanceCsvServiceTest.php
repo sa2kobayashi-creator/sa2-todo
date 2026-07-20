@@ -4,9 +4,11 @@ namespace Tests\Unit;
 
 use App\Models\FinanceAccount;
 use App\Models\FinanceTransaction;
+use App\Models\User;
 use App\Services\FinanceCsvService;
 use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class FinanceCsvServiceTest extends TestCase
@@ -15,10 +17,19 @@ class FinanceCsvServiceTest extends TestCase
 
     private FinanceCsvService $service;
 
+    private User $user;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new FinanceCsvService(new FinanceService);
+        $this->user = User::create([
+            'email' => 'finance-csv@example.com',
+            'display_name' => 'Finance CSV',
+            'password' => Hash::make('password'),
+            'role' => 'standard',
+        ]);
+        $finance = (new FinanceService)->actingAs($this->user->id);
+        $this->service = (new FinanceCsvService($finance))->actingAs($this->user->id);
     }
 
     public function test_detects_budget_monitor_format(): void
@@ -232,6 +243,7 @@ class FinanceCsvServiceTest extends TestCase
 
         foreach ($rows as $i => $row) {
             FinanceAccount::query()->create([
+                'user_id' => $this->user->id,
                 ...$row,
                 'sort_order' => ($i + 1) * 10,
                 'initial_balance' => 0,

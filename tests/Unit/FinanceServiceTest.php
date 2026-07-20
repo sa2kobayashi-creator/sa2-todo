@@ -5,8 +5,10 @@ namespace Tests\Unit;
 use App\Models\FinanceAccount;
 use App\Models\FinanceAccountSchedule;
 use App\Models\FinanceTransaction;
+use App\Models\User;
 use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class FinanceServiceTest extends TestCase
@@ -15,15 +17,40 @@ class FinanceServiceTest extends TestCase
 
     private FinanceService $service;
 
+    private User $user;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new FinanceService;
+        $this->user = User::create([
+            'email' => 'finance-unit@example.com',
+            'display_name' => 'Finance Unit',
+            'password' => Hash::make('password'),
+            'role' => 'standard',
+        ]);
+        $this->service = (new FinanceService)->actingAs($this->user->id);
+    }
+
+    /** @param array<string, mixed> $attrs */
+    private function makeAccount(array $attrs = []): FinanceAccount
+    {
+        return FinanceAccount::query()->create(array_merge([
+            'user_id' => $this->user->id,
+            'is_active' => true,
+        ], $attrs));
+    }
+
+    /** @param array<string, mixed> $attrs */
+    private function makeTransaction(array $attrs = []): FinanceTransaction
+    {
+        return FinanceTransaction::query()->create(array_merge([
+            'user_id' => $this->user->id,
+        ], $attrs));
     }
 
     public function test_adjustment_amount_is_included_in_account_balance(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'test_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -35,7 +62,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-01',
             'type' => 'income',
             'account_id' => $account->id,
@@ -50,7 +77,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_update_account_initial_balance_saves_adjustment_amount(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'test_bank_2',
             'region' => 'jp',
             'kind' => 'bank',
@@ -99,7 +126,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_set_account_overview_visibility(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'jp_bank_overview',
             'region' => 'jp',
             'kind' => 'bank',
@@ -146,7 +173,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_create_credit_card_with_linked_bank(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_test',
             'region' => 'jp',
             'kind' => 'bank',
@@ -169,7 +196,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_update_account_changes_name_and_kind(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'jp_wallet_test',
             'region' => 'jp',
             'kind' => 'wallet',
@@ -191,7 +218,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_delete_account_soft_deletes_and_clears_linked_bank(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_del',
             'region' => 'jp',
             'kind' => 'bank',
@@ -200,7 +227,7 @@ class FinanceServiceTest extends TestCase
             'sort_order' => 4,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_del',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -225,7 +252,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_reorder_accounts_updates_sort_order_within_kind(): void
     {
-        $a = FinanceAccount::create([
+        $a = $this->makeAccount([
             'slug' => 'jp_bank_a',
             'region' => 'jp',
             'kind' => 'bank',
@@ -234,7 +261,7 @@ class FinanceServiceTest extends TestCase
             'sort_order' => 10,
             'is_active' => true,
         ]);
-        $b = FinanceAccount::create([
+        $b = $this->makeAccount([
             'slug' => 'jp_bank_b',
             'region' => 'jp',
             'kind' => 'bank',
@@ -243,7 +270,7 @@ class FinanceServiceTest extends TestCase
             'sort_order' => 20,
             'is_active' => true,
         ]);
-        $c = FinanceAccount::create([
+        $c = $this->makeAccount([
             'slug' => 'jp_bank_c',
             'region' => 'jp',
             'kind' => 'bank',
@@ -262,7 +289,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_create_payment_schedule_for_credit_card(): void
     {
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_sched',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -284,7 +311,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_create_deposit_schedule_for_bank(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_sched',
             'region' => 'jp',
             'kind' => 'bank',
@@ -304,7 +331,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_cannot_create_schedule_for_cash_account(): void
     {
-        $cash = FinanceAccount::create([
+        $cash = $this->makeAccount([
             'slug' => 'jp_cash_sched',
             'region' => 'jp',
             'kind' => 'cash',
@@ -323,7 +350,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_balance_totals_sums_visible_accounts(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_total',
             'region' => 'jp',
             'kind' => 'bank',
@@ -333,7 +360,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 10000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_total',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -358,7 +385,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_credit_card_balance_tracks_usage_not_assets(): void
     {
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_usage',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -368,7 +395,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-05',
             'type' => 'expense',
             'account_id' => $card->id,
@@ -381,7 +408,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_due_payment_schedule_materializes_on_linked_bank_at_payment_date(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_due',
             'region' => 'jp',
             'kind' => 'bank',
@@ -391,7 +418,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 20000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_due',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -402,7 +429,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-01',
             'type' => 'expense',
             'account_id' => $card->id,
@@ -424,7 +451,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_future_payment_schedule_does_not_affect_bank_balance_yet(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_future',
             'region' => 'jp',
             'kind' => 'bank',
@@ -434,7 +461,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 20000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_future',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -458,7 +485,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_delete_schedule_removes_materialized_transaction(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_del_sched',
             'region' => 'jp',
             'kind' => 'bank',
@@ -468,7 +495,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 20000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_del_sched',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -495,7 +522,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_delete_materialized_transaction_also_deletes_schedule(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_del_txn',
             'region' => 'jp',
             'kind' => 'bank',
@@ -505,7 +532,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 20000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_del_txn',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -535,7 +562,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_update_schedule_reapplies_materialized_transaction(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_upd_sched',
             'region' => 'jp',
             'kind' => 'bank',
@@ -545,7 +572,7 @@ class FinanceServiceTest extends TestCase
             'initial_balance' => 20000,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_upd_sched',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -578,7 +605,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_upsert_next_schedule_updates_existing_entry(): void
     {
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_upsert',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -605,7 +632,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_due_deposit_schedule_materializes_on_bank_at_deposit_date(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'ph_bank_deposit',
             'region' => 'ph',
             'kind' => 'bank',
@@ -632,7 +659,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_future_deposit_schedule_does_not_affect_bank_balance_yet(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'ph_bank_deposit_future',
             'region' => 'ph',
             'kind' => 'bank',
@@ -656,7 +683,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_credit_card_usage_breakdown_separates_configured_balance(): void
     {
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_configured',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -678,7 +705,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_credit_card_outstanding_charges_uses_fifo_payments(): void
     {
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_history',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -688,7 +715,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-01',
             'type' => 'expense',
             'account_id' => $card->id,
@@ -697,7 +724,7 @@ class FinanceServiceTest extends TestCase
             'memo' => 'cursor支払い',
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-07',
             'type' => 'expense',
             'account_id' => $card->id,
@@ -718,7 +745,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_credit_card_outstanding_charges_hides_paid_items(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'jp_bank_hist',
             'region' => 'jp',
             'kind' => 'bank',
@@ -727,7 +754,7 @@ class FinanceServiceTest extends TestCase
             'sort_order' => 1,
             'is_active' => true,
         ]);
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'jp_card_hist_paid',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -738,7 +765,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => date('Y-m-d', strtotime($this->service->todayIso().' -8 days')),
             'type' => 'expense',
             'account_id' => $card->id,
@@ -747,7 +774,7 @@ class FinanceServiceTest extends TestCase
             'memo' => 'cursor支払い',
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => date('Y-m-d', strtotime($this->service->todayIso().' -2 days')),
             'type' => 'expense',
             'account_id' => $card->id,
@@ -756,7 +783,7 @@ class FinanceServiceTest extends TestCase
             'memo' => 'Ceb Pacific Ticket 支払い',
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => $this->service->todayIso(),
             'type' => 'transfer',
             'account_id' => $bank->id,
@@ -777,7 +804,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_report_data_filters_by_month_and_tab(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'jp_report_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -787,7 +814,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-10',
             'type' => 'income',
             'account_id' => $account->id,
@@ -795,7 +822,7 @@ class FinanceServiceTest extends TestCase
             'currency' => 'JPY',
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-06-30',
             'type' => 'expense',
             'account_id' => $account->id,
@@ -845,7 +872,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_future_transactions_do_not_affect_balance_until_due(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'future_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -858,7 +885,7 @@ class FinanceServiceTest extends TestCase
 
         $futureDate = date('Y-m-d', strtotime($this->service->todayIso().' +10 days'));
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => $futureDate,
             'type' => 'income',
             'account_id' => $account->id,
@@ -872,7 +899,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_future_transaction_is_marked_scheduled_in_display_array(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'future_display_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -883,7 +910,7 @@ class FinanceServiceTest extends TestCase
         ]);
 
         $futureDate = date('Y-m-d', strtotime($this->service->todayIso().' +5 days'));
-        $transaction = FinanceTransaction::create([
+        $transaction = $this->makeTransaction([
             'transaction_date' => $futureDate,
             'type' => 'expense',
             'account_id' => $account->id,
@@ -901,7 +928,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_credit_card_expense_uses_payment_schedule_date_for_display(): void
     {
-        $bank = FinanceAccount::create([
+        $bank = $this->makeAccount([
             'slug' => 'cc_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -911,7 +938,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $card = FinanceAccount::create([
+        $card = $this->makeAccount([
             'slug' => 'cc_card',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -932,7 +959,7 @@ class FinanceServiceTest extends TestCase
         ]);
 
         $purchaseDate = $this->service->todayIso();
-        $transaction = FinanceTransaction::create([
+        $transaction = $this->makeTransaction([
             'transaction_date' => $purchaseDate,
             'type' => 'expense',
             'account_id' => $card->id,
@@ -955,7 +982,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_build_balance_after_map_tracks_running_balance_for_bank_account(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'balance_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -968,14 +995,14 @@ class FinanceServiceTest extends TestCase
         ]);
 
         $today = $this->service->todayIso();
-        $income = FinanceTransaction::create([
+        $income = $this->makeTransaction([
             'transaction_date' => date('Y-m-d', strtotime($today.' -7 days')),
             'type' => 'income',
             'account_id' => $account->id,
             'amount' => 3000,
             'currency' => 'JPY',
         ]);
-        $expense = FinanceTransaction::create([
+        $expense = $this->makeTransaction([
             'transaction_date' => date('Y-m-d', strtotime($today.' -3 days')),
             'type' => 'expense',
             'account_id' => $account->id,
@@ -992,7 +1019,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_attach_balances_to_display_rows_adds_balance_after_per_transaction(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'attach_balance_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -1004,7 +1031,7 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $transaction = FinanceTransaction::create([
+        $transaction = $this->makeTransaction([
             'transaction_date' => '2026-07-02',
             'type' => 'income',
             'account_id' => $account->id,
@@ -1032,7 +1059,7 @@ class FinanceServiceTest extends TestCase
 
     public function test_calculate_account_balance_up_to_date_returns_month_opening_balance(): void
     {
-        $account = FinanceAccount::create([
+        $account = $this->makeAccount([
             'slug' => 'opening_bank',
             'region' => 'jp',
             'kind' => 'bank',
@@ -1044,14 +1071,14 @@ class FinanceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-06-28',
             'type' => 'income',
             'account_id' => $account->id,
             'amount' => 500,
             'currency' => 'JPY',
         ]);
-        FinanceTransaction::create([
+        $this->makeTransaction([
             'transaction_date' => '2026-07-03',
             'type' => 'expense',
             'account_id' => $account->id,

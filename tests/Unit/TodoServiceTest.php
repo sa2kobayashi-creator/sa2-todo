@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\TodoService;
 use Carbon\Carbon;
@@ -14,7 +15,10 @@ class TodoServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new TodoService($this->createMock(HolidayService::class));
+        $this->service = new TodoService(
+            $this->createMock(HolidayService::class),
+            $this->createMock(GroupService::class),
+        );
     }
 
     public function test_default_time_range_rounds_up_to_next_30_minutes(): void

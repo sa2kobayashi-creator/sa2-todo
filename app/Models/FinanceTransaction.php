@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class FinanceTransaction extends Model
 {
     protected $fillable = [
+        'user_id',
         'transaction_date',
         'type',
         'category',
@@ -27,6 +28,11 @@ class FinanceTransaction extends Model
             'amount' => 'decimal:2',
             'to_amount' => 'decimal:2',
         ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function account(): BelongsTo

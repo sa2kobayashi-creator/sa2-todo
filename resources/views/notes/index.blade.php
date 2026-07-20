@@ -2,10 +2,11 @@
 <html lang="{{ $htmlLang ?? app()->getLocale() }}">
   <head>
     <meta charset="UTF-8" />
+    @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('メモ') }} - Sa2 ToDo</title>
+    <title>{{ __('メモ') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="notes-page">

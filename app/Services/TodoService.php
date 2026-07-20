@@ -42,12 +42,55 @@ class TodoService
 
     private const CATEGORY_FILTER_VALUES = ['task', 'personal', 'memo', 'other'];
 
-    public function __construct(private HolidayService $holidays) {}
+    public function __construct(
+        private HolidayService $holidays,
+        private GroupService $groups,
+    ) {}
 
     /** @return Collection<int, array<string, mixed>> */
-    public function listTodos(): Collection
+    public function listTodos(?int $userId = null): Collection
     {
-        return Todo::query()->orderBy('id')->get()->map(fn (Todo $t) => $t->toArray());
+        $query = Todo::query()->with('group')->orderBy('id');
+        if ($userId !== null) {
+            $groupIds = $this->groups->approvedGroupIdsForUser($userId);
+            $query->where(function ($q) use ($userId, $groupIds) {
+                $q->where(function ($personal) use ($userId) {
+                    $personal->where('user_id', $userId)->whereNull('group_id');
+                });
+                if ($groupIds !== []) {
+                    $q->orWhereIn('group_id', $groupIds);
+                }
+            });
+        }
+
+        return $query->get()->map(fn (Todo $t) => $t->toArray());
+    }
+
+    public function userCanAccessTodo(int $userId, Todo|array|null $todo): bool
+    {
+        if ($todo === null) {
+            return false;
+        }
+        $ownerId = is_array($todo) ? (int) ($todo['userId'] ?? 0) : (int) $todo->user_id;
+        $groupId = is_array($todo) ? ($todo['groupId'] ?? null) : $todo->group_id;
+        if ($groupId) {
+            return $this->groups->userBelongsToApprovedGroup($userId, (int) $groupId);
+        }
+
+        return $ownerId === $userId;
+    }
+
+    public function resolveGroupIdForUser(int $userId, mixed $groupId): ?int
+    {
+        if ($groupId === null || $groupId === '' || $groupId === '0') {
+            return null;
+        }
+        $id = (int) $groupId;
+        if ($id <= 0 || ! $this->groups->userBelongsToApprovedGroup($userId, $id)) {
+            throw new \InvalidArgumentException(__('共有先のグループが無効です。'));
+        }
+
+        return $id;
     }
 
     public function getTodo(int $id): ?array
@@ -223,6 +266,12 @@ class TodoService
         }
 
         usort($dated, function ($a, $b) {
+            $aDone = ! empty($a['completed']) ? 1 : 0;
+            $bDone = ! empty($b['completed']) ? 1 : 0;
+            if ($aDone !== $bDone) {
+                return $aDone <=> $bDone;
+            }
+
             $ra = $this->getTodoRange($a);
             $rb = $this->getTodoRange($b);
             if (! $ra || ! $rb) {
@@ -234,6 +283,16 @@ class TodoService
             }
 
             return $this->compareTodosByDayTime($a, $b);
+        });
+
+        usort($undated, function ($a, $b) {
+            $aDone = ! empty($a['completed']) ? 1 : 0;
+            $bDone = ! empty($b['completed']) ? 1 : 0;
+            if ($aDone !== $bDone) {
+                return $aDone <=> $bDone;
+            }
+
+            return ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
         });
 
         return ['dated' => $dated, 'undated' => $undated];
@@ -267,6 +326,9 @@ class TodoService
             'timeLabel' => $item['listTimeLabel'],
             'categoryLabel' => __(self::CATEGORY_LABELS[$item['category']] ?? $item['category']),
             'importanceLabel' => __(self::IMPORTANCE_LABELS[$item['importance']] ?? $item['importance']),
+            'shareLabel' => ! empty($item['groupId'])
+                ? ($item['groupName'] ?? __('グループ'))
+                : __('個人'),
         ];
     }
 
@@ -300,6 +362,14 @@ class TodoService
     /** @param list<string> $titles @param array<string, mixed> $options @return list<array<string, mixed>> */
     public function addTodos(array $titles, array $options = []): array
     {
+        $userId = (int) ($options['userId'] ?? 0);
+        if ($userId <= 0) {
+            throw new \InvalidArgumentException(__('ユーザーが必要です。'));
+        }
+        $groupId = array_key_exists('groupId', $options)
+            ? $this->resolveGroupIdForUser($userId, $options['groupId'])
+            : null;
+
         $period = $this->normalizePeriod($options['startDate'] ?? null, $options['endDate'] ?? null);
         $importance = $this->normalizeImportance($options['importance'] ?? null);
         $category = $this->normalizeCategory($options['category'] ?? null);
@@ -320,6 +390,8 @@ class TodoService
             $scheduleDates = ($expandedDates && count($expandedDates) > 0) ? $expandedDates : [null];
             foreach ($scheduleDates as $date) {
                 $todo = Todo::create([
+                    'user_id' => $userId,
+                    'group_id' => $groupId,
                     'title' => $title,
                     'completed' => false,
                     'start_date' => $date ?? $period['startDate'],

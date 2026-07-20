@@ -62,6 +62,75 @@ class FinanceService
         'deposit' => '入金予定',
     ];
 
+
+    private ?int $actingUserId = null;
+
+    public function actingAs(int $userId): self
+    {
+        if ($userId <= 0) {
+            throw new \InvalidArgumentException('ユーザーが不正です');
+        }
+        $this->actingUserId = $userId;
+
+        return $this;
+    }
+
+    public function requireUserId(): int
+    {
+        if ($this->actingUserId === null || $this->actingUserId <= 0) {
+            throw new \InvalidArgumentException('ユーザーコンテキストが設定されていません');
+        }
+
+        return $this->actingUserId;
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<FinanceAccount> */
+    private function accountsQuery()
+    {
+        return FinanceAccount::query()->where('user_id', $this->requireUserId());
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<FinanceTransaction> */
+    private function transactionsQuery()
+    {
+        return FinanceTransaction::query()->where('user_id', $this->requireUserId());
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<FinanceExpenseCategory> */
+    private function expenseCategoriesQuery()
+    {
+        return FinanceExpenseCategory::query()->where('user_id', $this->requireUserId());
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<FinanceAccountSchedule> */
+    private function schedulesQuery()
+    {
+        return FinanceAccountSchedule::query()->whereHas(
+            'account',
+            fn ($q) => $q->where('user_id', $this->requireUserId())
+        );
+    }
+
+    private function findOwnedAccount(int $id, bool $activeOnly = false): ?FinanceAccount
+    {
+        $query = $this->accountsQuery();
+        if ($activeOnly) {
+            $query->where('is_active', true);
+        }
+
+        return $query->find($id);
+    }
+
+    private function requireOwnedAccount(int $id, bool $activeOnly = false): FinanceAccount
+    {
+        $account = $this->findOwnedAccount($id, $activeOnly);
+        if (! $account) {
+            throw new \InvalidArgumentException('口座が見つかりません');
+        }
+
+        return $account;
+    }
+
     /** @return array<string, string> */
     public static function builtInExpenseCategoryLabels(): array
     {
@@ -71,7 +140,7 @@ class FinanceService
     /** @return array<string, string> slug => label */
     public function customExpenseCategoryLabels(): array
     {
-        return FinanceExpenseCategory::query()
+        return $this->expenseCategoriesQuery()
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
@@ -128,9 +197,10 @@ class FinanceService
         }
 
         $slug = $this->makeExpenseCategorySlug($label);
-        $sortOrder = (int) FinanceExpenseCategory::query()->max('sort_order') + 10;
+        $sortOrder = (int) $this->expenseCategoriesQuery()->max('sort_order') + 10;
 
-        $category = FinanceExpenseCategory::query()->create([
+        $category = $this->expenseCategoriesQuery()->create([
+            'user_id' => $this->requireUserId(),
             'slug' => $slug,
             'label' => $label,
             'sort_order' => $sortOrder,
@@ -149,7 +219,7 @@ class FinanceService
             throw new \InvalidArgumentException('このカテゴリーは削除できません');
         }
 
-        $category = FinanceExpenseCategory::query()->where('slug', $slug)->first();
+        $category = $this->expenseCategoriesQuery()->where('slug', $slug)->first();
         if (! $category) {
             throw new \InvalidArgumentException('カテゴリーが見つかりません');
         }
@@ -167,7 +237,7 @@ class FinanceService
         $slug = $base;
         $n = 1;
         $reserved = $this->expenseCategoryLabels();
-        while (array_key_exists($slug, $reserved) || FinanceExpenseCategory::query()->where('slug', $slug)->exists()) {
+        while (array_key_exists($slug, $reserved) || $this->expenseCategoriesQuery()->where('slug', $slug)->exists()) {
             $slug = $base.'_'.$n;
             $n++;
             if ($n > 100) {
@@ -206,13 +276,15 @@ class FinanceService
 
     public function ensureDefaultAccounts(): void
     {
-        if (FinanceAccount::query()->exists()) {
+        $userId = $this->requireUserId();
+        if ($this->accountsQuery()->exists()) {
             return;
         }
 
         $idBySlug = [];
         foreach (self::DEFAULT_ACCOUNTS as $row) {
-            $account = FinanceAccount::query()->create([
+            $account = $this->accountsQuery()->create([
+                'user_id' => $userId,
                 'slug' => $row['slug'],
                 'region' => $row['region'],
                 'kind' => $row['kind'],
@@ -229,7 +301,7 @@ class FinanceService
             if (empty($row['linked_slug'])) {
                 continue;
             }
-            $account = FinanceAccount::query()->where('slug', $row['slug'])->first();
+            $account = $this->accountsQuery()->where('slug', $row['slug'])->first();
             if ($account && isset($idBySlug[$row['linked_slug']])) {
                 $account->linked_bank_id = $idBySlug[$row['linked_slug']];
                 $account->save();
@@ -472,7 +544,7 @@ class FinanceService
         $monthStart = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
-        $monthTransactions = FinanceTransaction::query()
+        $monthTransactions = $this->transactionsQuery()
             ->with(['account', 'toAccount'])
             ->whereDate('transaction_date', '>=', $monthStart)
             ->whereDate('transaction_date', '<=', $monthEnd)
@@ -494,10 +566,10 @@ class FinanceService
             'transfer' => array_values(array_filter($transactionRows, fn (array $t) => $t['type'] === 'transfer')),
         ];
 
-        $allTransactions = FinanceTransaction::query()->get();
+        $allTransactions = $this->transactionsQuery()->get();
         $accountsWithBalance = collect($this->listAccounts())
             ->map(function (array $accountRow) use ($allTransactions) {
-                $model = FinanceAccount::query()->find($accountRow['id']);
+                $model = $this->accountsQuery()->find($accountRow['id']);
                 if ($model) {
                     $accountRow['balance'] = $this->calculateAccountBalance($model, $allTransactions);
                 }
@@ -514,7 +586,7 @@ class FinanceService
             ->values()
             ->all();
 
-        $schedules = FinanceAccountSchedule::query()
+        $schedules = $this->schedulesQuery()
             ->with('account')
             ->whereDate('scheduled_date', '>=', $monthStart)
             ->whereDate('scheduled_date', '<=', $monthEnd)
@@ -594,7 +666,7 @@ class FinanceService
     /** @return list<array<string, mixed>> */
     public function listAccounts(?string $region = null): array
     {
-        $query = FinanceAccount::query()->where('is_active', true)->orderBy('sort_order');
+        $query = $this->accountsQuery()->where('is_active', true)->orderBy('sort_order');
         if ($region !== null && in_array($region, ['jp', 'ph'], true)) {
             $query->where('region', $region);
         }
@@ -633,7 +705,7 @@ class FinanceService
         }
 
         $balance = (float) $account->initial_balance + (float) ($account->adjustment_amount ?? 0);
-        $transactions ??= FinanceTransaction::query()->get();
+        $transactions ??= $this->transactionsQuery()->get();
         $transactions = $this->filterEffectiveTransactions($transactions);
 
         foreach ($transactions as $transaction) {
@@ -665,7 +737,7 @@ class FinanceService
             $balance += abs((float) $account->adjustment_amount);
         }
 
-        $transactions ??= FinanceTransaction::query()->get();
+        $transactions ??= $this->transactionsQuery()->get();
         $transactions = $this->filterEffectiveTransactions($transactions);
 
         foreach ($transactions as $transaction) {
@@ -714,7 +786,7 @@ class FinanceService
             ];
         }
 
-        $transactions ??= FinanceTransaction::query()
+        $transactions ??= $this->transactionsQuery()
             ->orderBy('transaction_date')
             ->orderBy('id')
             ->get();
@@ -810,7 +882,7 @@ class FinanceService
 
     public function materializeDuePaymentSchedules(): void
     {
-        $dueSchedules = FinanceAccountSchedule::query()
+        $dueSchedules = $this->schedulesQuery()
             ->with('account')
             ->where('schedule_type', 'payment')
             ->whereDate('scheduled_date', '<=', $this->todayIso())
@@ -820,12 +892,12 @@ class FinanceService
 
         foreach ($dueSchedules as $schedule) {
             $card = $schedule->account;
-            if (! $card || $card->kind !== 'credit_card' || ! $card->is_active) {
+            if (! $card || (int) $card->user_id !== $this->requireUserId() || $card->kind !== 'credit_card' || ! $card->is_active) {
                 continue;
             }
 
             $marker = $this->scheduleMarker($schedule->id);
-            if (FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->exists()) {
+            if ($this->transactionsQuery()->where('memo', 'like', '%'.$marker.'%')->exists()) {
                 continue;
             }
 
@@ -838,11 +910,12 @@ class FinanceService
             $memo = trim('カード引落: '.$card->name.($schedule->memo ? ' '.$schedule->memo : '').' '.$marker);
 
             $bank = $card->linked_bank_id
-                ? FinanceAccount::query()->where('is_active', true)->find($card->linked_bank_id)
+                ? $this->accountsQuery()->where('is_active', true)->find($card->linked_bank_id)
                 : null;
 
             if ($bank) {
-                FinanceTransaction::query()->create([
+                $this->transactionsQuery()->create([
+                    'user_id' => $this->requireUserId(),
                     'transaction_date' => $date,
                     'type' => 'transfer',
                     'account_id' => $bank->id,
@@ -859,7 +932,7 @@ class FinanceService
 
     public function materializeDueDepositSchedules(): void
     {
-        $dueSchedules = FinanceAccountSchedule::query()
+        $dueSchedules = $this->schedulesQuery()
             ->with('account')
             ->where('schedule_type', 'deposit')
             ->whereDate('scheduled_date', '<=', $this->todayIso())
@@ -869,12 +942,12 @@ class FinanceService
 
         foreach ($dueSchedules as $schedule) {
             $bank = $schedule->account;
-            if (! $bank || $bank->kind !== 'bank' || ! $bank->is_active) {
+            if (! $bank || (int) $bank->user_id !== $this->requireUserId() || $bank->kind !== 'bank' || ! $bank->is_active) {
                 continue;
             }
 
             $marker = $this->scheduleMarker($schedule->id);
-            if (FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->exists()) {
+            if ($this->transactionsQuery()->where('memo', 'like', '%'.$marker.'%')->exists()) {
                 continue;
             }
 
@@ -886,7 +959,8 @@ class FinanceService
             $date = $schedule->scheduled_date->format('Y-m-d');
             $memo = trim('入金予定: '.$bank->name.($schedule->memo ? ' '.$schedule->memo : '').' '.$marker);
 
-            FinanceTransaction::query()->create([
+            $this->transactionsQuery()->create([
+                'user_id' => $this->requireUserId(),
                 'transaction_date' => $date,
                 'type' => 'income',
                 'account_id' => $bank->id,
@@ -904,7 +978,7 @@ class FinanceService
         $this->materializeDueSchedules();
 
         $accounts = collect($this->listAccounts());
-        $allTransactions = FinanceTransaction::query()
+        $allTransactions = $this->transactionsQuery()
             ->with(['account', 'toAccount'])
             ->orderByDesc('transaction_date')
             ->orderByDesc('id')
@@ -912,7 +986,7 @@ class FinanceService
 
         $accountsWithBalance = $accounts
             ->map(function (array $accountRow) use ($allTransactions) {
-                $model = FinanceAccount::query()->find($accountRow['id']);
+                $model = $this->accountsQuery()->find($accountRow['id']);
                 if (! $model) {
                     return $accountRow;
                 }
@@ -921,7 +995,7 @@ class FinanceService
                 return $accountRow;
             });
 
-        $schedulesByAccount = FinanceAccountSchedule::query()
+        $schedulesByAccount = $this->schedulesQuery()
             ->with('account')
             ->whereIn('account_id', $accountsWithBalance->pluck('id'))
             ->orderBy('scheduled_date')
@@ -965,7 +1039,7 @@ class FinanceService
         $summary = $this->buildMonthSummary($effectiveMonthTransactions, $filters['tab']);
         $summaryDetails = $this->buildSummaryDetails($effectiveMonthTransactions, $filters['tab']);
 
-        $allSchedules = FinanceAccountSchedule::query()
+        $allSchedules = $this->schedulesQuery()
             ->with('account')
             ->whereIn('account_id', $accountsWithBalance->pluck('id'))
             ->orderBy('scheduled_date')
@@ -1353,14 +1427,14 @@ class FinanceService
 
     public function isScheduleMaterialized(int $scheduleId): bool
     {
-        return FinanceTransaction::query()
+        return $this->transactionsQuery()
             ->where('memo', 'like', '%'.$this->scheduleMarker($scheduleId).'%')
             ->exists();
     }
 
     public function nextPaymentScheduleDate(int $accountId): ?string
     {
-        $schedule = FinanceAccountSchedule::query()
+        $schedule = $this->schedulesQuery()
             ->where('account_id', $accountId)
             ->where('schedule_type', 'payment')
             ->whereDate('scheduled_date', '>=', $this->todayIso())
@@ -1387,7 +1461,7 @@ class FinanceService
             }
 
             $accountId = (int) $accountRow['id'];
-            $model = FinanceAccount::query()->find($accountId);
+            $model = $this->accountsQuery()->find($accountId);
             if (! $model) {
                 continue;
             }
@@ -1570,7 +1644,7 @@ class FinanceService
         }
 
         $effective = $this->filterEffectiveTransactions($allTransactions);
-        $accounts = FinanceAccount::query()->where('is_active', true)->get()->keyBy('id');
+        $accounts = $this->accountsQuery()->where('is_active', true)->get()->keyBy('id');
         $today = $this->todayIso();
 
         $visibleAccountIds = [];
@@ -1799,7 +1873,7 @@ class FinanceService
             return null;
         }
 
-        $account = FinanceAccount::query()->find($accountId);
+        $account = $this->accountsQuery()->find($accountId);
         if ($account === null) {
             return null;
         }
@@ -1955,7 +2029,7 @@ class FinanceService
     public function createTransaction(array $payload): FinanceTransaction
     {
         $type = $this->normalizeType($payload['type'] ?? null);
-        $account = FinanceAccount::query()->findOrFail((int) $payload['accountId']);
+        $account = $this->requireOwnedAccount((int) $payload['accountId']);
         $amount = round(max(0, (float) ($payload['amount'] ?? 0)), 2);
         $date = $this->normalizeDate($payload['transactionDate'] ?? null);
 
@@ -1964,7 +2038,7 @@ class FinanceService
         }
 
         if ($type === 'transfer') {
-            $toAccount = FinanceAccount::query()->findOrFail((int) ($payload['toAccountId'] ?? 0));
+            $toAccount = $this->requireOwnedAccount((int) ($payload['toAccountId'] ?? 0));
             $toAmount = isset($payload['toAmount']) && $payload['toAmount'] !== ''
                 ? round(max(0, (float) $payload['toAmount']), 2)
                 : $amount;
@@ -1973,7 +2047,8 @@ class FinanceService
                 throw new \InvalidArgumentException('入金側の金額は 0 より大きい値を入力してください');
             }
 
-            return FinanceTransaction::query()->create([
+            return $this->transactionsQuery()->create([
+                'user_id' => $this->requireUserId(),
                 'transaction_date' => $date,
                 'type' => 'transfer',
                 'account_id' => $account->id,
@@ -1987,7 +2062,8 @@ class FinanceService
             ]);
         }
 
-        return FinanceTransaction::query()->create([
+        return $this->transactionsQuery()->create([
+            'user_id' => $this->requireUserId(),
             'transaction_date' => $date,
             'type' => $type,
             'account_id' => $account->id,
@@ -2001,13 +2077,13 @@ class FinanceService
     /** @param array<string, mixed> $payload */
     public function updateTransaction(int $id, array $payload): bool
     {
-        $transaction = FinanceTransaction::query()->find($id);
+        $transaction = $this->transactionsQuery()->find($id);
         if (! $transaction) {
             return false;
         }
 
         $type = $this->normalizeType($payload['type'] ?? $transaction->type);
-        $account = FinanceAccount::query()->findOrFail((int) ($payload['accountId'] ?? $transaction->account_id));
+        $account = $this->requireOwnedAccount((int) ($payload['accountId'] ?? $transaction->account_id));
         $amount = round(max(0, (float) ($payload['amount'] ?? $transaction->amount)), 2);
         $date = $this->normalizeDate($payload['transactionDate'] ?? $transaction->transaction_date->format('Y-m-d'));
 
@@ -2032,7 +2108,7 @@ class FinanceService
         ];
 
         if ($type === 'transfer') {
-            $toAccount = FinanceAccount::query()->findOrFail((int) ($payload['toAccountId'] ?? $transaction->to_account_id));
+            $toAccount = $this->requireOwnedAccount((int) ($payload['toAccountId'] ?? $transaction->to_account_id));
             $toAmount = isset($payload['toAmount']) && $payload['toAmount'] !== ''
                 ? round(max(0, (float) $payload['toAmount']), 2)
                 : $amount;
@@ -2108,12 +2184,12 @@ class FinanceService
     public function deleteMaterializedScheduleTransactions(int $scheduleId): void
     {
         $marker = $this->scheduleMarker($scheduleId);
-        FinanceTransaction::query()->where('memo', 'like', '%'.$marker.'%')->delete();
+        $this->transactionsQuery()->where('memo', 'like', '%'.$marker.'%')->delete();
     }
 
     public function deleteTransaction(int $id): bool
     {
-        $transaction = FinanceTransaction::query()->find($id);
+        $transaction = $this->transactionsQuery()->find($id);
         if (! $transaction) {
             return false;
         }
@@ -2122,7 +2198,7 @@ class FinanceService
         $deleted = (bool) $transaction->delete();
 
         if ($deleted && $scheduleId !== null) {
-            FinanceAccountSchedule::query()->whereKey($scheduleId)->delete();
+            $this->schedulesQuery()->whereKey($scheduleId)->delete();
         }
 
         return $deleted;
@@ -2143,7 +2219,7 @@ class FinanceService
 
     public function updateAccountInitialBalance(int $id, float $balance, ?float $adjustmentAmount = null): bool
     {
-        $account = FinanceAccount::query()->find($id);
+        $account = $this->accountsQuery()->find($id);
         if (! $account) {
             return false;
         }
@@ -2158,13 +2234,13 @@ class FinanceService
 
     public function updateLinkedBank(int $accountId, ?int $linkedBankId): bool
     {
-        $account = FinanceAccount::query()->find($accountId);
+        $account = $this->accountsQuery()->find($accountId);
         if (! $account || $account->kind !== 'credit_card') {
             return false;
         }
 
         if ($linkedBankId !== null) {
-            $bank = FinanceAccount::query()->find($linkedBankId);
+            $bank = $this->accountsQuery()->find($linkedBankId);
             if (! $bank || ! in_array($bank->kind, ['bank', 'wallet'], true)) {
                 return false;
             }
@@ -2198,9 +2274,10 @@ class FinanceService
             $linkedBankId = null;
         }
 
-        $maxOrder = (int) FinanceAccount::query()->max('sort_order');
+        $maxOrder = (int) $this->accountsQuery()->max('sort_order');
 
-        return FinanceAccount::query()->create([
+        return $this->accountsQuery()->create([
+            'user_id' => $this->requireUserId(),
             'slug' => $this->generateAccountSlug($region, $kind, $name),
             'region' => $region,
             'kind' => $kind,
@@ -2217,7 +2294,7 @@ class FinanceService
 
     public function setAccountOverviewVisibility(int $id, bool $show): bool
     {
-        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        $account = $this->accountsQuery()->where('is_active', true)->find($id);
         if (! $account) {
             return false;
         }
@@ -2230,7 +2307,7 @@ class FinanceService
     /** @param array<string, mixed> $payload */
     public function updateAccount(int $id, array $payload): bool
     {
-        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        $account = $this->accountsQuery()->where('is_active', true)->find($id);
         if (! $account) {
             return false;
         }
@@ -2270,12 +2347,12 @@ class FinanceService
 
     public function deleteAccount(int $id): bool
     {
-        $account = FinanceAccount::query()->where('is_active', true)->find($id);
+        $account = $this->accountsQuery()->where('is_active', true)->find($id);
         if (! $account) {
             return false;
         }
 
-        FinanceAccount::query()
+        $this->accountsQuery()
             ->where('linked_bank_id', $account->id)
             ->update(['linked_bank_id' => null]);
 
@@ -2292,7 +2369,7 @@ class FinanceService
             throw new \InvalidArgumentException('並び替える口座がありません');
         }
 
-        $accounts = FinanceAccount::query()
+        $accounts = $this->accountsQuery()
             ->where('is_active', true)
             ->whereIn('id', $orderedIds)
             ->get()
@@ -2319,7 +2396,7 @@ class FinanceService
 
     private function assertValidLinkedBank(int $linkedBankId, string $region): void
     {
-        $bank = FinanceAccount::query()->where('is_active', true)->find($linkedBankId);
+        $bank = $this->accountsQuery()->where('is_active', true)->find($linkedBankId);
         if (! $bank || ! in_array($bank->kind, ['bank', 'wallet', 'cash'], true)) {
             throw new \InvalidArgumentException('引落口座が正しくありません');
         }
@@ -2336,7 +2413,7 @@ class FinanceService
         }
         $slug = substr($base, 0, 58);
         $suffix = 1;
-        while (FinanceAccount::query()->where('slug', $slug)->exists()) {
+        while ($this->accountsQuery()->where('slug', $slug)->exists()) {
             $slug = substr($base, 0, 54).'_'.$suffix;
             $suffix++;
         }
@@ -2393,7 +2470,7 @@ class FinanceService
     /** @param array<string, mixed> $payload */
     public function createSchedule(int $accountId, array $payload): FinanceAccountSchedule
     {
-        $account = FinanceAccount::query()->where('is_active', true)->find($accountId);
+        $account = $this->accountsQuery()->where('is_active', true)->find($accountId);
         if (! $account) {
             throw new \InvalidArgumentException('口座が見つかりません');
         }
@@ -2408,7 +2485,7 @@ class FinanceService
             throw new \InvalidArgumentException('金額は 0 より大きい値を入力してください');
         }
 
-        return FinanceAccountSchedule::query()->create([
+        return $this->schedulesQuery()->create([
             'account_id' => $account->id,
             'schedule_type' => $scheduleType,
             'scheduled_date' => $this->normalizeDate($payload['scheduledDate'] ?? null),
@@ -2419,7 +2496,7 @@ class FinanceService
 
     public function deleteSchedule(int $id): bool
     {
-        $schedule = FinanceAccountSchedule::query()->find($id);
+        $schedule = $this->schedulesQuery()->find($id);
         if (! $schedule) {
             return false;
         }
@@ -2432,7 +2509,7 @@ class FinanceService
     /** @param array<string, mixed> $payload */
     public function updateSchedule(int $id, array $payload): ?FinanceAccountSchedule
     {
-        $schedule = FinanceAccountSchedule::query()->with('account')->find($id);
+        $schedule = $this->schedulesQuery()->with('account')->find($id);
         if (! $schedule) {
             return null;
         }
@@ -2459,7 +2536,7 @@ class FinanceService
     /** @param array<string, mixed> $payload */
     public function upsertNextSchedule(int $accountId, array $payload): FinanceAccountSchedule
     {
-        $account = FinanceAccount::query()->where('is_active', true)->find($accountId);
+        $account = $this->accountsQuery()->where('is_active', true)->find($accountId);
         if (! $account) {
             throw new \InvalidArgumentException('口座が見つかりません');
         }
@@ -2480,7 +2557,7 @@ class FinanceService
             'memo' => trim((string) ($payload['memo'] ?? '')),
         ];
 
-        $existing = FinanceAccountSchedule::query()
+        $existing = $this->schedulesQuery()
             ->where('account_id', $account->id)
             ->where('schedule_type', $scheduleType)
             ->where('scheduled_date', '>=', $this->todayIso())
@@ -2497,7 +2574,7 @@ class FinanceService
             return $existing;
         }
 
-        $schedule = FinanceAccountSchedule::query()->create([
+        $schedule = $this->schedulesQuery()->create([
             'account_id' => $account->id,
             'schedule_type' => $scheduleType,
             ...$data,

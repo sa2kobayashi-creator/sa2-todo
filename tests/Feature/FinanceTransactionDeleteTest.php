@@ -32,6 +32,7 @@ class FinanceTransactionDeleteTest extends TestCase
     public function test_transaction_delete_endpoint_removes_transaction(): void
     {
         $account = FinanceAccount::create([
+            'user_id' => $this->user->id,
             'slug' => 'jp_bank_feature_del',
             'region' => 'jp',
             'kind' => 'bank',
@@ -42,6 +43,7 @@ class FinanceTransactionDeleteTest extends TestCase
         ]);
 
         $transaction = FinanceTransaction::create([
+            'user_id' => $this->user->id,
             'transaction_date' => '2026-07-05',
             'type' => 'expense',
             'account_id' => $account->id,
@@ -63,6 +65,7 @@ class FinanceTransactionDeleteTest extends TestCase
     public function test_schedule_delete_endpoint_removes_schedule_and_materialized_transaction(): void
     {
         $bank = FinanceAccount::create([
+            'user_id' => $this->user->id,
             'slug' => 'jp_bank_feature_sched',
             'region' => 'jp',
             'kind' => 'bank',
@@ -73,6 +76,7 @@ class FinanceTransactionDeleteTest extends TestCase
             'is_active' => true,
         ]);
         $card = FinanceAccount::create([
+            'user_id' => $this->user->id,
             'slug' => 'jp_card_feature_sched',
             'region' => 'jp',
             'kind' => 'credit_card',
@@ -83,7 +87,7 @@ class FinanceTransactionDeleteTest extends TestCase
             'is_active' => true,
         ]);
 
-        $service = new FinanceService;
+        $service = (new FinanceService)->actingAs($this->user->id);
         $schedule = $service->createSchedule($card->id, [
             'scheduledDate' => '2026-07-01',
             'amount' => 2500,
