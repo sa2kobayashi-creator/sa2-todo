@@ -9423,7 +9423,10 @@ body.map-page {
 .photos-lightbox.is-fullscreen .photos-lightbox-meta,
 .photos-lightbox:fullscreen .photos-lightbox-fs,
 .photos-lightbox:-webkit-full-screen .photos-lightbox-fs,
-.photos-lightbox.is-fullscreen .photos-lightbox-fs {
+.photos-lightbox.is-fullscreen .photos-lightbox-fs,
+.photos-lightbox:fullscreen .photos-lightbox-close,
+.photos-lightbox:-webkit-full-screen .photos-lightbox-close,
+.photos-lightbox.is-fullscreen .photos-lightbox-close {
   display: none !important;
 }
 
@@ -9843,7 +9846,16 @@ body.map-page {
 .photos-ss-chrome-peek[hidden],
 .photos-slideshow.is-fullscreen .photos-ss-chrome-peek,
 .photos-slideshow:fullscreen .photos-ss-chrome-peek,
-.photos-slideshow:-webkit-full-screen .photos-ss-chrome-peek {
+.photos-slideshow:-webkit-full-screen .photos-ss-chrome-peek,
+.photos-slideshow.is-fullscreen .photos-ss-fs,
+.photos-slideshow:fullscreen .photos-ss-fs,
+.photos-slideshow:-webkit-full-screen .photos-ss-fs,
+.photos-slideshow.is-fullscreen .photos-ss-close,
+.photos-slideshow:fullscreen .photos-ss-close,
+.photos-slideshow:-webkit-full-screen .photos-ss-close,
+.photos-slideshow.is-fullscreen .photos-ss-fs-action,
+.photos-slideshow:fullscreen #photos-ss-fs-action,
+.photos-slideshow:-webkit-full-screen #photos-ss-fs-action {
   display: none !important;
 }
 

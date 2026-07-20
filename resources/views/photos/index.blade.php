@@ -712,6 +712,52 @@
           lightboxVideo.hidden = true
         }
 
+        let photosOverlayKind = null
+        let photosOverlayIgnorePop = false
+        let photosFsExitAt = 0
+
+        function claimPhotosOverlay(kind) {
+          if (photosOverlayKind === kind) return
+          if (photosOverlayKind) {
+            photosOverlayKind = kind
+            try { history.replaceState({ photosOverlay: kind }, '', location.href) } catch (_) {}
+            return
+          }
+          photosOverlayKind = kind
+          try { history.pushState({ photosOverlay: kind }, '', location.href) } catch (_) {}
+        }
+
+        function releasePhotosOverlay(kind, opts = {}) {
+          if (!photosOverlayKind) return
+          if (kind && photosOverlayKind !== kind) return
+          photosOverlayKind = null
+          if (opts.skipHistory) return
+          if (history.state && history.state.photosOverlay) {
+            photosOverlayIgnorePop = true
+            try {
+              history.back()
+            } catch (_) {
+              photosOverlayIgnorePop = false
+            }
+          }
+        }
+
+        window.addEventListener('popstate', () => {
+          if (photosOverlayIgnorePop) {
+            photosOverlayIgnorePop = false
+            return
+          }
+          if (slideshow && !slideshow.hidden) {
+            photosOverlayKind = null
+            closeSlideshow({ skipHistory: true })
+            return
+          }
+          if (lightbox && !lightbox.hidden) {
+            photosOverlayKind = null
+            closeLightbox({ skipHistory: true })
+          }
+        })
+
         function openLightbox(index) {
           if (!photos.length || !lightbox) return
           currentIndex = (index + photos.length) % photos.length
@@ -781,9 +827,10 @@
           lightbox.hidden = false
           document.body.style.overflow = 'hidden'
           setLightboxZoom(1)
+          claimPhotosOverlay('lightbox')
         }
 
-        function closeLightbox() {
+        function closeLightbox(opts = {}) {
           if (!lightbox) return
           stopLightboxVideo()
           exitPhotosFullscreen(lightbox)
@@ -793,6 +840,7 @@
           if (lightboxImage) lightboxImage.src = ''
           document.body.style.overflow = ''
           setLightboxZoom(1)
+          releasePhotosOverlay('lightbox', opts)
         }
 
         let lightboxEditMode = false
@@ -863,7 +911,11 @@
           const slideshowFs = fsEl === slideshowEl
           const labelEnter = @json(__('全画面'));
           const labelExit = @json(__('全画面解除'));
-          if (lightboxEl) lightboxEl.classList.toggle('is-fullscreen', lightboxFs)
+          if (lightboxEl) {
+            const wasLbFs = lightboxEl.classList.contains('is-fullscreen')
+            lightboxEl.classList.toggle('is-fullscreen', lightboxFs)
+            if (wasLbFs && !lightboxFs) photosFsExitAt = Date.now()
+          }
           ;[
             document.getElementById('photos-lightbox-fs'),
             document.getElementById('photos-lightbox-fs-action'),
@@ -880,7 +932,7 @@
             if (!btn) return
             btn.classList.toggle('is-active', slideshowFs)
             btn.setAttribute('aria-pressed', slideshowFs ? 'true' : 'false')
-            btn.textContent = slideshowFs ? labelExit : labelEnter
+            if (!slideshowFs) btn.textContent = labelEnter
           })
         }
 
@@ -1389,14 +1441,15 @@
             if (video) { video.hidden = true; video.removeAttribute('src'); video.load() }
           }
           updateSsMeta()
-          closeLightbox()
+          closeLightbox({ skipHistory: true })
           setSsChromeHidden(false)
           if (slideshow) slideshow.hidden = false
           document.body.style.overflow = 'hidden'
+          claimPhotosOverlay('slideshow')
           setSsPlaying(true)
         }
 
-        function closeSlideshow() {
+        function closeSlideshow(opts = {}) {
           setSsPlaying(false)
           stopSsTimers()
           if (ssAudio) ssAudio.pause()
@@ -1423,6 +1476,7 @@
           })
           if (slideshow) slideshow.hidden = true
           document.body.style.overflow = ''
+          releasePhotosOverlay('slideshow', opts)
         }
 
         function setSsChromeHidden(hidden) {
@@ -1453,6 +1507,7 @@
             setSsChromeHidden(true)
             slideshow.dataset.wasFullscreen = '1'
           } else if (!isFs && wasFs) {
+            photosFsExitAt = Date.now()
             setSsChromeHidden(slideshow.dataset.chromeBeforeFs === '1')
             slideshow.dataset.wasFullscreen = '0'
           }
@@ -1529,14 +1584,18 @@
 
         document.addEventListener('keydown', (e) => {
           const isEsc = e.key === 'Escape' || e.key === 'Esc'
+          const fsJustExited = Date.now() - photosFsExitAt < 500
           if (slideshow && !slideshow.hidden) {
             if (isEsc) {
               e.preventDefault()
               e.stopPropagation()
+              e.stopImmediatePropagation()
               if (photosFullscreenElement() === slideshow) {
                 exitPhotosFullscreen(slideshow)
                 return
               }
+              // ブラウザが先に全画面解除した場合は、同じ Esc で閉じない
+              if (fsJustExited) return
               if (slideshow.classList.contains('is-chrome-hidden')) {
                 setSsChromeHidden(false)
                 return
@@ -1570,10 +1629,12 @@
           if (isEsc) {
             e.preventDefault()
             e.stopPropagation()
+            e.stopImmediatePropagation()
             if (photosFullscreenElement() === lightbox) {
               exitPhotosFullscreen(lightbox)
               return
             }
+            if (fsJustExited) return
             if (lightboxEditMode) {
               setLightboxEditMode(false)
               return
