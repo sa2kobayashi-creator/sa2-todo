@@ -69,7 +69,10 @@ class DatabaseSeeder extends Seeder
                     'email' => $user['email'],
                     'display_name' => $user['displayName'],
                     'password' => str_replace(['$2b$', '$2a$'], '$2y$', $user['passwordHash']),
-                    'role' => $user['role'] ?? 'user',
+                    'role' => match ($user['role'] ?? 'standard') {
+                        'user' => 'standard',
+                        default => $user['role'] ?? 'standard',
+                    },
                     'reset_token' => $user['resetToken'],
                     'reset_token_expires_at' => $user['resetTokenExpires'],
                     'created_at' => $user['createdAt'] ?? now(),

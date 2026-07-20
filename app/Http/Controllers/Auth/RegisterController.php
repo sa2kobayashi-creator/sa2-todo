@@ -35,7 +35,7 @@ class RegisterController extends Controller
             'email' => $email,
             'display_name' => trim($data['displayName'] ?? '') ?: explode('@', $email)[0],
             'password' => Hash::make($data['password']),
-            'role' => 'user',
+            'role' => 'standard',
         ]);
 
         Auth::login($user);

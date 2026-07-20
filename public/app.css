@@ -244,14 +244,63 @@ a {
   width: fit-content;
 }
 
-.role-badge.user {
+.role-badge.user,
+.role-badge.standard {
   background: #eef4ff;
   color: #1d4ed8;
+}
+
+.role-badge.light {
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .role-badge.admin {
   background: #fef3c7;
   color: #b45309;
+}
+
+.feature-access-list,
+.role-permission-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.feature-access-list li,
+.role-permission-summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.feature-access-list li.is-denied {
+  opacity: 0.55;
+}
+
+.feature-access-list li strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.feature-access-list li.is-allowed strong {
+  color: #047857;
+}
+
+.feature-access-list li.is-denied strong {
+  color: #9ca3af;
+}
+
+.role-permission-summary li {
+  justify-content: flex-start;
 }
 
 .settings-subnav {

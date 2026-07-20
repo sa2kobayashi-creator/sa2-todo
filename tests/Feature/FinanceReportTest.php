@@ -21,7 +21,7 @@ class FinanceReportTest extends TestCase
             'email' => 'finance-report@example.com',
             'display_name' => 'Finance Reporter',
             'password' => Hash::make('password'),
-            'role' => 'user',
+            'role' => 'standard',
         ]);
     }
 

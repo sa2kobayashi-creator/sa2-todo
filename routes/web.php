@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -7,12 +8,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
+use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslationApiKeyController;
+use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
 use Illuminate\Support\Facades\Route;
@@ -62,39 +65,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/reschedule', [NoteController::class, 'reschedule'])->whereNumber('id');
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
 
-    Route::get('/finance', [FinanceController::class, 'index']);
-    Route::get('/finance/report', [FinanceController::class, 'report']);
-    Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
-    Route::post('/finance/import', [FinanceController::class, 'importCsv']);
-    Route::post('/finance/bulk/delete', [FinanceController::class, 'bulkDestroy']);
-    Route::post('/finance', [FinanceController::class, 'store']);
-    Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
-    Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
-    Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
-    Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
-    Route::post('/finance/accounts', [FinanceController::class, 'storeAccount']);
-    Route::post('/finance/accounts/{id}/overview', [FinanceController::class, 'updateAccountOverview'])->whereNumber('id');
-    Route::post('/finance/accounts/{id}/schedules', [FinanceController::class, 'storeAccountSchedule'])->whereNumber('id');
-    Route::post('/finance/accounts/{id}/schedules/upsert', [FinanceController::class, 'upsertAccountSchedule'])->whereNumber('id');
-    Route::post('/finance/schedules/{id}/delete', [FinanceController::class, 'destroyAccountSchedule'])->whereNumber('id');
-    Route::post('/finance/schedules/{id}/update', [FinanceController::class, 'updateAccountSchedule'])->whereNumber('id');
-    Route::post('/finance/accounts/reorder', [FinanceController::class, 'reorderAccounts']);
-    Route::post('/finance/accounts/{id}/update', [FinanceController::class, 'updateAccount'])->whereNumber('id');
-    Route::post('/finance/accounts/{id}/delete', [FinanceController::class, 'destroyAccount'])->whereNumber('id');
-    Route::post('/finance/accounts/{id}/balance', [FinanceController::class, 'updateAccountBalance'])->whereNumber('id');
-    Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
-
-    Route::get('/transit', [TransitController::class, 'index']);
-    Route::post('/transit/search', [TransitController::class, 'search']);
-    Route::post('/transit', [TransitController::class, 'store']);
-    Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
-    Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
-
-    Route::get('/map', [MapController::class, 'index']);
-    Route::post('/map', [MapController::class, 'store']);
-    Route::post('/map/{id}/update', [MapController::class, 'update'])->whereNumber('id');
-    Route::post('/map/{id}/delete', [MapController::class, 'destroy'])->whereNumber('id');
-
     Route::get('/photos', [PhotoController::class, 'index']);
     Route::post('/photos', [PhotoController::class, 'store']);
     Route::post('/photos/albums', [PhotoController::class, 'storeAlbum']);
@@ -105,26 +75,72 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
     Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
 
-    Route::get('/settings', [SettingsController::class, 'index']);
-    Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);
-    Route::post('/settings/holidays/add', [SettingsController::class, 'addHoliday']);
-    Route::post('/settings/holidays/{id}/delete', [SettingsController::class, 'deleteHoliday'])->whereNumber('id');
-    Route::post('/settings/weekday-rules/add', [SettingsController::class, 'addWeekdayRule']);
-    Route::post('/settings/weekday-rules/{id}/delete', [SettingsController::class, 'deleteWeekdayRule'])->whereNumber('id');
-    Route::post('/settings/weekday-rules/{id}/exceptions/add', [SettingsController::class, 'addWeekdayException'])->whereNumber('id');
-    Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
+    Route::get('/mypage', [MyPageController::class, 'show']);
+    Route::post('/mypage', [MyPageController::class, 'update']);
 
-    Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
-    Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
-    Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
-    Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
-    Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
-    Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
-    Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+    Route::middleware(EnsureFeature::class.':finance')->group(function () {
+        Route::get('/finance', [FinanceController::class, 'index']);
+        Route::get('/finance/report', [FinanceController::class, 'report']);
+        Route::get('/finance/export', [FinanceController::class, 'exportCsv']);
+        Route::post('/finance/import', [FinanceController::class, 'importCsv']);
+        Route::post('/finance/bulk/delete', [FinanceController::class, 'bulkDestroy']);
+        Route::post('/finance', [FinanceController::class, 'store']);
+        Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
+        Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
+        Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
+        Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
+        Route::post('/finance/accounts', [FinanceController::class, 'storeAccount']);
+        Route::post('/finance/accounts/{id}/overview', [FinanceController::class, 'updateAccountOverview'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/schedules', [FinanceController::class, 'storeAccountSchedule'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/schedules/upsert', [FinanceController::class, 'upsertAccountSchedule'])->whereNumber('id');
+        Route::post('/finance/schedules/{id}/delete', [FinanceController::class, 'destroyAccountSchedule'])->whereNumber('id');
+        Route::post('/finance/schedules/{id}/update', [FinanceController::class, 'updateAccountSchedule'])->whereNumber('id');
+        Route::post('/finance/accounts/reorder', [FinanceController::class, 'reorderAccounts']);
+        Route::post('/finance/accounts/{id}/update', [FinanceController::class, 'updateAccount'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/delete', [FinanceController::class, 'destroyAccount'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/balance', [FinanceController::class, 'updateAccountBalance'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
+    });
 
-    Route::view('/mypage', 'mypage.stub');
+    Route::middleware(EnsureFeature::class.':transit')->group(function () {
+        Route::get('/transit', [TransitController::class, 'index']);
+        Route::post('/transit/search', [TransitController::class, 'search']);
+        Route::post('/transit', [TransitController::class, 'store']);
+        Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
+        Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
+    });
+
+    Route::middleware(EnsureFeature::class.':map')->group(function () {
+        Route::get('/map', [MapController::class, 'index']);
+        Route::post('/map', [MapController::class, 'store']);
+        Route::post('/map/{id}/update', [MapController::class, 'update'])->whereNumber('id');
+        Route::post('/map/{id}/delete', [MapController::class, 'destroy'])->whereNumber('id');
+    });
+
+    Route::middleware(EnsureFeature::class.':settings')->group(function () {
+        Route::get('/settings', [SettingsController::class, 'index']);
+        Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);
+        Route::post('/settings/holidays/add', [SettingsController::class, 'addHoliday']);
+        Route::post('/settings/holidays/{id}/delete', [SettingsController::class, 'deleteHoliday'])->whereNumber('id');
+        Route::post('/settings/weekday-rules/add', [SettingsController::class, 'addWeekdayRule']);
+        Route::post('/settings/weekday-rules/{id}/delete', [SettingsController::class, 'deleteWeekdayRule'])->whereNumber('id');
+        Route::post('/settings/weekday-rules/{id}/exceptions/add', [SettingsController::class, 'addWeekdayException'])->whereNumber('id');
+        Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
+
+        Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
+        Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
+        Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
+        Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
+        Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
+        Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
+        Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+    });
 
     Route::middleware(RequireAdmin::class)->group(function () {
-        Route::view('/admin/users', 'admin.users.stub');
+        Route::get('/admin/users', [AdminUserController::class, 'index']);
+        Route::post('/admin/users', [AdminUserController::class, 'store']);
+        Route::post('/admin/users/{id}/update', [AdminUserController::class, 'update'])->whereNumber('id');
+        Route::post('/admin/users/{id}/password', [AdminUserController::class, 'updatePassword'])->whereNumber('id');
+        Route::post('/admin/users/{id}/delete', [AdminUserController::class, 'destroy'])->whereNumber('id');
     });
 });

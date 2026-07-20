@@ -6,16 +6,17 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class RequireAdmin
+class EnsureFeature
 {
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $feature): Response
     {
         $user = $request->user();
         if (! $user) {
             return redirect('/login');
         }
-        if (! $user->isAdmin()) {
-            abort(403, __('このページは管理者のみアクセスできます。'));
+
+        if (! $user->canAccess($feature)) {
+            abort(403, __('このページへのアクセス権限がありません。'));
         }
 
         return $next($request);

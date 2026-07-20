@@ -16,7 +16,7 @@
 
       <div class="panel">
         <h2>{{ __('ToDo を追加（複数行可）') }}</h2>
-        <p class="hint">{{ __('改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}</p>
+        <p class="hint">{{ __('改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }}@if(!empty($canSettings)) {{ __('定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}@endif</p>
         <form class="add" method="post" action="/todos" id="add-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />

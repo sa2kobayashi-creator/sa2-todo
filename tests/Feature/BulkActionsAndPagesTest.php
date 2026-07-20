@@ -25,7 +25,7 @@ class BulkActionsAndPagesTest extends TestCase
             'email' => 'bulk@example.com',
             'display_name' => 'Bulk Tester',
             'password' => Hash::make('password'),
-            'role' => 'user',
+            'role' => 'standard',
         ]);
     }
 
@@ -38,12 +38,14 @@ class BulkActionsAndPagesTest extends TestCase
 
     public function test_authenticated_pages_render_without_server_error(): void
     {
-        foreach (['/dashboard', '/todos', '/notes', '/finance', '/photos', '/settings', '/transit', '/map'] as $uri) {
+        foreach (['/dashboard', '/todos', '/notes', '/finance', '/photos', '/transit', '/map', '/mypage'] as $uri) {
             $response = $this->actingAs($this->user)->get($uri);
             $response->assertOk();
             $this->assertStringNotContainsString('ParseError', $response->getContent());
             $this->assertStringNotContainsString('syntax error', $response->getContent());
         }
+
+        $this->actingAs($this->user)->get('/settings')->assertForbidden();
     }
 
     public function test_todo_bulk_complete_updates_all_selected_ids(): void

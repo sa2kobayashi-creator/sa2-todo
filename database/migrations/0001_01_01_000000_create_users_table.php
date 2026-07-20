@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('display_name');
             $table->string('password');
-            $table->string('role', 20)->default('user');
+            $table->string('role', 20)->default('standard');
             $table->string('reset_token', 64)->nullable();
             $table->timestamp('reset_token_expires_at')->nullable();
             $table->rememberToken();

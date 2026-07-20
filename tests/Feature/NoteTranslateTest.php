@@ -24,7 +24,7 @@ class NoteTranslateTest extends TestCase
             'email' => 'test@example.com',
             'display_name' => 'Tester',
             'password' => Hash::make('password'),
-            'role' => 'user',
+            'role' => 'standard',
         ]);
     }
 

@@ -25,7 +25,7 @@ class FinanceTransactionDeleteTest extends TestCase
             'email' => 'finance-delete@example.com',
             'display_name' => 'Finance Deleter',
             'password' => Hash::make('password'),
-            'role' => 'user',
+            'role' => 'standard',
         ]);
     }
 

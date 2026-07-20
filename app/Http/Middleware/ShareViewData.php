@@ -99,6 +99,11 @@ class ShareViewData
             View::share([
                 'currentUser' => $user->toPublicArray(),
                 'isAdmin' => $user->isAdmin(),
+                'canFinance' => $user->canAccess('finance'),
+                'canTransit' => $user->canAccess('transit'),
+                'canMap' => $user->canAccess('map'),
+                'canSettings' => $user->canAccess('settings'),
+                'canAdminUsers' => $user->canAccess('admin'),
             ]);
         }
 
