@@ -191,7 +191,6 @@ class PhotoService
 
         return Photo::query()
             ->where('user_id', $userId)
-            ->whereNull('album_id')
             ->orderByDesc('taken_at')
             ->orderByDesc('id')
             ->get()
@@ -391,6 +390,55 @@ class PhotoService
         }
 
         return $created;
+    }
+
+    public function updateTakenAt(int $userId, int $photoId, ?string $takenAt): array
+    {
+        $photo = $this->findOwnedPhoto($userId, $photoId);
+        if (! $photo) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+
+        $normalized = $this->normalizeTakenAt($takenAt);
+        if ($normalized === null) {
+            throw new \InvalidArgumentException(__('登録日が正しくありません。'));
+        }
+
+        $photo->taken_at = $normalized;
+        $photo->save();
+
+        return $this->photoToArray($photo->fresh(), $userId);
+    }
+
+    private function normalizeTakenAt(?string $value): ?\Carbon\Carbon
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $raw = trim($value);
+        $tz = config('app.timezone', 'Asia/Tokyo');
+
+        foreach (['Y-m-d\TH:i', 'Y-m-d H:i', 'Y-m-d\TH:i:s', 'Y-m-d H:i:s', 'Y-m-d'] as $format) {
+            try {
+                $carbon = \Carbon\Carbon::createFromFormat($format, $raw, $tz);
+                if ($carbon !== false) {
+                    if ($format === 'Y-m-d') {
+                        $carbon->setTime(12, 0, 0);
+                    }
+
+                    return $carbon;
+                }
+            } catch (\Throwable) {
+                // try next format
+            }
+        }
+
+        try {
+            return \Carbon\Carbon::parse($raw, $tz);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function deletePhoto(int $userId, int $photoId): bool
@@ -1018,6 +1066,7 @@ class PhotoService
     {
         $takenAt = $photo->taken_at?->format('Y-m-d H:i');
         $takenDate = $photo->taken_at?->format('Y-m-d');
+        $takenAtLocal = $photo->taken_at?->format('Y-m-d\TH:i');
         $mime = (string) ($photo->mime ?? '');
         $mediaKind = $this->isVideoMime($mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION))
             ? 'video'
@@ -1038,6 +1087,7 @@ class PhotoService
             'height' => $photo->height,
             'takenAt' => $takenAt,
             'takenDate' => $takenDate,
+            'takenAtLocal' => $takenAtLocal,
             'createdAt' => $photo->created_at?->toIso8601String(),
             'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
             'fileUrl' => '/photos/'.$photo->id.'/file',

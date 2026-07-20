@@ -197,6 +197,22 @@ class PhotoController extends Controller
         return $this->redirectWithMessage($returnTo, __('切り出し動画を保存しました。'));
     }
 
+    public function updateTakenAt(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        try {
+            $this->photos->updateTakenAt(
+                (int) $request->user()->id,
+                $id,
+                $request->input('taken_at')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('登録日を更新しました。'));
+    }
+
     private function uploadLimitMessage(Request $request): ?string
     {
         $contentLength = (int) $request->server('CONTENT_LENGTH', 0);

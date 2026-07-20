@@ -196,6 +196,7 @@
             </span>
             <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">4</span>
           </div>
+          <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
           <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
             <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
@@ -275,52 +276,157 @@
       <div class="photos-lightbox-backdrop" data-close-lightbox></div>
       <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="写真プレビュー">
         <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
+        <button type="button" class="photos-lightbox-fs" id="photos-lightbox-fs" aria-pressed="false" aria-label="{{ __('全画面') }}">{{ __('全画面') }}</button>
         <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">‹</button>
         <div class="photos-lightbox-media" id="photos-lightbox-media">
           <img src="" alt="" id="photos-lightbox-image" />
           <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
         </div>
         <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">›</button>
-        <div class="photos-lightbox-zoom" role="group" aria-label="{{ __('拡大') }}">
-          <button type="button" id="photos-zoom-out" aria-label="{{ __('縮小') }}">−</button>
-          <button type="button" id="photos-zoom-reset" aria-label="{{ __('リセット') }}">100%</button>
-          <button type="button" id="photos-zoom-in" aria-label="{{ __('拡大') }}">＋</button>
-        </div>
         <div class="photos-lightbox-meta">
-          <div>
-            <p class="photos-lightbox-caption" id="photos-lightbox-caption"></p>
-            <p class="photos-lightbox-date" id="photos-lightbox-date"></p>
+          <div class="photos-lightbox-info">
+            <span class="photos-lightbox-caption" id="photos-lightbox-caption"></span>
+            <span class="photos-lightbox-date" id="photos-lightbox-date"></span>
           </div>
-          <div class="photos-lightbox-actions">
-            <button type="button" class="photos-secondary-btn" id="photos-share-btn">{{ __('共有') }}</button>
-            <button type="button" class="photos-secondary-btn photos-messenger-btn" id="photos-share-messenger-btn">{{ __('Messengerで送る') }}</button>
-            @if($selectedAlbumId && !empty($canManageSelected))
-              <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
+          <div class="photos-lightbox-toolbar">
+            <div class="photos-lightbox-zoom" role="group" aria-label="{{ __('拡大') }}">
+              <button type="button" id="photos-zoom-out" aria-label="{{ __('縮小') }}">−</button>
+              <button type="button" id="photos-zoom-reset" aria-label="{{ __('リセット') }}">100%</button>
+              <button type="button" id="photos-zoom-in" aria-label="{{ __('拡大') }}">＋</button>
+            </div>
+            <div class="photos-lightbox-actions" id="photos-lb-main-actions">
+              <button type="button" class="photos-secondary-btn" id="photos-lightbox-fs-action">{{ __('全画面') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-lightbox-slideshow">{{ __('スライドショー') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-share-btn">{{ __('共有') }}</button>
+              <button type="button" class="photos-secondary-btn photos-messenger-btn" id="photos-share-messenger-btn">{{ __('Messengerで送る') }}</button>
+              @if($selectedAlbumId && !empty($canManageSelected))
+                <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
+                  @csrf
+                  <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                  <input type="hidden" name="photo_id" id="photos-cover-photo-id" value="" />
+                  <button type="submit" class="photos-cover-btn" id="photos-cover-btn">{{ __('表紙にする') }}</button>
+                </form>
+              @endif
+              <button type="button" class="photos-secondary-btn" id="photos-lb-edit-open" hidden>{{ __('編集') }}</button>
+            </div>
+            <div class="photos-lightbox-actions photos-lb-edit-actions" id="photos-lb-edit-actions" hidden>
+              <button type="button" class="photos-secondary-btn" id="photos-lb-edit-back">{{ __('戻る') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-open-crop-btn" hidden>{{ __('画像をトリム') }}</button>
+              <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-                <input type="hidden" name="photo_id" id="photos-cover-photo-id" value="" />
-                <button type="submit" class="photos-cover-btn" id="photos-cover-btn">{{ __('表紙にする') }}</button>
+                <input type="hidden" name="label" value="{{ __('トリム') }}" />
+                <input type="file" name="image" accept="image/*" id="photos-edit-image-input" hidden />
               </form>
-            @endif
-            <button type="button" class="photos-secondary-btn" id="photos-open-crop-btn" hidden>{{ __('画像をトリム') }}</button>
-            <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
-              @csrf
-              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <input type="hidden" name="label" value="{{ __('トリム') }}" />
-              <input type="file" name="image" accept="image/*" id="photos-edit-image-input" hidden />
-            </form>
-            <form method="post" action="" id="photos-trim-video-form" class="photos-trim-form" hidden>
-              @csrf
-              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <label>{{ __('開始秒') }} <input type="number" name="start" id="photos-trim-start" min="0" step="0.1" value="0" style="width:4.5rem;" /></label>
-              <label>{{ __('終了秒') }} <input type="number" name="end" id="photos-trim-end" min="0.1" step="0.1" value="5" style="width:4.5rem;" /></label>
-              <button type="submit" class="photos-secondary-btn">{{ __('動画をトリム') }}</button>
-            </form>
-            <form method="post" action="" id="photos-delete-form" onsubmit='return confirm(@json(__('このメディアを削除しますか？')))'>
-              @csrf
-              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <button type="submit" class="photos-delete-btn">{{ __('削除') }}</button>
-            </form>
+              <form method="post" action="" id="photos-taken-at-form" class="photos-taken-at-form" hidden>
+                @csrf
+                <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                <label>
+                  <span class="photos-lb-label">{{ __('登録日') }}</span>
+                  <input type="datetime-local" name="taken_at" id="photos-taken-at-input" required />
+                </label>
+                <button type="submit" class="photos-secondary-btn">{{ __('日付を更新') }}</button>
+              </form>
+              <form method="post" action="" id="photos-trim-video-form" class="photos-trim-form" hidden>
+                @csrf
+                <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                <label>{{ __('開始秒') }} <input type="number" name="start" id="photos-trim-start" min="0" step="0.1" value="0" /></label>
+                <label>{{ __('終了秒') }} <input type="number" name="end" id="photos-trim-end" min="0.1" step="0.1" value="5" /></label>
+                <button type="submit" class="photos-secondary-btn">{{ __('動画をトリム') }}</button>
+              </form>
+              <form method="post" action="" id="photos-delete-form" onsubmit='return confirm(@json(__('このメディアを削除しますか？')))'>
+                @csrf
+                <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                <button type="submit" class="photos-delete-btn">{{ __('削除') }}</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="photos-slideshow" id="photos-slideshow" hidden>
+      <div class="photos-ss-stage" role="dialog" aria-modal="true" aria-label="{{ __('スライドショー') }}">
+        <div class="photos-ss-viewport" id="photos-ss-viewport">
+          <div class="photos-ss-layer is-active" id="photos-ss-layer-a" data-layer="a">
+            <img alt="" hidden />
+            <video controls playsinline preload="metadata" hidden></video>
+          </div>
+          <div class="photos-ss-layer" id="photos-ss-layer-b" data-layer="b">
+            <img alt="" hidden />
+            <video controls playsinline preload="metadata" hidden></video>
+          </div>
+        </div>
+        <div class="photos-ss-progress" id="photos-ss-progress" aria-hidden="true"><span></span></div>
+        <button type="button" class="photos-ss-nav is-prev" id="photos-ss-prev" aria-label="{{ __('前へ') }}">‹</button>
+        <button type="button" class="photos-ss-nav is-next" id="photos-ss-next" aria-label="{{ __('次へ') }}">›</button>
+        <button type="button" class="photos-ss-close" id="photos-ss-close" aria-label="{{ __('閉じる') }}">×</button>
+        <button type="button" class="photos-ss-fs" id="photos-ss-fs" aria-pressed="false" aria-label="{{ __('全画面') }}">{{ __('全画面') }}</button>
+        <button type="button" class="photos-ss-chrome-peek" id="photos-ss-chrome-peek" hidden aria-label="{{ __('フッターを表示') }}">{{ __('フッターを表示') }}</button>
+        <div class="photos-ss-chrome" id="photos-ss-chrome">
+          <div class="photos-ss-meta">
+            <p class="photos-ss-caption" id="photos-ss-caption"></p>
+            <p class="photos-ss-counter" id="photos-ss-counter"></p>
+          </div>
+          <div class="photos-ss-controls">
+            <button type="button" class="photos-ss-btn" id="photos-ss-play" aria-pressed="false">{{ __('自動再生') }}</button>
+            <button type="button" class="photos-ss-btn" id="photos-ss-chrome-toggle" aria-pressed="false">{{ __('フッターを隠す') }}</button>
+            <button type="button" class="photos-ss-btn" id="photos-ss-fs-action" aria-pressed="false">{{ __('全画面') }}</button>
+            <label class="photos-ss-field">
+              <span>{{ __('間隔') }}</span>
+              <select id="photos-ss-interval" aria-label="{{ __('切替間隔') }}">
+                <option value="2000">2{{ __('秒') }}</option>
+                <option value="3000" selected>3{{ __('秒') }}</option>
+                <option value="5000">5{{ __('秒') }}</option>
+                <option value="8000">8{{ __('秒') }}</option>
+                <option value="12000">12{{ __('秒') }}</option>
+              </select>
+            </label>
+            <label class="photos-ss-field">
+              <span>{{ __('切替効果') }}</span>
+              <select id="photos-ss-effect" aria-label="{{ __('切替効果') }}">
+                <option value="random">{{ __('ランダム') }}</option>
+                <option value="fade">{{ __('フェード') }}</option>
+                <option value="slide-left">{{ __('左スライド') }}</option>
+                <option value="slide-right">{{ __('右スライド') }}</option>
+                <option value="slide-up">{{ __('上スライド') }}</option>
+                <option value="slide-down">{{ __('下スライド') }}</option>
+                <option value="zoom-in">{{ __('ズームイン') }}</option>
+                <option value="zoom-out">{{ __('ズームアウト') }}</option>
+                <option value="blur">{{ __('ブラー') }}</option>
+                <option value="wipe-left">{{ __('ワイプ（左）') }}</option>
+                <option value="wipe-right">{{ __('ワイプ（右）') }}</option>
+                <option value="flip">{{ __('フリップ') }}</option>
+                <option value="rotate">{{ __('回転') }}</option>
+                <option value="cube">{{ __('キューブ') }}</option>
+                <option value="kenburns">{{ __('ケンバーンズ') }}</option>
+              </select>
+            </label>
+            <label class="photos-ss-check">
+              <input type="checkbox" id="photos-ss-images-only" checked />
+              <span>{{ __('写真のみ') }}</span>
+            </label>
+            <div class="photos-ss-music" id="photos-ss-music">
+              <label class="photos-ss-field">
+                <span>{{ __('音楽') }}</span>
+                <input type="file" id="photos-ss-music-file" class="photos-ss-music-file" accept="audio/*" />
+              </label>
+              <span class="photos-ss-music-name" id="photos-ss-music-name" hidden></span>
+              <button type="button" class="photos-ss-btn" id="photos-ss-music-clear" hidden>{{ __('音楽を解除') }}</button>
+              <label class="photos-ss-field" title="{{ __('音量') }}">
+                <span>{{ __('音量') }}</span>
+                <input type="range" id="photos-ss-music-volume" min="0" max="100" value="60" />
+              </label>
+              <label class="photos-ss-check">
+                <input type="checkbox" id="photos-ss-music-loop" checked />
+                <span>{{ __('ループ') }}</span>
+              </label>
+              <label class="photos-ss-check">
+                <input type="checkbox" id="photos-ss-music-mute" />
+                <span>{{ __('ミュート') }}</span>
+              </label>
+              <audio id="photos-ss-audio" preload="auto" loop hidden></audio>
+            </div>
           </div>
         </div>
       </div>
@@ -631,27 +737,39 @@
           if (photo.editLabel) {
             lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + photo.editLabel
           }
-          deleteForm.action = `/photos/${photo.id}/delete`
+          if (deleteForm) deleteForm.action = `/photos/${photo.id}/delete`
           const editForm = document.getElementById('photos-edit-image-form')
           const trimForm = document.getElementById('photos-trim-video-form')
           const cropBtn = document.getElementById('photos-open-crop-btn')
+          const takenAtForm = document.getElementById('photos-taken-at-form')
+          const takenAtInput = document.getElementById('photos-taken-at-input')
+          const editOpenBtn = document.getElementById('photos-lb-edit-open')
           const canEdit = !!photo.canEdit
           if (editForm) {
             editForm.action = `/photos/${photo.id}/edit-image`
             editForm.hidden = true
           }
           if (cropBtn) {
+            // 画像のみ：動画では画像トリムを出さない
             cropBtn.hidden = !canEdit || isVideo
             cropBtn.dataset.photoId = String(photo.id)
             cropBtn.dataset.photoUrl = photo.fileUrl || (`/photos/${photo.id}/file`)
           }
           if (trimForm) {
+            // 動画のみ：写真では動画トリムを出さない
             trimForm.action = `/photos/${photo.id}/trim-video`
             trimForm.hidden = !canEdit || !isVideo
+          }
+          if (takenAtForm && takenAtInput) {
+            takenAtForm.action = `/photos/${photo.id}/taken-at`
+            takenAtForm.hidden = !canEdit
+            takenAtInput.value = photo.takenAtLocal || ''
           }
           if (deleteForm) {
             deleteForm.hidden = !canEdit
           }
+          if (editOpenBtn) editOpenBtn.hidden = !canEdit
+          setLightboxEditMode(false)
           if (coverPhotoInput) coverPhotoInput.value = String(photo.id)
           if (coverBtn && selectedAlbumId) {
             const isCover = coverPhotoId && Number(coverPhotoId) === Number(photo.id)
@@ -668,11 +786,27 @@
         function closeLightbox() {
           if (!lightbox) return
           stopLightboxVideo()
+          exitPhotosFullscreen(lightbox)
+          setLightboxEditMode(false)
+          lightbox.classList.remove('is-fullscreen')
           lightbox.hidden = true
           if (lightboxImage) lightboxImage.src = ''
           document.body.style.overflow = ''
           setLightboxZoom(1)
         }
+
+        let lightboxEditMode = false
+        function setLightboxEditMode(on) {
+          lightboxEditMode = !!on
+          const main = document.getElementById('photos-lb-main-actions')
+          const edit = document.getElementById('photos-lb-edit-actions')
+          if (main) main.hidden = lightboxEditMode
+          if (edit) edit.hidden = !lightboxEditMode
+          if (lightbox) lightbox.classList.toggle('is-edit-mode', lightboxEditMode)
+        }
+
+        document.getElementById('photos-lb-edit-open')?.addEventListener('click', () => setLightboxEditMode(true))
+        document.getElementById('photos-lb-edit-back')?.addEventListener('click', () => setLightboxEditMode(false))
 
         let lightboxZoom = 1
         const lightboxMedia = document.getElementById('photos-lightbox-media')
@@ -690,6 +824,68 @@
           e.preventDefault()
           setLightboxZoom(lightboxZoom + (e.deltaY < 0 ? 0.15 : -0.15))
         }, { passive: false })
+
+        function photosFullscreenElement() {
+          return document.fullscreenElement || document.webkitFullscreenElement || null
+        }
+
+        function requestPhotosFullscreen(el) {
+          if (!el) return Promise.reject(new Error('missing element'))
+          const req = el.requestFullscreen || el.webkitRequestFullscreen
+          if (!req) return Promise.reject(new Error('unsupported'))
+          return Promise.resolve(req.call(el))
+        }
+
+        function exitPhotosFullscreen(el) {
+          const current = photosFullscreenElement()
+          if (!current) return Promise.resolve()
+          if (el && current !== el) return Promise.resolve()
+          const exit = document.exitFullscreen || document.webkitExitFullscreen
+          if (!exit) return Promise.resolve()
+          return Promise.resolve(exit.call(document)).catch(() => {})
+        }
+
+        async function togglePhotosFullscreen(el) {
+          if (!el) return
+          try {
+            if (photosFullscreenElement() === el) await exitPhotosFullscreen(el)
+            else await requestPhotosFullscreen(el)
+          } catch (_) {
+            window.alert(@json(__('このブラウザでは全画面表示を使えません。')));
+          }
+        }
+
+        function syncPhotosFullscreenButtons() {
+          const fsEl = photosFullscreenElement()
+          const lightboxEl = document.getElementById('photos-lightbox')
+          const slideshowEl = document.getElementById('photos-slideshow')
+          const lightboxFs = fsEl === lightboxEl
+          const slideshowFs = fsEl === slideshowEl
+          const labelEnter = @json(__('全画面'));
+          const labelExit = @json(__('全画面解除'));
+          if (lightboxEl) lightboxEl.classList.toggle('is-fullscreen', lightboxFs)
+          ;[
+            document.getElementById('photos-lightbox-fs'),
+            document.getElementById('photos-lightbox-fs-action'),
+          ].forEach((btn) => {
+            if (!btn) return
+            btn.classList.toggle('is-active', lightboxFs)
+            btn.setAttribute('aria-pressed', lightboxFs ? 'true' : 'false')
+            if (!lightboxFs) btn.textContent = labelEnter
+          })
+          ;[
+            document.getElementById('photos-ss-fs'),
+            document.getElementById('photos-ss-fs-action'),
+          ].forEach((btn) => {
+            if (!btn) return
+            btn.classList.toggle('is-active', slideshowFs)
+            btn.setAttribute('aria-pressed', slideshowFs ? 'true' : 'false')
+            btn.textContent = slideshowFs ? labelExit : labelEnter
+          })
+        }
+
+        document.getElementById('photos-lightbox-fs')?.addEventListener('click', () => togglePhotosFullscreen(lightbox))
+        document.getElementById('photos-lightbox-fs-action')?.addEventListener('click', () => togglePhotosFullscreen(lightbox))
 
         const gallery = document.getElementById('photos-gallery')
         const bulkBar = document.getElementById('photos-bulk-bar')
@@ -925,14 +1121,475 @@
         document.getElementById('photos-share-messenger-btn')?.addEventListener('click', () => {
           shareCurrentMedia({ messengerHint: true })
         })
+
+        const slideshow = document.getElementById('photos-slideshow')
+        const ssLayerA = document.getElementById('photos-ss-layer-a')
+        const ssLayerB = document.getElementById('photos-ss-layer-b')
+        const ssCaption = document.getElementById('photos-ss-caption')
+        const ssCounter = document.getElementById('photos-ss-counter')
+        const ssPlayBtn = document.getElementById('photos-ss-play')
+        const ssInterval = document.getElementById('photos-ss-interval')
+        const ssEffect = document.getElementById('photos-ss-effect')
+        const ssImagesOnly = document.getElementById('photos-ss-images-only')
+        const ssProgress = document.getElementById('photos-ss-progress')?.querySelector('span')
+        const ssAudio = document.getElementById('photos-ss-audio')
+        const ssMusicFile = document.getElementById('photos-ss-music-file')
+        const ssMusicName = document.getElementById('photos-ss-music-name')
+        const ssMusicClear = document.getElementById('photos-ss-music-clear')
+        const ssMusicVolume = document.getElementById('photos-ss-music-volume')
+        const ssMusicLoop = document.getElementById('photos-ss-music-loop')
+        const ssMusicMute = document.getElementById('photos-ss-music-mute')
+        const SS_EFFECT_KEY = 'photos-ss-effect'
+        const SS_INTERVAL_KEY = 'photos-ss-interval'
+        const SS_IMAGES_ONLY_KEY = 'photos-ss-images-only'
+        const SS_MUSIC_VOLUME_KEY = 'photos-ss-music-volume'
+        const SS_EFFECTS = [
+          'fade', 'slide-left', 'slide-right', 'slide-up', 'slide-down',
+          'zoom-in', 'zoom-out', 'blur', 'wipe-left', 'wipe-right',
+          'flip', 'rotate', 'cube', 'kenburns',
+        ]
+        const ssState = {
+          index: 0,
+          queue: [],
+          playing: false,
+          transitioning: false,
+          activeLayer: 'a',
+          timer: null,
+          progressTimer: null,
+          progressStartedAt: 0,
+          musicObjectUrl: null,
+        }
+
+        function applySsMusicSettings() {
+          if (!ssAudio) return
+          const vol = Math.max(0, Math.min(100, Number(ssMusicVolume?.value || 60))) / 100
+          const muted = !!ssMusicMute?.checked
+          ssAudio.volume = vol
+          ssAudio.muted = muted
+          ssAudio.loop = !!ssMusicLoop?.checked
+        }
+
+        function syncSsMusicPlayback() {
+          if (!ssAudio) return
+          applySsMusicSettings()
+          if (!ssAudio.src) return
+          if (ssState.playing && slideshow && !slideshow.hidden) {
+            ssAudio.play().catch(() => {})
+          } else {
+            ssAudio.pause()
+          }
+        }
+
+        function clearSsMusic() {
+          if (!ssAudio) return
+          ssAudio.pause()
+          ssAudio.removeAttribute('src')
+          ssAudio.load()
+          if (ssState.musicObjectUrl) {
+            URL.revokeObjectURL(ssState.musicObjectUrl)
+            ssState.musicObjectUrl = null
+          }
+          if (ssMusicFile) ssMusicFile.value = ''
+          if (ssMusicName) {
+            ssMusicName.textContent = ''
+            ssMusicName.hidden = true
+          }
+          if (ssMusicClear) ssMusicClear.hidden = true
+        }
+
+        function setSsMusicFile(file) {
+          if (!ssAudio || !file) return
+          if (ssState.musicObjectUrl) {
+            URL.revokeObjectURL(ssState.musicObjectUrl)
+            ssState.musicObjectUrl = null
+          }
+          ssState.musicObjectUrl = URL.createObjectURL(file)
+          ssAudio.src = ssState.musicObjectUrl
+          applySsMusicSettings()
+          if (ssMusicName) {
+            ssMusicName.textContent = file.name
+            ssMusicName.hidden = false
+          }
+          if (ssMusicClear) ssMusicClear.hidden = false
+          syncSsMusicPlayback()
+        }
+
+        function ssQueue() {
+          const imagesOnly = !!ssImagesOnly?.checked
+          return photos
+            .map((photo, index) => ({ photo, index }))
+            .filter(({ photo }) => !imagesOnly || photo.mediaKind !== 'video')
+        }
+
+        function stopSsTimers() {
+          if (ssState.timer) {
+            clearTimeout(ssState.timer)
+            ssState.timer = null
+          }
+          if (ssState.progressTimer) {
+            cancelAnimationFrame(ssState.progressTimer)
+            ssState.progressTimer = null
+          }
+          if (ssProgress) ssProgress.style.width = '0%'
+        }
+
+        function setSsPlaying(playing) {
+          ssState.playing = !!playing
+          if (ssPlayBtn) {
+            ssPlayBtn.setAttribute('aria-pressed', ssState.playing ? 'true' : 'false')
+            ssPlayBtn.textContent = ssState.playing
+              ? @json(__('一時停止'))
+              : @json(__('自動再生'));
+            ssPlayBtn.classList.toggle('is-playing', ssState.playing)
+          }
+          if (!ssState.playing) stopSsTimers()
+          else scheduleSsNext()
+          syncSsMusicPlayback()
+        }
+
+        function pickSsEffect() {
+          const selected = ssEffect?.value || 'fade'
+          if (selected !== 'random') return selected
+          return SS_EFFECTS[Math.floor(Math.random() * SS_EFFECTS.length)]
+        }
+
+        function fillSsLayer(layer, photo) {
+          if (!layer || !photo) return
+          const img = layer.querySelector('img')
+          const video = layer.querySelector('video')
+          const isVideo = photo.mediaKind === 'video'
+          if (video) {
+            video.pause()
+            video.removeAttribute('src')
+            video.load()
+            video.hidden = true
+            // BGM があるときは動画の音声を出さない
+            video.muted = !!(ssAudio && ssAudio.src)
+          }
+          if (img) {
+            img.removeAttribute('src')
+            img.hidden = true
+          }
+          if (isVideo && video) {
+            video.hidden = false
+            video.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
+          } else if (img) {
+            img.hidden = false
+            img.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
+            img.alt = photo.caption || photo.originalName || @json(__('写真'))
+          }
+        }
+
+        function updateSsMeta() {
+          const item = ssState.queue[ssState.index]
+          if (!item) return
+          const photo = item.photo
+          if (ssCaption) {
+            ssCaption.textContent = photo.caption || photo.originalName || ''
+          }
+          if (ssCounter) {
+            ssCounter.textContent = `${ssState.index + 1} / ${ssState.queue.length}`
+          }
+        }
+
+        function scheduleSsNext() {
+          stopSsTimers()
+          if (!ssState.playing || !slideshow || slideshow.hidden) return
+          const item = ssState.queue[ssState.index]
+          const photo = item?.photo
+          const interval = Math.max(1500, Number(ssInterval?.value || 3000))
+          if (photo?.mediaKind === 'video') {
+            const layer = ssState.activeLayer === 'a' ? ssLayerA : ssLayerB
+            const video = layer?.querySelector('video')
+            if (video && !video.hidden) {
+              const onEnded = () => {
+                video.removeEventListener('ended', onEnded)
+                if (ssState.playing) showSsSlide(ssState.index + 1, 1)
+              }
+              video.addEventListener('ended', onEnded)
+              video.play().catch(() => {
+                ssState.timer = setTimeout(() => showSsSlide(ssState.index + 1, 1), interval)
+              })
+              return
+            }
+          }
+          ssState.progressStartedAt = performance.now()
+          const tick = (now) => {
+            if (!ssState.playing) return
+            const ratio = Math.min(1, (now - ssState.progressStartedAt) / interval)
+            if (ssProgress) ssProgress.style.width = `${ratio * 100}%`
+            if (ratio >= 1) {
+              showSsSlide(ssState.index + 1, 1)
+              return
+            }
+            ssState.progressTimer = requestAnimationFrame(tick)
+          }
+          ssState.progressTimer = requestAnimationFrame(tick)
+        }
+
+        function showSsSlide(queueIndex, direction = 1) {
+          if (!ssState.queue.length || ssState.transitioning) return
+          const nextIndex = (queueIndex + ssState.queue.length) % ssState.queue.length
+          const item = ssState.queue[nextIndex]
+          if (!item) return
+          const incoming = ssState.activeLayer === 'a' ? ssLayerB : ssLayerA
+          const outgoing = ssState.activeLayer === 'a' ? ssLayerA : ssLayerB
+          const effect = pickSsEffect()
+          fillSsLayer(incoming, item.photo)
+          ssState.transitioning = true
+          incoming.className = `photos-ss-layer is-incoming effect-${effect} dir-${direction >= 0 ? 'fwd' : 'back'}`
+          outgoing.className = `photos-ss-layer is-outgoing effect-${effect} dir-${direction >= 0 ? 'fwd' : 'back'}`
+          // force reflow
+          void incoming.offsetWidth
+          incoming.classList.add('is-active', 'is-in')
+          outgoing.classList.add('is-out')
+          const finish = () => {
+            outgoing.className = 'photos-ss-layer'
+            const outImg = outgoing.querySelector('img')
+            const outVideo = outgoing.querySelector('video')
+            if (outVideo) {
+              outVideo.pause()
+              outVideo.removeAttribute('src')
+              outVideo.load()
+              outVideo.hidden = true
+            }
+            if (outImg) {
+              outImg.removeAttribute('src')
+              outImg.hidden = true
+            }
+            incoming.className = 'photos-ss-layer is-active'
+            ssState.activeLayer = incoming.dataset.layer
+            ssState.index = nextIndex
+            currentIndex = item.index
+            ssState.transitioning = false
+            updateSsMeta()
+            if (ssState.playing) scheduleSsNext()
+          }
+          window.setTimeout(finish, effect === 'kenburns' ? 900 : 700)
+        }
+
+        function openSlideshow(startPhotoIndex = 0) {
+          ssState.queue = ssQueue()
+          if (!ssState.queue.length) {
+            window.alert(@json(__('スライドショーで表示できる写真がありません。')))
+            return
+          }
+          let start = ssState.queue.findIndex(({ index }) => index === startPhotoIndex)
+          if (start < 0) start = 0
+          ssState.index = start
+          ssState.activeLayer = 'a'
+          ssState.transitioning = false
+          fillSsLayer(ssLayerA, ssState.queue[start].photo)
+          if (ssLayerA) ssLayerA.className = 'photos-ss-layer is-active'
+          if (ssLayerB) {
+            ssLayerB.className = 'photos-ss-layer'
+            const img = ssLayerB.querySelector('img')
+            const video = ssLayerB.querySelector('video')
+            if (img) { img.hidden = true; img.removeAttribute('src') }
+            if (video) { video.hidden = true; video.removeAttribute('src'); video.load() }
+          }
+          updateSsMeta()
+          closeLightbox()
+          setSsChromeHidden(false)
+          if (slideshow) slideshow.hidden = false
+          document.body.style.overflow = 'hidden'
+          setSsPlaying(true)
+        }
+
+        function closeSlideshow() {
+          setSsPlaying(false)
+          stopSsTimers()
+          if (ssAudio) ssAudio.pause()
+          exitPhotosFullscreen(slideshow)
+          if (slideshow) {
+            slideshow.classList.remove('is-fullscreen')
+            slideshow.dataset.wasFullscreen = '0'
+          }
+          ;[ssLayerA, ssLayerB].forEach((layer) => {
+            if (!layer) return
+            const video = layer.querySelector('video')
+            const img = layer.querySelector('img')
+            if (video) {
+              video.pause()
+              video.removeAttribute('src')
+              video.load()
+              video.hidden = true
+            }
+            if (img) {
+              img.removeAttribute('src')
+              img.hidden = true
+            }
+            layer.className = 'photos-ss-layer'
+          })
+          if (slideshow) slideshow.hidden = true
+          document.body.style.overflow = ''
+        }
+
+        function setSsChromeHidden(hidden) {
+          if (!slideshow) return
+          const hide = !!hidden
+          slideshow.classList.toggle('is-chrome-hidden', hide)
+          const toggleBtn = document.getElementById('photos-ss-chrome-toggle')
+          const peekBtn = document.getElementById('photos-ss-chrome-peek')
+          if (toggleBtn) {
+            toggleBtn.setAttribute('aria-pressed', hide ? 'true' : 'false')
+            toggleBtn.textContent = hide
+              ? @json(__('フッターを表示'))
+              : @json(__('フッターを隠す'));
+          }
+          if (peekBtn) {
+            const inFullscreen = slideshow.classList.contains('is-fullscreen')
+              || photosFullscreenElement() === slideshow
+            peekBtn.hidden = !hide || inFullscreen
+          }
+        }
+
+        function syncSlideshowFullscreenLayout() {
+          if (!slideshow) return
+          const isFs = photosFullscreenElement() === slideshow
+          const wasFs = slideshow.dataset.wasFullscreen === '1'
+          if (isFs && !wasFs) {
+            slideshow.dataset.chromeBeforeFs = slideshow.classList.contains('is-chrome-hidden') ? '1' : '0'
+            setSsChromeHidden(true)
+            slideshow.dataset.wasFullscreen = '1'
+          } else if (!isFs && wasFs) {
+            setSsChromeHidden(slideshow.dataset.chromeBeforeFs === '1')
+            slideshow.dataset.wasFullscreen = '0'
+          }
+          slideshow.classList.toggle('is-fullscreen', isFs)
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+          syncSlideshowFullscreenLayout()
+          syncPhotosFullscreenButtons()
+        })
+        document.addEventListener('webkitfullscreenchange', () => {
+          syncSlideshowFullscreenLayout()
+          syncPhotosFullscreenButtons()
+        })
+
+        try {
+          const savedEffect = localStorage.getItem(SS_EFFECT_KEY)
+          const savedInterval = localStorage.getItem(SS_INTERVAL_KEY)
+          const savedImagesOnly = localStorage.getItem(SS_IMAGES_ONLY_KEY)
+          const savedVolume = localStorage.getItem(SS_MUSIC_VOLUME_KEY)
+          if (ssEffect && savedEffect) ssEffect.value = savedEffect
+          if (ssInterval && savedInterval) ssInterval.value = savedInterval
+          if (ssImagesOnly && savedImagesOnly !== null) ssImagesOnly.checked = savedImagesOnly === '1'
+          if (ssMusicVolume && savedVolume !== null) ssMusicVolume.value = savedVolume
+        } catch (_) {}
+        applySsMusicSettings()
+        setSsChromeHidden(false)
+
+        document.getElementById('photos-slideshow-open')?.addEventListener('click', () => openSlideshow(0))
+        document.getElementById('photos-lightbox-slideshow')?.addEventListener('click', () => openSlideshow(currentIndex))
+        document.getElementById('photos-ss-close')?.addEventListener('click', closeSlideshow)
+        document.getElementById('photos-ss-prev')?.addEventListener('click', () => {
+          setSsPlaying(false)
+          showSsSlide(ssState.index - 1, -1)
+        })
+        document.getElementById('photos-ss-next')?.addEventListener('click', () => {
+          setSsPlaying(false)
+          showSsSlide(ssState.index + 1, 1)
+        })
+        ssPlayBtn?.addEventListener('click', () => setSsPlaying(!ssState.playing))
+        document.getElementById('photos-ss-chrome-toggle')?.addEventListener('click', () => {
+          setSsChromeHidden(!slideshow?.classList.contains('is-chrome-hidden'))
+        })
+        document.getElementById('photos-ss-chrome-peek')?.addEventListener('click', () => setSsChromeHidden(false))
+        document.getElementById('photos-ss-fs')?.addEventListener('click', () => togglePhotosFullscreen(slideshow))
+        document.getElementById('photos-ss-fs-action')?.addEventListener('click', () => togglePhotosFullscreen(slideshow))
+        ssInterval?.addEventListener('change', () => {
+          try { localStorage.setItem(SS_INTERVAL_KEY, ssInterval.value) } catch (_) {}
+          if (ssState.playing) scheduleSsNext()
+        })
+        ssEffect?.addEventListener('change', () => {
+          try { localStorage.setItem(SS_EFFECT_KEY, ssEffect.value) } catch (_) {}
+        })
+        ssImagesOnly?.addEventListener('change', () => {
+          try { localStorage.setItem(SS_IMAGES_ONLY_KEY, ssImagesOnly.checked ? '1' : '0') } catch (_) {}
+          if (!slideshow?.hidden) {
+            const currentPhotoIndex = ssState.queue[ssState.index]?.index ?? 0
+            openSlideshow(currentPhotoIndex)
+          }
+        })
+        ssMusicFile?.addEventListener('change', () => {
+          const file = ssMusicFile.files?.[0]
+          if (file) setSsMusicFile(file)
+        })
+        ssMusicClear?.addEventListener('click', () => {
+          clearSsMusic()
+        })
+        ssMusicVolume?.addEventListener('input', () => {
+          try { localStorage.setItem(SS_MUSIC_VOLUME_KEY, ssMusicVolume.value) } catch (_) {}
+          applySsMusicSettings()
+        })
+        ssMusicLoop?.addEventListener('change', applySsMusicSettings)
+        ssMusicMute?.addEventListener('change', applySsMusicSettings)
+
         document.addEventListener('keydown', (e) => {
+          const isEsc = e.key === 'Escape' || e.key === 'Esc'
+          if (slideshow && !slideshow.hidden) {
+            if (isEsc) {
+              e.preventDefault()
+              e.stopPropagation()
+              if (photosFullscreenElement() === slideshow) {
+                exitPhotosFullscreen(slideshow)
+                return
+              }
+              if (slideshow.classList.contains('is-chrome-hidden')) {
+                setSsChromeHidden(false)
+                return
+              }
+              closeSlideshow()
+              return
+            }
+            if (e.key === 'f' || e.key === 'F') {
+              e.preventDefault()
+              togglePhotosFullscreen(slideshow)
+            }
+            if (e.key === 'h' || e.key === 'H') {
+              e.preventDefault()
+              setSsChromeHidden(!slideshow.classList.contains('is-chrome-hidden'))
+            }
+            if (e.key === 'ArrowLeft') {
+              setSsPlaying(false)
+              showSsSlide(ssState.index - 1, -1)
+            }
+            if (e.key === 'ArrowRight') {
+              setSsPlaying(false)
+              showSsSlide(ssState.index + 1, 1)
+            }
+            if (e.key === ' ' || e.key === 'Spacebar') {
+              e.preventDefault()
+              setSsPlaying(!ssState.playing)
+            }
+            return
+          }
           if (lightbox?.hidden) return
-          if (e.key === 'Escape') closeLightbox()
+          if (isEsc) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (photosFullscreenElement() === lightbox) {
+              exitPhotosFullscreen(lightbox)
+              return
+            }
+            if (lightboxEditMode) {
+              setLightboxEditMode(false)
+              return
+            }
+            closeLightbox()
+            return
+          }
+          if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault()
+            togglePhotosFullscreen(lightbox)
+          }
           if (e.key === 'ArrowLeft') openLightbox(currentIndex - 1)
           if (e.key === 'ArrowRight') openLightbox(currentIndex + 1)
           if (e.key === '+' || e.key === '=') setLightboxZoom(lightboxZoom + 0.25)
           if (e.key === '-') setLightboxZoom(lightboxZoom - 0.25)
-        })
+        }, true)
 
         const albumForm = document.getElementById('photos-album-form')
         const albumModalTitle = document.getElementById('photos-album-modal-title')
