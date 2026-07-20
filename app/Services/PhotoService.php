@@ -30,7 +30,8 @@ class PhotoService
 
     public function maxUploadBytes(): int
     {
-        return max(1, (int) config('photos.max_upload_bytes', 12 * 1024 * 1024));
+        // 0 = アプリ側の画像サイズ上限なし（PHP の upload_max_filesize は別途あり）
+        return max(0, (int) config('photos.max_upload_bytes', 0));
     }
 
     public function maxVideoUploadBytes(): int
@@ -504,7 +505,7 @@ class PhotoService
         $isVideo = $this->isVideoMime($mime, $ext);
 
         $max = $isVideo ? $this->maxVideoUploadBytes() : $this->maxUploadBytes();
-        if ($file->getSize() > $max) {
+        if ($max > 0 && $file->getSize() > $max) {
             throw new \InvalidArgumentException(
                 ($isVideo ? '動画' : '画像').'は'.$this->formatBytes($max).'以下にしてください'
             );
@@ -665,9 +666,8 @@ class PhotoService
     }
 
     /**
-     * 長辺を縮小して JPEG 保存し、サムネも生成する。
-     * GD で扱えない形式（HEIC 等）は原本をそのまま保存する。
-     * ローカル / R2（S3互換）どちらでも動くよう一時ファイル経由で put する。
+     * 画像を解像度そのまま保存し、一覧用サムネだけ生成する。
+     * ローカル / R2（S3互換）どちらでも動くよう putFileAs / 一時ファイル経由で put する。
      *
      * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
      */
@@ -678,87 +678,99 @@ class PhotoService
             return null;
         }
 
-        $mime = (string) $file->getMimeType();
-        $src = $this->createImageResource($sourcePath, $mime);
-        $quality = max(40, min(95, (int) config('photos.jpeg_quality', 82)));
-        $maxEdge = max(640, (int) config('photos.max_long_edge', 1920));
-        $thumbEdge = max(240, (int) config('photos.thumb_long_edge', 720));
-
-        if (! $src) {
-            $path = $file->store(trim($dir, '/'), $this->diskName());
-            if (! $path) {
-                return null;
-            }
-            $size = @getimagesize($sourcePath);
-
-            return [
-                'path' => $path,
-                'thumbPath' => null,
-                'mime' => $mime ?: 'application/octet-stream',
-                'sizeBytes' => (int) $this->storage()->size($path),
-                'width' => is_array($size) ? ($size[0] ?? null) : null,
-                'height' => is_array($size) ? ($size[1] ?? null) : null,
-            ];
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
         }
 
-        $sw = imagesx($src);
-        $sh = imagesy($src);
-        if ($sw < 1 || $sh < 1) {
-            imagedestroy($src);
-
-            return null;
-        }
-
-        [$dw, $dh] = $this->scaledSize($sw, $sh, $maxEdge);
-        $main = imagecreatetruecolor($dw, $dh);
-        $this->fillWhite($main);
-        imagecopyresampled($main, $src, 0, 0, 0, 0, $dw, $dh, $sw, $sh);
-
+        $mime = (string) ($file->getMimeType() ?: 'application/octet-stream');
+        $ext = $this->imageStorageExtension($file, $mime);
         $basename = str_replace('.', '', uniqid('ph_', true));
-        $path = trim($dir, '/').'/'.$basename.'.jpg';
-        $thumbPath = trim($dir, '/').'/'.$basename.'_thumb.jpg';
-
-        $mainTmp = tempnam(sys_get_temp_dir(), 'phm');
-        $thumbTmp = tempnam(sys_get_temp_dir(), 'pht');
-        if ($mainTmp === false || $thumbTmp === false) {
-            imagedestroy($src);
-            imagedestroy($main);
-
-            return null;
-        }
-
-        imagejpeg($main, $mainTmp, $quality);
-
-        [$tw, $th] = $this->scaledSize($dw, $dh, $thumbEdge);
-        $thumb = imagecreatetruecolor($tw, $th);
-        $this->fillWhite($thumb);
-        imagecopyresampled($thumb, $main, 0, 0, 0, 0, $tw, $th, $dw, $dh);
-        imagejpeg($thumb, $thumbTmp, $quality);
-
-        imagedestroy($src);
-        imagedestroy($main);
-        imagedestroy($thumb);
+        $dir = trim($dir, '/');
+        $filename = $basename.'.'.$ext;
+        $thumbRel = $dir.'/'.$basename.'_thumb.jpg';
 
         try {
-            $this->putFileContents($path, (string) file_get_contents($mainTmp), 'image/jpeg');
-            $this->putFileContents($thumbPath, (string) file_get_contents($thumbTmp), 'image/jpeg');
-        } finally {
-            @unlink($mainTmp);
-            @unlink($thumbTmp);
+            $path = $this->storage()->putFileAs($dir, $file, $filename, [
+                'visibility' => 'public',
+                'ContentType' => $mime,
+                'mimetype' => $mime,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
         }
 
-        if (! $this->storage()->exists($path)) {
+        if (! is_string($path) || $path === '' || ! $this->storage()->exists($path)) {
             return null;
+        }
+
+        $width = null;
+        $height = null;
+        $thumbPath = null;
+        $src = $this->createImageResource($sourcePath, $mime);
+        $thumbEdge = max(240, (int) config('photos.thumb_long_edge', 720));
+        $quality = max(40, min(95, (int) config('photos.jpeg_quality', 82)));
+
+        if ($src) {
+            $sw = imagesx($src);
+            $sh = imagesy($src);
+            if ($sw >= 1 && $sh >= 1) {
+                $width = $sw;
+                $height = $sh;
+                [$tw, $th] = $this->scaledSize($sw, $sh, $thumbEdge);
+                $thumb = imagecreatetruecolor($tw, $th);
+                $this->fillWhite($thumb);
+                imagecopyresampled($thumb, $src, 0, 0, 0, 0, $tw, $th, $sw, $sh);
+                $thumbTmp = tempnam(sys_get_temp_dir(), 'pht');
+                if ($thumbTmp !== false) {
+                    imagejpeg($thumb, $thumbTmp, $quality);
+                    try {
+                        $this->putFileContents($thumbRel, (string) file_get_contents($thumbTmp), 'image/jpeg');
+                        if ($this->storage()->exists($thumbRel)) {
+                            $thumbPath = $thumbRel;
+                        }
+                    } finally {
+                        @unlink($thumbTmp);
+                    }
+                }
+                imagedestroy($thumb);
+            }
+            imagedestroy($src);
+        } else {
+            $size = @getimagesize($sourcePath);
+            if (is_array($size)) {
+                $width = $size[0] ?? null;
+                $height = $size[1] ?? null;
+            }
         }
 
         return [
             'path' => $path,
-            'thumbPath' => $this->storage()->exists($thumbPath) ? $thumbPath : null,
-            'mime' => 'image/jpeg',
+            'thumbPath' => $thumbPath,
+            'mime' => $mime,
             'sizeBytes' => (int) $this->storage()->size($path),
-            'width' => $dw,
-            'height' => $dh,
+            'width' => $width,
+            'height' => $height,
         ];
+    }
+
+    private function imageStorageExtension(UploadedFile $file, string $mime): string
+    {
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true)) {
+            return $ext === 'jpeg' ? 'jpg' : $ext;
+        }
+
+        return match (true) {
+            str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => 'jpg',
+            str_contains($mime, 'png') => 'png',
+            str_contains($mime, 'webp') => 'webp',
+            str_contains($mime, 'gif') => 'gif',
+            str_contains($mime, 'heic') => 'heic',
+            str_contains($mime, 'heif') => 'heif',
+            default => 'bin',
+        };
     }
 
     private function storage(): \Illuminate\Contracts\Filesystem\Filesystem

@@ -82,7 +82,7 @@
           <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
         </div>
         <p class="photos-storage-note">
-          {{ __('画像は長辺1920pxへ自動圧縮。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
+          {{ __('画像は解像度そのまま保存。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
           {{ __('保存先:') }} {{ $storageStats['diskLabel'] }}。
           {{ __('Cloudflare R2 の無料枠は') }} {{ $storageStats['formattedQuota'] }}{{ __('（超過分は約') }} {{ $storageStats['overagePriceLabel'] }} {{ __('の従量課金）。') }}
           @if(($storageStats['disk'] ?? '') === 'public')
@@ -489,40 +489,8 @@
         }
 
         async function compressImageFile(file) {
-          if (!file) return file
-          if (isVideoFile(file)) return file
-          if (!file.type.startsWith('image/')) return file
-          if (file.type === 'image/gif' || /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
-            return file
-          }
-          if (typeof createImageBitmap !== 'function') return file
-
-          const maxEdge = 1920
-          const quality = 0.82
-          let bitmap
-          try {
-            bitmap = await createImageBitmap(file)
-          } catch (_) {
-            return file
-          }
-          const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
-          const w = Math.max(1, Math.round(bitmap.width * scale))
-          const h = Math.max(1, Math.round(bitmap.height * scale))
-          const canvas = document.createElement('canvas')
-          canvas.width = w
-          canvas.height = h
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            bitmap.close?.()
-            return file
-          }
-          ctx.drawImage(bitmap, 0, 0, w, h)
-          bitmap.close?.()
-
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
-          if (!blob || blob.size >= file.size) return file
-          const name = file.name.replace(/\.\w+$/, '') + '.jpg'
-          return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() })
+          // 画像は解像度・ファイル内容を変更せずそのままアップロードする
+          return file
         }
 
         async function submitFiles(fileList) {
@@ -530,7 +498,7 @@
           uploading = true
           const list = Array.from(fileList)
           const hasVideo = list.some(isVideoFile)
-          if (uploadLabel) uploadLabel.textContent = hasVideo ? 'サムネ作成中…' : '圧縮中…'
+          if (uploadLabel) uploadLabel.textContent = hasVideo ? 'サムネ作成中…' : '準備中…'
           try {
             const dt = new DataTransfer()
             const thumbDt = new DataTransfer()
@@ -1091,6 +1059,50 @@
         window.addEventListener('mouseup', endCropDrag)
         window.addEventListener('touchend', endCropDrag)
 
+        function buildFullResCropBlob() {
+          const img = cropState.source
+          if (!cropCanvas || !img) return null
+          const displayW = cropCanvas.width
+          const displayH = cropCanvas.height
+          if (displayW < 1 || displayH < 1) return null
+
+          const fullSize = naturalSize()
+          const scaleX = fullSize.w / displayW
+          const scaleY = fullSize.h / displayH
+          const b = cropState.box
+          const sx = Math.max(0, b.x * scaleX)
+          const sy = Math.max(0, b.y * scaleY)
+          const sw = Math.min(fullSize.w - sx, Math.max(1, b.w * scaleX))
+          const sh = Math.min(fullSize.h - sy, Math.max(1, b.h * scaleY))
+          const outW = Math.max(1, Math.round(sw))
+          const outH = Math.max(1, Math.round(sh))
+
+          // Preview canvas is downscaled for UI; re-render at natural resolution before crop.
+          const full = document.createElement('canvas')
+          full.width = fullSize.w
+          full.height = fullSize.h
+          const fctx = full.getContext('2d')
+          if (!fctx) return null
+          fctx.imageSmoothingEnabled = true
+          fctx.imageSmoothingQuality = 'high'
+          fctx.save()
+          fctx.translate(fullSize.w / 2, fullSize.h / 2)
+          fctx.rotate((cropState.rotation * Math.PI) / 180)
+          fctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
+          fctx.restore()
+
+          const out = document.createElement('canvas')
+          out.width = outW
+          out.height = outH
+          const ctx = out.getContext('2d')
+          if (!ctx) return null
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
+          ctx.drawImage(full, sx, sy, sw, sh, 0, 0, outW, outH)
+
+          return new Promise((resolve) => out.toBlob(resolve, 'image/jpeg', 0.95))
+        }
+
         document.getElementById('photos-crop-save')?.addEventListener('click', async () => {
           if (!cropCanvas || !cropState.source || !cropState.photoId) return
           const saveBtn = document.getElementById('photos-crop-save')
@@ -1099,13 +1111,7 @@
             saveBtn.textContent = @json(__('保存中…'));
           }
           try {
-            const b = cropState.box
-            const out = document.createElement('canvas')
-            out.width = Math.max(1, Math.round(b.w))
-            out.height = Math.max(1, Math.round(b.h))
-            const ctx = out.getContext('2d')
-            ctx.drawImage(cropCanvas, b.x, b.y, b.w, b.h, 0, 0, out.width, out.height)
-            const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/jpeg', 0.92))
+            const blob = await buildFullResCropBlob()
             if (!blob) throw new Error('blob')
             const form = document.getElementById('photos-edit-image-form')
             const input = document.getElementById('photos-edit-image-input')

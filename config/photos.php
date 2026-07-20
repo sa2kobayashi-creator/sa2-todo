@@ -1,8 +1,8 @@
 <?php
 
 return [
-    /** 画像1ファイルのアップロード上限（バイト） */
-    'max_upload_bytes' => (int) env('PHOTO_MAX_UPLOAD_BYTES', 12 * 1024 * 1024),
+    /** 画像1ファイルのアップロード上限（バイト）。0 = アプリ側上限なし */
+    'max_upload_bytes' => (int) env('PHOTO_MAX_UPLOAD_BYTES', 0),
 
     /** 動画1ファイルのアップロード上限（バイト）。初期値 100MB */
     'max_video_upload_bytes' => (int) env('PHOTO_MAX_VIDEO_UPLOAD_BYTES', 100 * 1024 * 1024),
@@ -16,13 +16,16 @@ return [
     /** 無料枠超過時の従量課金目安（USD / GB / 月）。R2 Standard クラスA相当の表記用 */
     'overage_price_per_gb_month_usd' => (float) env('PHOTO_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.015),
 
-    /** 原本の長辺上限（px）。超えたら縮小して JPEG 保存 */
-    'max_long_edge' => (int) env('PHOTO_MAX_LONG_EDGE', 1920),
+    /**
+     * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。
+     * （互換のため残置。現行実装では未使用）
+     */
+    'max_long_edge' => (int) env('PHOTO_MAX_LONG_EDGE', 0),
 
     /** サムネイル長辺（px） */
     'thumb_long_edge' => (int) env('PHOTO_THUMB_LONG_EDGE', 720),
 
-    /** JPEG 品質 0–100 */
+    /** JPEG 品質 0–100（サムネイル用） */
     'jpeg_quality' => (int) env('PHOTO_JPEG_QUALITY', 82),
 
     /**
