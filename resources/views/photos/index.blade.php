@@ -167,6 +167,35 @@
             <button type="button" class="photos-mode-btn" data-photos-mode="select" aria-pressed="false">{{ __('選択') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-mode="list" aria-pressed="false">{{ __('一覧') }}</button>
           </div>
+          <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
+            <span class="photos-cols-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
+            </span>
+            <input
+              type="range"
+              id="photos-cols-slider"
+              class="photos-cols-slider"
+              min="1"
+              max="7"
+              step="1"
+              value="4"
+              aria-label="{{ __('1行の枚数') }}"
+            />
+            <span class="photos-cols-icon is-dense" aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+                <rect x="1.5" y="1.5" width="5" height="5" rx="1"/>
+                <rect x="7.5" y="1.5" width="5" height="5" rx="1"/>
+                <rect x="13.5" y="1.5" width="5" height="5" rx="1"/>
+                <rect x="1.5" y="7.5" width="5" height="5" rx="1"/>
+                <rect x="7.5" y="7.5" width="5" height="5" rx="1"/>
+                <rect x="13.5" y="7.5" width="5" height="5" rx="1"/>
+                <rect x="1.5" y="13.5" width="5" height="5" rx="1"/>
+                <rect x="7.5" y="13.5" width="5" height="5" rx="1"/>
+                <rect x="13.5" y="13.5" width="5" height="5" rx="1"/>
+              </svg>
+            </span>
+            <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">4</span>
+          </div>
           <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
             <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
@@ -183,7 +212,7 @@
           </div>
         </div>
 
-        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal">
+        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="4" style="--photos-cols: 4">
           @php $flatIndex = 0; @endphp
           @foreach($photoGroups as $group)
             <section class="photos-day-group">
@@ -263,6 +292,8 @@
             <p class="photos-lightbox-date" id="photos-lightbox-date"></p>
           </div>
           <div class="photos-lightbox-actions">
+            <button type="button" class="photos-secondary-btn" id="photos-share-btn">{{ __('共有') }}</button>
+            <button type="button" class="photos-secondary-btn photos-messenger-btn" id="photos-share-messenger-btn">{{ __('Messengerで送る') }}</button>
             @if($selectedAlbumId && !empty($canManageSelected))
               <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
                 @csrf
@@ -664,7 +695,11 @@
         const bulkBar = document.getElementById('photos-bulk-bar')
         const bulkCount = document.getElementById('photos-bulk-count')
         const bulkMoveWrap = document.getElementById('photos-bulk-move-wrap')
+        const colsControl = document.getElementById('photos-cols-control')
+        const colsSlider = document.getElementById('photos-cols-slider')
+        const colsValue = document.getElementById('photos-cols-value')
         const PHOTOS_MODE_KEY = 'photos-view-mode'
+        const PHOTOS_COLS_KEY = 'photos-grid-cols'
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
         const photosReturnTo = @json($returnTo);
 
@@ -677,12 +712,37 @@
         function currentPhotosMode() {
           return gallery?.dataset.photosMode || 'normal'
         }
+        function clampCols(value) {
+          return Math.max(1, Math.min(7, Math.round(Number(value) || 4)))
+        }
+        function setPhotosCols(value, { persist = true } = {}) {
+          const cols = clampCols(value)
+          if (gallery) {
+            gallery.dataset.cols = String(cols)
+            gallery.style.setProperty('--photos-cols', String(cols))
+            gallery.querySelectorAll('.photos-masonry').forEach((el) => {
+              el.style.columnCount = String(cols)
+            })
+          }
+          if (colsSlider && Number(colsSlider.value) !== cols) {
+            colsSlider.value = String(cols)
+          }
+          if (colsValue) colsValue.textContent = String(cols)
+          if (colsControl) {
+            const fill = ((cols - 1) / 6) * 100
+            colsControl.style.setProperty('--cols-fill', `${fill}%`)
+          }
+          if (persist) {
+            try { localStorage.setItem(PHOTOS_COLS_KEY, String(cols)) } catch (_) {}
+          }
+        }
         function updatePhotosBulkUi() {
           const mode = currentPhotosMode()
           const ids = selectedPhotoIds()
           if (bulkCount) bulkCount.textContent = @json(__(':count件選択')).replace(':count', String(ids.length));
           if (bulkBar) bulkBar.hidden = mode === 'normal' || ids.length === 0
           if (bulkMoveWrap) bulkMoveWrap.hidden = mode !== 'list'
+          if (colsControl) colsControl.hidden = mode === 'list'
         }
         function setPhotosMode(mode) {
           const next = ['normal', 'select', 'list'].includes(mode) ? mode : 'normal'
@@ -696,11 +756,21 @@
             photoChecks().forEach((cb) => { cb.checked = false })
           }
           try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
+          if (next !== 'list') {
+            setPhotosCols(colsSlider?.value || gallery?.dataset.cols || 4, { persist: false })
+          }
           updatePhotosBulkUi()
         }
         document.querySelectorAll('[data-photos-mode]').forEach((btn) => {
           btn.addEventListener('click', () => setPhotosMode(btn.dataset.photosMode))
         })
+        colsSlider?.addEventListener('input', () => setPhotosCols(colsSlider.value))
+        try {
+          const savedCols = localStorage.getItem(PHOTOS_COLS_KEY)
+          setPhotosCols(savedCols || 4, { persist: false })
+        } catch (_) {
+          setPhotosCols(4, { persist: false })
+        }
         try {
           const savedMode = localStorage.getItem(PHOTOS_MODE_KEY)
           setPhotosMode(savedMode || 'normal')
@@ -776,6 +846,85 @@
         })
         document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => openLightbox(currentIndex - 1))
         document.getElementById('photos-lightbox-next')?.addEventListener('click', () => openLightbox(currentIndex + 1))
+
+        async function fetchCurrentMediaFile() {
+          const photo = photos[currentIndex]
+          if (!photo) throw new Error('photo')
+          const url = photo.fileUrl || (`/photos/${photo.id}/file`)
+          const res = await fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+          if (!res.ok) throw new Error('fetch ' + res.status)
+          const blob = await res.blob()
+          const mime = blob.type || photo.mime || (photo.mediaKind === 'video' ? 'video/mp4' : 'image/jpeg')
+          let ext = 'jpg'
+          if (mime.includes('mp4') || mime.includes('video')) ext = 'mp4'
+          else if (mime.includes('png')) ext = 'png'
+          else if (mime.includes('webp')) ext = 'webp'
+          else if (mime.includes('gif')) ext = 'gif'
+          else if (mime.includes('heic')) ext = 'heic'
+          const base = String(photo.originalName || `media-${photo.id}`).replace(/\.[^.]+$/, '')
+          return new File([blob], `${base}.${ext}`, { type: mime, lastModified: Date.now() })
+        }
+
+        function downloadFile(file) {
+          const objectUrl = URL.createObjectURL(file)
+          const a = document.createElement('a')
+          a.href = objectUrl
+          a.download = file.name
+          a.rel = 'noopener'
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 2000)
+        }
+
+        async function shareCurrentMedia({ messengerHint = false } = {}) {
+          const photo = photos[currentIndex]
+          if (!photo) return
+          const shareBtn = document.getElementById('photos-share-btn')
+          const messengerBtn = document.getElementById('photos-share-messenger-btn')
+          const busyBtns = [shareBtn, messengerBtn].filter(Boolean)
+          busyBtns.forEach((btn) => { btn.disabled = true })
+          try {
+            const file = await fetchCurrentMediaFile()
+            const payload = {
+              files: [file],
+              title: photo.caption || photo.originalName || @json(__('写真')),
+              text: messengerHint
+                ? @json(__('Messenger を選んで送信してください。'))
+                : (photo.caption || photo.originalName || ''),
+            }
+            const canShareFiles = typeof navigator.canShare !== 'function'
+              || navigator.canShare({ files: [file] })
+            if (typeof navigator.share === 'function' && canShareFiles) {
+              try {
+                await navigator.share(payload)
+                return
+              } catch (err) {
+                if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return
+              }
+            }
+            downloadFile(file)
+            window.alert(
+              messengerHint
+                ? @json(__('共有シートが使えないためダウンロードしました。Messenger を開き、ダウンロードしたファイルを添付して送信してください。'))
+                : @json(__('共有に対応していないため、ファイルをダウンロードしました。'))
+            )
+          } catch (_) {
+            window.alert(@json(__('共有の準備に失敗しました。')))
+          } finally {
+            busyBtns.forEach((btn) => { btn.disabled = false })
+          }
+        }
+
+        document.getElementById('photos-share-btn')?.addEventListener('click', () => {
+          shareCurrentMedia({ messengerHint: false })
+        })
+        document.getElementById('photos-share-messenger-btn')?.addEventListener('click', () => {
+          shareCurrentMedia({ messengerHint: true })
+        })
         document.addEventListener('keydown', (e) => {
           if (lightbox?.hidden) return
           if (e.key === 'Escape') closeLightbox()

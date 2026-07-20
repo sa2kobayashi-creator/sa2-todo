@@ -10,6 +10,8 @@
       'color' => $note['color'] ?? 'default',
       'type' => $note['type'] ?? 'text',
       'category' => $categoryKey,
+      'groupId' => $note['groupId'] ?? null,
+      'shareLabel' => $note['shareLabel'] ?? __('個人（自分のみ）'),
       'registeredDate' => app(\App\Services\NoteService::class)->getRegisteredDate($note),
       'items' => $note['items'] ?? [],
   ];
@@ -36,6 +38,7 @@
     <div class="note-card-meta">
       <div class="note-card-date">{{ $notePayload['registeredDate'] }}</div>
       <span class="note-card-category">{{ $categoryLabel }}</span>
+      <span class="note-card-share">{{ $notePayload['shareLabel'] }}</span>
     </div>
     @if(!empty($note['title']))<h3 class="note-card-title">{{ $note['title'] }}</h3>@endif
     @if(($note['type'] ?? '') === 'checklist' && !empty($note['items']))

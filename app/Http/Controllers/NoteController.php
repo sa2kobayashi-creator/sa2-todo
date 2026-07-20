@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Note;
+use App\Services\GroupService;
 use App\Services\NoteService;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
@@ -11,7 +12,10 @@ class NoteController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
-    public function __construct(private NoteService $notes) {}
+    public function __construct(
+        private NoteService $notes,
+        private GroupService $groups,
+    ) {}
 
     /**
      * メモのタイトル・本文・チェックリストを翻訳して JSON で返す。
@@ -26,7 +30,8 @@ class NoteController extends Controller
             ], 422);
         }
 
-        $note = Note::find($id);
+        $userId = (int) $request->user()->id;
+        $note = $this->notes->findAccessibleNote($userId, $id);
         if (! $note) {
             return response()->json(['ok' => false, 'message' => 'メモが見つかりません'], 404);
         }
@@ -64,9 +69,11 @@ class NoteController extends Controller
 
     public function index(Request $request)
     {
+        $userId = (int) $request->user()->id;
         $filters = $this->notes->parseNoteFilters($request->query());
         $highlightId = (int) $request->query('note');
         $pageResult = $this->notes->listNotesPage([
+            'userId' => $userId,
             'archived' => $filters['archived'],
             'q' => $filters['q'],
             'category' => $filters['category'],
@@ -98,6 +105,7 @@ class NoteController extends Controller
             'colorKeys' => NoteService::COLOR_KEYS,
             'noteCategories' => NoteService::NOTE_CATEGORIES,
             'defaultCategory' => NoteService::DEFAULT_CATEGORY,
+            'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
             ...$this->flashFromQuery($request),
         ]);
@@ -116,15 +124,21 @@ class NoteController extends Controller
             return $this->redirectWithMessage($returnTo, 'メモの内容を入力してください', 'error');
         }
 
-        $this->notes->createNote([
-            'title' => $request->input('title'),
-            'body' => $request->input('body'),
-            'color' => $request->input('color'),
-            'category' => $request->input('category'),
-            'type' => $type,
-            'items' => $items,
-            'registeredDate' => $request->input('registeredDate'),
-        ]);
+        try {
+            $this->notes->createNote([
+                'userId' => (int) $request->user()->id,
+                'groupId' => $request->input('groupId'),
+                'title' => $request->input('title'),
+                'body' => $request->input('body'),
+                'color' => $request->input('color'),
+                'category' => $request->input('category'),
+                'type' => $type,
+                'items' => $items,
+                'registeredDate' => $request->input('registeredDate'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
 
         return $this->redirectWithMessage($returnTo, 'メモを追加しました');
     }
@@ -132,6 +146,7 @@ class NoteController extends Controller
     public function update(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
+        $userId = (int) $request->user()->id;
         $patch = [
             'title' => $request->input('title'),
             'body' => $request->input('body'),
@@ -139,11 +154,18 @@ class NoteController extends Controller
             'category' => $request->input('category'),
             'type' => $request->input('type'),
             'registeredDate' => $request->input('registeredDate'),
+            'groupId' => $request->input('groupId'),
         ];
         if ($request->has('items')) {
             $patch['items'] = $request->input('items');
         }
-        $updated = $this->notes->updateNote($id, $patch);
+
+        try {
+            $updated = $this->notes->updateNote($userId, $id, $patch);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
         if (! $updated) {
             return $this->redirectWithMessage($returnTo, 'メモが見つかりません', 'error');
         }
@@ -154,7 +176,7 @@ class NoteController extends Controller
     public function pin(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        $this->notes->togglePin($id);
+        $this->notes->togglePin((int) $request->user()->id, $id);
 
         return redirect($returnTo);
     }
@@ -167,7 +189,7 @@ class NoteController extends Controller
         }
 
         try {
-            $this->notes->reorderNotes($noteIds);
+            $this->notes->reorderNotes((int) $request->user()->id, $noteIds);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
@@ -178,15 +200,16 @@ class NoteController extends Controller
     public function archive(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        $this->notes->toggleArchive($id);
+        $this->notes->toggleArchive((int) $request->user()->id, $id);
 
         return redirect($returnTo);
     }
 
     public function reschedule(Request $request, int $id)
     {
+        $userId = (int) $request->user()->id;
         $date = (string) ($request->input('date') ?: $request->json('date') ?: '');
-        $updated = $this->notes->rescheduleNote($id, $date);
+        $updated = $this->notes->rescheduleNote($userId, $id, $date);
         if ($request->expectsJson() || $request->ajax()) {
             if (! $updated) {
                 return response()->json(['ok' => false, 'message' => 'メモを移動できませんでした'], 422);
@@ -206,7 +229,7 @@ class NoteController extends Controller
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        if (! $this->notes->deleteNote($id)) {
+        if (! $this->notes->deleteNote((int) $request->user()->id, $id)) {
             return $this->redirectWithMessage($returnTo, 'メモが見つかりません', 'error');
         }
 
@@ -218,7 +241,7 @@ class NoteController extends Controller
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
         $ids = $this->notes->parseIdList($request->input('ids'));
         $unarchive = $request->boolean('unarchive');
-        $count = $this->notes->bulkArchive($ids, ! $unarchive);
+        $count = $this->notes->bulkArchive((int) $request->user()->id, $ids, ! $unarchive);
 
         return $this->redirectWithMessage(
             $returnTo,
@@ -232,7 +255,7 @@ class NoteController extends Controller
     public function bulkDelete(Request $request)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        $count = $this->notes->bulkDelete($this->notes->parseIdList($request->input('ids')));
+        $count = $this->notes->bulkDelete((int) $request->user()->id, $this->notes->parseIdList($request->input('ids')));
 
         return $this->redirectWithMessage(
             $returnTo,
@@ -248,7 +271,7 @@ class NoteController extends Controller
         if ($text === '') {
             return $this->redirectWithMessage($returnTo, '追加する内容を入力してください', 'error');
         }
-        $count = $this->notes->bulkAppend($this->notes->parseIdList($request->input('ids')), $text);
+        $count = $this->notes->bulkAppend((int) $request->user()->id, $this->notes->parseIdList($request->input('ids')), $text);
 
         return $this->redirectWithMessage(
             $returnTo,

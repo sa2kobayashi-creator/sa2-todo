@@ -49,7 +49,7 @@ class DashboardController extends Controller
 
         $userId = (int) $request->user()->id;
         $allTodos = $this->todos->listTodos($userId)->all();
-        $activeNotes = $this->notes->listActiveNotesForCalendar();
+        $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
         $undated = array_values(array_filter(
             $allTodos,
             fn (array $todo) => empty($todo['startDate']) && empty($todo['endDate'])
@@ -139,7 +139,7 @@ class DashboardController extends Controller
                 'todo' => $todo,
             ];
         }
-        foreach ($this->notes->listNotesForMonth($year, $month) as $note) {
+        foreach ($this->notes->listNotesForMonth($userId, $year, $month) as $note) {
             $items[] = [
                 'kind' => 'note',
                 'sortDate' => $this->notes->getRegisteredDate($note),

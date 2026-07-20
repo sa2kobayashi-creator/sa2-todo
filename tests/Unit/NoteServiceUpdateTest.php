@@ -3,8 +3,10 @@
 namespace Tests\Unit;
 
 use App\Models\Note;
+use App\Models\User;
 use App\Services\NoteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class NoteServiceUpdateTest extends TestCase
@@ -13,15 +15,24 @@ class NoteServiceUpdateTest extends TestCase
 
     private NoteService $notes;
 
+    private User $user;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->notes = app(NoteService::class);
+        $this->user = User::create([
+            'email' => 'note-update@example.com',
+            'display_name' => 'Note Update',
+            'password' => Hash::make('password'),
+            'role' => 'standard',
+        ]);
     }
 
     public function test_update_category_preserves_text_body(): void
     {
         $created = $this->notes->createNote([
+            'userId' => $this->user->id,
             'title' => 'タイトル',
             'body' => "本文が残るはず\n2行目",
             'type' => 'text',
@@ -29,7 +40,7 @@ class NoteServiceUpdateTest extends TestCase
             'registeredDate' => '2026-07-17',
         ]);
 
-        $updated = $this->notes->updateNote($created['id'], [
+        $updated = $this->notes->updateNote($this->user->id, $created['id'], [
             'title' => 'タイトル',
             'body' => "本文が残るはず\n2行目",
             'color' => 'default',
@@ -49,6 +60,7 @@ class NoteServiceUpdateTest extends TestCase
     public function test_update_checklist_keeps_items(): void
     {
         $note = Note::create([
+            'user_id' => $this->user->id,
             'title' => 'リスト',
             'body' => '',
             'type' => 'checklist',
@@ -60,7 +72,7 @@ class NoteServiceUpdateTest extends TestCase
             'registered_date' => '2026-07-17',
         ]);
 
-        $updated = $this->notes->updateNote($note->id, [
+        $updated = $this->notes->updateNote($this->user->id, $note->id, [
             'title' => 'リスト',
             'category' => 'idea',
             'type' => 'checklist',
@@ -81,6 +93,7 @@ class NoteServiceUpdateTest extends TestCase
     public function test_update_to_text_type_preserves_body_and_clears_items(): void
     {
         $note = Note::create([
+            'user_id' => $this->user->id,
             'title' => '健康',
             'body' => '',
             'type' => 'checklist',
@@ -91,7 +104,7 @@ class NoteServiceUpdateTest extends TestCase
             'registered_date' => '2026-07-17',
         ]);
 
-        $updated = $this->notes->updateNote($note->id, [
+        $updated = $this->notes->updateNote($this->user->id, $note->id, [
             'title' => '健康',
             'body' => 'フリーメモ本文',
             'category' => 'idea',

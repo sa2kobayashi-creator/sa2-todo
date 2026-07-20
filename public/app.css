@@ -3829,7 +3829,8 @@ button.link.danger,
   margin: 0;
 }
 
-.note-card-category {
+.note-card-category,
+.note-card-share {
   font-size: 11px;
   color: #80868b;
   background: none;
@@ -3838,6 +3839,10 @@ button.link.danger,
   padding: 0;
   white-space: nowrap;
   letter-spacing: 0.01em;
+}
+
+.note-card-share {
+  color: #5f6368;
 }
 
 .note-composer-meta {
@@ -3849,7 +3854,8 @@ button.link.danger,
 }
 
 .note-date-field,
-.note-category-field {
+.note-category-field,
+.note-share-field {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -8414,6 +8420,24 @@ body.map-page {
   background: #fff;
 }
 
+.photos-messenger-btn {
+  background: #0084ff;
+  border-color: #0084ff;
+  color: #fff;
+}
+
+.photos-messenger-btn:hover {
+  background: #0073e0;
+  border-color: #0073e0;
+  color: #fff;
+}
+
+.photos-messenger-btn:disabled,
+.photos-secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .photos-album-delete-form {
   display: inline-flex;
   margin: 0;
@@ -8777,7 +8801,7 @@ body.map-page {
 }
 
 .photos-masonry {
-  columns: 4;
+  column-count: var(--photos-cols, 4);
   column-gap: 14px;
 }
 
@@ -9085,6 +9109,99 @@ body.map-page {
   font-weight: 600;
 }
 
+.photos-cols-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--photos-line);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 1px 2px rgba(23, 27, 31, 0.06);
+  backdrop-filter: blur(8px);
+  --cols-fill: 50%;
+}
+
+.photos-cols-control[hidden] {
+  display: none !important;
+}
+
+.photos-cols-icon {
+  display: inline-flex;
+  color: var(--photos-muted);
+  flex: 0 0 auto;
+}
+
+.photos-cols-icon.is-dense {
+  color: var(--photos-accent);
+}
+
+.photos-cols-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 116px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--photos-accent) 0%,
+    var(--photos-accent) var(--cols-fill),
+    rgba(23, 27, 31, 0.12) var(--cols-fill),
+    rgba(23, 27, 31, 0.12) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.photos-cols-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--photos-accent);
+  box-shadow: 0 2px 8px rgba(47, 111, 126, 0.35);
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.photos-cols-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(47, 111, 126, 0.4);
+}
+
+.photos-cols-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+
+.photos-cols-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--photos-accent);
+  box-shadow: 0 2px 8px rgba(47, 111, 126, 0.35);
+  cursor: grab;
+}
+
+.photos-cols-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.photos-cols-value {
+  min-width: 1.1em;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--photos-ink);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .photos-bulk-bar {
   display: inline-flex;
   flex-wrap: wrap;
@@ -9154,7 +9271,7 @@ body.map-page {
 }
 
 #photos-gallery[data-photos-mode="list"] .photos-masonry {
-  columns: 1 !important;
+  column-count: 1 !important;
 }
 
 #photos-gallery[data-photos-mode="list"] .photos-tile-wrap {
@@ -9263,21 +9380,28 @@ body.map-page {
 }
 
 @media (max-width: 1100px) {
-  .photos-masonry { columns: 3; }
+  #photos-gallery:not([data-cols]) .photos-masonry { column-count: 3; }
 }
 
 @media (max-width: 820px) {
-  .photos-masonry { columns: 2; }
+  #photos-gallery:not([data-cols]) .photos-masonry { column-count: 2; }
   .photos-lightbox-nav.is-prev { left: 4px; }
   .photos-lightbox-nav.is-next { right: 4px; }
+  .photos-cols-slider { width: 88px; }
 }
 
 @media (max-width: 560px) {
-  .photos-masonry { columns: 2; column-gap: 10px; }
+  #photos-gallery:not([data-cols]) .photos-masonry { column-count: 2; column-gap: 10px; }
   .photos-tile { margin-bottom: 10px; border-radius: 14px; }
   .photos-hero-actions { width: 100%; }
   .photos-upload-btn,
   .photos-secondary-btn { flex: 1 1 auto; }
+  .photos-cols-control {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
 }
 
 /* ===== AI settings / AI chat ===== */

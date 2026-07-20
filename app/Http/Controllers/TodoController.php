@@ -46,7 +46,7 @@ class TodoController extends Controller
             $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($neighbor['year']));
 
             $allTodos = $this->todos->listTodos($userId)->all();
-            $activeNotes = $this->notes->listActiveNotesForCalendar();
+            $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
             $grid = $this->calendar->buildMonthGrid($calendarYear, $calendarMonth, $allTodos, $holidayMap);
             $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
             $weeks = $grid['weeks'];

@@ -97,6 +97,7 @@ class BulkActionsAndPagesTest extends TestCase
     public function test_notes_bulk_archive_archives_all_selected_notes(): void
     {
         $notes = collect(range(1, 3))->map(fn ($i) => Note::create([
+            'user_id' => $this->user->id,
             'title' => "Note {$i}",
             'body' => "Body {$i}",
             'archived' => false,

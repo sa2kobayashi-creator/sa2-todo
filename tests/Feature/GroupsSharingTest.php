@@ -89,6 +89,54 @@ class GroupsSharingTest extends TestCase
         $this->actingAs($outsider)->get('/todos')->assertOk()->assertDontSee('Shared task');
     }
 
+    public function test_note_group_share_is_visible_to_members_only_after_approval(): void
+    {
+        $owner = $this->makeUser('note-owner@example.com');
+        $member = $this->makeUser('note-member@example.com');
+        $outsider = $this->makeUser('note-outsider@example.com');
+        $admin = $this->makeUser('note-admin@example.com', UserRole::Admin);
+
+        $this->actingAs($owner)->post('/groups', ['name' => 'Note Share'])->assertRedirect();
+        $group = Group::query()->where('name', 'Note Share')->firstOrFail();
+
+        $this->actingAs($owner)->post('/notes', [
+            'title' => 'Shared note',
+            'body' => 'hello',
+            'type' => 'text',
+            'groupId' => $group->id,
+            'returnTo' => '/notes',
+        ]);
+        $this->assertSame(0, \App\Models\Note::query()->where('title', 'Shared note')->count());
+
+        $this->actingAs($admin)->post('/admin/groups/'.$group->id.'/approve')->assertRedirect();
+        GroupMember::query()->firstOrCreate(
+            ['group_id' => $group->id, 'user_id' => $member->id],
+            ['role' => 'member']
+        );
+
+        $this->actingAs($owner)->post('/notes', [
+            'title' => 'Shared note',
+            'body' => 'hello',
+            'type' => 'text',
+            'groupId' => $group->id,
+            'registeredDate' => '2026-07-20',
+            'returnTo' => '/notes',
+        ])->assertRedirect();
+
+        $note = \App\Models\Note::query()->where('title', 'Shared note')->first();
+        $this->assertNotNull($note);
+        $this->assertSame($group->id, $note->group_id);
+
+        $this->actingAs($member)
+            ->get('/notes?period=2026-07')
+            ->assertOk()
+            ->assertSee('Shared note');
+        $this->actingAs($outsider)
+            ->get('/notes?period=2026-07')
+            ->assertOk()
+            ->assertDontSee('Shared note');
+    }
+
     public function test_album_group_visibility_and_public_visibility(): void
     {
         $owner = $this->makeUser('album-owner@example.com');

@@ -32,7 +32,7 @@ class NoteTranslateTest extends TestCase
     {
         config(['services.translation.api_key' => null]);
 
-        $note = Note::create(['title' => 'テスト', 'body' => '本文']);
+        $note = Note::create(['user_id' => $this->user->id, 'title' => 'テスト', 'body' => '本文']);
 
         $response = $this->actingAs($this->user)
             ->postJson("/notes/{$note->id}/translate");
@@ -76,6 +76,7 @@ class NoteTranslateTest extends TestCase
         ]);
 
         $note = Note::create([
+            'user_id' => $this->user->id,
             'title' => 'タイトル',
             'body' => '本文です',
             'items' => [['text' => '項目', 'done' => false]],
@@ -111,6 +112,7 @@ class NoteTranslateTest extends TestCase
         ]);
 
         $note = Note::create([
+            'user_id' => $this->user->id,
             'title' => 'Hello',
             'body' => 'World',
         ]);

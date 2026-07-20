@@ -39,6 +39,62 @@ class NoteService
 
     public const DEFAULT_CATEGORY = 'personal';
 
+    public function __construct(
+        private GroupService $groups,
+    ) {}
+
+    public function resolveGroupIdForUser(int $userId, mixed $groupId): ?int
+    {
+        if ($groupId === null || $groupId === '' || $groupId === '0') {
+            return null;
+        }
+        $id = (int) $groupId;
+        if ($id <= 0 || ! $this->groups->userBelongsToApprovedGroup($userId, $id)) {
+            throw new \InvalidArgumentException(__('共有先のグループが無効です。'));
+        }
+
+        return $id;
+    }
+
+    public function userCanAccessNote(int $userId, Note|array|null $note): bool
+    {
+        if ($note === null) {
+            return false;
+        }
+        $ownerId = is_array($note) ? (int) ($note['userId'] ?? 0) : (int) $note->user_id;
+        $groupId = is_array($note) ? ($note['groupId'] ?? null) : $note->group_id;
+        if ($groupId) {
+            return $this->groups->userBelongsToApprovedGroup($userId, (int) $groupId);
+        }
+
+        return $ownerId === $userId;
+    }
+
+    public function findAccessibleNote(int $userId, int $id): ?Note
+    {
+        $note = Note::query()->with('group')->find($id);
+        if (! $note || ! $this->userCanAccessNote($userId, $note)) {
+            return null;
+        }
+
+        return $note;
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Note> */
+    public function visibleNotesQuery(int $userId)
+    {
+        $groupIds = $this->groups->approvedGroupIdsForUser($userId);
+
+        return Note::query()->with('group')->where(function ($q) use ($userId, $groupIds) {
+            $q->where(function ($personal) use ($userId) {
+                $personal->where('user_id', $userId)->whereNull('group_id');
+            });
+            if ($groupIds !== []) {
+                $q->orWhereIn('group_id', $groupIds);
+            }
+        });
+    }
+
     /** @param array<string, mixed> $query */
     public function parseNoteFilters(array $query): array
     {
@@ -100,6 +156,11 @@ class NoteService
     /** @param array<string, mixed> $options @return list<array<string, mixed>> */
     public function listNotes(array $options = []): array
     {
+        $userId = (int) ($options['userId'] ?? 0);
+        if ($userId <= 0) {
+            return [];
+        }
+
         $archived = ($options['archived'] ?? false) === true;
         $q = strtolower(trim((string) ($options['q'] ?? '')));
         $date = $this->normalizeRegisteredDate($options['date'] ?? null);
@@ -107,7 +168,7 @@ class NoteService
         $month = isset($options['month']) ? (int) $options['month'] : null;
         $category = $this->normalizeCategoryFilter($options['category'] ?? null);
 
-        $notes = Note::query()->get()->map(fn (Note $n) => $this->toArray($n));
+        $notes = $this->visibleNotesQuery($userId)->get()->map(fn (Note $n) => $this->toArray($n));
         $list = $notes->filter(fn ($note) => ($note['archived'] ?? false) === $archived)->values()->all();
 
         if ($date) {
@@ -138,9 +199,13 @@ class NoteService
     }
 
     /** @return list<array<string, mixed>> */
-    public function listActiveNotesForCalendar(): array
+    public function listActiveNotesForCalendar(int $userId): array
     {
-        return Note::query()
+        if ($userId <= 0) {
+            return [];
+        }
+
+        return $this->visibleNotesQuery($userId)
             ->where('archived', false)
             ->get()
             ->map(fn (Note $n) => $this->toArray($n))
@@ -150,13 +215,13 @@ class NoteService
     }
 
     /** @return list<array<string, mixed>> */
-    public function listNotesForMonth(int $year, int $month): array
+    public function listNotesForMonth(int $userId, int $year, int $month): array
     {
         $monthStart = sprintf('%04d-%02d-01', $year, $month);
         $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, Carbon::create($year, $month, 1)->daysInMonth);
 
         return array_values(array_filter(
-            $this->listActiveNotesForCalendar(),
+            $this->listActiveNotesForCalendar($userId),
             fn ($note) => ($d = $this->getRegisteredDate($note)) && $d >= $monthStart && $d <= $monthEnd
         ));
     }
@@ -164,6 +229,12 @@ class NoteService
     /** @param array<string, mixed> $input */
     public function createNote(array $input): array
     {
+        $userId = (int) ($input['userId'] ?? 0);
+        if ($userId <= 0) {
+            throw new \InvalidArgumentException(__('ユーザーが無効です。'));
+        }
+        $groupId = $this->resolveGroupIdForUser($userId, $input['groupId'] ?? null);
+
         $type = $this->normalizeType($input['type'] ?? 'text');
         $items = $this->parseChecklistItems($input['items'] ?? []);
         if ($type === 'checklist' && count($items) === 0 && ! empty($input['body'])) {
@@ -172,25 +243,28 @@ class NoteService
 
         $pinned = ($input['pinned'] ?? false) === true;
         $note = Note::create([
+            'user_id' => $userId,
+            'group_id' => $groupId,
             'title' => trim((string) ($input['title'] ?? '')),
             'body' => $type === 'text' ? trim((string) ($input['body'] ?? '')) : '',
             'color' => $this->normalizeColor($input['color'] ?? 'default'),
             'pinned' => $pinned,
-            'sort_order' => $this->nextFrontSortOrder($pinned, false),
+            'sort_order' => $this->nextFrontSortOrder($userId, $pinned, false),
             'archived' => false,
             'type' => $type,
             'category' => $this->normalizeCategory($input['category'] ?? null),
             'items' => $type === 'checklist' ? $items : [],
             'registered_date' => $this->normalizeRegisteredDate($input['registeredDate'] ?? null) ?? $this->todayIso(),
         ]);
+        $note->load('group');
 
         return $this->toArray($note);
     }
 
     /** @param array<string, mixed> $patch */
-    public function updateNote(int $id, array $patch): ?array
+    public function updateNote(int $userId, int $id, array $patch): ?array
     {
-        $note = Note::find($id);
+        $note = $this->findAccessibleNote($userId, $id);
         if (! $note) {
             return null;
         }
@@ -216,6 +290,9 @@ class NoteService
         if (array_key_exists('registeredDate', $patch)) {
             $note->registered_date = $this->normalizeRegisteredDate($patch['registeredDate']) ?? $note->registered_date;
         }
+        if (array_key_exists('groupId', $patch) && (int) $note->user_id === $userId) {
+            $note->group_id = $this->resolveGroupIdForUser($userId, $patch['groupId']);
+        }
 
         $requestedType = array_key_exists('type', $patch) ? $this->normalizeType($patch['type']) : null;
         $hasItems = isset($patch['items']) && is_array($patch['items']);
@@ -232,32 +309,34 @@ class NoteService
         }
 
         $note->save();
+        $note->load('group');
 
         return $this->toArray($note);
     }
 
-    public function togglePin(int $id): ?array
+    public function togglePin(int $userId, int $id): ?array
     {
-        $note = Note::find($id);
+        $note = $this->findAccessibleNote($userId, $id);
         if (! $note) {
             return null;
         }
         $note->pinned = ! $note->pinned;
-        $note->sort_order = $this->nextFrontSortOrder($note->pinned, $note->archived);
+        $note->sort_order = $this->nextFrontSortOrder((int) $note->user_id, $note->pinned, $note->archived);
         $note->save();
+        $note->load('group');
 
         return $this->toArray($note);
     }
 
     /** @param list<int|string> $orderedIds */
-    public function reorderNotes(array $orderedIds): bool
+    public function reorderNotes(int $userId, array $orderedIds): bool
     {
         $orderedIds = array_values(array_unique(array_filter(array_map('intval', $orderedIds))));
         if ($orderedIds === []) {
             throw new \InvalidArgumentException('並び替えるメモがありません');
         }
 
-        $notes = Note::query()->whereIn('id', $orderedIds)->get()->keyBy('id');
+        $notes = $this->visibleNotesQuery($userId)->whereIn('id', $orderedIds)->get()->keyBy('id');
         if ($notes->count() !== count($orderedIds)) {
             throw new \InvalidArgumentException('無効なメモが含まれています');
         }
@@ -271,7 +350,7 @@ class NoteService
         $pinned = (bool) $pinnedFlags->first();
         $archived = (bool) $archivedFlags->first();
 
-        $fullIds = Note::query()
+        $fullIds = $this->visibleNotesQuery($userId)
             ->where('pinned', $pinned)
             ->where('archived', $archived)
             ->orderBy('sort_order')
@@ -305,9 +384,9 @@ class NoteService
         return true;
     }
 
-    public function toggleArchive(int $id): ?array
+    public function toggleArchive(int $userId, int $id): ?array
     {
-        $note = Note::find($id);
+        $note = $this->findAccessibleNote($userId, $id);
         if (! $note) {
             return null;
         }
@@ -315,33 +394,39 @@ class NoteService
         if ($note->archived) {
             $note->pinned = false;
         }
-        $note->sort_order = $this->nextFrontSortOrder($note->pinned, $note->archived);
+        $note->sort_order = $this->nextFrontSortOrder((int) $note->user_id, $note->pinned, $note->archived);
         $note->save();
+        $note->load('group');
 
         return $this->toArray($note);
     }
 
-    public function deleteNote(int $id): bool
+    public function deleteNote(int $userId, int $id): bool
     {
-        return (bool) Note::destroy($id);
+        $note = $this->findAccessibleNote($userId, $id);
+        if (! $note) {
+            return false;
+        }
+
+        return (bool) $note->delete();
     }
 
-    public function rescheduleNote(int $id, string $newDate): ?array
+    public function rescheduleNote(int $userId, int $id, string $newDate): ?array
     {
         $normalized = $this->normalizeRegisteredDate($newDate);
         if (! $normalized) {
             return null;
         }
 
-        return $this->updateNote($id, ['registeredDate' => $normalized]);
+        return $this->updateNote($userId, $id, ['registeredDate' => $normalized]);
     }
 
     /** @param list<int> $ids */
-    public function bulkArchive(array $ids, bool $archived = true): int
+    public function bulkArchive(int $userId, array $ids, bool $archived = true): int
     {
         $count = 0;
         foreach (array_unique(array_filter($ids)) as $id) {
-            $note = Note::find($id);
+            $note = $this->findAccessibleNote($userId, (int) $id);
             if (! $note) {
                 continue;
             }
@@ -357,13 +442,20 @@ class NoteService
     }
 
     /** @param list<int> $ids */
-    public function bulkDelete(array $ids): int
+    public function bulkDelete(int $userId, array $ids): int
     {
-        return Note::destroy(array_filter($ids));
+        $count = 0;
+        foreach (array_unique(array_filter($ids)) as $id) {
+            if ($this->deleteNote($userId, (int) $id)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /** @param list<int> $ids */
-    public function bulkAppend(array $ids, string $appendText): int
+    public function bulkAppend(int $userId, array $ids, string $appendText): int
     {
         $text = trim($appendText);
         if ($text === '') {
@@ -371,7 +463,7 @@ class NoteService
         }
         $count = 0;
         foreach (array_unique(array_filter($ids)) as $id) {
-            $note = Note::find($id);
+            $note = $this->findAccessibleNote($userId, (int) $id);
             if (! $note || ! $this->appendToNoteModel($note, $text)) {
                 continue;
             }
@@ -495,6 +587,12 @@ class NoteService
     {
         return [
             'id' => $note->id,
+            'userId' => $note->user_id,
+            'groupId' => $note->group_id,
+            'groupName' => $note->relationLoaded('group') ? $note->group?->name : null,
+            'shareLabel' => $note->group_id
+                ? ($note->relationLoaded('group') ? ($note->group?->name ?? __('グループ')) : __('グループ'))
+                : __('個人（自分のみ）'),
             'title' => $note->title,
             'body' => $note->body,
             'color' => $note->color,
@@ -552,9 +650,10 @@ class NoteService
         return true;
     }
 
-    private function nextFrontSortOrder(bool $pinned, bool $archived): int
+    private function nextFrontSortOrder(int $userId, bool $pinned, bool $archived): int
     {
         $min = Note::query()
+            ->where('user_id', $userId)
             ->where('pinned', $pinned)
             ->where('archived', $archived)
             ->min('sort_order');

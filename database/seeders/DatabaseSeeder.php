@@ -131,6 +131,10 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
+        $adminId = User::query()->where('email', 'admin@example.com')->value('id')
+            ?? User::query()->where('role', 'admin')->orderBy('id')->value('id')
+            ?? User::query()->orderBy('id')->value('id');
+
         $raw = json_decode(file_get_contents($path), true);
         foreach ($raw['notes'] ?? $raw as $note) {
             if (! is_array($note) || empty($note['id'])) {
@@ -139,6 +143,8 @@ class DatabaseSeeder extends Seeder
             Note::query()->updateOrCreate(
                 ['id' => $note['id']],
                 [
+                    'user_id' => $adminId,
+                    'group_id' => null,
                     'title' => $note['title'] ?? '',
                     'body' => $note['body'] ?? null,
                     'color' => $note['color'] ?? 'yellow',

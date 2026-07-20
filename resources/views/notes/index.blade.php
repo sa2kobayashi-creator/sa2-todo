@@ -76,6 +76,15 @@
                       @endforeach
                     </select>
                   </label>
+                  <label class="note-share-field">
+                    <span class="field-label">{{ __('共有先') }}</span>
+                    <select name="groupId" id="composer-group-id" aria-label="{{ __('共有先') }}">
+                      <option value="">{{ __('個人（自分のみ）') }}</option>
+                      @foreach($approvedGroups ?? [] as $group)
+                        <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+                      @endforeach
+                    </select>
+                  </label>
                 </div>
                 <input type="text" name="title" id="composer-title" placeholder="{{ __('タイトル') }}" autocomplete="off" />
                 <div class="composer-text-panel" id="composer-text-panel">
@@ -213,6 +222,15 @@
               <select name="category" id="note-edit-category">
                 @foreach($noteCategories as $key => $label)
                   <option value="{{ $key }}">{{ $label }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label class="note-share-field">
+              <span class="field-label">{{ __('共有先') }}</span>
+              <select name="groupId" id="note-edit-group-id" aria-label="{{ __('共有先') }}">
+                <option value="">{{ __('個人（自分のみ）') }}</option>
+                @foreach($approvedGroups ?? [] as $group)
+                  <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
                 @endforeach
               </select>
             </label>
@@ -470,6 +488,7 @@
         const noteEditColor = document.getElementById('note-edit-color')
         const noteEditDate = document.getElementById('note-edit-date')
         const noteEditCategory = document.getElementById('note-edit-category')
+        const noteEditGroupId = document.getElementById('note-edit-group-id')
         const noteEditTitle = document.getElementById('note-edit-title')
         const noteEditBody = document.getElementById('note-edit-body')
         const noteEditTextPanel = document.getElementById('note-edit-text-panel')
@@ -543,6 +562,7 @@
           if (noteEditBody) noteEditBody.value = note.body || ''
           if (noteEditDate) noteEditDate.value = note.registeredDate || ''
           if (noteEditCategory) noteEditCategory.value = note.category || 'personal'
+          if (noteEditGroupId) noteEditGroupId.value = note.groupId ? String(note.groupId) : ''
           selectEditColor(note.color || 'default')
           if (noteEditChecklist) noteEditChecklist.innerHTML = ''
           const items = Array.isArray(note.items) ? note.items : []
