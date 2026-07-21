@@ -36,7 +36,7 @@ class PhotoService
 
     public function maxVideoUploadBytes(): int
     {
-        return max(1, (int) config('photos.max_video_upload_bytes', 100 * 1024 * 1024));
+        return max(1, (int) config('photos.max_video_upload_bytes', 800 * 1024 * 1024));
     }
 
     public function isVideoMime(?string $mime, ?string $extension = null): bool
@@ -327,9 +327,15 @@ class PhotoService
     /**
      * @param  list<UploadedFile>  $files
      * @param  array<int, UploadedFile>  $videoThumbsByIndex  photos[] のインデックス => サムネ JPEG
+     * @return array{created: list<array<string, mixed>>, skipped: list<array{name: string, hash: string}>}
      */
-    public function uploadPhotos(int $userId, array $files, ?int $albumId = null, array $videoThumbsByIndex = []): array
-    {
+    public function uploadPhotos(
+        int $userId,
+        array $files,
+        ?int $albumId = null,
+        array $videoThumbsByIndex = [],
+        bool $allowDuplicates = false
+    ): array {
         if ($albumId !== null) {
             $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
             if (! $album) {
@@ -338,6 +344,7 @@ class PhotoService
         }
 
         $created = [];
+        $skipped = [];
         $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
         $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
 
@@ -351,6 +358,15 @@ class PhotoService
             }
             $this->assertValidUpload($file);
 
+            $path = $file->getRealPath();
+            $hash = is_string($path) && $path !== '' ? $this->computeContentHashFromPath($path) : null;
+            $originalName = mb_substr((string) $file->getClientOriginalName(), 0, 255);
+
+            if ($hash && ! $allowDuplicates && $this->findOwnedByContentHash($userId, $hash)) {
+                $skipped[] = ['name' => $originalName !== '' ? $originalName : 'file', 'hash' => $hash];
+                continue;
+            }
+
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
             $videoThumb = $videoThumbsByIndex[$index] ?? null;
             $stored = $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())
@@ -360,19 +376,33 @@ class PhotoService
                 continue;
             }
 
-            $photo = Photo::create([
-                'user_id' => $userId,
-                'album_id' => $albumId,
-                'path' => $stored['path'],
-                'thumb_path' => $stored['thumbPath'],
-                'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
-                'mime' => $stored['mime'],
-                'size_bytes' => $stored['sizeBytes'],
-                'width' => $stored['width'],
-                'height' => $stored['height'],
-                'taken_at' => now(),
-                'sort_order' => $nextOrder,
-            ]);
+            try {
+                $photo = Photo::create([
+                    'user_id' => $userId,
+                    'album_id' => $albumId,
+                    'path' => $stored['path'],
+                    'thumb_path' => $stored['thumbPath'],
+                    'original_name' => $originalName,
+                    'mime' => $stored['mime'],
+                    'size_bytes' => $stored['sizeBytes'],
+                    'content_hash' => $allowDuplicates ? null : $hash,
+                    'width' => $stored['width'],
+                    'height' => $stored['height'],
+                    'taken_at' => now(),
+                    'sort_order' => $nextOrder,
+                ]);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                // 並行アップロード時の競合
+                $this->deleteStoragePaths(array_values(array_filter([
+                    $stored['path'] ?? null,
+                    $stored['thumbPath'] ?? null,
+                ])));
+                if ($hash) {
+                    $skipped[] = ['name' => $originalName !== '' ? $originalName : 'file', 'hash' => $hash];
+                }
+                continue;
+            }
+
             $nextOrder -= 10;
             $created[] = $this->photoToArray($photo, $userId);
 
@@ -385,11 +415,435 @@ class PhotoService
             }
         }
 
-        if ($created === []) {
+        if ($created === [] && $skipped === []) {
             throw new \InvalidArgumentException('アップロードできるファイルがありません');
         }
 
-        return $created;
+        return ['created' => $created, 'skipped' => $skipped];
+    }
+
+    /**
+     * クライアントと同じアルゴリズム（sa2-photo-v1）で内容フィンガープリントを計算する。
+     * 4MB 以下は全文 SHA-256、それ以上は size + 先頭2MB + 末尾2MB。
+     */
+    public function computeContentHashFromPath(string $path): string
+    {
+        if (! is_file($path)) {
+            throw new \InvalidArgumentException('ファイルが見つかりません');
+        }
+
+        $size = (int) filesize($path);
+        $sample = 2 * 1024 * 1024;
+
+        if ($size <= $sample * 2) {
+            $hash = hash_file('sha256', $path);
+            if (! is_string($hash) || $hash === '') {
+                throw new \InvalidArgumentException('ハッシュの計算に失敗しました');
+            }
+
+            return $hash;
+        }
+
+        $fp = fopen($path, 'rb');
+        if ($fp === false) {
+            throw new \InvalidArgumentException('ファイルを開けません');
+        }
+
+        try {
+            $head = fread($fp, $sample);
+            if ($head === false || strlen($head) === 0) {
+                throw new \InvalidArgumentException('ファイルの読み込みに失敗しました');
+            }
+            $headHash = hash('sha256', $head);
+
+            $tailSize = min($sample, $size);
+            if (fseek($fp, -$tailSize, SEEK_END) !== 0) {
+                throw new \InvalidArgumentException('ファイル末尾の読み込みに失敗しました');
+            }
+            $tail = fread($fp, $tailSize);
+            if ($tail === false || strlen($tail) === 0) {
+                throw new \InvalidArgumentException('ファイル末尾の読み込みに失敗しました');
+            }
+            $tailHash = hash('sha256', $tail);
+        } finally {
+            fclose($fp);
+        }
+
+        return hash('sha256', 'sa2-photo-v1|'.$size.'|'.$headHash.'|'.$tailHash);
+    }
+
+    /**
+     * 保存済みメディアの重複グループを返す（content_hash 未設定はストレージから計算）。
+     *
+     * @return list<array{hash: string, count: int, photos: list<array<string, mixed>>}>
+     */
+    public function findDuplicateGroups(int $userId, ?int $albumId = null): array
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
+        $query = Photo::query()->where('user_id', $userId);
+        if ($albumId !== null) {
+            $query->where('album_id', $albumId);
+        }
+
+        $photos = $query->orderByDesc('id')->get();
+        /** @var array<string, list<Photo>> $byHash */
+        $byHash = [];
+
+        foreach ($photos as $photo) {
+            $hash = is_string($photo->content_hash) ? strtolower($photo->content_hash) : '';
+            if ($hash === '' || ! preg_match('/^[a-f0-9]{64}$/', $hash)) {
+                try {
+                    $hash = $this->computeContentHashForStoredPath((string) $photo->path);
+                    // 他に同じハッシュが無ければバックフィル（ユニーク制約を守る）
+                    if (! $this->findOwnedByContentHash($userId, $hash)) {
+                        $photo->content_hash = $hash;
+                        $photo->save();
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                    continue;
+                }
+            }
+            $byHash[$hash][] = $photo;
+        }
+
+        $groups = [];
+        foreach ($byHash as $hash => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+            $groups[] = [
+                'hash' => $hash,
+                'count' => count($items),
+                'photos' => array_map(
+                    fn (Photo $photo) => $this->photoToArray($photo, $userId),
+                    $items
+                ),
+            ];
+        }
+
+        usort($groups, static fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return $groups;
+    }
+
+    public function computeContentHashForStoredPath(string $storagePath): string
+    {
+        $disk = $this->storage();
+        if (! $disk->exists($storagePath)) {
+            throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
+        }
+
+        $size = (int) $disk->size($storagePath);
+        $sample = 2 * 1024 * 1024;
+
+        if ($this->usesObjectStorage()) {
+            return $this->computeContentHashFromObjectStorage($storagePath, $size, $sample);
+        }
+
+        if (method_exists($disk, 'path')) {
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            return $this->computeContentHashFromPath($disk->path($storagePath));
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'phash_');
+        if ($tmp === false) {
+            throw new \InvalidArgumentException('一時ファイルを作成できません');
+        }
+        try {
+            $stream = $disk->readStream($storagePath);
+            if ($stream === false) {
+                throw new \InvalidArgumentException('ファイルを読み込めません');
+            }
+            $out = fopen($tmp, 'wb');
+            if ($out === false) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                throw new \InvalidArgumentException('一時ファイルを開けません');
+            }
+            stream_copy_to_stream($stream, $out);
+            fclose($out);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            return $this->computeContentHashFromPath($tmp);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    private function computeContentHashFromObjectStorage(string $path, int $size, int $sample): string
+    {
+        $disk = Storage::disk($this->diskName());
+        $client = $disk->getClient();
+        $bucket = (string) config('filesystems.disks.'.$this->diskName().'.bucket', '');
+        if ($bucket === '' || ! is_object($client)) {
+            throw new \InvalidArgumentException('ストレージ設定が不正です');
+        }
+
+        $prefix = (string) config('filesystems.disks.'.$this->diskName().'.root', '');
+        $key = ($prefix !== '' ? rtrim($prefix, '/').'/' : '').ltrim($path, '/');
+
+        if ($size <= $sample * 2) {
+            $result = $client->getObject(['Bucket' => $bucket, 'Key' => $key]);
+            $body = (string) $result['Body'];
+
+            return hash('sha256', $body);
+        }
+
+        $head = (string) $client->getObject([
+            'Bucket' => $bucket,
+            'Key' => $key,
+            'Range' => 'bytes=0-'.($sample - 1),
+        ])['Body'];
+        $tailStart = max(0, $size - $sample);
+        $tail = (string) $client->getObject([
+            'Bucket' => $bucket,
+            'Key' => $key,
+            'Range' => 'bytes='.$tailStart.'-'.($size - 1),
+        ])['Body'];
+
+        return hash('sha256', 'sa2-photo-v1|'.$size.'|'.hash('sha256', $head).'|'.hash('sha256', $tail));
+    }
+
+    public function updateOriginalName(int $userId, int $photoId, string $originalName): array
+    {
+        $photo = $this->findOwnedPhoto($userId, $photoId);
+        if (! $photo) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+
+        $name = trim($originalName);
+        if ($name === '') {
+            throw new \InvalidArgumentException(__('ファイル名を入力してください。'));
+        }
+        $photo->original_name = mb_substr($name, 0, 255);
+        $photo->save();
+
+        return $this->photoToArray($photo->fresh(), $userId);
+    }
+
+    public function findOwnedByContentHash(int $userId, string $hash): ?Photo
+    {
+        $hash = strtolower(trim($hash));
+        if ($hash === '' || ! preg_match('/^[a-f0-9]{64}$/', $hash)) {
+            return null;
+        }
+
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->where('content_hash', $hash)
+            ->first();
+    }
+
+    /**
+     * @param  list<string>  $hashes
+     * @return list<string> 既存のハッシュ
+     */
+    public function findExistingContentHashes(int $userId, array $hashes): array
+    {
+        $normalized = [];
+        foreach ($hashes as $hash) {
+            if (! is_string($hash)) {
+                continue;
+            }
+            $h = strtolower(trim($hash));
+            if (preg_match('/^[a-f0-9]{64}$/', $h)) {
+                $normalized[$h] = true;
+            }
+        }
+        $list = array_keys($normalized);
+        if ($list === []) {
+            return [];
+        }
+
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('content_hash', $list)
+            ->pluck('content_hash')
+            ->map(static fn ($h) => strtolower((string) $h))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function receiveUploadChunk(
+        int $userId,
+        string $uploadId,
+        int $chunkIndex,
+        int $chunkTotal,
+        UploadedFile $chunk
+    ): void {
+        $uploadId = $this->assertChunkUploadId($uploadId);
+        if ($chunkIndex < 0 || $chunkTotal < 1 || $chunkIndex >= $chunkTotal) {
+            throw new \InvalidArgumentException('チャンク情報が正しくありません');
+        }
+        if ($chunkTotal > 256) {
+            throw new \InvalidArgumentException('ファイルが大きすぎます');
+        }
+        if (! $chunk->isValid()) {
+            $this->throwUploadError($chunk);
+        }
+        // 4MBチャンク想定。multipart 余白込みで 12MB まで許容
+        if ($chunk->getSize() > 12 * 1024 * 1024) {
+            throw new \InvalidArgumentException('チャンクサイズが大きすぎます');
+        }
+
+        $dir = $this->chunkDir($userId, $uploadId);
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            throw new \InvalidArgumentException('一時保存領域を作成できません');
+        }
+
+        $metaPath = $dir.DIRECTORY_SEPARATOR.'meta.json';
+        if (is_file($metaPath)) {
+            $meta = json_decode((string) file_get_contents($metaPath), true);
+            if (is_array($meta) && (int) ($meta['total'] ?? 0) !== $chunkTotal) {
+                throw new \InvalidArgumentException('チャンク総数が一致しません');
+            }
+        } else {
+            file_put_contents($metaPath, json_encode([
+                'total' => $chunkTotal,
+                'created_at' => time(),
+            ]));
+        }
+
+        $target = $dir.DIRECTORY_SEPARATOR.sprintf('part_%05d', $chunkIndex);
+        if (! @move_uploaded_file($chunk->getRealPath(), $target) && ! @rename($chunk->getRealPath(), $target)) {
+            $contents = @file_get_contents($chunk->getRealPath());
+            if ($contents === false || file_put_contents($target, $contents) === false) {
+                throw new \InvalidArgumentException('チャンクの保存に失敗しました');
+            }
+        }
+    }
+
+    /**
+     * @return array{created: ?array<string, mixed>, skipped: bool, skippedName: ?string}
+     */
+    public function finalizeChunkedUpload(
+        int $userId,
+        string $uploadId,
+        string $originalName,
+        ?int $albumId = null,
+        ?UploadedFile $videoThumb = null,
+        ?string $mimeHint = null,
+        bool $allowDuplicates = false
+    ): array {
+        $uploadId = $this->assertChunkUploadId($uploadId);
+        $dir = $this->chunkDir($userId, $uploadId);
+        $metaPath = $dir.DIRECTORY_SEPARATOR.'meta.json';
+        if (! is_file($metaPath)) {
+            throw new \InvalidArgumentException('アップロードセッションが見つかりません');
+        }
+
+        $meta = json_decode((string) file_get_contents($metaPath), true);
+        $total = (int) ($meta['total'] ?? 0);
+        if ($total < 1) {
+            throw new \InvalidArgumentException('チャンク情報が不正です');
+        }
+
+        $parts = [];
+        for ($i = 0; $i < $total; $i++) {
+            $part = $dir.DIRECTORY_SEPARATOR.sprintf('part_%05d', $i);
+            if (! is_file($part)) {
+                throw new \InvalidArgumentException('欠落しているチャンクがあります（'.($i + 1).'/'.$total.'）');
+            }
+            $parts[] = $part;
+        }
+
+        $safeName = mb_substr(trim($originalName) !== '' ? $originalName : 'upload.bin', 0, 255);
+        $ext = strtolower(pathinfo($safeName, PATHINFO_EXTENSION) ?: 'bin');
+        $assembled = $dir.DIRECTORY_SEPARATOR.'assembled.'.$ext;
+        $out = fopen($assembled, 'wb');
+        if ($out === false) {
+            throw new \InvalidArgumentException('結合用ファイルを作成できません');
+        }
+        try {
+            foreach ($parts as $part) {
+                $in = fopen($part, 'rb');
+                if ($in === false) {
+                    throw new \InvalidArgumentException('チャンクの読み込みに失敗しました');
+                }
+                stream_copy_to_stream($in, $out);
+                fclose($in);
+            }
+        } finally {
+            fclose($out);
+        }
+
+        $mime = is_string($mimeHint) && $mimeHint !== ''
+            ? $mimeHint
+            : (mime_content_type($assembled) ?: 'application/octet-stream');
+
+        $uploaded = new UploadedFile($assembled, $safeName, $mime, \UPLOAD_ERR_OK, true);
+        try {
+            $result = $this->uploadPhotos(
+                $userId,
+                [$uploaded],
+                $albumId,
+                $videoThumb ? [0 => $videoThumb] : [],
+                $allowDuplicates
+            );
+        } finally {
+            $this->deleteChunkDir($userId, $uploadId);
+        }
+
+        if (($result['created'][0] ?? null) !== null) {
+            return [
+                'created' => $result['created'][0],
+                'skipped' => false,
+                'skippedName' => null,
+            ];
+        }
+
+        $skipped = $result['skipped'][0] ?? null;
+        if ($skipped) {
+            return [
+                'created' => null,
+                'skipped' => true,
+                'skippedName' => $skipped['name'] ?? $safeName,
+            ];
+        }
+
+        throw new \InvalidArgumentException('アップロードできるファイルがありません');
+    }
+
+    private function assertChunkUploadId(string $uploadId): string
+    {
+        $uploadId = trim($uploadId);
+        if (! preg_match('/^[A-Za-z0-9_-]{8,80}$/', $uploadId)) {
+            throw new \InvalidArgumentException('アップロードIDが不正です');
+        }
+
+        return $uploadId;
+    }
+
+    private function chunkDir(int $userId, string $uploadId): string
+    {
+        return storage_path('app/photo-chunks/'.$userId.'/'.$uploadId);
+    }
+
+    private function deleteChunkDir(int $userId, string $uploadId): void
+    {
+        $dir = $this->chunkDir($userId, $uploadId);
+        if (! is_dir($dir)) {
+            return;
+        }
+        $items = scandir($dir) ?: [];
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $path = $dir.DIRECTORY_SEPARATOR.$item;
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+        @rmdir($dir);
     }
 
     public function updateTakenAt(int $userId, int $photoId, ?string $takenAt): array
@@ -443,38 +897,114 @@ class PhotoService
 
     public function deletePhoto(int $userId, int $photoId): bool
     {
-        $photo = Photo::query()->where('user_id', $userId)->find($photoId);
-        if (! $photo) {
-            return false;
-        }
-
-        foreach ([$photo->path, $photo->thumb_path] as $path) {
-            if ($path && $this->storage()->exists($path)) {
-                $this->storage()->delete($path);
-            }
-        }
-
-        PhotoAlbum::query()
-            ->where('user_id', $userId)
-            ->where('cover_photo_id', $photo->id)
-            ->update(['cover_photo_id' => null]);
-
-        $photo->delete();
-
-        return true;
+        return $this->bulkDeletePhotos($userId, [$photoId]) === 1;
     }
 
     /** @param list<int> $ids */
     public function bulkDeletePhotos(int $userId, array $ids): int
     {
-        $count = 0;
-        foreach ($this->parseIdList($ids) as $id) {
-            if ($this->deletePhoto($userId, $id)) {
-                $count++;
+        $idSet = $this->parseIdList($ids);
+        if ($idSet === []) {
+            return 0;
+        }
+
+        $photos = Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->get(['id', 'path', 'thumb_path']);
+
+        if ($photos->isEmpty()) {
+            return 0;
+        }
+
+        $paths = [];
+        foreach ($photos as $photo) {
+            if (is_string($photo->path) && $photo->path !== '') {
+                $paths[] = $photo->path;
+            }
+            if (is_string($photo->thumb_path) && $photo->thumb_path !== '' && $photo->thumb_path !== $photo->path) {
+                $paths[] = $photo->thumb_path;
             }
         }
 
-        return $count;
+        $this->deleteStoragePaths(array_values(array_unique($paths)));
+
+        $photoIds = $photos->pluck('id')->map(static fn ($id) => (int) $id)->all();
+
+        PhotoAlbum::query()
+            ->where('user_id', $userId)
+            ->whereIn('cover_photo_id', $photoIds)
+            ->update(['cover_photo_id' => null]);
+
+        Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $photoIds)
+            ->delete();
+
+        return count($photoIds);
+    }
+
+    /** @param list<string> $paths */
+    private function deleteStoragePaths(array $paths): void
+    {
+        $paths = array_values(array_filter($paths, static fn ($p) => is_string($p) && $p !== ''));
+        if ($paths === []) {
+            return;
+        }
+
+        if ($this->usesObjectStorage() && $this->deleteObjectStoragePathsBatched($paths)) {
+            return;
+        }
+
+        // exists() を挟まない（S3/R2 では HEAD が増えてタイムアウトの原因になる）
+        foreach (array_chunk($paths, 100) as $chunk) {
+            try {
+                $this->storage()->delete($chunk);
+            } catch (\Throwable) {
+                foreach ($chunk as $path) {
+                    try {
+                        $this->storage()->delete($path);
+                    } catch (\Throwable) {
+                        // 欠落ファイルは無視
+                    }
+                }
+            }
+        }
+    }
+
+    /** @param list<string> $paths */
+    private function deleteObjectStoragePathsBatched(array $paths): bool
+    {
+        try {
+            $disk = Storage::disk($this->diskName());
+            $client = $disk->getClient();
+            $bucket = (string) config('filesystems.disks.'.$this->diskName().'.bucket', '');
+            if ($bucket === '' || ! is_object($client) || ! method_exists($client, 'deleteObjects')) {
+                return false;
+            }
+
+            $prefix = (string) config('filesystems.disks.'.$this->diskName().'.root', '');
+            $prefix = $prefix !== '' ? rtrim($prefix, '/').'/' : '';
+
+            foreach (array_chunk($paths, 1000) as $chunk) {
+                $objects = [];
+                foreach ($chunk as $path) {
+                    $objects[] = ['Key' => $prefix.ltrim($path, '/')];
+                }
+
+                $client->deleteObjects([
+                    'Bucket' => $bucket,
+                    'Delete' => [
+                        'Objects' => $objects,
+                        'Quiet' => true,
+                    ],
+                ]);
+            }
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /** @param list<int> $ids */
@@ -537,10 +1067,17 @@ class PhotoService
             return false;
         }
 
-        $photos = Photo::query()->where('user_id', $userId)->where('album_id', $albumId)->get();
-        foreach ($photos as $photo) {
-            $this->deletePhoto($userId, $photo->id);
+        $photoIds = Photo::query()
+            ->where('user_id', $userId)
+            ->where('album_id', $albumId)
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+
+        if ($photoIds !== []) {
+            $this->bulkDeletePhotos($userId, $photoIds);
         }
+
         $album->delete();
 
         return true;
@@ -564,6 +1101,10 @@ class PhotoService
         $okMime = in_array($mime, self::ALLOWED_MIMES, true) || in_array($mime, self::ALLOWED_VIDEO_MIMES, true);
 
         if (! $okMime && ! ($isVideo ? $okVideoExt : $okImageExt)) {
+            // 一部環境では MP4 が application/octet-stream になる
+            if ($okVideoExt || $okImageExt) {
+                return;
+            }
             throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 です');
         }
     }
@@ -577,7 +1118,7 @@ class PhotoService
                 .ini_get('upload_max_filesize')
                 .' / post_max_size='
                 .ini_get('post_max_size')
-                .'）。128M 以上に上げてサーバーを再起動してください。'
+                .'）。900M 以上に上げてサーバーを再起動してください。'
             );
         }
         if ($code !== UPLOAD_ERR_NO_FILE) {
@@ -592,9 +1133,9 @@ class PhotoService
      */
     private function storeVideo(UploadedFile $file, string $dir, ?UploadedFile $thumbFile = null): ?array
     {
-        // 動画を丸ごとメモリに載せない（128MB制限で 500 になるのを防ぐ）
+        // 動画を丸ごとメモリに載せない（ストリーム転送）
         if (function_exists('ini_set')) {
-            @ini_set('memory_limit', '256M');
+            @ini_set('memory_limit', '1024M');
         }
 
         $basename = str_replace('.', '', uniqid('vid_', true));

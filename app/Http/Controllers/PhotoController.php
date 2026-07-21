@@ -39,6 +39,12 @@ class PhotoController extends Controller
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'storageStats' => $this->photos->storageStats($userId),
             'returnTo' => '/photos'.($albumId ? '?album='.$albumId : ''),
+            'uploadLimits' => [
+                'postMaxBytes' => $this->iniBytes((string) ini_get('post_max_size')),
+                'uploadMaxBytes' => $this->iniBytes((string) ini_get('upload_max_filesize')),
+                'videoMaxBytes' => $this->photos->maxVideoUploadBytes(),
+                'chunkBytes' => 4 * 1024 * 1024,
+            ],
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -82,13 +88,22 @@ class PhotoController extends Controller
 
     public function store(Request $request)
     {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
         $albumId = $request->filled('album_id') ? (int) $request->input('album_id') : null;
         $returnTo = $this->safeReturnTo(
             $request->input('returnTo'),
             '/photos'.($albumId ? '?album='.$albumId : '')
         );
+        $wantsJson = $request->expectsJson() || $request->ajax();
 
         if ($message = $this->uploadLimitMessage($request)) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $message], 413);
+            }
+
             return $this->redirectWithMessage($returnTo, $message, 'error');
         }
 
@@ -112,30 +127,202 @@ class PhotoController extends Controller
             }
         }
 
+        $allowDuplicates = $request->boolean('allow_duplicates');
+
         try {
-            $created = $this->photos->uploadPhotos((int) $request->user()->id, $files, $albumId, $thumbsByIndex);
+            $result = $this->photos->uploadPhotos(
+                (int) $request->user()->id,
+                $files,
+                $albumId,
+                $thumbsByIndex,
+                $allowDuplicates
+            );
         } catch (\InvalidArgumentException $e) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         } catch (\Throwable $e) {
             report($e);
+            $message = 'アップロードに失敗しました。動画は800MB以下のMP4でお試しください。';
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $message], 500);
+            }
 
-            return $this->redirectWithMessage(
-                $returnTo,
-                'アップロードに失敗しました。動画は100MB以下のMP4でお試しください。',
-                'error'
-            );
+            return $this->redirectWithMessage($returnTo, $message, 'error');
         }
 
+        $created = $result['created'];
+        $skipped = $result['skipped'];
         $count = count($created);
+        $skipCount = count($skipped);
         $hasVideo = collect($created)->contains(fn ($item) => ($item['mediaKind'] ?? '') === 'video');
         $hasImage = collect($created)->contains(fn ($item) => ($item['mediaKind'] ?? '') !== 'video');
         $label = match (true) {
+            $count === 0 => 'メディア',
             $hasVideo && $hasImage => 'メディア',
             $hasVideo => '動画',
             default => '写真',
         };
+        $message = $count > 0
+            ? $count.'件の'.$label.'を追加しました'
+            : '追加する新規ファイルはありませんでした';
+        if ($skipCount > 0) {
+            $message .= '（重複スキップ '.$skipCount.'件）';
+        }
 
-        return $this->redirectWithMessage($returnTo, $count.'件の'.$label.'を追加しました');
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'count' => $count,
+                'skipped' => $skipCount,
+                'message' => $message,
+            ]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
+    }
+
+    public function checkDuplicates(Request $request)
+    {
+        $hashes = $request->input('hashes', []);
+        if (! is_array($hashes)) {
+            $hashes = [];
+        }
+
+        $existing = $this->photos->findExistingContentHashes((int) $request->user()->id, $hashes);
+
+        return response()->json([
+            'ok' => true,
+            'existing' => $existing,
+        ]);
+    }
+
+    public function scanDuplicates(Request $request)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
+        $albumId = $request->filled('album_id') ? (int) $request->input('album_id') : null;
+
+        try {
+            $groups = $this->photos->findDuplicateGroups((int) $request->user()->id, $albumId);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => '重複スキャンに失敗しました。しばらくして再試行してください。',
+            ], 500);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'groups' => $groups,
+            'groupCount' => count($groups),
+            'duplicateCount' => array_sum(array_map(static fn ($g) => (int) ($g['count'] ?? 0), $groups)),
+        ]);
+    }
+
+    public function rename(Request $request, int $id)
+    {
+        try {
+            $photo = $this->photos->updateOriginalName(
+                (int) $request->user()->id,
+                $id,
+                (string) $request->input('original_name', '')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'photo' => $photo]);
+    }
+
+    public function uploadChunk(Request $request)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
+        $chunk = $request->file('chunk');
+        if (! $chunk instanceof \Illuminate\Http\UploadedFile) {
+            return response()->json(['ok' => false, 'message' => 'チャンクがありません'], 422);
+        }
+
+        try {
+            $this->photos->receiveUploadChunk(
+                (int) $request->user()->id,
+                (string) $request->input('upload_id'),
+                (int) $request->input('chunk_index'),
+                (int) $request->input('chunk_total'),
+                $chunk
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['ok' => false, 'message' => 'チャンクの保存に失敗しました'], 500);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function uploadComplete(Request $request)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
+        $albumId = $request->filled('album_id') ? (int) $request->input('album_id') : null;
+        $thumb = $request->file('video_thumb');
+        if (! $thumb instanceof \Illuminate\Http\UploadedFile) {
+            $thumb = null;
+        }
+
+        $allowDuplicates = $request->boolean('allow_duplicates');
+
+        try {
+            $result = $this->photos->finalizeChunkedUpload(
+                (int) $request->user()->id,
+                (string) $request->input('upload_id'),
+                (string) $request->input('original_name', 'upload.bin'),
+                $albumId,
+                $thumb,
+                $request->input('mime'),
+                $allowDuplicates
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'アップロードに失敗しました。動画は800MB以下のMP4でお試しください。',
+            ], 500);
+        }
+
+        if (! empty($result['skipped'])) {
+            return response()->json([
+                'ok' => true,
+                'count' => 0,
+                'skipped' => 1,
+                'message' => '重複のためスキップしました',
+                'skippedName' => $result['skippedName'],
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'count' => 1,
+            'skipped' => 0,
+            'message' => '1件のメディアを追加しました',
+            'photo' => $result['created'],
+        ]);
     }
 
     public function editImage(Request $request, int $id)
@@ -218,12 +405,19 @@ class PhotoController extends Controller
         $contentLength = (int) $request->server('CONTENT_LENGTH', 0);
         $postMax = $this->iniBytes((string) ini_get('post_max_size'));
         if ($contentLength > 0 && $postMax > 0 && $contentLength > $postMax && ! $request->files->count()) {
-            return 'アップロードがサーバー上限を超えています（post_max_size='
+            return 'アップロードがサーバー上限を超えています（送信='
+                .$this->formatMb($contentLength)
+                .' / post_max_size='
                 .ini_get('post_max_size')
-                .'）。php-upload.ini 付きでサーバーを起動するか、PHP設定を 128M 以上にしてください。';
+                .'）。composer serve で起動するか、大きい動画は分割送信になります。サーバー再起動後も続く場合は php-upload.ini を確認してください。';
         }
 
         return null;
+    }
+
+    private function formatMb(int $bytes): string
+    {
+        return round($bytes / 1048576, 1).'MB';
     }
 
     private function iniBytes(string $value): int
@@ -260,8 +454,17 @@ class PhotoController extends Controller
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $wantsJson = $request->expectsJson() || $request->ajax();
         if (! $this->photos->deletePhoto((int) $request->user()->id, $id)) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => '写真が見つかりません'], 404);
+            }
+
             return $this->redirectWithMessage($returnTo, '写真が見つかりません', 'error');
+        }
+
+        if ($wantsJson) {
+            return response()->json(['ok' => true, 'message' => '写真を削除しました']);
         }
 
         return $this->redirectWithMessage($returnTo, '写真を削除しました');
@@ -269,13 +472,27 @@ class PhotoController extends Controller
 
     public function bulkDestroy(Request $request)
     {
+        // 多数件＋オブジェクトストレージ削除向け（デフォルト 30s を超えないよう余裕を持たせる）
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(120);
+        }
+
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
         $count = $this->photos->bulkDeletePhotos(
             (int) $request->user()->id,
             $this->photos->parseIdList($request->input('ids'))
         );
+        $message = $count.'件のメディアを削除しました';
 
-        return $this->redirectWithMessage($returnTo, $count.'件のメディアを削除しました');
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'count' => $count,
+                'message' => $message,
+            ]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 
     public function bulkMove(Request $request)

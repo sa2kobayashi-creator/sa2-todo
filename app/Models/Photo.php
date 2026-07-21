@@ -17,6 +17,7 @@ class Photo extends Model
         'original_name',
         'mime',
         'size_bytes',
+        'content_hash',
         'width',
         'height',
         'caption',

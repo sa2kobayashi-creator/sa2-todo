@@ -76,6 +76,11 @@ return [
             'throw' => false,
             'report' => false,
             'visibility' => 'public',
+            // 大容量動画の put が途中切断されないよう余裕を持たせる
+            'http' => [
+                'timeout' => 600,
+                'connect_timeout' => 30,
+            ],
         ],
 
     ],

@@ -48,6 +48,11 @@
               />
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
             </label>
+            <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
+              <input type="checkbox" id="photos-allow-duplicates" />
+              <span>{{ __('重複も追加') }}</span>
+            </label>
+            <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
           @endif
           <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
           @if($selectedAlbum && !empty($canManageSelected))
@@ -167,6 +172,11 @@
             <button type="button" class="photos-mode-btn" data-photos-mode="select" aria-pressed="false">{{ __('選択') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-mode="list" aria-pressed="false">{{ __('一覧') }}</button>
           </div>
+          <div class="photos-mode-toggle" role="group" aria-label="{{ __('フィルター') }}">
+            <button type="button" class="photos-mode-btn is-active" data-photos-kind="all" aria-pressed="true">{{ __('すべて') }}</button>
+            <button type="button" class="photos-mode-btn" data-photos-kind="image" aria-pressed="false">{{ __('写真') }}</button>
+            <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
+          </div>
           <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
             <span class="photos-cols-icon" aria-hidden="true">
               <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
@@ -236,6 +246,7 @@
                     @class(['photos-tile-wrap', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
                     data-photo-id="{{ $photo['id'] }}"
                     data-photo-index="{{ $flatIndex }}"
+                    data-media-kind="{{ ($photo['mediaKind'] ?? '') === 'video' ? 'video' : 'image' }}"
                   >
                     <label class="photos-tile-check">
                       <input type="checkbox" class="photo-check" value="{{ $photo['id'] }}" aria-label="{{ __('選択') }}" />
@@ -441,6 +452,27 @@
       </div>
     </div>
 
+    <div class="modal modal-centered" id="photos-dup-modal" hidden>
+      <div class="modal-backdrop" data-close-dup-modal></div>
+      <div class="modal-dialog photos-dup-dialog" role="dialog" aria-labelledby="photos-dup-modal-title">
+        <div class="modal-header">
+          <h2 id="photos-dup-modal-title">{{ __('重複チェック') }}</h2>
+          <button type="button" class="modal-close" data-close-dup-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="photos-dup-body">
+          <p class="photos-dup-lead" id="photos-dup-lead">{{ __('保存済みメディアの内容が同じものを探します。') }}</p>
+          <div class="photos-dup-toolbar">
+            <button type="button" class="photos-secondary-btn" id="photos-dup-rescan">{{ __('再スキャン') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-dup-select-extras" hidden>{{ __('各組の余分を選択') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-dup-select-none" hidden>{{ __('選択解除') }}</button>
+            <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-dup-bulk-delete" hidden>{{ __('選択を一括削除') }}</button>
+            <span class="photos-dup-status" id="photos-dup-status" aria-live="polite"></span>
+          </div>
+          <div class="photos-dup-list" id="photos-dup-list"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal modal-centered" id="photos-album-modal" hidden>
       <div class="modal-backdrop" data-close-album-modal></div>
       <div class="modal-dialog" role="dialog" aria-labelledby="photos-album-modal-title">
@@ -570,23 +602,24 @@
           return !!file && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name || ''))
         }
 
-        async function captureVideoThumb(file) {
+        async function captureVideoThumb(file, timeoutMs = 2500) {
           if (!file || typeof document === 'undefined') return null
           return new Promise((resolve) => {
             const url = URL.createObjectURL(file)
             const video = document.createElement('video')
             video.muted = true
             video.playsInline = true
-            video.preload = 'auto'
+            video.preload = 'metadata'
             let settled = false
             const finish = (value) => {
               if (settled) return
               settled = true
               clearTimeout(timer)
               URL.revokeObjectURL(url)
+              try { video.removeAttribute('src'); video.load() } catch (_) {}
               resolve(value)
             }
-            const timer = setTimeout(() => finish(null), 10000)
+            const timer = setTimeout(() => finish(null), timeoutMs)
             video.addEventListener('loadeddata', () => {
               try {
                 const t = Number.isFinite(video.duration) && video.duration > 0
@@ -639,37 +672,334 @@
           return file
         }
 
+        function setUploadProgress(text) {
+          if (uploadLabel) uploadLabel.textContent = text
+        }
+
+        @php
+          $photosUploadLimits = $uploadLimits ?? [
+              'postMaxBytes' => 134217728,
+              'uploadMaxBytes' => 134217728,
+              'videoMaxBytes' => 838860800,
+              'chunkBytes' => 4194304,
+          ];
+        @endphp
+        const uploadLimits = @json($photosUploadLimits);
+
+        function readCsrfToken() {
+          const fromForm = form?.querySelector('input[name="_token"]')?.value
+          if (fromForm) return fromForm
+          const meta = document.querySelector('meta[name="csrf-token"]')?.content
+          if (meta) return meta
+          return ''
+        }
+
+        function readXsrfToken() {
+          const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)
+          if (!match) return ''
+          try { return decodeURIComponent(match[1]) } catch (_) { return match[1] || '' }
+        }
+
+        function sleep(ms) {
+          return new Promise((resolve) => setTimeout(resolve, ms))
+        }
+
+        function postUploadFormData(url, fd, { onProgress, timeoutMs = 15 * 60 * 1000 } = {}) {
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('POST', url)
+            xhr.setRequestHeader('Accept', 'application/json')
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+            const xsrf = readXsrfToken()
+            if (xsrf) xhr.setRequestHeader('X-XSRF-TOKEN', xsrf)
+            xhr.timeout = timeoutMs
+            xhr.withCredentials = true
+            xhr.upload.onprogress = (e) => {
+              if (!e.lengthComputable || typeof onProgress !== 'function') return
+              onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+            }
+            xhr.onload = () => {
+              let data = null
+              try { data = JSON.parse(xhr.responseText || '') } catch (_) {}
+              resolve({
+                ok: xhr.status >= 200 && xhr.status < 300,
+                status: xhr.status,
+                data,
+              })
+            }
+            xhr.onerror = () => reject(new Error('network'))
+            xhr.ontimeout = () => reject(new Error('timeout'))
+            xhr.send(fd)
+          })
+        }
+
+        async function postUploadFormDataWithRetry(url, fd, opts = {}, retries = 3) {
+          let lastErr = null
+          for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+              // 長時間アップロード中にセッションが動くよう、毎回最新トークンを付ける
+              if (fd.has('_token')) fd.delete('_token')
+              fd.append('_token', readCsrfToken())
+              const res = await postUploadFormData(url, fd, opts)
+              if (res.ok && res.data?.ok) return res
+              const retryable = res.status === 419 || res.status === 429 || res.status >= 500
+              const message = res.data?.message || `アップロードに失敗しました（${res.status}）`
+              if (!retryable || attempt === retries) {
+                throw new Error(message)
+              }
+              lastErr = new Error(message)
+              await sleep(800 * attempt)
+            } catch (err) {
+              lastErr = err
+              const retryable = err?.message === 'network' || err?.message === 'timeout'
+              if (!retryable || attempt === retries) throw err
+              await sleep(800 * attempt)
+            }
+          }
+          throw lastErr || new Error('アップロードに失敗しました')
+        }
+
+        function newUploadId() {
+          if (window.crypto?.randomUUID) return crypto.randomUUID().replace(/-/g, '')
+          return `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+        }
+
+        function shouldUseChunkedUpload(file) {
+          if (isVideoFile(file)) return true
+          const limit = Math.min(
+            Number(uploadLimits.uploadMaxBytes) || 0,
+            Number(uploadLimits.postMaxBytes) || 0
+          )
+          // PHP 上限の半分、または 24MB 超は分割（413 回避）
+          const threshold = limit > 0 ? Math.max(4 * 1024 * 1024, Math.floor(limit * 0.45)) : 24 * 1024 * 1024
+          return (Number(file.size) || 0) > threshold
+        }
+
+        function allowDuplicatesChecked() {
+          return !!document.getElementById('photos-allow-duplicates')?.checked
+        }
+
+        async function sha256Hex(buffer) {
+          const digest = await crypto.subtle.digest('SHA-256', buffer)
+          return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+        }
+
+        /** サーバー PhotoService::computeContentHashFromPath と同じアルゴリズム */
+        async function computeContentHash(file) {
+          const sample = 2 * 1024 * 1024
+          const size = Number(file.size) || 0
+          if (size <= sample * 2) {
+            return sha256Hex(await file.arrayBuffer())
+          }
+          const headHash = await sha256Hex(await file.slice(0, sample).arrayBuffer())
+          const tailHash = await sha256Hex(await file.slice(size - sample, size).arrayBuffer())
+          const payload = new TextEncoder().encode(`sa2-photo-v1|${size}|${headHash}|${tailHash}`)
+          return sha256Hex(payload)
+        }
+
+        async function findExistingHashes(hashes) {
+          const unique = [...new Set(hashes.filter(Boolean))]
+          if (!unique.length) return new Set()
+          const existing = new Set()
+          for (let i = 0; i < unique.length; i += 100) {
+            const chunk = unique.slice(i, i + 100)
+            const fd = new FormData()
+            chunk.forEach((h) => fd.append('hashes[]', h))
+            const res = await postUploadFormDataWithRetry('/photos/check-duplicates', fd, {
+              timeoutMs: 60 * 1000,
+            }, 2)
+            const list = Array.isArray(res.data?.existing) ? res.data.existing : []
+            list.forEach((h) => existing.add(String(h).toLowerCase()))
+          }
+          return existing
+        }
+
+        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates }) {
+          const chunkBytes = Math.max(1 * 1024 * 1024, Number(uploadLimits.chunkBytes) || 4 * 1024 * 1024)
+          const total = Math.max(1, Math.ceil((Number(file.size) || 0) / chunkBytes))
+          const uploadId = newUploadId()
+
+          for (let i = 0; i < total; i++) {
+            const blob = file.slice(i * chunkBytes, Math.min((i + 1) * chunkBytes, file.size))
+            const fd = new FormData()
+            fd.append('upload_id', uploadId)
+            fd.append('chunk_index', String(i))
+            fd.append('chunk_total', String(total))
+            fd.append('chunk', blob, `part-${i}`)
+            await postUploadFormDataWithRetry('/photos/upload/chunk', fd, {
+              timeoutMs: 10 * 60 * 1000,
+              onProgress: (pct) => {
+                const overall = Math.round(((i + pct / 100) / total) * 90)
+                if (typeof onProgress === 'function') onProgress(overall, `送信中… ${fileLabel} (${overall}%)`)
+              },
+            })
+          }
+
+          const done = new FormData()
+          done.append('upload_id', uploadId)
+          done.append('original_name', file.name || 'upload.bin')
+          done.append('returnTo', returnTo)
+          if (albumId) done.append('album_id', albumId)
+          if (file.type) done.append('mime', file.type)
+          if (allowDuplicates) done.append('allow_duplicates', '1')
+          if (thumb) done.append('video_thumb', thumb, thumb.name)
+          if (typeof onProgress === 'function') onProgress(95, `保存中… ${fileLabel}`)
+          const complete = await postUploadFormDataWithRetry('/photos/upload/complete', done, {
+            timeoutMs: 20 * 60 * 1000,
+          }, 2)
+          if (typeof onProgress === 'function') onProgress(100, `完了… ${fileLabel}`)
+          return {
+            count: Number(complete.data?.count) || 0,
+            skipped: Number(complete.data?.skipped) || 0,
+          }
+        }
+
+        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates }) {
+          const fd = new FormData()
+          fd.append('returnTo', returnTo)
+          if (albumId) fd.append('album_id', albumId)
+          if (allowDuplicates) fd.append('allow_duplicates', '1')
+          fd.append('photos[]', file, file.name)
+          if (thumb) {
+            fd.append('video_thumbs[]', thumb, thumb.name)
+            fd.append('video_thumb_for', '0')
+          }
+          const res = await postUploadFormDataWithRetry(form.action || '/photos', fd, {
+            onProgress: (pct) => {
+              if (typeof onProgress === 'function') onProgress(pct, `送信中… ${fileLabel} (${pct}%)`)
+            },
+            timeoutMs: 20 * 60 * 1000,
+          })
+          return {
+            count: Number(res.data?.count) || 0,
+            skipped: Number(res.data?.skipped) || 0,
+          }
+        }
+
         async function submitFiles(fileList) {
-          if (!fileList?.length || !form || !formFiles || uploading) return
+          if (!fileList?.length || !form || uploading) return
           uploading = true
           const list = Array.from(fileList)
-          const hasVideo = list.some(isVideoFile)
-          if (uploadLabel) uploadLabel.textContent = hasVideo ? 'サムネ作成中…' : '準備中…'
+          const totalSelected = list.length
+          const returnTo = form.querySelector('input[name="returnTo"]')?.value || '/photos'
+          const albumId = form.querySelector('input[name="album_id"]')?.value || ''
+          const allowDuplicates = allowDuplicatesChecked()
+          let totalCreated = 0
+          let totalSkipped = 0
+          const failed = []
+
+          const videoMax = Number(uploadLimits.videoMaxBytes) || (800 * 1024 * 1024)
           try {
-            const dt = new DataTransfer()
-            const thumbDt = new DataTransfer()
-            const thumbFor = []
+            setUploadProgress(`重複チェック中… 0/${totalSelected}`)
+            const hashed = []
             for (let i = 0; i < list.length; i++) {
               const file = list[i]
-              dt.items.add(await compressImageFile(file))
-              if (isVideoFile(file)) {
-                const thumb = await captureVideoThumb(file)
-                if (thumb) {
-                  thumbDt.items.add(thumb)
-                  thumbFor.push(String(i))
+              const displayName = file.name || `file-${i + 1}`
+              if (isVideoFile(file) && (Number(file.size) || 0) > videoMax) {
+                failed.push(`${displayName}: 最大 ${Math.round(videoMax / 1048576)}MB まで`)
+                continue
+              }
+              setUploadProgress(`重複チェック中… ${i + 1}/${totalSelected}`)
+              let hash = ''
+              try {
+                hash = await computeContentHash(file)
+              } catch (_) {
+                hash = ''
+              }
+              hashed.push({ file, displayName, hash })
+            }
+
+            let existing = new Set()
+            if (!allowDuplicates) {
+              existing = await findExistingHashes(hashed.map((h) => h.hash).filter(Boolean))
+            }
+
+            const queue = []
+            const seenInBatch = new Set()
+            for (const item of hashed) {
+              if (!allowDuplicates && item.hash) {
+                if (existing.has(item.hash) || seenInBatch.has(item.hash)) {
+                  totalSkipped += 1
+                  continue
                 }
+                seenInBatch.add(item.hash)
+              }
+              queue.push(item)
+            }
+
+            if (totalSkipped > 0) {
+              setUploadProgress(`重複 ${totalSkipped}件スキップ → 送信 ${queue.length}件`)
+              await sleep(400)
+            }
+
+            for (let i = 0; i < queue.length; i++) {
+              const { file, displayName } = queue[i]
+              const fileLabel = `${i + 1}/${queue.length}`
+
+              setUploadProgress(`準備中… ${fileLabel}`)
+              let thumb = null
+              if (isVideoFile(file)) {
+                setUploadProgress(`サムネ準備… ${fileLabel}`)
+                thumb = await captureVideoThumb(file, 2500)
+              }
+
+              try {
+                const onProgress = (_pct, text) => setUploadProgress(text)
+                let result = { count: 0, skipped: 0 }
+                let lastErr = null
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                  try {
+                    result = shouldUseChunkedUpload(file)
+                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates })
+                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates })
+                    lastErr = null
+                    break
+                  } catch (err) {
+                    lastErr = err
+                    if (attempt < 2) {
+                      setUploadProgress(`再試行… ${fileLabel}`)
+                      await sleep(1000)
+                    }
+                  }
+                }
+                if (lastErr) throw lastErr
+                totalCreated += result.count
+                totalSkipped += result.skipped
+                setUploadProgress(`完了… 追加${totalCreated} / スキップ${totalSkipped}`)
+              } catch (err) {
+                const reason = err?.message === 'timeout'
+                  ? 'タイムアウト'
+                  : (err?.message === 'network' ? '通信エラー' : (err?.message || '失敗'))
+                failed.push(`${displayName}: ${reason}`)
+                setUploadProgress(`失敗… ${fileLabel} → 次へ`)
+                await sleep(300)
               }
             }
-            if (!dt.files.length) return
-            formFiles.files = dt.files
-            if (formThumbs) formThumbs.files = thumbDt.files
-            if (formThumbFor) formThumbFor.value = thumbFor.join(',')
-            if (uploadLabel) uploadLabel.textContent = '送信中…'
-            form.submit()
+
+            const url = new URL(returnTo, window.location.origin)
+            const parts = []
+            if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
+            if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
+            if (failed.length) parts.push(`失敗 ${failed.length}件`)
+
+            if (totalCreated > 0 || totalSkipped > 0) {
+              const notice = parts.join(' · ') || '処理が完了しました'
+              if (failed.length) {
+                window.alert(`${notice}\n\n失敗したファイル:\n- ${failed.slice(0, 8).join('\n- ')}${failed.length > 8 ? `\n…他 ${failed.length - 8}件` : ''}`)
+              }
+              url.searchParams.set('notice', notice)
+            } else if (failed.length) {
+              window.alert(`追加できませんでした:\n- ${failed.slice(0, 8).join('\n- ')}`)
+              url.searchParams.set('error', failed[0])
+            } else {
+              url.searchParams.set('notice', '追加する新規ファイルはありませんでした')
+            }
+            window.location.assign(url.pathname + url.search + url.hash)
           } catch (_) {
-            uploading = false
-            if (uploadLabel) uploadLabel.textContent = @json(__('写真・動画を追加'));
             window.alert(@json(__('ファイルの処理に失敗しました。別の形式で試してください。')));
+          } finally {
+            uploading = false
+            setUploadProgress(@json(__('写真・動画を追加')));
           }
         }
 
@@ -723,7 +1053,8 @@
 
         let photosOverlayKind = null
         let photosOverlayIgnorePop = false
-        let photosFsExitAt = 0
+        let photosFsExitFromUi = false
+        let photosFsEatNextEscClose = false
 
         function claimPhotosOverlay(kind) {
           if (photosOverlayKind === kind) return
@@ -923,7 +1254,10 @@
           if (lightboxEl) {
             const wasLbFs = lightboxEl.classList.contains('is-fullscreen')
             lightboxEl.classList.toggle('is-fullscreen', lightboxFs)
-            if (wasLbFs && !lightboxFs) photosFsExitAt = Date.now()
+            if (wasLbFs && !lightboxFs) {
+              if (photosFsExitFromUi) photosFsExitFromUi = false
+              else photosFsEatNextEscClose = true
+            }
           }
           ;[
             document.getElementById('photos-lightbox-fs'),
@@ -957,6 +1291,7 @@
         const colsValue = document.getElementById('photos-cols-value')
         const PHOTOS_MODE_KEY = 'photos-view-mode'
         const PHOTOS_COLS_KEY = 'photos-grid-cols'
+        const PHOTOS_KIND_KEY = 'photos-media-kind'
         const PHOTOS_COLS_DEFAULT = 4
         const PHOTOS_PAGE_SIZE = 50
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
@@ -967,6 +1302,7 @@
         const pagerNext = document.getElementById('photos-pager-next')
         const pagerStatus = document.getElementById('photos-pager-status')
         let photosPage = 1
+        let photosMediaKind = 'all'
 
         function photoChecks() {
           return Array.from(document.querySelectorAll('.photo-check'))
@@ -983,24 +1319,52 @@
         function clampCols(value) {
           return Math.max(1, Math.min(7, Math.round(Number(value) || PHOTOS_COLS_DEFAULT)))
         }
-        function photosPageCount() {
-          const total = photoTileWraps().length
-          return Math.max(1, Math.ceil(total / PHOTOS_PAGE_SIZE))
+        function wrapMatchesMediaKind(wrap) {
+          if (photosMediaKind === 'all') return true
+          return (wrap.dataset.mediaKind || 'image') === photosMediaKind
+        }
+        function filteredPhotoIndexes() {
+          if (!Array.isArray(photos) || !photos.length) return []
+          if (photosMediaKind === 'all') return photos.map((_, i) => i)
+          return photos
+            .map((photo, index) => ({ photo, index }))
+            .filter(({ photo }) => {
+              const kind = photo.mediaKind === 'video' ? 'video' : 'image'
+              return kind === photosMediaKind
+            })
+            .map(({ index }) => index)
+        }
+        function setPhotosMediaKind(kind, { persist = true } = {}) {
+          const next = (kind === 'image' || kind === 'video') ? kind : 'all'
+          photosMediaKind = next
+          if (gallery) gallery.dataset.photosKind = next
+          document.querySelectorAll('.photos-mode-btn[data-photos-kind]').forEach((btn) => {
+            const active = btn.dataset.photosKind === next
+            btn.classList.toggle('is-active', active)
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false')
+          })
+          if (persist) {
+            try { localStorage.setItem(PHOTOS_KIND_KEY, next) } catch (_) {}
+          }
+          setPhotosPage(1)
         }
         function setPhotosPage(page, { scroll = false } = {}) {
           const wraps = photoTileWraps()
-          const total = wraps.length
+          const kindMatched = wraps.filter(wrapMatchesMediaKind)
           const mode = currentPhotosMode()
           const pagingOn = mode === 'list'
+          const total = kindMatched.length
           const pageCount = Math.max(1, Math.ceil(total / PHOTOS_PAGE_SIZE) || 1)
           photosPage = Math.max(1, Math.min(pageCount, Math.round(Number(page) || 1)))
           const start = pagingOn ? (photosPage - 1) * PHOTOS_PAGE_SIZE : 0
           const end = pagingOn ? Math.min(start + PHOTOS_PAGE_SIZE, total) : total
+          const visibleSet = new Set(kindMatched.slice(start, end))
 
-          wraps.forEach((wrap, index) => {
-            const hide = pagingOn && (index < start || index >= end)
+          wraps.forEach((wrap) => {
+            const hide = !visibleSet.has(wrap)
             wrap.hidden = hide
             wrap.classList.toggle('is-page-hidden', hide)
+            wrap.classList.toggle('is-kind-hidden', !wrapMatchesMediaKind(wrap))
             if (hide) {
               wrap.style.setProperty('display', 'none', 'important')
             } else {
@@ -1010,8 +1374,9 @@
 
           document.querySelectorAll('#photos-gallery .photos-day-group').forEach((group) => {
             const groupWraps = Array.from(group.querySelectorAll('.photos-tile-wrap'))
-            const visibleCount = groupWraps.filter((wrap) => !wrap.classList.contains('is-page-hidden')).length
-            const hideGroup = pagingOn && visibleCount === 0
+            const matched = groupWraps.filter(wrapMatchesMediaKind)
+            const visibleCount = groupWraps.filter((wrap) => visibleSet.has(wrap)).length
+            const hideGroup = matched.length === 0 || (pagingOn && visibleCount === 0)
             group.hidden = hideGroup
             group.classList.toggle('is-page-hidden', hideGroup)
             if (hideGroup) {
@@ -1021,11 +1386,8 @@
             }
             const countEl = group.querySelector('.photos-day-count')
             if (countEl) {
-              if (pagingOn) {
-                countEl.textContent = @json(__(':count枚')).replace(':count', String(visibleCount))
-              } else {
-                countEl.textContent = @json(__(':count枚')).replace(':count', String(groupWraps.length))
-              }
+              const count = pagingOn ? visibleCount : matched.length
+              countEl.textContent = @json(__(':count枚')).replace(':count', String(count))
             }
           })
 
@@ -1096,6 +1458,9 @@
         document.querySelectorAll('.photos-mode-btn[data-photos-mode]').forEach((btn) => {
           btn.addEventListener('click', () => setPhotosMode(btn.dataset.photosMode))
         })
+        document.querySelectorAll('.photos-mode-btn[data-photos-kind]').forEach((btn) => {
+          btn.addEventListener('click', () => setPhotosMediaKind(btn.dataset.photosKind))
+        })
         colsSlider?.addEventListener('input', () => setPhotosCols(colsSlider.value))
         document.getElementById('photos-select-all')?.addEventListener('click', () => {
           photoTileWraps().forEach((wrap) => {
@@ -1122,6 +1487,12 @@
           setPhotosMode(savedMode || 'normal')
         } catch (_) {
           setPhotosMode('normal')
+        }
+        try {
+          const savedKind = localStorage.getItem(PHOTOS_KIND_KEY)
+          setPhotosMediaKind(savedKind || 'all', { persist: false })
+        } catch (_) {
+          setPhotosMediaKind('all', { persist: false })
         }
         setPhotosPage(1)
         photoChecks().forEach((cb) => cb.addEventListener('change', updatePhotosBulkUi))
@@ -1191,8 +1562,8 @@
         document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
           el.addEventListener('click', closeLightbox)
         })
-        document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => openLightbox(currentIndex - 1))
-        document.getElementById('photos-lightbox-next')?.addEventListener('click', () => openLightbox(currentIndex + 1))
+        document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => stepLightbox(-1))
+        document.getElementById('photos-lightbox-next')?.addEventListener('click', () => stepLightbox(1))
 
         async function fetchCurrentMediaFile() {
           const photo = photos[currentIndex]
@@ -1369,7 +1740,21 @@
           const imagesOnly = !!ssImagesOnly?.checked
           return photos
             .map((photo, index) => ({ photo, index }))
-            .filter(({ photo }) => !imagesOnly || photo.mediaKind !== 'video')
+            .filter(({ photo }) => {
+              if (imagesOnly && photo.mediaKind === 'video') return false
+              if (photosMediaKind === 'image' && photo.mediaKind === 'video') return false
+              if (photosMediaKind === 'video' && photo.mediaKind !== 'video') return false
+              return true
+            })
+        }
+
+        function stepLightbox(delta) {
+          const idxs = filteredPhotoIndexes()
+          if (!idxs.length) return
+          let pos = idxs.indexOf(currentIndex)
+          if (pos < 0) pos = 0
+          const nextPos = (pos + delta + idxs.length) % idxs.length
+          openLightbox(idxs[nextPos])
         }
 
         function stopSsTimers() {
@@ -1606,7 +1991,8 @@
             setSsChromeHidden(true)
             slideshow.dataset.wasFullscreen = '1'
           } else if (!isFs && wasFs) {
-            photosFsExitAt = Date.now()
+            if (photosFsExitFromUi) photosFsExitFromUi = false
+            else photosFsEatNextEscClose = true
             setSsChromeHidden(slideshow.dataset.chromeBeforeFs === '1')
             slideshow.dataset.wasFullscreen = '0'
           }
@@ -1681,25 +2067,51 @@
         ssMusicLoop?.addEventListener('change', applySsMusicSettings)
         ssMusicMute?.addEventListener('change', applySsMusicSettings)
 
+        function handlePhotosEscapeForOverlay(overlayEl, { onExitFullscreen, onClose }) {
+          // ネイティブ全画面中 → 解除のみ（写真プレビューは開いたまま）
+          if (overlayEl && photosFullscreenElement() === overlayEl) {
+            photosFsExitFromUi = true
+            exitPhotosFullscreen(overlayEl)
+            return
+          }
+          // ブラウザが先に全画面を解除した直後（クラス残留 or 同じ Esc の後続）
+          const uiStillFs = !!(overlayEl && (
+            overlayEl.classList.contains('is-fullscreen')
+            || overlayEl.dataset.wasFullscreen === '1'
+          ))
+          if (uiStillFs || photosFsEatNextEscClose) {
+            photosFsEatNextEscClose = false
+            photosFsExitFromUi = true
+            if (overlayEl) overlayEl.classList.remove('is-fullscreen')
+            if (typeof onExitFullscreen === 'function') onExitFullscreen()
+            syncPhotosFullscreenButtons()
+            return
+          }
+          if (typeof onClose === 'function') onClose()
+        }
+
         document.addEventListener('keydown', (e) => {
           const isEsc = e.key === 'Escape' || e.key === 'Esc'
-          const fsJustExited = Date.now() - photosFsExitAt < 500
           if (slideshow && !slideshow.hidden) {
             if (isEsc) {
               e.preventDefault()
               e.stopPropagation()
               e.stopImmediatePropagation()
-              if (photosFullscreenElement() === slideshow) {
-                exitPhotosFullscreen(slideshow)
-                return
-              }
-              // ブラウザが先に全画面解除した場合は、同じ Esc で閉じない
-              if (fsJustExited) return
-              if (slideshow.classList.contains('is-chrome-hidden')) {
-                setSsChromeHidden(false)
-                return
-              }
-              closeSlideshow()
+              handlePhotosEscapeForOverlay(slideshow, {
+                onExitFullscreen: () => {
+                  if (slideshow.dataset.wasFullscreen === '1') {
+                    setSsChromeHidden(slideshow.dataset.chromeBeforeFs === '1')
+                    slideshow.dataset.wasFullscreen = '0'
+                  }
+                },
+                onClose: () => {
+                  if (slideshow.classList.contains('is-chrome-hidden')) {
+                    setSsChromeHidden(false)
+                    return
+                  }
+                  closeSlideshow()
+                },
+              })
               return
             }
             if (e.key === 'f' || e.key === 'F') {
@@ -1729,24 +2141,23 @@
             e.preventDefault()
             e.stopPropagation()
             e.stopImmediatePropagation()
-            if (photosFullscreenElement() === lightbox) {
-              exitPhotosFullscreen(lightbox)
-              return
-            }
-            if (fsJustExited) return
-            if (lightboxEditMode) {
-              setLightboxEditMode(false)
-              return
-            }
-            closeLightbox()
+            handlePhotosEscapeForOverlay(lightbox, {
+              onClose: () => {
+                if (lightboxEditMode) {
+                  setLightboxEditMode(false)
+                  return
+                }
+                closeLightbox()
+              },
+            })
             return
           }
           if (e.key === 'f' || e.key === 'F') {
             e.preventDefault()
             togglePhotosFullscreen(lightbox)
           }
-          if (e.key === 'ArrowLeft') openLightbox(currentIndex - 1)
-          if (e.key === 'ArrowRight') openLightbox(currentIndex + 1)
+          if (e.key === 'ArrowLeft') stepLightbox(-1)
+          if (e.key === 'ArrowRight') stepLightbox(1)
           if (e.key === '+' || e.key === '=') setLightboxZoom(lightboxZoom + 0.25)
           if (e.key === '-') setLightboxZoom(lightboxZoom - 0.25)
         }, true)
@@ -1799,6 +2210,293 @@
           el.addEventListener('click', () => {
             if (albumModal) albumModal.hidden = true
           })
+        })
+
+        const dupModal = document.getElementById('photos-dup-modal')
+        const dupList = document.getElementById('photos-dup-list')
+        const dupStatus = document.getElementById('photos-dup-status')
+        const dupLead = document.getElementById('photos-dup-lead')
+        let dupScanBusy = false
+        let dupNeedsReload = false
+
+        function setDupStatus(text) {
+          if (dupStatus) dupStatus.textContent = text || ''
+        }
+
+        function closeDupModal() {
+          if (dupModal) dupModal.hidden = true
+          if (dupNeedsReload) {
+            window.location.reload()
+          }
+        }
+
+        function openDupModal() {
+          if (!dupModal) return
+          dupModal.hidden = false
+          runDupScan()
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+        }
+
+        function renderDupGroups(groups) {
+          if (!dupList) return
+          const selectExtrasBtn = document.getElementById('photos-dup-select-extras')
+          const selectNoneBtn = document.getElementById('photos-dup-select-none')
+          const bulkDeleteBtn = document.getElementById('photos-dup-bulk-delete')
+          if (!groups.length) {
+            dupList.innerHTML = `<p class="photos-dup-empty">${escapeHtml(@json(__('重複は見つかりませんでした。')))}</p>`
+            if (dupLead) dupLead.textContent = @json(__('同じ内容の保存済みメディアはありません。'));
+            if (selectExtrasBtn) selectExtrasBtn.hidden = true
+            if (selectNoneBtn) selectNoneBtn.hidden = true
+            if (bulkDeleteBtn) bulkDeleteBtn.hidden = true
+            updateDupSelectionUi()
+            return
+          }
+          if (dupLead) {
+            dupLead.textContent = @json(__(':groups組（計 :items件）の重複があります。残すものを決めて、名前変更や削除ができます。'))
+              .replace(':groups', String(groups.length))
+              .replace(':items', String(groups.reduce((n, g) => n + (g.photos?.length || 0), 0)));
+          }
+          if (selectExtrasBtn) selectExtrasBtn.hidden = false
+          if (selectNoneBtn) selectNoneBtn.hidden = false
+          if (bulkDeleteBtn) bulkDeleteBtn.hidden = false
+          dupList.innerHTML = groups.map((group, gi) => {
+            const photosHtml = (group.photos || []).map((photo, pi) => {
+              const isVideo = photo.mediaKind === 'video'
+              const name = photo.originalName || photo.caption || ('#' + photo.id)
+              const thumbSrc = photo.thumbUrl || photo.url || ''
+              const media = `
+                <img class="photos-dup-thumb" src="${escapeHtml(thumbSrc)}" alt="" loading="lazy" decoding="async" />
+                ${isVideo ? '<span class="photos-dup-play" aria-hidden="true">▶</span>' : ''}`
+              return `
+                <article class="photos-dup-item" data-photo-id="${photo.id}" data-group="${gi}" data-index="${pi}">
+                  <label class="photos-dup-check">
+                    <input type="checkbox" class="photos-dup-check-input" value="${photo.id}" aria-label="${escapeHtml(@json(__('選択')))}" />
+                  </label>
+                  <div class="photos-dup-media">${media}</div>
+                  <div class="photos-dup-meta">
+                    <label class="photos-dup-name-label">
+                      <span>${escapeHtml(@json(__('ファイル名')))}</span>
+                      <input type="text" class="photos-dup-name" value="${escapeHtml(name)}" maxlength="255" />
+                    </label>
+                    <div class="photos-dup-item-actions">
+                      <button type="button" class="photos-secondary-btn photos-dup-rename">${escapeHtml(@json(__('名前を保存')))}</button>
+                      <button type="button" class="photos-secondary-btn photos-danger-btn photos-dup-delete">${escapeHtml(@json(__('削除')))}</button>
+                    </div>
+                    <p class="photos-dup-item-sub">${isVideo ? escapeHtml(@json(__('動画'))) : escapeHtml(@json(__('写真')))} · ID ${photo.id}${photo.takenAt ? ' · ' + escapeHtml(photo.takenAt) : ''}</p>
+                  </div>
+                </article>`
+            }).join('')
+            return `
+              <section class="photos-dup-group" data-group="${gi}">
+                <header class="photos-dup-group-head">
+                  <label class="photos-dup-group-select">
+                    <input type="checkbox" class="photos-dup-group-check" data-group="${gi}" aria-label="${escapeHtml(@json(__('この組を選択')))}" />
+                    <strong>${escapeHtml(@json(__('重複グループ')))} ${gi + 1}</strong>
+                  </label>
+                  <span>${group.photos?.length || 0}${escapeHtml(@json(__('件')))}</span>
+                </header>
+                <div class="photos-dup-group-items">${photosHtml}</div>
+              </section>`
+          }).join('')
+          updateDupSelectionUi()
+        }
+
+        function dupSelectedIds() {
+          return Array.from(dupList?.querySelectorAll('.photos-dup-check-input:checked') || [])
+            .map((el) => el.value)
+            .filter(Boolean)
+        }
+
+        function updateDupSelectionUi() {
+          const count = dupSelectedIds().length
+          const bulkDeleteBtn = document.getElementById('photos-dup-bulk-delete')
+          if (bulkDeleteBtn) {
+            bulkDeleteBtn.textContent = count > 0
+              ? @json(__('選択を一括削除（:count）')).replace(':count', String(count))
+              : @json(__('選択を一括削除'));
+            bulkDeleteBtn.disabled = count === 0
+          }
+          // グループ見出しのチェック状態を同期
+          dupList?.querySelectorAll('.photos-dup-group').forEach((group) => {
+            const boxes = Array.from(group.querySelectorAll('.photos-dup-check-input'))
+            const head = group.querySelector('.photos-dup-group-check')
+            if (!head || !boxes.length) return
+            const checked = boxes.filter((b) => b.checked).length
+            head.checked = checked === boxes.length
+            head.indeterminate = checked > 0 && checked < boxes.length
+          })
+        }
+
+        function selectDupExtras() {
+          // 各組の先頭（新しい方）を残し、2件目以降を選択
+          dupList?.querySelectorAll('.photos-dup-group').forEach((group) => {
+            const boxes = Array.from(group.querySelectorAll('.photos-dup-check-input'))
+            boxes.forEach((box, index) => {
+              box.checked = index > 0
+            })
+          })
+          updateDupSelectionUi()
+        }
+
+        function clearDupSelection() {
+          dupList?.querySelectorAll('.photos-dup-check-input').forEach((box) => {
+            box.checked = false
+          })
+          updateDupSelectionUi()
+        }
+
+        async function bulkDeleteDupSelection() {
+          const ids = dupSelectedIds()
+          if (!ids.length) {
+            window.alert(@json(__('対象が選択されていません')));
+            return
+          }
+          if (!window.confirm(@json(__('選択した :count 件を削除しますか？')).replace(':count', String(ids.length)))) {
+            return
+          }
+          const bulkDeleteBtn = document.getElementById('photos-dup-bulk-delete')
+          if (bulkDeleteBtn) bulkDeleteBtn.disabled = true
+          setDupStatus(@json(__('削除中…')));
+          try {
+            const fd = new FormData()
+            ids.forEach((id) => fd.append('ids[]', id))
+            const res = await postUploadFormDataWithRetry('/photos/bulk/delete', fd, {
+              timeoutMs: 5 * 60 * 1000,
+            }, 2)
+            const deleted = Number(res.data?.count) || ids.length
+            ids.forEach((id) => {
+              dupList?.querySelector(`.photos-dup-item[data-photo-id="${id}"]`)?.remove()
+            })
+            dupList?.querySelectorAll('.photos-dup-group').forEach((group) => {
+              const left = group.querySelectorAll('.photos-dup-item').length
+              if (left <= 1) group.remove()
+            })
+            dupNeedsReload = true
+            if (!dupList?.querySelector('.photos-dup-group')) {
+              renderDupGroups([])
+              setDupStatus(@json(__('重複なし')));
+            } else {
+              setDupStatus(@json(__(':count件削除しました')).replace(':count', String(deleted)));
+              updateDupSelectionUi()
+            }
+          } catch (err) {
+            window.alert(err?.message || @json(__('一括削除に失敗しました。')));
+            setDupStatus('');
+            updateDupSelectionUi()
+          }
+        }
+
+        async function runDupScan() {
+          if (dupScanBusy) return
+          dupScanBusy = true
+          setDupStatus(@json(__('スキャン中…')));
+          if (dupList) dupList.innerHTML = `<p class="photos-dup-empty">${escapeHtml(@json(__('保存済みファイルを確認しています。件数が多いと時間がかかることがあります。')))}</p>`
+          try {
+            const fd = new FormData()
+            if (selectedAlbumId) fd.append('album_id', String(selectedAlbumId))
+            const res = await postUploadFormDataWithRetry('/photos/duplicates/scan', fd, {
+              timeoutMs: 10 * 60 * 1000,
+            }, 2)
+            const groups = Array.isArray(res.data?.groups) ? res.data.groups : []
+            renderDupGroups(groups)
+            setDupStatus(groups.length
+              ? @json(__(':count組の重複')).replace(':count', String(groups.length))
+              : @json(__('重複なし')));
+          } catch (err) {
+            setDupStatus('');
+            if (dupList) {
+              dupList.innerHTML = `<p class="photos-dup-empty">${escapeHtml(err?.message || @json(__('スキャンに失敗しました。')))}</p>`
+            }
+          } finally {
+            dupScanBusy = false
+          }
+        }
+
+        document.getElementById('photos-dup-scan-open')?.addEventListener('click', openDupModal)
+        document.getElementById('photos-dup-rescan')?.addEventListener('click', () => runDupScan())
+        document.getElementById('photos-dup-select-extras')?.addEventListener('click', selectDupExtras)
+        document.getElementById('photos-dup-select-none')?.addEventListener('click', clearDupSelection)
+        document.getElementById('photos-dup-bulk-delete')?.addEventListener('click', () => bulkDeleteDupSelection())
+        document.querySelectorAll('[data-close-dup-modal]').forEach((el) => {
+          el.addEventListener('click', closeDupModal)
+        })
+
+        dupList?.addEventListener('change', (e) => {
+          const groupCheck = e.target.closest?.('.photos-dup-group-check')
+          if (groupCheck) {
+            const group = groupCheck.closest('.photos-dup-group')
+            group?.querySelectorAll('.photos-dup-check-input').forEach((box) => {
+              box.checked = groupCheck.checked
+            })
+          }
+          updateDupSelectionUi()
+        })
+
+        dupList?.addEventListener('click', async (e) => {
+          if (e.target.closest?.('.photos-dup-check') || e.target.closest?.('.photos-dup-group-select')) {
+            return
+          }
+          const renameBtn = e.target.closest?.('.photos-dup-rename')
+          const deleteBtn = e.target.closest?.('.photos-dup-delete')
+          const item = e.target.closest?.('.photos-dup-item')
+          if (!item) return
+          const photoId = item.dataset.photoId
+          if (!photoId) return
+
+          if (renameBtn) {
+            const input = item.querySelector('.photos-dup-name')
+            const name = (input?.value || '').trim()
+            if (!name) {
+              window.alert(@json(__('ファイル名を入力してください。')));
+              return
+            }
+            renameBtn.disabled = true
+            try {
+              const fd = new FormData()
+              fd.append('original_name', name)
+              await postUploadFormDataWithRetry(`/photos/${photoId}/rename`, fd, { timeoutMs: 60 * 1000 }, 2)
+              setDupStatus(@json(__('名前を保存しました')));
+              dupNeedsReload = true
+            } catch (err) {
+              window.alert(err?.message || @json(__('名前の保存に失敗しました。')));
+            } finally {
+              renameBtn.disabled = false
+            }
+            return
+          }
+
+          if (deleteBtn) {
+            if (!window.confirm(@json(__('このメディアを削除しますか？')))) return
+            deleteBtn.disabled = true
+            try {
+              const fd = new FormData()
+              await postUploadFormDataWithRetry(`/photos/${photoId}/delete`, fd, { timeoutMs: 120 * 1000 }, 2)
+              const group = item.closest('.photos-dup-group')
+              item.remove()
+              dupNeedsReload = true
+              const left = group?.querySelectorAll('.photos-dup-item')?.length || 0
+              if (group && left <= 1) {
+                group.remove()
+              }
+              if (!dupList.querySelector('.photos-dup-group')) {
+                renderDupGroups([])
+                setDupStatus(@json(__('重複なし')));
+              } else {
+                setDupStatus(@json(__('削除しました')));
+                updateDupSelectionUi()
+              }
+            } catch (err) {
+              window.alert(err?.message || @json(__('削除に失敗しました。')));
+              deleteBtn.disabled = false
+            }
+          }
         })
 
         const cropModal = document.getElementById('photos-crop-modal')
