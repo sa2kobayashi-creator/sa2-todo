@@ -196,6 +196,15 @@
             </span>
             <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">4</span>
           </div>
+          <div class="photos-select-actions" id="photos-select-actions" hidden>
+            <button type="button" class="photos-secondary-btn" id="photos-select-all">{{ __('全選択') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-select-none">{{ __('全解除') }}</button>
+          </div>
+          <div class="photos-pager" id="photos-pager" hidden>
+            <button type="button" class="photos-pager-btn" id="photos-pager-prev">{{ __('前へ') }}</button>
+            <span class="photos-pager-status" id="photos-pager-status"></span>
+            <button type="button" class="photos-pager-btn" id="photos-pager-next">{{ __('次へ') }}</button>
+          </div>
           <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
           <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
@@ -948,11 +957,22 @@
         const colsValue = document.getElementById('photos-cols-value')
         const PHOTOS_MODE_KEY = 'photos-view-mode'
         const PHOTOS_COLS_KEY = 'photos-grid-cols'
+        const PHOTOS_COLS_DEFAULT = 4
+        const PHOTOS_PAGE_SIZE = 50
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
         const photosReturnTo = @json($returnTo);
+        const selectActions = document.getElementById('photos-select-actions')
+        const pagerEl = document.getElementById('photos-pager')
+        const pagerPrev = document.getElementById('photos-pager-prev')
+        const pagerNext = document.getElementById('photos-pager-next')
+        const pagerStatus = document.getElementById('photos-pager-status')
+        let photosPage = 1
 
         function photoChecks() {
           return Array.from(document.querySelectorAll('.photo-check'))
+        }
+        function photoTileWraps() {
+          return Array.from(document.querySelectorAll('#photos-gallery .photos-tile-wrap'))
         }
         function selectedPhotoIds() {
           return photoChecks().filter((cb) => cb.checked).map((cb) => cb.value)
@@ -961,7 +981,69 @@
           return gallery?.dataset.photosMode || 'normal'
         }
         function clampCols(value) {
-          return Math.max(1, Math.min(7, Math.round(Number(value) || 4)))
+          return Math.max(1, Math.min(7, Math.round(Number(value) || PHOTOS_COLS_DEFAULT)))
+        }
+        function photosPageCount() {
+          const total = photoTileWraps().length
+          return Math.max(1, Math.ceil(total / PHOTOS_PAGE_SIZE))
+        }
+        function setPhotosPage(page, { scroll = false } = {}) {
+          const wraps = photoTileWraps()
+          const total = wraps.length
+          const mode = currentPhotosMode()
+          const pagingOn = mode === 'list'
+          const pageCount = Math.max(1, Math.ceil(total / PHOTOS_PAGE_SIZE) || 1)
+          photosPage = Math.max(1, Math.min(pageCount, Math.round(Number(page) || 1)))
+          const start = pagingOn ? (photosPage - 1) * PHOTOS_PAGE_SIZE : 0
+          const end = pagingOn ? Math.min(start + PHOTOS_PAGE_SIZE, total) : total
+
+          wraps.forEach((wrap, index) => {
+            const hide = pagingOn && (index < start || index >= end)
+            wrap.hidden = hide
+            wrap.classList.toggle('is-page-hidden', hide)
+            if (hide) {
+              wrap.style.setProperty('display', 'none', 'important')
+            } else {
+              wrap.style.removeProperty('display')
+            }
+          })
+
+          document.querySelectorAll('#photos-gallery .photos-day-group').forEach((group) => {
+            const groupWraps = Array.from(group.querySelectorAll('.photos-tile-wrap'))
+            const visibleCount = groupWraps.filter((wrap) => !wrap.classList.contains('is-page-hidden')).length
+            const hideGroup = pagingOn && visibleCount === 0
+            group.hidden = hideGroup
+            group.classList.toggle('is-page-hidden', hideGroup)
+            if (hideGroup) {
+              group.style.setProperty('display', 'none', 'important')
+            } else {
+              group.style.removeProperty('display')
+            }
+            const countEl = group.querySelector('.photos-day-count')
+            if (countEl) {
+              if (pagingOn) {
+                countEl.textContent = @json(__(':count枚')).replace(':count', String(visibleCount))
+              } else {
+                countEl.textContent = @json(__(':count枚')).replace(':count', String(groupWraps.length))
+              }
+            }
+          })
+
+          if (pagerStatus) {
+            if (!pagingOn) {
+              pagerStatus.textContent = ''
+            } else if (total === 0) {
+              pagerStatus.textContent = @json(__('0件'));
+            } else {
+              pagerStatus.textContent = `${start + 1}–${end} / ${total}`
+            }
+          }
+          if (pagerPrev) pagerPrev.disabled = !pagingOn || photosPage <= 1
+          if (pagerNext) pagerNext.disabled = !pagingOn || photosPage >= pageCount
+          if (pagerEl) pagerEl.hidden = !pagingOn || total <= PHOTOS_PAGE_SIZE
+          if (scroll && pagingOn && gallery) {
+            gallery.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
         }
         function setPhotosCols(value, { persist = true } = {}) {
           const cols = clampCols(value)
@@ -991,11 +1073,12 @@
           if (bulkBar) bulkBar.hidden = mode === 'normal' || ids.length === 0
           if (bulkMoveWrap) bulkMoveWrap.hidden = mode !== 'list'
           if (colsControl) colsControl.hidden = mode === 'list'
+          if (selectActions) selectActions.hidden = mode === 'normal'
         }
         function setPhotosMode(mode) {
           const next = ['normal', 'select', 'list'].includes(mode) ? mode : 'normal'
           if (gallery) gallery.dataset.photosMode = next
-          document.querySelectorAll('[data-photos-mode]').forEach((btn) => {
+          document.querySelectorAll('.photos-mode-btn[data-photos-mode]').forEach((btn) => {
             const active = btn.dataset.photosMode === next
             btn.classList.toggle('is-active', active)
             btn.setAttribute('aria-pressed', active ? 'true' : 'false')
@@ -1005,19 +1088,34 @@
           }
           try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
           if (next !== 'list') {
-            setPhotosCols(colsSlider?.value || gallery?.dataset.cols || 4, { persist: false })
+            setPhotosCols(colsSlider?.value || gallery?.dataset.cols || PHOTOS_COLS_DEFAULT, { persist: false })
           }
+          setPhotosPage(next === 'list' ? 1 : photosPage)
           updatePhotosBulkUi()
         }
-        document.querySelectorAll('[data-photos-mode]').forEach((btn) => {
+        document.querySelectorAll('.photos-mode-btn[data-photos-mode]').forEach((btn) => {
           btn.addEventListener('click', () => setPhotosMode(btn.dataset.photosMode))
         })
         colsSlider?.addEventListener('input', () => setPhotosCols(colsSlider.value))
+        document.getElementById('photos-select-all')?.addEventListener('click', () => {
+          photoTileWraps().forEach((wrap) => {
+            if (wrap.hidden || wrap.classList.contains('is-page-hidden')) return
+            const check = wrap.querySelector('.photo-check')
+            if (check) check.checked = true
+          })
+          updatePhotosBulkUi()
+        })
+        document.getElementById('photos-select-none')?.addEventListener('click', () => {
+          photoChecks().forEach((cb) => { cb.checked = false })
+          updatePhotosBulkUi()
+        })
+        pagerPrev?.addEventListener('click', () => setPhotosPage(photosPage - 1, { scroll: true }))
+        pagerNext?.addEventListener('click', () => setPhotosPage(photosPage + 1, { scroll: true }))
         try {
           const savedCols = localStorage.getItem(PHOTOS_COLS_KEY)
-          setPhotosCols(savedCols || 4, { persist: false })
+          setPhotosCols(savedCols || PHOTOS_COLS_DEFAULT, { persist: false })
         } catch (_) {
-          setPhotosCols(4, { persist: false })
+          setPhotosCols(PHOTOS_COLS_DEFAULT, { persist: false })
         }
         try {
           const savedMode = localStorage.getItem(PHOTOS_MODE_KEY)
@@ -1025,6 +1123,7 @@
         } catch (_) {
           setPhotosMode('normal')
         }
+        setPhotosPage(1)
         photoChecks().forEach((cb) => cb.addEventListener('change', updatePhotosBulkUi))
 
         function submitPhotosBulk(url, extra = {}) {
