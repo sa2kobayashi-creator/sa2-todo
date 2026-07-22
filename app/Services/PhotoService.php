@@ -26,6 +26,8 @@ class PhotoService
     public function __construct(
         private GroupService $groups,
         private FfmpegService $ffmpeg,
+        private CloudinaryMediaService $cloudinary,
+        private MediaStorageConfigService $mediaConfig,
     ) {}
 
     public function maxUploadBytes(): int
@@ -404,7 +406,8 @@ class PhotoService
             }
 
             $nextOrder -= 10;
-            $created[] = $this->photoToArray($photo, $userId);
+            $this->maybeSyncCloudinary($photo);
+            $created[] = $this->photoToArray($photo->fresh() ?? $photo, $userId);
 
             if ($albumId !== null) {
                 $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -911,7 +914,7 @@ class PhotoService
         $photos = Photo::query()
             ->where('user_id', $userId)
             ->whereIn('id', $idSet)
-            ->get(['id', 'path', 'thumb_path']);
+            ->get(['id', 'path', 'thumb_path', 'cloudinary_public_id', 'cold_disk', 'cold_path']);
 
         if ($photos->isEmpty()) {
             return 0;
@@ -924,6 +927,16 @@ class PhotoService
             }
             if (is_string($photo->thumb_path) && $photo->thumb_path !== '' && $photo->thumb_path !== $photo->path) {
                 $paths[] = $photo->thumb_path;
+            }
+            if (is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
+                $this->cloudinary->deletePhoto($photo->cloudinary_public_id);
+            }
+            if (is_string($photo->cold_path) && $photo->cold_path !== '' && is_string($photo->cold_disk) && $photo->cold_disk !== '') {
+                try {
+                    Storage::disk($photo->cold_disk)->delete($photo->cold_path);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         }
 
@@ -1501,7 +1514,9 @@ class PhotoService
             'sort_order' => $minSort - 10,
         ]);
 
-        return $this->photoToArray($photo, $userId);
+        $this->maybeSyncCloudinary($photo);
+
+        return $this->photoToArray($photo->fresh() ?? $photo, $userId);
     }
 
     public function trimVideo(int $userId, int $photoId, float $startSec, float $endSec): array
@@ -1613,13 +1628,35 @@ class PhotoService
             ? 'video'
             : 'image';
 
+        $storageUrl = $this->publicUrl($photo->path);
+        $storageThumb = $this->publicUrl($photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
+        $url = $storageUrl;
+        $thumbUrl = $storageThumb;
+
+        if ($mediaKind === 'image'
+            && $this->mediaConfig->pipelineUsesCloudinaryDisplay()
+            && is_string($photo->cloudinary_public_id)
+            && $photo->cloudinary_public_id !== '') {
+            $cdn = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id);
+            $cdnThumb = $this->cloudinary->deliveryUrl(
+                $photo->cloudinary_public_id,
+                max(240, (int) config('photos.thumb_long_edge', 720))
+            );
+            if ($cdn) {
+                $url = $cdn;
+            }
+            if ($cdnThumb) {
+                $thumbUrl = $cdnThumb;
+            }
+        }
+
         return [
             'id' => $photo->id,
             'albumId' => $photo->album_id,
             'parentPhotoId' => $photo->parent_photo_id,
             'editLabel' => $photo->edit_label,
-            'url' => $this->publicUrl($photo->path),
-            'thumbUrl' => $this->publicUrl($photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png'),
+            'url' => $url,
+            'thumbUrl' => $thumbUrl,
             'originalName' => $photo->original_name,
             'caption' => $photo->caption,
             'mime' => $mime,
@@ -1632,6 +1669,7 @@ class PhotoService
             'createdAt' => $photo->created_at?->toIso8601String(),
             'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
             'fileUrl' => '/photos/'.$photo->id.'/file',
+            'storageTier' => $photo->storage_tier ?? 'hot',
         ];
     }
 
@@ -1655,6 +1693,22 @@ class PhotoService
                 : $carbon->format('Y年n月j日');
         } catch (\Throwable) {
             return $date;
+        }
+    }
+
+    private function maybeSyncCloudinary(Photo $photo): void
+    {
+        $isVideo = $this->isVideoMime((string) $photo->mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION));
+        if ($isVideo
+            || ! $this->mediaConfig->pipelineUsesCloudinaryDisplay()
+            || ! $this->cloudinary->isReady()) {
+            return;
+        }
+
+        try {
+            $this->cloudinary->syncPhoto($photo);
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 

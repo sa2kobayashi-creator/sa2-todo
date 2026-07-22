@@ -10,6 +10,7 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
+use App\Http\Controllers\MediaStorageSettingsController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
@@ -150,6 +151,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+
+        Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
+            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+        Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
+            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
     });
 
     Route::middleware(RequireAdmin::class)->group(function () {

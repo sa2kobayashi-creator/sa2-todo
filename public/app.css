@@ -342,6 +342,58 @@ a {
   color: #1a73e8;
 }
 
+.storage-settings + .storage-settings {
+  margin-top: 16px;
+}
+
+.storage-provider-form {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+}
+
+.storage-provider-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: #3c4043;
+}
+
+.storage-provider-form input[type="text"],
+.storage-provider-form input[type="password"],
+.storage-provider-form input[type="url"],
+.storage-provider-form input[type="number"],
+.storage-provider-form select {
+  padding: 8px 10px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.storage-enable {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  grid-template-columns: none !important;
+}
+
+.storage-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.storage-test-result.is-ok,
+.storage-test-live.is-ok {
+  color: #137333;
+}
+
+.storage-test-result.is-fail,
+.storage-test-live.is-fail {
+  color: #c5221f;
+}
+
 .notification-list {
   margin-top: 12px;
 }

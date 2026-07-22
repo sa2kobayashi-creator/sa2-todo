@@ -2,23 +2,22 @@
 
 namespace App\Providers;
 
+use App\Services\MediaStorageConfigService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        //
+        try {
+            app(MediaStorageConfigService::class)->applyRuntimeDisks();
+        } catch (\Throwable) {
+            // マイグレーション前などテーブル未作成時は無視
+        }
     }
 }

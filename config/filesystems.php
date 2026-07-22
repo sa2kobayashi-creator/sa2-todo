@@ -83,6 +83,28 @@ return [
             ],
         ],
 
+        /*
+         * Backblaze B2（長期保存）。S3 互換 API。
+         * 設定メニューから有効化した場合、MediaStorageConfigService が上書きする。
+         */
+        'backblaze' => [
+            'driver' => 's3',
+            'key' => env('B2_KEY_ID'),
+            'secret' => env('B2_APPLICATION_KEY'),
+            'region' => env('B2_REGION', 'us-west-004'),
+            'bucket' => env('B2_BUCKET'),
+            'url' => env('B2_URL'),
+            'endpoint' => env('B2_ENDPOINT'),
+            'use_path_style_endpoint' => env('B2_USE_PATH_STYLE_ENDPOINT', true),
+            'throw' => false,
+            'report' => false,
+            'visibility' => 'private',
+            'http' => [
+                'timeout' => 600,
+                'connect_timeout' => 30,
+            ],
+        ],
+
     ],
 
     /*

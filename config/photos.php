@@ -32,6 +32,15 @@ return [
      * 写真ファイルの保存ディスク。
      * - public: サーバーローカル（開発・ロリポップ直保存）
      * - r2: Cloudflare R2（S3互換）
+     * 設定メニューのパイプラインで上書き可能。
      */
     'disk' => env('PHOTO_DISK', 'public'),
+
+    /** Cloudinary（表示用変換）。詳細は設定メニュー / media_storage_settings */
+    'cloudinary' => [
+        'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+        'api_key' => env('CLOUDINARY_API_KEY'),
+        'api_secret' => env('CLOUDINARY_API_SECRET'),
+        'folder' => env('CLOUDINARY_FOLDER', 'sa2todo'),
+    ],
 ];

@@ -11,13 +11,14 @@
   </head>
   <body>
     @include('partials.header', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
-    <main class="page-main {{ ($section ?? '') === 'integration' ? '' : 'page-main-narrow' }}">
+    <main class="page-main {{ in_array(($section ?? ''), ['integration', 'storage'], true) ? '' : 'page-main-narrow' }}">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
       <nav class="settings-subnav" aria-label="{{ __('設定メニュー') }}">
         <a href="{{ $settingsPath('holidays') }}" @class(['active' => ($section ?? '') === 'holidays'])>{{ __('休日設定') }}</a>
         <a href="/settings?section=ai&tab=translation" @class(['active' => ($section ?? '') === 'ai'])>{{ __('AI設定') }}</a>
+        <a href="{{ $settingsPath('storage') }}" @class(['active' => ($section ?? '') === 'storage'])>{{ __('ストレージ設定') }}</a>
         <a href="{{ $settingsPath('integration') }}" @class(['active' => ($section ?? '') === 'integration'])>{{ __('LINE連携') }}</a>
         <a href="{{ $settingsPath('notifications') }}" @class(['active' => ($section ?? '') === 'notifications'])>{{ __('通知設定') }}</a>
       </nav>
@@ -315,6 +316,8 @@
       </div>
       @elseif(($section ?? '') === 'integration')
       <div class="panel"><h2>{{ __('LINE 連携') }}</h2><p class="hint">{{ __('次のフェーズで移植予定です。') }}</p></div>
+      @elseif(($section ?? '') === 'storage')
+        @include('settings.partials.storage')
       @elseif(($section ?? '') === 'notifications')
       <div class="panel"><h2>{{ __('通知設定') }}</h2><p class="hint">{{ __('Web Push / LINE 通知は次のフェーズで移植予定です。') }}</p></div>
       @endif

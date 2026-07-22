@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\TranslationApiKey;
 use App\Services\CalendarService;
 use App\Services\HolidayService;
+use App\Services\MediaStorageConfigService;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
-    public function __construct(private HolidayService $holidays) {}
+    public function __construct(
+        private HolidayService $holidays,
+        private MediaStorageConfigService $mediaStorage,
+    ) {}
 
     public function index(Request $request)
     {
@@ -33,6 +37,10 @@ class SettingsController extends Controller
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
+            'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
+            'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,
+            'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,
+            'storagePipeline' => $section === 'storage' ? $this->mediaStorage->formState('pipeline') : null,
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -132,7 +140,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string
