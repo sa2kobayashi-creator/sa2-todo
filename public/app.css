@@ -3287,7 +3287,7 @@ button.link.danger,
 }
 
 .notes-main {
-  max-width: 1200px;
+  max-width: min(1480px, 100%);
   margin: 0 auto;
 }
 
@@ -3528,10 +3528,14 @@ button.link.danger,
 }
 
 .notes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
   margin-bottom: 24px;
+}
+
+/* 指定列数どおりに左→右へ配置（高いカードでも列を潰さない） */
+.notes-view-gallery .notes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
   align-items: start;
 }
 
@@ -3559,6 +3563,7 @@ button.link.danger,
   width: auto;
   height: auto;
   margin: 0;
+  min-width: 0;
 }
 
 .notes-display-controls {
@@ -3885,7 +3890,7 @@ button.link.danger,
 }
 
 .note-card-view {
-  padding: 16px 16px 12px 30px;
+  padding: 12px 14px 10px 28px;
   cursor: pointer;
 }
 
@@ -4076,7 +4081,9 @@ button.link.danger,
 }
 
 .notes-view-list .notes-grid {
-  grid-template-columns: 1fr;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   max-width: 100%;
 }
 
@@ -4085,6 +4092,7 @@ button.link.danger,
   align-items: flex-start;
   gap: 8px;
   width: auto;
+  margin: 0;
   align-self: stretch;
 }
 
@@ -4190,7 +4198,7 @@ button.link.danger,
     margin-left: auto;
   }
 
-  .notes-view-gallery.notes-cols-3 .notes-grid,
+  /* 4〜5列のみ抑える。3列指定は尊重する */
   .notes-view-gallery.notes-cols-4 .notes-grid,
   .notes-view-gallery.notes-cols-5 .notes-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
