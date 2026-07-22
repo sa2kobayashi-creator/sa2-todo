@@ -148,7 +148,14 @@ class MediaStorageConfigService
     {
         $pipeline = $this->get(MediaStorageSetting::PROVIDER_PIPELINE);
 
-        return $pipeline->enabled && (bool) $pipeline->setting('use_cloudinary_display', true);
+        // 既定は false（Cloudinary は編集専用。表示同期は明示オプトイン）
+        return $pipeline->enabled && (bool) $pipeline->setting('use_cloudinary_display', false);
+    }
+
+    public function cloudinaryEditorEnabled(): bool
+    {
+        // 編集専用: Cloudinary 接続ができていれば Media Editor を使える
+        return $this->cloudinaryEnabled();
     }
 
     public function pipelineArchivesToBackblaze(): bool

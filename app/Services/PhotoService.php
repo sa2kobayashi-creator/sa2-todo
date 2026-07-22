@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AlbumVisibility;
+use App\Jobs\SyncPhotoToCloudinary;
 use App\Models\Photo;
 use App\Models\PhotoAlbum;
 use Illuminate\Http\UploadedFile;
@@ -929,7 +930,10 @@ class PhotoService
                 $paths[] = $photo->thumb_path;
             }
             if (is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
-                $this->cloudinary->deletePhoto($photo->cloudinary_public_id);
+                $this->cloudinary->deletePhoto(
+                    $photo->cloudinary_public_id,
+                    $photo->cloudinary_resource_type
+                );
             }
             if (is_string($photo->cold_path) && $photo->cold_path !== '' && is_string($photo->cold_disk) && $photo->cold_disk !== '') {
                 try {
@@ -1468,15 +1472,27 @@ class PhotoService
     /** @return array{contents: string, mime: string, name: string} */
     public function readPhotoFile(Photo $photo): array
     {
-        $disk = $this->storage();
-        if (! $disk->exists($photo->path)) {
+        $path = (string) $photo->path;
+        $disk = $this->storageForPhoto($photo);
+        if (! $disk->exists($path) && ($photo->storage_tier ?? 'hot') === 'cold') {
+            // cold_path が別キーの場合
+            $alt = (string) ($photo->cold_path ?: '');
+            if ($alt !== '' && $disk->exists($alt)) {
+                $path = $alt;
+            }
+        }
+        if (! $disk->exists($path)) {
+            // フォールバック: 主ディスク
+            $disk = $this->storage();
+        }
+        if (! $disk->exists($path)) {
             throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
         }
 
         return [
-            'contents' => $disk->get($photo->path),
+            'contents' => $disk->get($path),
             'mime' => (string) ($photo->mime ?: 'application/octet-stream'),
-            'name' => (string) ($photo->original_name ?: basename((string) $photo->path)),
+            'name' => (string) ($photo->original_name ?: basename($path)),
         ];
     }
 
@@ -1514,9 +1530,99 @@ class PhotoService
             'sort_order' => $minSort - 10,
         ]);
 
-        $this->maybeSyncCloudinary($photo);
+        // 表示用の常設 Cloudinary 同期はしない（編集専用方針）
+        if ($this->mediaConfig->pipelineUsesCloudinaryDisplay()) {
+            $this->maybeSyncCloudinary($photo);
+        }
 
         return $this->photoToArray($photo->fresh() ?? $photo, $userId);
+    }
+
+    public function saveEditedImageFromUrl(int $userId, int $photoId, string $imageUrl, ?string $label = null): array
+    {
+        $imageUrl = trim($imageUrl);
+        if ($imageUrl === '' || ! str_starts_with($imageUrl, 'https://')) {
+            throw new \InvalidArgumentException(__('編集結果のURLが不正です。'));
+        }
+
+        // Cloudinary / 自前CDN以外は拒否
+        $host = parse_url($imageUrl, PHP_URL_HOST) ?: '';
+        if (! is_string($host) || (! str_ends_with($host, 'cloudinary.com') && ! str_ends_with($host, 'cloudinary.com.'))) {
+            // allow res.cloudinary.com and subdomains
+            if (! str_contains($host, 'cloudinary.com')) {
+                throw new \InvalidArgumentException(__('許可されていない編集結果URLです。'));
+            }
+        }
+
+        $response = \Illuminate\Support\Facades\Http::timeout(120)->get($imageUrl);
+        if (! $response->successful()) {
+            throw new \RuntimeException(__('編集結果の取得に失敗しました。'));
+        }
+
+        $binary = $response->body();
+        if ($binary === '') {
+            throw new \RuntimeException(__('編集結果が空です。'));
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'cld_edit_');
+        if ($tmp === false) {
+            throw new \RuntimeException(__('一時ファイルを作成できません。'));
+        }
+
+        try {
+            file_put_contents($tmp, $binary);
+            $uploaded = new UploadedFile($tmp, 'cloudinary-edit.jpg', 'image/jpeg', null, true);
+
+            return $this->saveEditedImage($userId, $photoId, $uploaded, $label ?: __('Cloudinary編集'));
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /**
+     * Cloudinary Media Editor 用セッション開始。
+     *
+     * @return array{cloudName: string, publicId: string, resourceType: string}
+     */
+    public function startCloudinaryEdit(int $userId, int $photoId): array
+    {
+        if (! $this->mediaConfig->cloudinaryEditorEnabled()) {
+            throw new \InvalidArgumentException(__('Cloudinary 編集が有効ではありません。'));
+        }
+        $photo = Photo::query()->where('user_id', $userId)->find($photoId);
+        if (! $photo) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+
+        return $this->cloudinary->startEditSession($photo);
+    }
+
+    /**
+     * Media Editor の書き出し結果を R2 に保存し、一時アセットを削除する。
+     *
+     * @return array<string, mixed>
+     */
+    public function commitCloudinaryEdit(
+        int $userId,
+        int $photoId,
+        string $exportUrl,
+        string $tempPublicId,
+        ?string $label = null
+    ): array {
+        $created = $this->saveEditedImageFromUrl($userId, $photoId, $exportUrl, $label);
+        if ($tempPublicId !== '') {
+            $this->cloudinary->deletePhoto($tempPublicId, 'image');
+        }
+
+        // 表示用の常設同期はしない（編集版も R2 のみ）
+        return $created;
+    }
+
+    public function cancelCloudinaryEdit(string $tempPublicId): void
+    {
+        if ($tempPublicId !== '') {
+            $this->cloudinary->deletePhoto($tempPublicId, 'image');
+        }
     }
 
     public function trimVideo(int $userId, int $photoId, float $startSec, float $endSec): array
@@ -1537,7 +1643,7 @@ class PhotoService
         }
 
         try {
-            file_put_contents($tmpIn, $disk->get($source->path));
+            file_put_contents($tmpIn, $this->storageForPhoto($source)->get($source->path));
             $this->ffmpeg->trim($tmpIn, $tmpOut, $startSec, $endSec);
 
             $basename = str_replace('.', '', uniqid('vid_trim_', true)).'.mp4';
@@ -1589,6 +1695,7 @@ class PhotoService
         $coverIsVideo = $cover
             ? $this->isVideoMime((string) $cover->mime, pathinfo((string) $cover->path, PATHINFO_EXTENSION))
             : false;
+        $coverArr = $cover ? $this->photoToArray($cover, $viewerUserId) : null;
 
         $visibility = $album->visibilityEnum();
         $isOwner = $viewerUserId !== null && (int) $album->user_id === $viewerUserId;
@@ -1607,10 +1714,8 @@ class PhotoService
             'canManage' => $isOwner,
             'coverPhotoId' => $album->cover_photo_id,
             'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
-            'coverUrl' => $cover
-                ? ($coverIsVideo
-                    ? $this->publicUrl($cover->path)
-                    : $this->publicUrl($cover->thumb_path ?: $cover->path))
+            'coverUrl' => $coverArr
+                ? ($coverIsVideo ? ($coverArr['url'] ?? null) : ($coverArr['thumbUrl'] ?? null))
                 : null,
             'coverMediaKind' => $coverIsVideo ? 'video' : 'image',
             'sortOrder' => (int) $album->sort_order,
@@ -1628,20 +1733,26 @@ class PhotoService
             ? 'video'
             : 'image';
 
-        $storageUrl = $this->publicUrl($photo->path);
-        $storageThumb = $this->publicUrl($photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
+        $storageUrl = $this->publicUrlForPhoto($photo, $photo->path);
+        $storageThumb = $this->publicUrlForPhoto($photo, $photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
         $url = $storageUrl;
         $thumbUrl = $storageThumb;
 
-        if ($mediaKind === 'image'
-            && $this->mediaConfig->pipelineUsesCloudinaryDisplay()
+        if ($this->mediaConfig->pipelineUsesCloudinaryDisplay()
             && is_string($photo->cloudinary_public_id)
             && $photo->cloudinary_public_id !== '') {
-            $cdn = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id);
-            $cdnThumb = $this->cloudinary->deliveryUrl(
-                $photo->cloudinary_public_id,
-                max(240, (int) config('photos.thumb_long_edge', 720))
-            );
+            $resourceType = ($photo->cloudinary_resource_type === 'video' || $mediaKind === 'video')
+                ? 'video'
+                : 'image';
+            $thumbEdge = max(240, (int) config('photos.thumb_long_edge', 720));
+
+            if ($resourceType === 'video') {
+                $cdn = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id, null, 'video');
+                $cdnThumb = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id, $thumbEdge, 'video', true);
+            } else {
+                $cdn = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id, null, 'image');
+                $cdnThumb = $this->cloudinary->deliveryUrl($photo->cloudinary_public_id, $thumbEdge, 'image');
+            }
             if ($cdn) {
                 $url = $cdn;
             }
@@ -1698,17 +1809,59 @@ class PhotoService
 
     private function maybeSyncCloudinary(Photo $photo): void
     {
-        $isVideo = $this->isVideoMime((string) $photo->mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION));
-        if ($isVideo
-            || ! $this->mediaConfig->pipelineUsesCloudinaryDisplay()
-            || ! $this->cloudinary->isReady()) {
+        if (! $this->mediaConfig->pipelineUsesCloudinaryDisplay() || ! $this->cloudinary->isReady()) {
             return;
         }
 
+        $isVideo = $this->isVideoMime((string) $photo->mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION));
+
         try {
-            $this->cloudinary->syncPhoto($photo);
+            if ($isVideo) {
+                // 大容量になりやすいのでキューへ
+                SyncPhotoToCloudinary::dispatch($photo->id);
+            } else {
+                $this->cloudinary->syncPhoto($photo);
+            }
         } catch (\Throwable $e) {
             report($e);
+        }
+    }
+
+    public function diskForPhoto(Photo $photo): string
+    {
+        if (($photo->storage_tier ?? 'hot') === 'cold'
+            && is_string($photo->cold_disk)
+            && $photo->cold_disk !== '') {
+            return $photo->cold_disk;
+        }
+
+        return $this->diskName();
+    }
+
+    private function storageForPhoto(Photo $photo): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        return Storage::disk($this->diskForPhoto($photo));
+    }
+
+    private function publicUrlForPhoto(Photo $photo, ?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        // サムネはホット側に残す運用のため、thumb は常に主ディスクを優先
+        if ($path === $photo->thumb_path && $path !== $photo->path) {
+            try {
+                return $this->storage()->url($path);
+            } catch (\Throwable) {
+                // fall through
+            }
+        }
+
+        try {
+            return $this->storageForPhoto($photo)->url($path);
+        } catch (\Throwable) {
+            return $this->storage()->url($path);
         }
     }
 

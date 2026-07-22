@@ -332,6 +332,9 @@
             <div class="photos-lightbox-actions photos-lb-edit-actions" id="photos-lb-edit-actions" hidden>
               <button type="button" class="photos-secondary-btn" id="photos-lb-edit-back">{{ __('戻る') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-open-crop-btn" hidden>{{ __('画像をトリム') }}</button>
+              @if(!empty($cloudinaryEditorReady))
+                <button type="button" class="photos-secondary-btn" id="photos-cloudinary-edit-btn" hidden>{{ __('Cloudinaryで編集') }}</button>
+              @endif
               <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
@@ -1130,6 +1133,7 @@
           const takenAtForm = document.getElementById('photos-taken-at-form')
           const takenAtInput = document.getElementById('photos-taken-at-input')
           const editOpenBtn = document.getElementById('photos-lb-edit-open')
+          const cloudinaryEditBtn = document.getElementById('photos-cloudinary-edit-btn')
           const canEdit = !!photo.canEdit
           if (editForm) {
             editForm.action = `/photos/${photo.id}/edit-image`
@@ -1140,6 +1144,10 @@
             cropBtn.hidden = !canEdit || isVideo
             cropBtn.dataset.photoId = String(photo.id)
             cropBtn.dataset.photoUrl = photo.fileUrl || (`/photos/${photo.id}/file`)
+          }
+          if (cloudinaryEditBtn) {
+            cloudinaryEditBtn.hidden = !canEdit || isVideo
+            cloudinaryEditBtn.dataset.photoId = String(photo.id)
           }
           if (trimForm) {
             // 動画のみ：写真では動画トリムを出さない
@@ -2971,6 +2979,130 @@
         document.querySelectorAll('[data-close-pwa-guide]').forEach((el) => {
           el.addEventListener('click', closePwaGuide)
         })
+
+        @if(!empty($cloudinaryEditorReady))
+        try {
+          ;(function setupCloudinaryEditor() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+            let activeTempPublicId = null
+            let activePhotoId = null
+            let editorInstance = null
+            let editorScriptPromise = null
+
+            function loadMediaEditorScript() {
+              if (window.cloudinary && typeof window.cloudinary.mediaEditor === 'function') {
+                return Promise.resolve()
+              }
+              if (editorScriptPromise) return editorScriptPromise
+              editorScriptPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[data-cloudinary-media-editor]')
+                if (existing) {
+                  existing.addEventListener('load', () => resolve())
+                  existing.addEventListener('error', () => reject(new Error('load failed')))
+                  return
+                }
+                const s = document.createElement('script')
+                s.src = 'https://media-editor.cloudinary.com/latest/all.js'
+                s.async = true
+                s.dataset.cloudinaryMediaEditor = '1'
+                s.onload = () => resolve()
+                s.onerror = () => reject(new Error('load failed'))
+                document.head.appendChild(s)
+              })
+              return editorScriptPromise
+            }
+
+            async function postJson(url, body) {
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify(body || {}),
+              })
+              const data = await res.json().catch(() => ({}))
+              if (!res.ok || data.ok === false) {
+                throw new Error(data.message || @json(__('リクエストに失敗しました')));
+              }
+              return data
+            }
+
+            async function cancelTemp() {
+              if (!activePhotoId || !activeTempPublicId) return
+              try {
+                await postJson(`/photos/${activePhotoId}/cloudinary-edit/cancel`, {
+                  tempPublicId: activeTempPublicId,
+                })
+              } catch (_) {}
+              activeTempPublicId = null
+              activePhotoId = null
+            }
+
+            document.getElementById('photos-cloudinary-edit-btn')?.addEventListener('click', async () => {
+              const btn = document.getElementById('photos-cloudinary-edit-btn')
+              const photoId = Number(btn?.dataset.photoId || 0)
+              if (!photoId || !btn) return
+              btn.disabled = true
+              const originalText = btn.textContent
+              btn.textContent = @json(__('準備中…'));
+              try {
+                await loadMediaEditorScript()
+                if (!window.cloudinary || typeof window.cloudinary.mediaEditor !== 'function') {
+                  throw new Error(@json(__('Cloudinary Media Editor の読み込みに失敗しました。')))
+                }
+                await cancelTemp()
+                const session = await postJson(`/photos/${photoId}/cloudinary-edit/start`, {})
+                activePhotoId = photoId
+                activeTempPublicId = session.publicId
+
+                if (editorInstance) {
+                  try { editorInstance.destroy() } catch (_) {}
+                }
+                editorInstance = window.cloudinary.mediaEditor()
+                editorInstance.update({
+                  cloudName: session.cloudName,
+                  publicIds: [session.publicId],
+                  steps: ['resizeAndCrop', 'imageOverlay', 'textOverlays', 'export'],
+                })
+                editorInstance.on('export', async (data) => {
+                  const asset = (data && data.assets && data.assets[0]) ? data.assets[0] : null
+                  const exportUrl = asset ? (asset.secureUrl || asset.url || '') : ''
+                  if (!exportUrl) {
+                    window.alert(@json(__('編集結果を取得できませんでした。')));
+                    return
+                  }
+                  try {
+                    btn.textContent = @json(__('保存中…'));
+                    await postJson(`/photos/${photoId}/cloudinary-edit/commit`, {
+                      exportUrl,
+                      tempPublicId: activeTempPublicId || session.publicId,
+                      label: @json(__('Cloudinary編集')),
+                    })
+                    activeTempPublicId = null
+                    activePhotoId = null
+                    try { editorInstance.hide() } catch (_) {}
+                    window.location.reload()
+                  } catch (e) {
+                    window.alert(e.message || @json(__('保存に失敗しました。')));
+                  }
+                })
+                editorInstance.on('close', () => { cancelTemp() })
+                editorInstance.show()
+              } catch (e) {
+                window.alert(e.message || @json(__('Cloudinary編集を開始できませんでした。')));
+                await cancelTemp()
+              } finally {
+                btn.disabled = false
+                btn.textContent = originalText
+              }
+            })
+          })()
+        } catch (err) {
+          console.warn('Cloudinary editor setup skipped', err)
+        }
+        @endif
       })()
     </script>
   </body>

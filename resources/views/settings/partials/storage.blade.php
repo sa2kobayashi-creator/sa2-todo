@@ -27,16 +27,18 @@
       </select>
     </label>
     <label class="storage-enable">
-      <input type="checkbox" name="use_cloudinary_display" value="1" @checked(($pSettings['use_cloudinary_display'] ?? true)) />
-      {{ __('画像の画面表示に Cloudinary を使う') }}
+      <input type="checkbox" name="use_cloudinary_display" value="1" @checked(!empty($pSettings['use_cloudinary_display'])) />
+      {{ __('一覧表示にも Cloudinary を使う（非推奨・Cloudinary に常設コピーが増えます）') }}
     </label>
+    <p class="hint">{{ __('推奨: Cloudinary はオフのまま。Photos の「Cloudinaryで編集」だけが一時アップロード→編集→R2保存→削除します。') }}</p>
     <label class="storage-enable">
       <input type="checkbox" name="archive_to_backblaze" value="1" @checked(!empty($pSettings['archive_to_backblaze'])) />
-      {{ __('古い写真を Backblaze B2 へアーカイブ（自動移動は次フェーズ）') }}
+      {{ __('古い写真・動画を Backblaze B2 へ自動アーカイブ') }}
     </label>
-    <label>{{ __('アーカイブ対象（登録から何日後）') }}
+    <label>{{ __('アーカイブ対象（登録日から何日後）') }}
       <input type="number" name="archive_after_days" min="0" value="{{ (int) ($pSettings['archive_after_days'] ?? 365) }}" />
     </label>
+    <p class="hint">{{ __('毎日 3:30 に自動実行します。手動実行: php artisan photos:archive-cold') }}</p>
     <button type="submit" class="button-link">{{ __('パイプラインを保存') }}</button>
   </form>
 </div>
@@ -87,7 +89,7 @@
 
 <div class="panel storage-settings" id="storage-cloudinary">
   <h2>Cloudinary</h2>
-  <p class="hint">{{ __('画像の変換・配信に使います。動画は第1段では対象外です。') }}</p>
+  <p class="hint">{{ __('画像編集（Media Editor）専用です。編集開始時だけ一時アップロードし、保存後に Cloudinary から削除します。') }}</p>
   @if(!empty($cloudinary['last_test_message']))
     <p class="hint storage-test-result {{ ($cloudinary['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
       {{ ($cloudinary['last_tested_at'] ?? '') }} — {{ $cloudinary['last_test_message'] }}
@@ -121,7 +123,7 @@
 
 <div class="panel storage-settings" id="storage-backblaze">
   <h2>Backblaze B2</h2>
-  <p class="hint">{{ __('長期保存用です。S3 互換の Endpoint（例: https://s3.us-west-004.backblazeb2.com）を入力してください。自動アーカイブは次フェーズです。') }}</p>
+  <p class="hint">{{ __('長期保存用です。S3 互換の Endpoint（例: https://s3.us-west-004.backblazeb2.com）を入力してください。パイプラインで自動アーカイブを有効にすると、指定日数を過ぎた原本をここへ移動します（サムネは高速表示のためホット側に残します）。') }}</p>
   @if(!empty($backblaze['last_test_message']))
     <p class="hint storage-test-result {{ ($backblaze['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
       {{ ($backblaze['last_tested_at'] ?? '') }} — {{ $backblaze['last_test_message'] }}

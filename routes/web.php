@@ -80,6 +80,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
+    Route::post('/photos/{id}/cloudinary-edit/start', [PhotoController::class, 'cloudinaryEditStart'])->whereNumber('id');
+    Route::post('/photos/{id}/cloudinary-edit/commit', [PhotoController::class, 'cloudinaryEditCommit'])->whereNumber('id');
+    Route::post('/photos/{id}/cloudinary-edit/cancel', [PhotoController::class, 'cloudinaryEditCancel'])->whereNumber('id');
     Route::post('/photos/{id}/trim-video', [PhotoController::class, 'trimVideo'])->whereNumber('id');
     Route::post('/photos/{id}/taken-at', [PhotoController::class, 'updateTakenAt'])->whereNumber('id');
     Route::get('/photos/{id}/file', [PhotoController::class, 'file'])->whereNumber('id');

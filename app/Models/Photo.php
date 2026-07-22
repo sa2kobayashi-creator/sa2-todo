@@ -15,6 +15,7 @@ class Photo extends Model
         'path',
         'thumb_path',
         'cloudinary_public_id',
+        'cloudinary_resource_type',
         'storage_tier',
         'cold_disk',
         'cold_path',

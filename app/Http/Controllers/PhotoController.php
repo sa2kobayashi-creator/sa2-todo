@@ -13,6 +13,7 @@ class PhotoController extends Controller
     public function __construct(
         private PhotoService $photos,
         private GroupService $groups,
+        private \App\Services\MediaStorageConfigService $mediaStorage,
     ) {}
 
     public function index(Request $request)
@@ -45,6 +46,7 @@ class PhotoController extends Controller
                 'videoMaxBytes' => $this->photos->maxVideoUploadBytes(),
                 'chunkBytes' => 4 * 1024 * 1024,
             ],
+            'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -345,6 +347,50 @@ class PhotoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('編集版を保存しました。'));
+    }
+
+    public function cloudinaryEditStart(Request $request, int $id)
+    {
+        try {
+            $session = $this->photos->startCloudinaryEdit((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, ...$session]);
+    }
+
+    public function cloudinaryEditCommit(Request $request, int $id)
+    {
+        $exportUrl = (string) $request->input('exportUrl', '');
+        $tempPublicId = (string) $request->input('tempPublicId', '');
+        $label = $request->input('label');
+
+        try {
+            $photo = $this->photos->commitCloudinaryEdit(
+                (int) $request->user()->id,
+                $id,
+                $exportUrl,
+                $tempPublicId,
+                is_string($label) ? $label : null
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => __('Cloudinary編集版を保存しました。'),
+            'photo' => $photo,
+        ]);
+    }
+
+    public function cloudinaryEditCancel(Request $request, int $id)
+    {
+        $tempPublicId = (string) $request->input('tempPublicId', '');
+        $this->photos->cancelCloudinaryEdit($tempPublicId);
+
+        return response()->json(['ok' => true]);
     }
 
     public function file(Request $request, int $id)
