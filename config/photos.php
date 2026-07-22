@@ -10,11 +10,20 @@ return [
     /** ffmpeg 実行ファイル（PATH 上の名前、または絶対パス） */
     'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
 
-    /** ユーザーあたりの無料枠目安（バイト）。Cloudflare R2 無料枠相当の 10GB */
+    /** ユーザーあたりの無料枠目安（バイト）。Cloudflare R2 無料枠相当の 10GB（ホット原本） */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 
-    /** 無料枠超過時の従量課金目安（USD / GB / 月）。R2 Standard クラスA相当の表記用 */
+    /** R2 無料枠超過時のストレージ単価目安（USD / GB / 月） */
     'overage_price_per_gb_month_usd' => (float) env('PHOTO_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.015),
+
+    /** Backblaze B2 無料枠目安（バイト）。公式の常時無料 10GB */
+    'b2_quota_bytes' => (int) env('PHOTO_B2_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
+
+    /** B2 無料枠超過時のストレージ単価目安（USD / GB / 月）。約 $6.95/TB */
+    'b2_overage_price_per_gb_month_usd' => (float) env('PHOTO_B2_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.006),
+
+    /** Cloudinary Free プランの月間クレジット（ストレージ・帯域・変換の合算） */
+    'cloudinary_free_credits' => (int) env('PHOTO_CLOUDINARY_FREE_CREDITS', 25),
 
     /**
      * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。

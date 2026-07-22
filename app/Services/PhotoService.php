@@ -70,6 +70,185 @@ class PhotoService
         return max(0, (float) config('photos.overage_price_per_gb_month_usd', 0.015));
     }
 
+    public function b2QuotaBytes(): int
+    {
+        return max(1, (int) config('photos.b2_quota_bytes', 10 * 1024 * 1024 * 1024));
+    }
+
+    public function b2OveragePricePerGbMonthUsd(): float
+    {
+        return max(0, (float) config('photos.b2_overage_price_per_gb_month_usd', 0.006));
+    }
+
+    private function formatUsdPerGbMonth(float $price): string
+    {
+        $trimmed = rtrim(rtrim(number_format($price, 3, '.', ''), '0'), '.');
+
+        return '$'.$trimmed.__('/GB/月');
+    }
+
+    private function formatUsdMonth(float $amount): string
+    {
+        if ($amount <= 0) {
+            return '$0';
+        }
+
+        return '$'.rtrim(rtrim(number_format($amount, 4, '.', ''), '0'), '.');
+    }
+
+    private function estimateOverageUsd(int $usedBytes, int $quotaBytes, float $pricePerGbMonth): float
+    {
+        $overBytes = max(0, $usedBytes - $quotaBytes);
+        if ($overBytes <= 0) {
+            return 0.0;
+        }
+
+        return round(($overBytes / (1024 * 1024 * 1024)) * $pricePerGbMonth, 4);
+    }
+
+    public function storageStats(int $userId): array
+    {
+        $thumbExtra = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('thumb_path')
+            ->count() * 80_000;
+
+        $hotQuery = Photo::query()
+            ->where('user_id', $userId)
+            ->where(function ($q) {
+                $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
+            });
+        $coldQuery = Photo::query()
+            ->where('user_id', $userId)
+            ->where('storage_tier', 'cold');
+
+        $hotUsed = (int) (clone $hotQuery)->sum('size_bytes');
+        $coldUsed = (int) (clone $coldQuery)->sum('size_bytes');
+        $hotCount = (int) (clone $hotQuery)->count();
+        $coldCount = (int) (clone $coldQuery)->count();
+        $hotUsedApprox = $hotUsed + $thumbExtra;
+        $usedApprox = $hotUsedApprox + $coldUsed;
+        $photoCount = $hotCount + $coldCount;
+
+        $quota = $this->userQuotaBytes();
+        $b2Quota = $this->b2QuotaBytes();
+        $disk = $this->diskName();
+        $r2Price = $this->overagePricePerGbMonthUsd();
+        $b2Price = $this->b2OveragePricePerGbMonthUsd();
+
+        $pipeline = $this->mediaConfig->get(\App\Models\MediaStorageSetting::PROVIDER_PIPELINE);
+        $pipelineEnabled = (bool) $pipeline->enabled;
+        $archiveEnabled = $this->mediaConfig->pipelineArchivesToBackblaze();
+        $cloudinaryEditor = $this->mediaConfig->cloudinaryEditorEnabled();
+        $cloudinaryEnabled = $this->mediaConfig->cloudinaryEnabled();
+
+        // パイプライン＋長期保存時は R2 10GB + B2 10GB = 20GB を合計無料枠とする
+        $combinedQuota = $archiveEnabled ? ($quota + $b2Quota) : $quota;
+        $barUsed = $archiveEnabled ? $usedApprox : $hotUsedApprox;
+        $percent = round(($barUsed / max(1, $combinedQuota)) * 100, 1);
+
+        $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
+        $b2OverageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
+
+        $cloudinaryResidual = Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('cloudinary_public_id')
+            ->where('cloudinary_public_id', '!=', '')
+            ->count();
+        $cloudinaryFreeCredits = max(1, (int) config('photos.cloudinary_free_credits', 25));
+
+        $primaryLabel = match ($disk) {
+            'r2' => 'Cloudflare R2',
+            'public' => __('サーバーローカル'),
+            default => $disk,
+        };
+        $diskLabel = $pipelineEnabled
+            ? __('パイプライン').'（'.$primaryLabel.($archiveEnabled ? ' + Backblaze B2' : '').($cloudinaryEditor ? ' + Cloudinary'.__('編集') : '').'）'
+            : $primaryLabel;
+
+        $providers = [
+            [
+                'id' => 'r2',
+                'name' => 'Cloudflare R2',
+                'role' => __('常用原本'),
+                'enabled' => $disk === 'r2' || $pipelineEnabled,
+                'usedLabel' => $this->formatBytes($hotUsedApprox),
+                'quotaLabel' => $this->formatBytes($quota),
+                'count' => $hotCount,
+                'percent' => round(($hotUsedApprox / max(1, $quota)) * 100, 1),
+                'overFreeTier' => $hotUsedApprox > $quota,
+                'overagePriceLabel' => $this->formatUsdPerGbMonth($r2Price),
+                'estimatedBillLabel' => $this->formatUsdMonth($r2OverageUsd).__('/月'),
+                'billingNote' => __('無料枠超過分のみ従量課金。転送料は無料。'),
+            ],
+            [
+                'id' => 'backblaze',
+                'name' => 'Backblaze B2',
+                'role' => __('長期保存'),
+                'enabled' => $archiveEnabled || $coldCount > 0,
+                'usedLabel' => $this->formatBytes($coldUsed),
+                'quotaLabel' => $this->formatBytes($b2Quota),
+                'count' => $coldCount,
+                'percent' => round(($coldUsed / max(1, $b2Quota)) * 100, 1),
+                'overFreeTier' => $coldUsed > $b2Quota,
+                'overagePriceLabel' => $this->formatUsdPerGbMonth($b2Price),
+                'estimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
+                'billingNote' => __('無料枠超過分のみ従量課金（目安）。'),
+            ],
+            [
+                'id' => 'cloudinary',
+                'name' => 'Cloudinary',
+                'role' => __('編集（一時のみ）'),
+                'enabled' => $cloudinaryEnabled || $cloudinaryEditor,
+                'usedLabel' => $cloudinaryResidual > 0
+                    ? __('残存アセット :count 件', ['count' => $cloudinaryResidual])
+                    : __('常設保管なし'),
+                'quotaLabel' => $cloudinaryFreeCredits.__('クレジット/月'),
+                'count' => $cloudinaryResidual,
+                'percent' => 0,
+                'overFreeTier' => false,
+                'overagePriceLabel' => __('Free は超過課金なし（制限・アップグレード案内）'),
+                'estimatedBillLabel' => '$0'.__('/月'),
+                'billingNote' => __('1クレジット ≒ 1GB保管 または 1GB帯域 または 1,000変換。編集後は一時アセットを削除。'),
+            ],
+        ];
+
+        return [
+            'usedBytes' => $usedApprox,
+            'quotaBytes' => $quota,
+            'combinedQuotaBytes' => $combinedQuota,
+            'percent' => $percent,
+            'photoCount' => $photoCount,
+            'remainingBytes' => max(0, $combinedQuota - $barUsed),
+            'formattedUsed' => $this->formatBytes($barUsed),
+            'formattedQuota' => $this->formatBytes($quota),
+            'formattedCombinedQuota' => $this->formatBytes($combinedQuota),
+            'formattedTotalUsed' => $this->formatBytes($usedApprox),
+            'disk' => $disk,
+            'diskLabel' => $diskLabel,
+            'overFreeTier' => $barUsed > $combinedQuota,
+            'overagePriceLabel' => $this->formatUsdPerGbMonth($r2Price),
+            'hotUsedBytes' => $hotUsedApprox,
+            'coldUsedBytes' => $coldUsed,
+            'hotCount' => $hotCount,
+            'coldCount' => $coldCount,
+            'formattedHotUsed' => $this->formatBytes($hotUsedApprox),
+            'formattedColdUsed' => $this->formatBytes($coldUsed),
+            'formattedB2Quota' => $this->formatBytes($b2Quota),
+            'b2OveragePriceLabel' => $this->formatUsdPerGbMonth($b2Price),
+            'hotOverFreeTier' => $hotUsedApprox > $quota,
+            'coldOverFreeTier' => $coldUsed > $b2Quota,
+            'r2EstimatedBillLabel' => $this->formatUsdMonth($r2OverageUsd).__('/月'),
+            'b2EstimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
+            'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd).__('/月'),
+            'pipelineEnabled' => $pipelineEnabled,
+            'archiveEnabled' => $archiveEnabled,
+            'cloudinaryEditor' => $cloudinaryEditor,
+            'primaryLabel' => $primaryLabel,
+            'providers' => $providers,
+        ];
+    }
+
     public function diskName(): string
     {
         $disk = (string) config('photos.disk', 'public');
@@ -85,36 +264,6 @@ class PhotoService
     public function usesObjectStorage(): bool
     {
         return $this->diskDriver() === 's3';
-    }
-
-    /** @return array{usedBytes: int, quotaBytes: int, percent: float, photoCount: int, remainingBytes: int, formattedUsed: string, formattedQuota: string, disk: string, diskLabel: string, overFreeTier: bool, overagePriceLabel: string} */
-    public function storageStats(int $userId): array
-    {
-        $used = (int) Photo::query()->where('user_id', $userId)->sum('size_bytes');
-        // サムネ分は size_bytes に含まれないため、実ディスクは少し多い。表示は DB 上の保存サイズを基準にする。
-        $thumbExtra = (int) Photo::query()
-            ->where('user_id', $userId)
-            ->whereNotNull('thumb_path')
-            ->count() * 80_000; // おおよそ 80KB/枚
-        $usedApprox = $used + $thumbExtra;
-        $quota = $this->userQuotaBytes();
-        $percent = round(($usedApprox / $quota) * 100, 1);
-        $disk = $this->diskName();
-        $price = $this->overagePricePerGbMonthUsd();
-
-        return [
-            'usedBytes' => $usedApprox,
-            'quotaBytes' => $quota,
-            'percent' => $percent,
-            'photoCount' => (int) Photo::query()->where('user_id', $userId)->count(),
-            'remainingBytes' => max(0, $quota - $usedApprox),
-            'formattedUsed' => $this->formatBytes($usedApprox),
-            'formattedQuota' => $this->formatBytes($quota),
-            'disk' => $disk,
-            'diskLabel' => $disk === 'r2' ? 'Cloudflare R2' : ($disk === 'public' ? __('サーバーローカル') : $disk),
-            'overFreeTier' => $usedApprox > $quota,
-            'overagePriceLabel' => '$'.rtrim(rtrim(number_format($price, 3, '.', ''), '0'), '.').__('/GB/月'),
-        ];
     }
 
     /** @return list<array<string, mixed>> */

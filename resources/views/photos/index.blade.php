@@ -74,24 +74,72 @@
       <aside class="photos-storage" aria-label="保存容量">
         <div class="photos-storage-head">
           <strong>{{ __('保存容量') }}</strong>
-          <span>
-            {{ $storageStats['formattedUsed'] }}
-            / {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}
-            {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
-            @if(!empty($storageStats['overFreeTier']))
-              <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-            @endif
+          <span class="photos-storage-head-actions">
+            <span>
+              @if(!empty($storageStats['archiveEnabled']))
+                {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
+                / {{ __('無料枠合計') }} {{ $storageStats['formattedCombinedQuota'] }}
+                {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+                @if(!empty($storageStats['overFreeTier']))
+                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+                @endif
+              @else
+                {{ __('常用') }} {{ $storageStats['formattedHotUsed'] }}
+                / {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}
+                {{ __('（:count枚）', ['count' => $storageStats['hotCount']]) }}
+                @if(!empty($storageStats['hotOverFreeTier']))
+                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+                @endif
+              @endif
+            </span>
+            <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
           </span>
         </div>
         <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}">
           <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
         </div>
+        @if(!empty($storageStats['archiveEnabled']) || ($storageStats['coldCount'] ?? 0) > 0)
+          <div class="photos-storage-sub">
+            {{ __('常用') }} ({{ $storageStats['primaryLabel'] }}):
+            {{ $storageStats['formattedHotUsed'] }} / {{ $storageStats['formattedQuota'] }}
+            {{ __('（:count枚）', ['count' => $storageStats['hotCount']]) }}
+            ·
+            {{ __('長期保存') }} (Backblaze B2):
+            {{ $storageStats['formattedColdUsed'] }} / {{ $storageStats['formattedB2Quota'] }}
+            {{ __('（:count枚）', ['count' => $storageStats['coldCount']]) }}
+          </div>
+        @endif
         <p class="photos-storage-note">
           {{ __('画像は解像度そのまま保存。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
-          {{ __('保存先:') }} {{ $storageStats['diskLabel'] }}。
-          {{ __('Cloudflare R2 の無料枠は') }} {{ $storageStats['formattedQuota'] }}{{ __('（超過分は約') }} {{ $storageStats['overagePriceLabel'] }} {{ __('の従量課金）。') }}
-          @if(($storageStats['disk'] ?? '') === 'public')
-            {{ __('（本番では PHOTO_DISK=r2 で Cloudflare R2 に切り替え可能）') }}
+          @if(!empty($storageStats['pipelineEnabled']))
+            {{ __('構成:') }}
+            {{ __('常用原本') }} = {{ $storageStats['primaryLabel'] }}
+            @if(!empty($storageStats['cloudinaryEditor']))
+              · {{ __('編集') }} = Cloudinary（{{ __('一時のみ・常設保管なし') }}）
+            @endif
+            @if(!empty($storageStats['archiveEnabled']))
+              · {{ __('長期保存') }} = Backblaze B2
+            @endif
+            。
+            @if(!empty($storageStats['archiveEnabled']))
+              {{ __('無料枠合計') }} {{ $storageStats['formattedCombinedQuota'] }}
+              （{{ $storageStats['primaryLabel'] }} {{ $storageStats['formattedQuota'] }} + Backblaze B2 {{ $storageStats['formattedB2Quota'] }}）。
+              {{ $storageStats['primaryLabel'] }} {{ __('超過') }} {{ $storageStats['overagePriceLabel'] }}、
+              B2 {{ __('超過') }} {{ $storageStats['b2OveragePriceLabel'] }}。
+            @else
+              {{ $storageStats['primaryLabel'] }}:
+              {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}、
+              {{ __('超過分は約') }} {{ $storageStats['overagePriceLabel'] }}。
+            @endif
+          @else
+            {{ __('保存先:') }} {{ $storageStats['diskLabel'] }}。
+            @if(($storageStats['disk'] ?? '') === 'r2')
+              Cloudflare R2:
+              {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}、
+              {{ __('超過分は約') }} {{ $storageStats['overagePriceLabel'] }}。
+            @elseif(($storageStats['disk'] ?? '') === 'public')
+              {{ __('（本番ではストレージ設定のパイプラインで R2 / B2 / Cloudinary を切り替え可能）') }}
+            @endif
           @endif
         </p>
       </aside>
@@ -455,6 +503,90 @@
       </div>
     </div>
 
+    <div class="modal modal-centered" id="photos-usage-modal" hidden>
+      <div class="modal-backdrop" data-close-usage-modal></div>
+      <div class="modal-dialog photos-usage-dialog" role="dialog" aria-labelledby="photos-usage-modal-title">
+        <div class="modal-header">
+          <h2 id="photos-usage-modal-title">{{ __('ストレージ使用状況') }}</h2>
+          <button type="button" class="modal-close" data-close-usage-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="photos-usage-body">
+          <p class="photos-usage-lead">
+            @if(!empty($storageStats['archiveEnabled']))
+              {{ __('無料枠合計') }}:
+              {{ $storageStats['formattedCombinedQuota'] }}
+              （Cloudflare R2 {{ $storageStats['formattedQuota'] }} + Backblaze B2 {{ $storageStats['formattedB2Quota'] }}）
+              · {{ __('現在の使用') }} {{ $storageStats['formattedTotalUsed'] }}
+              · {{ __('超過課金見込') }} {{ $storageStats['estimatedTotalBillLabel'] }}
+            @else
+              {{ __('無料枠') }}: {{ $storageStats['formattedCombinedQuota'] }}
+              · {{ __('現在の使用') }} {{ $storageStats['formattedUsed'] }}
+              · {{ __('超過課金見込') }} {{ $storageStats['estimatedTotalBillLabel'] }}
+            @endif
+          </p>
+          <div class="photos-usage-grid">
+            @foreach(($storageStats['providers'] ?? []) as $provider)
+              <article class="photos-usage-card{{ empty($provider['enabled']) ? ' is-off' : '' }}{{ !empty($provider['overFreeTier']) ? ' is-over' : '' }}">
+                <header class="photos-usage-card-head">
+                  <h3>{{ $provider['name'] }}</h3>
+                  <span>{{ $provider['role'] }}</span>
+                </header>
+                @if(empty($provider['enabled']))
+                  <p class="photos-usage-muted">{{ __('現在このパイプラインでは未使用') }}</p>
+                @else
+                  <dl class="photos-usage-dl">
+                    <div>
+                      <dt>{{ __('使用量') }}</dt>
+                      <dd>{{ $provider['usedLabel'] }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ __('無料枠') }}</dt>
+                      <dd>{{ $provider['quotaLabel'] }}</dd>
+                    </div>
+                    @if(($provider['id'] ?? '') !== 'cloudinary')
+                      <div>
+                        <dt>{{ __('件数') }}</dt>
+                        <dd>{{ __('（:count枚）', ['count' => $provider['count']]) }}</dd>
+                      </div>
+                      <div>
+                        <dt>{{ __('使用率') }}</dt>
+                        <dd>{{ $provider['percent'] }}%</dd>
+                      </div>
+                    @endif
+                    <div>
+                      <dt>{{ __('超過単価') }}</dt>
+                      <dd>{{ $provider['overagePriceLabel'] }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ __('課金見込') }}</dt>
+                      <dd>
+                        {{ $provider['estimatedBillLabel'] }}
+                        @if(!empty($provider['overFreeTier']))
+                          <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+                        @endif
+                      </dd>
+                    </div>
+                  </dl>
+                  <p class="photos-usage-note">{{ $provider['billingNote'] }}</p>
+                  @if(($provider['id'] ?? '') !== 'cloudinary')
+                    <div class="photos-storage-bar photos-usage-mini-bar" role="presentation">
+                      <span class="photos-storage-bar-fill{{ !empty($provider['overFreeTier']) ? ' is-warn' : '' }}" style="width: {{ min(100, (float) $provider['percent']) }}%"></span>
+                    </div>
+                  @endif
+                @endif
+              </article>
+            @endforeach
+          </div>
+          <p class="photos-usage-foot">
+            {{ __('金額は各サービスの公開単価に基づく概算です。実際の請求はダッシュボードを確認してください。') }}
+          </p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="secondary" data-close-usage-modal>{{ __('閉じる') }}</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal modal-centered" id="photos-dup-modal" hidden>
       <div class="modal-backdrop" data-close-dup-modal></div>
       <div class="modal-dialog photos-dup-dialog" role="dialog" aria-labelledby="photos-dup-modal-title">
@@ -595,6 +727,8 @@
         const coverPhotoInput = document.getElementById('photos-cover-photo-id')
         const coverBtn = document.getElementById('photos-cover-btn')
         const albumModal = document.getElementById('photos-album-modal')
+        const usageModal = document.getElementById('photos-usage-modal')
+        const usageOpenBtn = document.getElementById('photos-usage-open')
         const installBtn = document.getElementById('photos-pwa-install')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
         let currentIndex = 0
@@ -2217,6 +2351,17 @@
         document.querySelectorAll('[data-close-album-modal]').forEach((el) => {
           el.addEventListener('click', () => {
             if (albumModal) albumModal.hidden = true
+          })
+        })
+
+        if (usageOpenBtn && usageModal) {
+          usageOpenBtn.addEventListener('click', () => {
+            usageModal.hidden = false
+          })
+        }
+        document.querySelectorAll('[data-close-usage-modal]').forEach((el) => {
+          el.addEventListener('click', () => {
+            if (usageModal) usageModal.hidden = true
           })
         })
 
