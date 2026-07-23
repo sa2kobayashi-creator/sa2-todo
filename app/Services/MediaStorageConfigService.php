@@ -16,6 +16,7 @@ class MediaStorageConfigService
             MediaStorageSetting::PROVIDER_R2,
             MediaStorageSetting::PROVIDER_CLOUDINARY,
             MediaStorageSetting::PROVIDER_BACKBLAZE,
+            MediaStorageSetting::PROVIDER_STABILITY,
             MediaStorageSetting::PROVIDER_PIPELINE,
         ];
     }
@@ -110,6 +111,7 @@ class MediaStorageConfigService
                 MediaStorageSetting::PROVIDER_R2 => $this->testR2($row),
                 MediaStorageSetting::PROVIDER_CLOUDINARY => $this->testCloudinary($row),
                 MediaStorageSetting::PROVIDER_BACKBLAZE => $this->testBackblaze($row),
+                MediaStorageSetting::PROVIDER_STABILITY => app(StabilityAiService::class)->testConnection(),
                 MediaStorageSetting::PROVIDER_PIPELINE => ['ok' => true, 'message' => __('パイプライン設定を保存済みです')],
                 default => ['ok' => false, 'message' => __('未知のプロバイダです')],
             };
@@ -156,6 +158,13 @@ class MediaStorageConfigService
     {
         // 編集専用: Cloudinary 接続ができていれば Media Editor を使える
         return $this->cloudinaryEnabled();
+    }
+
+    public function stabilityEnabled(): bool
+    {
+        $row = $this->get(MediaStorageSetting::PROVIDER_STABILITY);
+
+        return $row->enabled && $row->hasSecret('api_key');
     }
 
     public function pipelineArchivesToBackblaze(): bool

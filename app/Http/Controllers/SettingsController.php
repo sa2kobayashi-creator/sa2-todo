@@ -40,6 +40,7 @@ class SettingsController extends Controller
             'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,
+            'storageStability' => $section === 'storage' ? $this->mediaStorage->formState('stability') : null,
             'storagePipeline' => $section === 'storage' ? $this->mediaStorage->formState('pipeline') : null,
             ...$this->flashFromQuery($request),
         ]);

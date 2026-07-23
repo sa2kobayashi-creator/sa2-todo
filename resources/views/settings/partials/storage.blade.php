@@ -13,7 +13,7 @@
 
 <div class="panel storage-settings" id="storage-pipeline">
   <h2>{{ __('保存パイプライン') }}</h2>
-  <p class="hint">{{ __('アップロード → Cloudflare R2（原本）→ 画面表示は Cloudinary、古い／大容量は Backblaze B2 へ、という流れをここで切り替えます。') }}</p>
+  <p class="hint">{{ __('アップロード → Cloudflare R2（原本）→ 必要に応じて Stability AI で鮮明化して R2 へ保存。Cloudinary は編集用、古い原本は Backblaze B2 へ、という流れをここで切り替えます。') }}</p>
   <form method="post" action="/settings/storage/pipeline" class="storage-provider-form">
     @csrf
     <label class="storage-enable">
@@ -117,6 +117,49 @@
       <button type="submit" class="button-link">{{ __('保存') }}</button>
       <button type="button" class="secondary storage-test-btn" data-provider="cloudinary">{{ __('接続テスト') }}</button>
       <span class="storage-test-live hint" data-test-live="cloudinary"></span>
+    </div>
+  </form>
+</div>
+
+<div class="panel storage-settings" id="storage-stability">
+  <h2>Stability AI</h2>
+  <p class="hint">{{ __('写真の AI 鮮明化（Upscale）に使います。Photos で写真を選び「AIで鮮明化」すると、結果を Cloudflare R2（原本ディスク）へ新規保存します。元画像はそのまま残ります。API は1回あたり最大約1MPのため、大きな写真は解像度を落とさずタイル分割で処理します。') }}</p>
+  @php $stability = $storageStability ?? []; $sSettings = $stability['settings'] ?? []; @endphp
+  @if(!empty($stability['last_test_message']))
+    <p class="hint storage-test-result {{ ($stability['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
+      {{ ($stability['last_tested_at'] ?? '') }} — {{ $stability['last_test_message'] }}
+    </p>
+  @endif
+  <form method="post" action="/settings/storage/stability" class="storage-provider-form" data-provider="stability">
+    @csrf
+    <label class="storage-enable">
+      <input type="checkbox" name="enabled" value="1" @checked(!empty($stability['enabled'])) />
+      {{ __('Stability AI を有効にする') }}
+    </label>
+    <label>API Key
+      <input type="password" name="api_key" autocomplete="off" placeholder="{{ !empty($stability['hasSecrets']['api_key']) ? '••••••••' : 'sk-...' }}" />
+    </label>
+    <label>{{ __('鮮明化モード') }}
+      <select name="mode">
+        <option value="fast" @selected(($sSettings['mode'] ?? 'fast') === 'fast')>{{ __('Fast（高速・推奨）') }}</option>
+        <option value="conservative" @selected(($sSettings['mode'] ?? '') === 'conservative')>{{ __('Conservative（高精細・要クレジット多）') }}</option>
+      </select>
+    </label>
+    <label>{{ __('出力形式') }}
+      <select name="output_format">
+        <option value="jpeg" @selected(($sSettings['output_format'] ?? 'jpeg') === 'jpeg')>JPEG</option>
+        <option value="png" @selected(($sSettings['output_format'] ?? '') === 'png')>PNG</option>
+        <option value="webp" @selected(($sSettings['output_format'] ?? '') === 'webp')>WebP</option>
+      </select>
+    </label>
+    <label>{{ __('Conservative 用プロンプト') }}
+      <input type="text" name="default_prompt" value="{{ $sSettings['default_prompt'] ?? 'high quality clear photograph, sharp details, natural colors' }}" />
+    </label>
+    <p class="hint">{{ __('API Key は platform.stability.ai で取得したキーを入力してください。空欄のまま保存すると既存キーを維持します。') }}</p>
+    <div class="storage-form-actions">
+      <button type="submit" class="button-link">{{ __('保存') }}</button>
+      <button type="button" class="secondary storage-test-btn" data-provider="stability">{{ __('接続テスト') }}</button>
+      <span class="storage-test-live hint" data-test-live="stability"></span>
     </div>
   </form>
 </div>

@@ -25,6 +25,9 @@ return [
     /** Cloudinary Free プランの月間クレジット（ストレージ・帯域・変換の合算） */
     'cloudinary_free_credits' => (int) env('PHOTO_CLOUDINARY_FREE_CREDITS', 25),
 
+    /** Stability AI 1リクエストあたりの最大総ピクセル（API 上限 1,048,576）。超過時は縮小せずタイル分割 */
+    'stability_max_input_pixels' => (int) env('PHOTO_STABILITY_MAX_INPUT_PIXELS', 1_048_576),
+
     /**
      * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。
      * （互換のため残置。現行実装では未使用）

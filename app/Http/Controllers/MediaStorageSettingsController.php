@@ -58,6 +58,20 @@ class MediaStorageSettingsController extends Controller
                     'application_key' => (string) $request->input('application_key', ''),
                 ],
             ],
+            MediaStorageSetting::PROVIDER_STABILITY => [
+                [
+                    'mode' => in_array($request->input('mode'), ['fast', 'conservative'], true)
+                        ? (string) $request->input('mode')
+                        : 'fast',
+                    'output_format' => in_array($request->input('output_format'), ['jpeg', 'png', 'webp'], true)
+                        ? (string) $request->input('output_format')
+                        : 'jpeg',
+                    'default_prompt' => (string) $request->input('default_prompt', ''),
+                ],
+                [
+                    'api_key' => (string) $request->input('api_key', ''),
+                ],
+            ],
             MediaStorageSetting::PROVIDER_PIPELINE => [
                 [
                     'primary_disk' => in_array($request->input('primary_disk'), ['public', 'r2'], true)
@@ -78,6 +92,7 @@ class MediaStorageSettingsController extends Controller
             'r2' => 'Cloudflare R2',
             'cloudinary' => 'Cloudinary',
             'backblaze' => 'Backblaze B2',
+            'stability' => 'Stability AI',
             'pipeline' => __('保存パイプライン'),
         ];
 

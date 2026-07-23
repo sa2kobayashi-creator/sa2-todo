@@ -80,6 +80,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
+    Route::post('/photos/{id}/stability-enhance', [PhotoController::class, 'stabilityEnhance'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/start', [PhotoController::class, 'cloudinaryEditStart'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/commit', [PhotoController::class, 'cloudinaryEditCommit'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/cancel', [PhotoController::class, 'cloudinaryEditCancel'])->whereNumber('id');
@@ -156,9 +157,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
-            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+            ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');
         Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
-            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+            ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');
     });
 
     Route::middleware(RequireAdmin::class)->group(function () {

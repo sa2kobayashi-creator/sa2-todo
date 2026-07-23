@@ -12,6 +12,8 @@ class MediaStorageSetting extends Model
 
     public const PROVIDER_BACKBLAZE = 'backblaze';
 
+    public const PROVIDER_STABILITY = 'stability';
+
     public const PROVIDER_PIPELINE = 'pipeline';
 
     protected $fillable = [

@@ -47,6 +47,7 @@ class PhotoController extends Controller
                 'chunkBytes' => 4 * 1024 * 1024,
             ],
             'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
+            'stabilityEnhanceReady' => $this->mediaStorage->stabilityEnabled(),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -347,6 +348,21 @@ class PhotoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('編集版を保存しました。'));
+    }
+
+    public function stabilityEnhance(Request $request, int $id)
+    {
+        try {
+            $photo = $this->photos->enhanceWithStability((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => __('AI鮮明化版を保存しました。'),
+            'photo' => $photo,
+        ]);
     }
 
     public function cloudinaryEditStart(Request $request, int $id)

@@ -29,6 +29,7 @@ class PhotoService
         private FfmpegService $ffmpeg,
         private CloudinaryMediaService $cloudinary,
         private MediaStorageConfigService $mediaConfig,
+        private StabilityAiService $stability,
     ) {}
 
     public function maxUploadBytes(): int
@@ -1677,6 +1678,7 @@ class PhotoService
             'edit_label' => $label ? mb_substr(trim($label), 0, 120) : __('編集版'),
             'taken_at' => $source->taken_at,
             'sort_order' => $minSort - 10,
+            'storage_tier' => 'hot',
         ]);
 
         // 表示用の常設 Cloudinary 同期はしない（編集専用方針）
@@ -1685,6 +1687,57 @@ class PhotoService
         }
 
         return $this->photoToArray($photo->fresh() ?? $photo, $userId);
+    }
+
+    /**
+     * Stability AI で鮮明化し、結果を R2（現行 photos.disk）へ新規保存する。元画像は残す。
+     *
+     * @return array<string, mixed>
+     */
+    public function enhanceWithStability(int $userId, int $photoId): array
+    {
+        if (! $this->mediaConfig->stabilityEnabled()) {
+            throw new \InvalidArgumentException(__('Stability AI が有効ではありません。ストレージ設定を確認してください。'));
+        }
+
+        $source = Photo::query()->where('user_id', $userId)->find($photoId);
+        if (! $source) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+        if ($this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
+            throw new \InvalidArgumentException(__('動画は AI 鮮明化の対象外です。'));
+        }
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(240);
+        }
+
+        $file = $this->readPhotoFile($source);
+        $enhanced = $this->stability->enhanceImage(
+            $file['contents'],
+            $file['name'],
+            $file['mime']
+        );
+
+        $tmp = tempnam(sys_get_temp_dir(), 'stab_out_');
+        if ($tmp === false) {
+            throw new \RuntimeException(__('一時ファイルを作成できません。'));
+        }
+
+        try {
+            file_put_contents($tmp, $enhanced['binary']);
+            $uploaded = new UploadedFile(
+                $tmp,
+                'stability-enhance.'.$enhanced['extension'],
+                $enhanced['mime'],
+                null,
+                true
+            );
+
+            return $this->saveEditedImage($userId, $photoId, $uploaded, __('AI鮮明化'));
+        } finally {
+            @unlink($tmp);
+        }
     }
 
     public function saveEditedImageFromUrl(int $userId, int $photoId, string $imageUrl, ?string $label = null): array

@@ -383,6 +383,9 @@
               @if(!empty($cloudinaryEditorReady))
                 <button type="button" class="photos-secondary-btn" id="photos-cloudinary-edit-btn" hidden>{{ __('Cloudinaryで編集') }}</button>
               @endif
+              @if(!empty($stabilityEnhanceReady))
+                <button type="button" class="photos-secondary-btn" id="photos-stability-enhance-btn" hidden>{{ __('AIで鮮明化') }}</button>
+              @endif
               <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
@@ -1268,6 +1271,7 @@
           const takenAtInput = document.getElementById('photos-taken-at-input')
           const editOpenBtn = document.getElementById('photos-lb-edit-open')
           const cloudinaryEditBtn = document.getElementById('photos-cloudinary-edit-btn')
+          const stabilityEnhanceBtn = document.getElementById('photos-stability-enhance-btn')
           const canEdit = !!photo.canEdit
           if (editForm) {
             editForm.action = `/photos/${photo.id}/edit-image`
@@ -1282,6 +1286,10 @@
           if (cloudinaryEditBtn) {
             cloudinaryEditBtn.hidden = !canEdit || isVideo
             cloudinaryEditBtn.dataset.photoId = String(photo.id)
+          }
+          if (stabilityEnhanceBtn) {
+            stabilityEnhanceBtn.hidden = !canEdit || isVideo
+            stabilityEnhanceBtn.dataset.photoId = String(photo.id)
           }
           if (trimForm) {
             // 動画のみ：写真では動画トリムを出さない
@@ -3247,6 +3255,46 @@
         } catch (err) {
           console.warn('Cloudinary editor setup skipped', err)
         }
+        @endif
+
+        @if(!empty($stabilityEnhanceReady))
+        ;(function setupStabilityEnhance() {
+          const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+          const btn = document.getElementById('photos-stability-enhance-btn')
+          if (!btn) return
+          btn.addEventListener('click', async () => {
+            const photoId = Number(btn.dataset.photoId || 0)
+            if (!photoId) return
+            if (!window.confirm(@json(__('この写真を AI で鮮明化して R2 に保存しますか？（元画像は残ります）')))) {
+              return
+            }
+            btn.disabled = true
+            const originalText = btn.textContent
+            btn.textContent = @json(__('鮮明化中…'));
+            try {
+              const res = await fetch(`/photos/${photoId}/stability-enhance`, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'X-CSRF-TOKEN': csrf,
+                },
+                body: '{}',
+              })
+              const data = await res.json().catch(() => ({}))
+              if (!res.ok || data.ok === false) {
+                throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')))
+              }
+              window.alert(data.message || @json(__('AI鮮明化版を保存しました。')))
+              window.location.reload()
+            } catch (e) {
+              window.alert(e.message || @json(__('AI鮮明化に失敗しました。')))
+            } finally {
+              btn.disabled = false
+              btn.textContent = originalText
+            }
+          })
+        })()
         @endif
       })()
     </script>
