@@ -1717,6 +1717,16 @@
             openLightbox(Number(tile.dataset.photoIndex || 0))
           })
         })
+        ;(function openPhotoFromQuery() {
+          const focusId = Number(new URLSearchParams(window.location.search).get('photo') || 0)
+          if (!focusId || !Array.isArray(photos)) return
+          const idx = photos.findIndex((p) => Number(p.id) === focusId)
+          if (idx < 0) return
+          openLightbox(idx)
+          const url = new URL(window.location.href)
+          url.searchParams.delete('photo')
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        })()
         document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
           el.addEventListener('click', closeLightbox)
         })
@@ -3293,8 +3303,15 @@
               if (!res.ok || data.ok === false) {
                 throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')))
               }
-              window.alert(data.message || @json(__('AI鮮明化版を保存しました。')))
-              window.location.reload()
+              window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')))
+              const newId = data.photo?.id
+              if (newId) {
+                const url = new URL(window.location.href)
+                url.searchParams.set('photo', String(newId))
+                window.location.href = url.toString()
+              } else {
+                window.location.reload()
+              }
             } catch (e) {
               window.alert(e.message || @json(__('AI鮮明化に失敗しました。')))
             } finally {

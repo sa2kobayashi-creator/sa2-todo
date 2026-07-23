@@ -29,6 +29,15 @@ return [
     'stability_max_input_pixels' => (int) env('PHOTO_STABILITY_MAX_INPUT_PIXELS', 1_048_576),
 
     /**
+     * 鮮明化結果の最大総ピクセル。API は最大約4倍まで上げるが、巨大化を抑える上限。
+     * （以前はタイル結果を元解像度へ戻しており、見た目の改善がほぼ失われていた）
+     */
+    'stability_max_output_pixels' => (int) env('PHOTO_STABILITY_MAX_OUTPUT_PIXELS', 16_777_216),
+
+    /** 鮮明化結果の長辺上限（px） */
+    'stability_max_output_edge' => (int) env('PHOTO_STABILITY_MAX_OUTPUT_EDGE', 8192),
+
+    /**
      * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。
      * （互換のため残置。現行実装では未使用）
      */

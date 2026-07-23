@@ -360,7 +360,7 @@ class PhotoController extends Controller
 
         return response()->json([
             'ok' => true,
-            'message' => __('AI鮮明化版を保存しました。'),
+            'message' => __('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。'),
             'photo' => $photo,
         ]);
     }

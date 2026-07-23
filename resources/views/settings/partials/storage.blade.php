@@ -123,7 +123,7 @@
 
 <div class="panel storage-settings" id="storage-stability">
   <h2>Stability AI</h2>
-  <p class="hint">{{ __('写真の AI 鮮明化（Upscale）に使います。Photos で写真を選び「AIで鮮明化」すると、結果を Cloudflare R2（原本ディスク）へ新規保存します。元画像はそのまま残ります。API は1回あたり最大約1MPのため、大きな写真は解像度を落とさずタイル分割で処理します。') }}</p>
+  <p class="hint">{{ __('写真の AI 鮮明化（Upscale）に使います。Photos で写真を選び「AIで鮮明化」すると、解像度を上げた結果を Cloudflare R2（原本ディスク）へ新規保存します。元画像はそのまま残ります。API は1回あたり最大約1MPのため、大きな写真はタイル分割で処理し、アップスケール解像度のまま合成します。') }}</p>
   @php $stability = $storageStability ?? []; $sSettings = $stability['settings'] ?? []; @endphp
   @if(!empty($stability['last_test_message']))
     <p class="hint storage-test-result {{ ($stability['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">

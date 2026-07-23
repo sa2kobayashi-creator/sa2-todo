@@ -15,9 +15,9 @@ class StabilityAiService
     }
 
     /**
-     * Fast Upscale で画像を鮮明化（同期）。
-     * API は 1 リクエストあたり最大 1MP のため、超過分は原本を縮小せずタイル分割して処理し、
-     * 最終出力は元の解像度のまま合成する。
+     * Upscale API で画像を鮮明化。
+     * API は 1 リクエストあたり最大 1MP のため、超過分はタイル分割して処理する。
+     * 最終出力はアップスケール解像度を維持し、設定の上限（ピクセル数／長辺）でキャップする。
      *
      * @return array{binary: string, mime: string, extension: string}
      */
@@ -67,7 +67,6 @@ class StabilityAiService
                 return $this->enhanceWholeImage($apiKey, $src, $mode, $prompt, $outputFormat, $filename);
             }
 
-            // 1MP 超: 全体縮小せずタイル処理 → 元解像度で合成
             return $this->enhanceByTiles($apiKey, $src, $mode, $prompt, $outputFormat, $maxPixels);
         } finally {
             if (is_resource($src) || $src instanceof \GdImage) {
@@ -126,18 +125,19 @@ class StabilityAiService
         $tmp = $this->gdToTempJpeg($src);
         try {
             $name = $this->safeFilename($filename, 'image/jpeg');
-            if ($mode === 'conservative') {
-                return $this->upscaleConservative($apiKey, $tmp, $name, $prompt, $outputFormat);
-            }
+            $enhanced = $mode === 'conservative'
+                ? $this->upscaleConservative($apiKey, $tmp, $name, $prompt, $outputFormat)
+                : $this->upscaleFast($apiKey, $tmp, $name, $outputFormat);
 
-            return $this->upscaleFast($apiKey, $tmp, $name, $outputFormat);
+            return $this->capEnhancedBinary($enhanced, $outputFormat);
         } finally {
             @unlink($tmp);
         }
     }
 
     /**
-     * 原本解像度を保ったままタイル単位で鮮明化し合成する（全体の事前縮小はしない）。
+     * タイル単位で鮮明化し、アップスケール解像度のまま合成する。
+     * （以前は API 結果を元タイルサイズへ戻しており、鮮明化の効果がほぼ消えていた）
      *
      * @param  \GdImage  $src
      * @return array{binary: string, mime: string, extension: string}
@@ -157,8 +157,10 @@ class StabilityAiService
         $tileW = (int) ceil($w / $cols);
         $tileH = (int) ceil($h / $rows);
 
-        $canvas = imagecreatetruecolor($w, $h);
-        imagecopy($canvas, $src, 0, 0, 0, 0, $w, $h);
+        $canvas = null;
+        $outScale = 1.0;
+        $outW = $w;
+        $outH = $h;
 
         for ($row = 0; $row < $rows; $row++) {
             for ($col = 0; $col < $cols; $col++) {
@@ -193,21 +195,124 @@ class StabilityAiService
                     throw new \RuntimeException(__('鮮明化タイルの読み込みに失敗しました。'));
                 }
 
-                // API は解像度を上げて返すため、元タイルサイズへ戻して合成（全体縮小ではない）
                 $ew = imagesx($enhancedGd);
                 $eh = imagesy($enhancedGd);
-                if ($ew !== $tw || $eh !== $th) {
-                    $fitted = imagecreatetruecolor($tw, $th);
-                    imagecopyresampled($fitted, $enhancedGd, 0, 0, 0, 0, $tw, $th, $ew, $eh);
+
+                if ($canvas === null) {
+                    $apiScale = (($ew / max(1, $tw)) + ($eh / max(1, $th))) / 2;
+                    $apiScale = max(1.0, $apiScale);
+                    $outScale = $this->cappedOutputScale($w, $h, $apiScale);
+                    $outW = max(1, (int) round($w * $outScale));
+                    $outH = max(1, (int) round($h * $outScale));
+                    $canvas = imagecreatetruecolor($outW, $outH);
+                    // 隙間埋め用に原本を拡大して下地にする
+                    imagecopyresampled($canvas, $src, 0, 0, 0, 0, $outW, $outH, $w, $h);
+                }
+
+                $destW = max(1, (int) round($tw * $outScale));
+                $destH = max(1, (int) round($th * $outScale));
+                $destX = (int) round($x0 * $outScale);
+                $destY = (int) round($y0 * $outScale);
+                // キャンバス外へはみ出さないようクリップ
+                if ($destX + $destW > $outW) {
+                    $destW = max(1, $outW - $destX);
+                }
+                if ($destY + $destH > $outH) {
+                    $destH = max(1, $outH - $destY);
+                }
+
+                if ($ew !== $destW || $eh !== $destH) {
+                    $fitted = imagecreatetruecolor($destW, $destH);
+                    imagecopyresampled($fitted, $enhancedGd, 0, 0, 0, 0, $destW, $destH, $ew, $eh);
                     imagedestroy($enhancedGd);
                     $enhancedGd = $fitted;
                 }
 
-                imagecopy($canvas, $enhancedGd, $x0, $y0, 0, 0, $tw, $th);
+                imagecopy($canvas, $enhancedGd, $destX, $destY, 0, 0, $destW, $destH);
                 imagedestroy($enhancedGd);
             }
         }
 
+        if (! $canvas) {
+            throw new \RuntimeException(__('鮮明化結果の書き出しに失敗しました。'));
+        }
+
+        $encoded = $this->encodeGdImage($canvas, $outputFormat);
+        imagedestroy($canvas);
+
+        return $encoded;
+    }
+
+    /**
+     * API の拡大率を、出力上限（総ピクセル・長辺）内に収まるよう調整する。
+     */
+    private function cappedOutputScale(int $srcW, int $srcH, float $apiScale): float
+    {
+        $maxPixels = max($srcW * $srcH, (int) config('photos.stability_max_output_pixels', 16_777_216));
+        $maxEdge = max(512, (int) config('photos.stability_max_output_edge', 8192));
+
+        $desiredW = $srcW * $apiScale;
+        $desiredH = $srcH * $apiScale;
+        $fit = 1.0;
+        if ($desiredW * $desiredH > $maxPixels) {
+            $fit = min($fit, sqrt($maxPixels / max(1.0, $desiredW * $desiredH)));
+        }
+        $desiredMaxEdge = max($desiredW, $desiredH);
+        if ($desiredMaxEdge > $maxEdge) {
+            $fit = min($fit, $maxEdge / $desiredMaxEdge);
+        }
+
+        return max(1.0, $apiScale * $fit);
+    }
+
+    /**
+     * 全体アップスケール結果を上限内へ収める（必要時のみ縮小）。
+     *
+     * @param  array{binary: string, mime: string, extension: string}  $enhanced
+     * @return array{binary: string, mime: string, extension: string}
+     */
+    private function capEnhancedBinary(array $enhanced, string $outputFormat): array
+    {
+        $img = @imagecreatefromstring($enhanced['binary']);
+        if (! $img) {
+            return $enhanced;
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $maxPixels = max(1, (int) config('photos.stability_max_output_pixels', 16_777_216));
+        $maxEdge = max(512, (int) config('photos.stability_max_output_edge', 8192));
+        $scale = 1.0;
+        if ($w * $h > $maxPixels) {
+            $scale = min($scale, sqrt($maxPixels / max(1, $w * $h)));
+        }
+        if (max($w, $h) > $maxEdge) {
+            $scale = min($scale, $maxEdge / max($w, $h));
+        }
+
+        if ($scale >= 0.999) {
+            imagedestroy($img);
+
+            return $enhanced;
+        }
+
+        $nw = max(1, (int) round($w * $scale));
+        $nh = max(1, (int) round($h * $scale));
+        $fitted = imagecreatetruecolor($nw, $nh);
+        imagecopyresampled($fitted, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        imagedestroy($img);
+        $encoded = $this->encodeGdImage($fitted, $outputFormat);
+        imagedestroy($fitted);
+
+        return $encoded;
+    }
+
+    /**
+     * @param  \GdImage  $canvas
+     * @return array{binary: string, mime: string, extension: string}
+     */
+    private function encodeGdImage($canvas, string $outputFormat): array
+    {
         ob_start();
         if ($outputFormat === 'png') {
             imagepng($canvas);
@@ -223,7 +328,6 @@ class StabilityAiService
             $ext = 'jpg';
         }
         $out = (string) ob_get_clean();
-        imagedestroy($canvas);
 
         if ($out === '') {
             throw new \RuntimeException(__('鮮明化結果の書き出しに失敗しました。'));

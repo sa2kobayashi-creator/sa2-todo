@@ -1709,7 +1709,7 @@ class PhotoService
         }
 
         if (function_exists('set_time_limit')) {
-            @set_time_limit(240);
+            @set_time_limit(600);
         }
 
         $file = $this->readPhotoFile($source);
