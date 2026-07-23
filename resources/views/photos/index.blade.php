@@ -342,15 +342,23 @@
 
     <div class="photos-lightbox" id="photos-lightbox" hidden>
       <div class="photos-lightbox-backdrop" data-close-lightbox></div>
+      <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
+      <button type="button" class="photos-lightbox-fs" id="photos-lightbox-fs" aria-pressed="false" aria-label="{{ __('全画面') }}">{{ __('全画面') }}</button>
       <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="写真プレビュー">
-        <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
-        <button type="button" class="photos-lightbox-fs" id="photos-lightbox-fs" aria-pressed="false" aria-label="{{ __('全画面') }}">{{ __('全画面') }}</button>
-        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">‹</button>
+        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">
+          <svg class="photos-lightbox-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="photos-lightbox-media" id="photos-lightbox-media">
           <img src="" alt="" id="photos-lightbox-image" />
           <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
         </div>
-        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">›</button>
+        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">
+          <svg class="photos-lightbox-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            <path d="M9.5 5.5L16 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="photos-lightbox-meta">
           <div class="photos-lightbox-info">
             <span class="photos-lightbox-caption" id="photos-lightbox-caption"></span>
