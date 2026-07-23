@@ -142,6 +142,7 @@ class PhotoService
         $archiveEnabled = $this->mediaConfig->pipelineArchivesToBackblaze();
         $cloudinaryEditor = $this->mediaConfig->cloudinaryEditorEnabled();
         $cloudinaryEnabled = $this->mediaConfig->cloudinaryEnabled();
+        $stabilityEnabled = $this->mediaConfig->stabilityEnabled();
 
         // パイプライン＋長期保存時は R2 10GB + B2 10GB = 20GB を合計無料枠とする
         $combinedQuota = $archiveEnabled ? ($quota + $b2Quota) : $quota;
@@ -158,13 +159,26 @@ class PhotoService
             ->count();
         $cloudinaryFreeCredits = max(1, (int) config('photos.cloudinary_free_credits', 25));
 
+        $stabilityEnhanceCount = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->where(function ($q) {
+                $q->where('edit_label', 'AI鮮明化')
+                    ->orWhere('edit_label', 'AI enhanced');
+            })
+            ->count();
+        $stabilityCredits = $stabilityEnabled ? $this->stability->creditBalance() : null;
+
         $primaryLabel = match ($disk) {
             'r2' => 'Cloudflare R2',
             'public' => __('サーバーローカル'),
             default => $disk,
         };
         $diskLabel = $pipelineEnabled
-            ? __('パイプライン').'（'.$primaryLabel.($archiveEnabled ? ' + Backblaze B2' : '').($cloudinaryEditor ? ' + Cloudinary'.__('編集') : '').'）'
+            ? __('パイプライン').'（'.$primaryLabel
+                .($archiveEnabled ? ' + Backblaze B2' : '')
+                .($cloudinaryEditor ? ' + Cloudinary'.__('編集') : '')
+                .($stabilityEnabled ? ' + Stability AI' : '')
+                .'）'
             : $primaryLabel;
 
         $providers = [
@@ -181,6 +195,7 @@ class PhotoService
                 'overagePriceLabel' => $this->formatUsdPerGbMonth($r2Price),
                 'estimatedBillLabel' => $this->formatUsdMonth($r2OverageUsd).__('/月'),
                 'billingNote' => __('無料枠超過分のみ従量課金。転送料は無料。'),
+                'meter' => 'bytes',
             ],
             [
                 'id' => 'backblaze',
@@ -195,6 +210,7 @@ class PhotoService
                 'overagePriceLabel' => $this->formatUsdPerGbMonth($b2Price),
                 'estimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
                 'billingNote' => __('無料枠超過分のみ従量課金（目安）。'),
+                'meter' => 'bytes',
             ],
             [
                 'id' => 'cloudinary',
@@ -211,6 +227,25 @@ class PhotoService
                 'overagePriceLabel' => __('Free は超過課金なし（制限・アップグレード案内）'),
                 'estimatedBillLabel' => '$0'.__('/月'),
                 'billingNote' => __('1クレジット ≒ 1GB保管 または 1GB帯域 または 1,000変換。編集後は一時アセットを削除。'),
+                'meter' => 'credits',
+            ],
+            [
+                'id' => 'stability',
+                'name' => 'Stability AI',
+                'role' => __('AI鮮明化'),
+                'enabled' => $stabilityEnabled,
+                'usedLabel' => $stabilityCredits !== null
+                    ? __('残高 :credits クレジット', ['credits' => rtrim(rtrim(number_format($stabilityCredits, 4, '.', ''), '0'), '.')])
+                    : ($stabilityEnabled ? __('残高を取得できませんでした') : __('—')),
+                'quotaLabel' => __('従量課金（クレジット）'),
+                'count' => $stabilityEnhanceCount,
+                'percent' => 0,
+                'overFreeTier' => false,
+                'overagePriceLabel' => __('リクエストごとにクレジット消費'),
+                'estimatedBillLabel' => __('従量（クレジット）'),
+                'billingNote' => __('写真の AI 鮮明化（Upscale）に使用。残高は platform.stability.ai のダッシュボードでも確認できます。'),
+                'meter' => 'credits',
+                'countLabel' => __('鮮明化 :count 件', ['count' => $stabilityEnhanceCount]),
             ],
         ];
 
@@ -245,6 +280,8 @@ class PhotoService
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
             'cloudinaryEditor' => $cloudinaryEditor,
+            'stabilityEnabled' => $stabilityEnabled,
+            'stabilityEnhanceCount' => $stabilityEnhanceCount,
             'primaryLabel' => $primaryLabel,
             'providers' => $providers,
         ];
@@ -1692,7 +1729,7 @@ class PhotoService
     /**
      * Stability AI で鮮明化し、結果を R2（現行 photos.disk）へ新規保存する。元画像は残す。
      *
-     * @return array<string, mixed>
+     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
      */
     public function enhanceWithStability(int $userId, int $photoId): array
     {
@@ -1711,6 +1748,9 @@ class PhotoService
         if (function_exists('set_time_limit')) {
             @set_time_limit(600);
         }
+
+        $sourceWidth = $source->width ? (int) $source->width : null;
+        $sourceHeight = $source->height ? (int) $source->height : null;
 
         $file = $this->readPhotoFile($source);
         $enhanced = $this->stability->enhanceImage(
@@ -1734,7 +1774,15 @@ class PhotoService
                 true
             );
 
-            return $this->saveEditedImage($userId, $photoId, $uploaded, __('AI鮮明化'));
+            $photo = $this->saveEditedImage($userId, $photoId, $uploaded, __('AI鮮明化'));
+
+            return [
+                'photo' => $photo,
+                'sourceWidth' => $sourceWidth,
+                'sourceHeight' => $sourceHeight,
+                'resultWidth' => isset($photo['width']) ? (int) $photo['width'] : ($enhanced['width'] ?? null),
+                'resultHeight' => isset($photo['height']) ? (int) $photo['height'] : ($enhanced['height'] ?? null),
+            ];
         } finally {
             @unlink($tmp);
         }

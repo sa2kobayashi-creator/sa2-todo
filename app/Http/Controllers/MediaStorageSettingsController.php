@@ -60,9 +60,9 @@ class MediaStorageSettingsController extends Controller
             ],
             MediaStorageSetting::PROVIDER_STABILITY => [
                 [
-                    'mode' => in_array($request->input('mode'), ['fast', 'conservative'], true)
+                    'mode' => in_array($request->input('mode'), ['fast', 'conservative', 'creative'], true)
                         ? (string) $request->input('mode')
-                        : 'fast',
+                        : 'conservative',
                     'output_format' => in_array($request->input('output_format'), ['jpeg', 'png', 'webp'], true)
                         ? (string) $request->input('output_format')
                         : 'jpeg',

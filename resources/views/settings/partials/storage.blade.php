@@ -141,8 +141,9 @@
     </label>
     <label>{{ __('鮮明化モード') }}
       <select name="mode">
-        <option value="fast" @selected(($sSettings['mode'] ?? 'fast') === 'fast')>{{ __('Fast（高速・推奨）') }}</option>
-        <option value="conservative" @selected(($sSettings['mode'] ?? '') === 'conservative')>{{ __('Conservative（高精細・要クレジット多）') }}</option>
+        <option value="fast" @selected(($sSettings['mode'] ?? '') === 'fast')>{{ __('Fast（高速・差は拡大で確認）') }}</option>
+        <option value="conservative" @selected(($sSettings['mode'] ?? 'conservative') === 'conservative')>{{ __('Conservative（顔・人物を保つ・推奨）') }}</option>
+        <option value="creative" @selected(($sSettings['mode'] ?? '') === 'creative')>{{ __('Creative（見た目は綺麗だが別人になりやすい）') }}</option>
       </select>
     </label>
     <label>{{ __('出力形式') }}
@@ -152,9 +153,10 @@
         <option value="webp" @selected(($sSettings['output_format'] ?? '') === 'webp')>WebP</option>
       </select>
     </label>
-    <label>{{ __('Conservative 用プロンプト') }}
-      <input type="text" name="default_prompt" value="{{ $sSettings['default_prompt'] ?? 'high quality clear photograph, sharp details, natural colors' }}" />
+    <label>{{ __('Conservative / Creative 用プロンプト') }}
+      <input type="text" name="default_prompt" value="{{ $sSettings['default_prompt'] ?? 'same people, preserve exact faces and identity, natural photo, mild sharpen, no face swap' }}" />
     </label>
+    <p class="hint">{{ __('Creative はディテールを作り直すため別人に見えることがあります。人物写真は Conservative を選んでください。') }}</p>
     <p class="hint">{{ __('API Key は platform.stability.ai で取得したキーを入力してください。空欄のまま保存すると既存キーを維持します。') }}</p>
     <div class="storage-form-actions">
       <button type="submit" class="button-link">{{ __('保存') }}</button>

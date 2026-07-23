@@ -117,6 +117,9 @@
             @if(!empty($storageStats['cloudinaryEditor']))
               · {{ __('編集') }} = Cloudinary（{{ __('一時のみ・常設保管なし') }}）
             @endif
+            @if(!empty($storageStats['stabilityEnabled']))
+              · {{ __('AI鮮明化') }} = Stability AI
+            @endif
             @if(!empty($storageStats['archiveEnabled']))
               · {{ __('長期保存') }} = Backblaze B2
             @endif
@@ -547,14 +550,14 @@
                 @else
                   <dl class="photos-usage-dl">
                     <div>
-                      <dt>{{ __('使用量') }}</dt>
+                      <dt>{{ ($provider['id'] ?? '') === 'stability' ? __('クレジット残高') : __('使用量') }}</dt>
                       <dd>{{ $provider['usedLabel'] }}</dd>
                     </div>
                     <div>
                       <dt>{{ __('無料枠') }}</dt>
                       <dd>{{ $provider['quotaLabel'] }}</dd>
                     </div>
-                    @if(($provider['id'] ?? '') !== 'cloudinary')
+                    @if(($provider['meter'] ?? 'bytes') === 'bytes')
                       <div>
                         <dt>{{ __('件数') }}</dt>
                         <dd>{{ __('（:count枚）', ['count' => $provider['count']]) }}</dd>
@@ -562,6 +565,11 @@
                       <div>
                         <dt>{{ __('使用率') }}</dt>
                         <dd>{{ $provider['percent'] }}%</dd>
+                      </div>
+                    @elseif(($provider['id'] ?? '') === 'stability')
+                      <div>
+                        <dt>{{ __('鮮明化件数') }}</dt>
+                        <dd>{{ $provider['countLabel'] ?? __('鮮明化 :count 件', ['count' => $provider['count']]) }}</dd>
                       </div>
                     @endif
                     <div>
@@ -579,7 +587,7 @@
                     </div>
                   </dl>
                   <p class="photos-usage-note">{{ $provider['billingNote'] }}</p>
-                  @if(($provider['id'] ?? '') !== 'cloudinary')
+                  @if(($provider['meter'] ?? 'bytes') === 'bytes')
                     <div class="photos-storage-bar photos-usage-mini-bar" role="presentation">
                       <span class="photos-storage-bar-fill{{ !empty($provider['overFreeTier']) ? ' is-warn' : '' }}" style="width: {{ min(100, (float) $provider['percent']) }}%"></span>
                     </div>
@@ -1271,6 +1279,9 @@
           if (photo.editLabel) {
             lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + photo.editLabel
           }
+          if (photo.width && photo.height) {
+            lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + `${photo.width}×${photo.height}`
+          }
           if (deleteForm) deleteForm.action = `/photos/${photo.id}/delete`
           const editForm = document.getElementById('photos-edit-image-form')
           const trimForm = document.getElementById('photos-trim-video-form')
@@ -1718,13 +1729,17 @@
           })
         })
         ;(function openPhotoFromQuery() {
-          const focusId = Number(new URLSearchParams(window.location.search).get('photo') || 0)
+          const params = new URLSearchParams(window.location.search)
+          const focusId = Number(params.get('photo') || 0)
+          const zoom = Number(params.get('zoom') || 0)
           if (!focusId || !Array.isArray(photos)) return
           const idx = photos.findIndex((p) => Number(p.id) === focusId)
           if (idx < 0) return
           openLightbox(idx)
+          if (zoom > 1) setLightboxZoom(zoom)
           const url = new URL(window.location.href)
           url.searchParams.delete('photo')
+          url.searchParams.delete('zoom')
           window.history.replaceState({}, '', url.pathname + url.search + url.hash)
         })()
         document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
@@ -3308,6 +3323,7 @@
               if (newId) {
                 const url = new URL(window.location.href)
                 url.searchParams.set('photo', String(newId))
+                url.searchParams.set('zoom', String(data.zoom || 2))
                 window.location.href = url.toString()
               } else {
                 window.location.reload()

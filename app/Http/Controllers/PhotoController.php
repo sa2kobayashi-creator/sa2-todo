@@ -353,15 +353,28 @@ class PhotoController extends Controller
     public function stabilityEnhance(Request $request, int $id)
     {
         try {
-            $photo = $this->photos->enhanceWithStability((int) $request->user()->id, $id);
+            $result = $this->photos->enhanceWithStability((int) $request->user()->id, $id);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
 
+        $photo = $result['photo'];
+        $from = ($result['sourceWidth'] && $result['sourceHeight'])
+            ? $result['sourceWidth'].'×'.$result['sourceHeight']
+            : null;
+        $to = ($result['resultWidth'] && $result['resultHeight'])
+            ? $result['resultWidth'].'×'.$result['resultHeight']
+            : null;
+
+        $message = ($from && $to)
+            ? __('AI鮮明化版を保存しました（:from → :to）。拡大表示で差を確認できます。', ['from' => $from, 'to' => $to])
+            : __('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。');
+
         return response()->json([
             'ok' => true,
-            'message' => __('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。'),
+            'message' => $message,
             'photo' => $photo,
+            'zoom' => 2,
         ]);
     }
 

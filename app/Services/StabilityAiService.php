@@ -36,9 +36,9 @@ class StabilityAiService
 
         $row = $this->config->get(MediaStorageSetting::PROVIDER_STABILITY);
         $apiKey = (string) $row->secret('api_key', '');
-        $mode = (string) $row->setting('mode', 'fast');
-        if (! in_array($mode, ['fast', 'conservative'], true)) {
-            $mode = 'fast';
+        $mode = (string) $row->setting('mode', 'conservative');
+        if (! in_array($mode, ['fast', 'conservative', 'creative'], true)) {
+            $mode = 'conservative';
         }
         $outputFormat = (string) $row->setting('output_format', 'jpeg');
         if (! in_array($outputFormat, ['jpeg', 'png', 'webp'], true)) {
@@ -46,7 +46,7 @@ class StabilityAiService
         }
         $prompt = trim((string) $row->setting('default_prompt', ''));
         if ($prompt === '') {
-            $prompt = 'high quality clear photograph, sharp details, natural colors';
+            $prompt = 'same people, preserve exact faces and identity, natural photo, mild sharpen, no face swap';
         }
 
         $maxPixels = max(64 * 64, (int) config('photos.stability_max_input_pixels', 1_048_576));
@@ -63,6 +63,11 @@ class StabilityAiService
         }
 
         try {
+            // Creative は全体を1回処理（タイルだと不自然になる）。1MP超は入力だけ縮小してからアップスケール。
+            if ($mode === 'creative') {
+                return $this->enhanceCreative($apiKey, $src, $prompt, $outputFormat, $maxPixels);
+            }
+
             if (($w * $h) <= $maxPixels) {
                 return $this->enhanceWholeImage($apiKey, $src, $mode, $prompt, $outputFormat, $filename);
             }
@@ -111,8 +116,44 @@ class StabilityAiService
     }
 
     /**
+     * アカウントの残りクレジット。取得失敗時は null。
+     */
+    public function creditBalance(): ?float
+    {
+        if (! $this->isReady()) {
+            return null;
+        }
+
+        $row = $this->config->get(MediaStorageSetting::PROVIDER_STABILITY);
+        $apiKey = (string) $row->secret('api_key', '');
+        if ($apiKey === '') {
+            return null;
+        }
+
+        try {
+            $response = Http::withToken($apiKey)
+                ->timeout(5)
+                ->acceptJson()
+                ->get('https://api.stability.ai/v1/user/balance');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $credits = data_get($response->json(), 'credits');
+        if (! is_numeric($credits)) {
+            return null;
+        }
+
+        return round((float) $credits, 4);
+    }
+
+    /**
      * @param  \GdImage  $src
-     * @return array{binary: string, mime: string, extension: string}
+     * @return array{binary: string, mime: string, extension: string, width: int, height: int}
      */
     private function enhanceWholeImage(
         string $apiKey,
@@ -133,6 +174,76 @@ class StabilityAiService
         } finally {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * Creative Upscale: 見た目の改善が分かりやすい。入力は最大1MPに収めて1回処理する。
+     *
+     * @param  \GdImage  $src
+     * @return array{binary: string, mime: string, extension: string, width: int, height: int}
+     */
+    private function enhanceCreative(
+        string $apiKey,
+        $src,
+        string $prompt,
+        string $outputFormat,
+        int $maxPixels
+    ): array {
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $input = $src;
+        $scaled = null;
+
+        if (($w * $h) > $maxPixels) {
+            [$nw, $nh] = $this->fitWithinMaxPixels($w, $h, $maxPixels);
+            $scaled = imagecreatetruecolor($nw, $nh);
+            imagecopyresampled($scaled, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            $input = $scaled;
+        }
+
+        $tmp = $this->gdToTempJpeg($input);
+        if ($scaled) {
+            imagedestroy($scaled);
+        }
+
+        try {
+            $enhanced = $this->upscaleCreative($apiKey, $tmp, 'creative.jpg', $prompt, $outputFormat);
+
+            return $this->capEnhancedBinary($enhanced, $outputFormat);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /**
+     * API 上限未満になるようアスペクト比を保って縮小サイズを決める。
+     * （sqrt + round だと 1,048,576 をわずかに超えることがある）
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function fitWithinMaxPixels(int $w, int $h, int $maxPixels): array
+    {
+        $maxPixels = max(64 * 64, $maxPixels);
+        if ($w < 1 || $h < 1 || ($w * $h) <= $maxPixels) {
+            return [max(1, $w), max(1, $h)];
+        }
+
+        // わずかな余裕を見てから整数化し、それでも超過したら段階的に縮める
+        $scale = sqrt(($maxPixels * 0.995) / ($w * $h));
+        $nw = max(64, (int) floor($w * $scale));
+        $nh = max(64, (int) floor($h * $scale));
+
+        while (($nw * $nh) > $maxPixels && ($nw > 64 || $nh > 64)) {
+            if ($nw >= $nh && $nw > 64) {
+                $nw--;
+            } elseif ($nh > 64) {
+                $nh--;
+            } else {
+                $nw = max(64, $nw - 1);
+            }
+        }
+
+        return [$nw, $nh];
     }
 
     /**
@@ -269,13 +380,13 @@ class StabilityAiService
      * 全体アップスケール結果を上限内へ収める（必要時のみ縮小）。
      *
      * @param  array{binary: string, mime: string, extension: string}  $enhanced
-     * @return array{binary: string, mime: string, extension: string}
+     * @return array{binary: string, mime: string, extension: string, width: int, height: int}
      */
     private function capEnhancedBinary(array $enhanced, string $outputFormat): array
     {
         $img = @imagecreatefromstring($enhanced['binary']);
         if (! $img) {
-            return $enhanced;
+            return $enhanced + ['width' => 0, 'height' => 0];
         }
 
         $w = imagesx($img);
@@ -291,9 +402,10 @@ class StabilityAiService
         }
 
         if ($scale >= 0.999) {
+            $encoded = $this->encodeGdImage($img, $outputFormat);
             imagedestroy($img);
 
-            return $enhanced;
+            return $encoded;
         }
 
         $nw = max(1, (int) round($w * $scale));
@@ -313,6 +425,8 @@ class StabilityAiService
      */
     private function encodeGdImage($canvas, string $outputFormat): array
     {
+        $this->applyMildSharpen($canvas);
+
         ob_start();
         if ($outputFormat === 'png') {
             imagepng($canvas);
@@ -337,7 +451,24 @@ class StabilityAiService
             'binary' => $out,
             'mime' => $mime,
             'extension' => $ext,
+            'width' => imagesx($canvas),
+            'height' => imagesy($canvas),
         ];
+    }
+
+    /** @param  \GdImage  $img */
+    private function applyMildSharpen($img): void
+    {
+        if (! function_exists('imageconvolution')) {
+            return;
+        }
+        // 過度な加工感を避ける軽いシャープ
+        $matrix = [
+            [0.0, -0.6, 0.0],
+            [-0.6, 3.4, -0.6],
+            [0.0, -0.6, 0.0],
+        ];
+        @imageconvolution($img, $matrix, 1.0, 0.0);
     }
 
     /**
@@ -382,23 +513,7 @@ class StabilityAiService
     /**
      * @return array{binary: string, mime: string, extension: string}
      */
-    private function upscaleFast(string $apiKey, string $tmpPath, string $filename, string $outputFormat): array
-    {
-        $response = Http::withToken($apiKey)
-            ->timeout(180)
-            ->accept('image/*')
-            ->attach('image', (string) file_get_contents($tmpPath), $filename)
-            ->post('https://api.stability.ai/v2beta/stable-image/upscale/fast', [
-                'output_format' => $outputFormat,
-            ]);
-
-        return $this->parseImageResponse($response, $outputFormat);
-    }
-
-    /**
-     * @return array{binary: string, mime: string, extension: string}
-     */
-    private function upscaleConservative(
+    private function upscaleCreative(
         string $apiKey,
         string $tmpPath,
         string $filename,
@@ -409,9 +524,10 @@ class StabilityAiService
             ->timeout(180)
             ->accept('application/json')
             ->attach('image', (string) file_get_contents($tmpPath), $filename)
-            ->post('https://api.stability.ai/v2beta/stable-image/upscale/conservative', [
+            ->post('https://api.stability.ai/v2beta/stable-image/upscale/creative', [
                 'prompt' => $prompt,
                 'output_format' => $outputFormat,
+                'creativity' => '0.2',
             ]);
 
         $contentType = strtolower((string) $response->header('Content-Type'));
@@ -442,20 +558,92 @@ class StabilityAiService
             throw new \RuntimeException(__('Stability AI から生成IDを取得できませんでした。'));
         }
 
-        return $this->pollResult($apiKey, $id, $outputFormat);
+        return $this->pollResult($apiKey, $id, $outputFormat, 'creative');
     }
 
     /**
      * @return array{binary: string, mime: string, extension: string}
      */
-    private function pollResult(string $apiKey, string $id, string $outputFormat): array
+    private function upscaleFast(string $apiKey, string $tmpPath, string $filename, string $outputFormat): array
     {
-        $candidates = [
-            'https://api.stability.ai/v2beta/stable-image/upscale/conservative/result/'.$id,
-            'https://api.stability.ai/v2beta/results/'.$id,
-        ];
+        $response = Http::withToken($apiKey)
+            ->timeout(180)
+            ->accept('image/*')
+            ->attach('image', (string) file_get_contents($tmpPath), $filename)
+            ->post('https://api.stability.ai/v2beta/stable-image/upscale/fast', [
+                'output_format' => $outputFormat,
+            ]);
 
-        $deadline = microtime(true) + 120;
+        return $this->parseImageResponse($response, $outputFormat);
+    }
+
+    /**
+     * @return array{binary: string, mime: string, extension: string}
+     */
+    private function upscaleConservative(
+        string $apiKey,
+        string $tmpPath,
+        string $filename,
+        string $prompt,
+        string $outputFormat
+    ): array {
+        $response = Http::withToken($apiKey)
+            ->timeout(180)
+            ->accept('application/json')
+            ->attach('image', (string) file_get_contents($tmpPath), $filename)
+            ->post('https://api.stability.ai/v2beta/stable-image/upscale/conservative', [
+                'prompt' => $prompt,
+                'output_format' => $outputFormat,
+                'creativity' => '0.2',
+            ]);
+
+        $contentType = strtolower((string) $response->header('Content-Type'));
+        if ($response->successful() && str_starts_with($contentType, 'image/')) {
+            return $this->parseImageResponse($response, $outputFormat);
+        }
+
+        if (! $response->successful()) {
+            throw new \RuntimeException($this->errorMessage($response));
+        }
+
+        $id = (string) data_get($response->json(), 'id', '');
+        if ($id === '') {
+            $b64 = (string) data_get($response->json(), 'image', '');
+            if ($b64 !== '') {
+                $binary = base64_decode($b64, true);
+                if ($binary === false || $binary === '') {
+                    throw new \RuntimeException(__('Stability AI の応答画像を解読できませんでした。'));
+                }
+
+                return [
+                    'binary' => $binary,
+                    'mime' => $this->mimeForFormat($outputFormat),
+                    'extension' => $outputFormat === 'jpeg' ? 'jpg' : $outputFormat,
+                ];
+            }
+
+            throw new \RuntimeException(__('Stability AI から生成IDを取得できませんでした。'));
+        }
+
+        return $this->pollResult($apiKey, $id, $outputFormat, 'conservative');
+    }
+
+    /**
+     * @return array{binary: string, mime: string, extension: string}
+     */
+    private function pollResult(string $apiKey, string $id, string $outputFormat, string $kind = 'conservative'): array
+    {
+        $candidates = $kind === 'creative'
+            ? [
+                'https://api.stability.ai/v2beta/stable-image/upscale/creative/result/'.$id,
+                'https://api.stability.ai/v2beta/results/'.$id,
+            ]
+            : [
+                'https://api.stability.ai/v2beta/stable-image/upscale/conservative/result/'.$id,
+                'https://api.stability.ai/v2beta/results/'.$id,
+            ];
+
+        $deadline = microtime(true) + 180;
         $lastError = __('鮮明化の完了待ちがタイムアウトしました。');
 
         while (microtime(true) < $deadline) {
