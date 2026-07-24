@@ -112,6 +112,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/video/youtube/search', [VideoController::class, 'searchYoutube']);
         Route::post('/video/youtube', [VideoController::class, 'storeYoutube']);
         Route::post('/video/youtube/{id}/delete', [VideoController::class, 'destroyYoutube'])->whereNumber('id');
+        Route::post('/video/youtube/{id}/move', [VideoController::class, 'moveYoutube'])->whereNumber('id');
+        Route::post('/video/libraries', [VideoController::class, 'storeLibrary']);
+        Route::post('/video/libraries/{id}/update', [VideoController::class, 'updateLibrary'])->whereNumber('id');
+        Route::post('/video/libraries/{id}/delete', [VideoController::class, 'destroyLibrary'])->whereNumber('id');
     });
 
     Route::get('/groups', [GroupController::class, 'index']);

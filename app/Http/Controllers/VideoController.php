@@ -19,30 +19,42 @@ class VideoController extends Controller
     public function index(Request $request)
     {
         $userId = (int) $request->user()->id;
-        $uploads = $this->photos->listVideos($userId);
-        $youtube = $this->youtube->listForUser($userId);
+        $libraries = $this->youtube->listLibraries($userId);
+        $defaultId = (int) collect($libraries)->firstWhere('isDefault', true)['id'];
+        $libraryId = (int) ($request->query('library') ?: $defaultId);
+        $current = collect($libraries)->firstWhere('id', $libraryId);
+        if (! $current) {
+            $libraryId = $defaultId;
+            $current = collect($libraries)->firstWhere('id', $libraryId);
+        }
 
+        $youtube = $this->youtube->listForUser($userId, $libraryId);
         $playlist = [];
         foreach ($youtube as $item) {
             $playlist[] = $item;
         }
-        foreach ($uploads as $video) {
-            $playlist[] = [
-                'id' => $video['id'],
-                'source' => 'upload',
-                'title' => $video['caption'] ?: ($video['originalName'] ?: __('動画')),
-                'url' => $video['fileUrl'] ?? ('/photos/'.$video['id'].'/file'),
-                'embedUrl' => null,
-                'thumbUrl' => $video['thumbUrl'] ?? null,
-                'meta' => $video['takenAt'] ?? '',
-                'photoId' => $video['id'],
-            ];
+
+        // アップロード動画はマイリスト（デフォルト）にのみ表示
+        if (! empty($current['isDefault'])) {
+            foreach ($this->photos->listVideos($userId) as $video) {
+                $playlist[] = [
+                    'id' => $video['id'],
+                    'source' => 'upload',
+                    'title' => $video['caption'] ?: ($video['originalName'] ?: __('動画')),
+                    'url' => $video['fileUrl'] ?? ('/photos/'.$video['id'].'/file'),
+                    'embedUrl' => null,
+                    'thumbUrl' => $video['thumbUrl'] ?? null,
+                    'meta' => $video['takenAt'] ?? '',
+                    'photoId' => $video['id'],
+                ];
+            }
         }
 
         return view('video.index', [
             'playlist' => $playlist,
-            'youtubeVideos' => $youtube,
-            'uploadedVideos' => $uploads,
+            'libraries' => $libraries,
+            'currentLibrary' => $current,
+            'currentLibraryId' => $libraryId,
             'youtubeSearchReady' => $this->youtube->isSearchReady(),
             'maxUploadLabel' => $this->formatBytes($this->photos->maxVideoUploadBytes()),
             ...$this->flashFromQuery($request),
@@ -93,7 +105,11 @@ class VideoController extends Controller
 
     public function storeYoutube(Request $request)
     {
-        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video');
+        $libraryId = (int) $request->input('library_id', 0) ?: null;
+        $returnTo = $this->safeReturnTo(
+            $request->input('returnTo'),
+            '/video'.($libraryId ? '?library='.$libraryId : '')
+        );
         $wantsJson = $request->expectsJson() || $request->ajax();
         $userId = (int) $request->user()->id;
         $youtubeId = trim((string) $request->input('youtube_id', ''));
@@ -107,10 +123,16 @@ class VideoController extends Controller
                     $userId,
                     $youtubeId,
                     $title !== '' ? $title : null,
-                    $thumb !== '' ? $thumb : null
+                    $thumb !== '' ? $thumb : null,
+                    $libraryId
                 );
             } else {
-                $item = $this->youtube->addFromUrl($userId, $url, $title !== '' ? $title : null);
+                $item = $this->youtube->addFromUrl(
+                    $userId,
+                    $url,
+                    $title !== '' ? $title : null,
+                    $libraryId
+                );
             }
         } catch (\InvalidArgumentException $e) {
             if ($wantsJson) {
@@ -139,6 +161,66 @@ class VideoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('YouTube動画を削除しました。'));
+    }
+
+    public function storeLibrary(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video');
+        try {
+            $library = $this->youtube->createLibrary(
+                (int) $request->user()->id,
+                (string) $request->input('name', '')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage(
+            '/video?library='.$library['id'],
+            __('ライブラリ「:name」を作成しました。', ['name' => $library['name']])
+        );
+    }
+
+    public function updateLibrary(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video?library='.$id);
+        try {
+            $this->youtube->renameLibrary(
+                (int) $request->user()->id,
+                $id,
+                (string) $request->input('name', '')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ライブラリ名を変更しました。'));
+    }
+
+    public function destroyLibrary(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video');
+        try {
+            if (! $this->youtube->deleteLibrary((int) $request->user()->id, $id)) {
+                return $this->redirectWithMessage($returnTo, __('ライブラリが見つかりません。'), 'error');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ライブラリを削除しました。動画はマイリストへ移動しました。'));
+    }
+
+    public function moveYoutube(Request $request, int $id)
+    {
+        $libraryId = (int) $request->input('library_id', 0);
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video?library='.$libraryId);
+        $moved = $this->youtube->moveToLibrary((int) $request->user()->id, $id, $libraryId);
+        if (! $moved) {
+            return $this->redirectWithMessage($returnTo, __('動画が見つかりません。'), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ライブラリへ移動しました。'));
     }
 
     private function formatBytes(int $bytes): string

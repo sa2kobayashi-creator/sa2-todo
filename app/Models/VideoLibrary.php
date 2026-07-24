@@ -4,24 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class YoutubeVideo extends Model
+class VideoLibrary extends Model
 {
     protected $fillable = [
         'user_id',
-        'video_library_id',
-        'youtube_id',
-        'title',
-        'url',
-        'thumbnail_url',
+        'name',
+        'is_default',
         'sort_order',
     ];
 
     protected function casts(): array
     {
         return [
+            'is_default' => 'boolean',
             'sort_order' => 'integer',
-            'video_library_id' => 'integer',
         ];
     }
 
@@ -30,8 +28,8 @@ class YoutubeVideo extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function library(): BelongsTo
+    public function youtubeVideos(): HasMany
     {
-        return $this->belongsTo(VideoLibrary::class, 'video_library_id');
+        return $this->hasMany(YoutubeVideo::class);
     }
 }

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('動画') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ @filemtime(public_path('app.css')) ?: time() }}" />
   </head>
   <body class="media-player-page video-page">
     @include('partials.header', ['active' => 'video'])
@@ -64,12 +64,14 @@
         <h2 class="media-list-title">{{ __('YouTubeリンクを追加') }}</h2>
         <form method="post" action="/video/youtube" class="media-youtube-form">
           @csrf
-          <input type="hidden" name="returnTo" value="/video" />
+          <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+          <input type="hidden" name="library_id" value="{{ $currentLibraryId }}" />
           <label>
             {{ __('YouTube URL') }}
             <input
               type="url"
               name="youtube_url"
+              class="media-field-input"
               required
               placeholder="https://www.youtube.com/watch?v=... または https://youtu.be/..."
               autocomplete="off"
@@ -77,10 +79,11 @@
           </label>
           <label>
             {{ __('タイトル（任意）') }}
-            <input type="text" name="title" maxlength="255" placeholder="{{ __('未入力なら自動取得') }}" autocomplete="off" />
+            <input type="text" name="title" class="media-field-input" maxlength="255" placeholder="{{ __('未入力なら自動取得') }}" autocomplete="off" />
           </label>
-          <button type="submit" class="button-link">{{ __('リンクを追加') }}</button>
+          <button type="submit" class="button-link media-youtube-submit">{{ __('リンクを追加') }}</button>
         </form>
+        <p class="hint">{{ __('追加先: :name', ['name' => $currentLibrary['name'] ?? __('マイリスト')]) }}</p>
       </section>
 
       <section class="panel media-player-stage media-player-stage-video">
@@ -103,10 +106,52 @@
         </div>
       </section>
 
-      <section class="panel">
-        <h2 class="media-list-title">{{ __('マイリスト') }}</h2>
+      <section class="panel media-library-panel">
+        <div class="media-library-head">
+          <h2 class="media-list-title">{{ __('ライブラリ') }}</h2>
+          <form method="post" action="/video/libraries" class="media-library-create">
+            @csrf
+            <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+            <input type="text" name="name" class="media-field-input" maxlength="120" required placeholder="{{ __('新しいライブラリ名') }}" />
+            <button type="submit" class="button-link">{{ __('ライブラリを作成') }}</button>
+          </form>
+        </div>
+
+        <div class="media-library-tabs" role="tablist" aria-label="{{ __('ライブラリ') }}">
+          @foreach($libraries as $lib)
+            <a
+              href="/video?library={{ $lib['id'] }}"
+              class="media-library-tab {{ (int) $lib['id'] === (int) $currentLibraryId ? 'is-active' : '' }}"
+              role="tab"
+              aria-selected="{{ (int) $lib['id'] === (int) $currentLibraryId ? 'true' : 'false' }}"
+            >
+              <span>{{ $lib['name'] }}</span>
+              <span class="hint">{{ $lib['videoCount'] }}</span>
+            </a>
+          @endforeach
+        </div>
+
+        @if(empty($currentLibrary['isDefault']))
+          <div class="media-library-manage">
+            <form method="post" action="/video/libraries/{{ $currentLibraryId }}/update" class="media-library-rename">
+              @csrf
+              <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+              <input type="text" name="name" class="media-field-input" value="{{ $currentLibrary['name'] ?? '' }}" maxlength="120" required />
+              <button type="submit" class="secondary">{{ __('名前を変更') }}</button>
+            </form>
+            <form method="post" action="/video/libraries/{{ $currentLibraryId }}/delete" onsubmit='return confirm(@json(__('このライブラリを削除しますか？動画はマイリストへ移動します。')))'>
+              @csrf
+              <input type="hidden" name="returnTo" value="/video" />
+              <button type="submit" class="text-btn danger">{{ __('ライブラリを削除') }}</button>
+            </form>
+          </div>
+        @else
+          <p class="hint">{{ __('マイリストにはアップロードしたMP4も表示されます。') }}</p>
+        @endif
+
+        <h3 class="media-list-subtitle">{{ $currentLibrary['name'] ?? __('マイリスト') }}</h3>
         @if(count($playlist) === 0)
-          <p class="hint">{{ __('まだ動画がありません。検索結果から追加するか、リンク／MP4を登録してください。') }}</p>
+          <p class="hint">{{ __('このライブラリに動画がありません。') }}</p>
         @else
           <ul class="media-track-list media-video-list" id="video-track-list">
             @foreach($playlist as $index => $item)
@@ -142,9 +187,23 @@
                   </span>
                 </button>
                 @if(($item['source'] ?? '') === 'youtube')
+                  @if(count($libraries) > 1)
+                    <form method="post" action="/video/youtube/{{ $item['id'] }}/move" class="media-move-form">
+                      @csrf
+                      <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+                      <select name="library_id" aria-label="{{ __('移動先') }}" onchange="this.form.submit()">
+                        <option value="">{{ __('移動…') }}</option>
+                        @foreach($libraries as $lib)
+                          @if((int) $lib['id'] !== (int) $currentLibraryId)
+                            <option value="{{ $lib['id'] }}">{{ $lib['name'] }}</option>
+                          @endif
+                        @endforeach
+                      </select>
+                    </form>
+                  @endif
                   <form method="post" action="/video/youtube/{{ $item['id'] }}/delete" onsubmit='return confirm(@json(__('このYouTube動画を削除しますか？')))'>
                     @csrf
-                    <input type="hidden" name="returnTo" value="/video" />
+                    <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
                     <button type="submit" class="text-btn danger">{{ __('削除') }}</button>
                   </form>
                 @else
@@ -158,7 +217,22 @@
     </main>
     <script>
       (function () {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+        const videoCfg = {
+          csrf: document.querySelector('meta[name="csrf-token"]')?.content || '',
+          searchReady: @json(!empty($youtubeSearchReady)),
+          libraryId: @json((int) $currentLibraryId),
+          strings: {
+            searching: @json(__('検索中…')),
+            noResults: @json(__('該当する動画がありません。')),
+            searchFailed: @json(__('検索に失敗しました。')),
+            play: @json(__('再生')),
+            save: @json(__('ライブラリに追加')),
+            saved: @json(__('追加しました')),
+            saveFailed: @json(__('追加に失敗しました')),
+            notReady: @json(__('YouTube検索が未設定です。')),
+          },
+        };
+        const csrf = videoCfg.csrf
         const player = document.getElementById('video-player')
         const youtube = document.getElementById('youtube-player')
         const localWrap = document.getElementById('video-local-wrap')
@@ -167,17 +241,8 @@
         const metaEl = document.getElementById('video-now-meta')
         const buttons = () => [...document.querySelectorAll('.media-video-play')]
         const uploadInput = document.querySelector('.media-upload-form input[type="file"]')
-        const searchReady = @json(!empty($youtubeSearchReady))
-        const strings = {
-          searching: @json(__('検索中…')),
-          noResults: @json(__('該当する動画がありません。')),
-          searchFailed: @json(__('検索に失敗しました。')),
-          play: @json(__('再生')),
-          save: @json(__('リストに追加')),
-          saved: @json(__('追加しました')),
-          saveFailed: @json(__('追加に失敗しました')),
-          notReady: @json(__('YouTube検索が未設定です。')),
-        }
+        const searchReady = Boolean(videoCfg.searchReady)
+        const strings = videoCfg.strings
 
         uploadInput?.addEventListener('change', () => {
           if (uploadInput.files?.length) uploadInput.closest('form')?.submit()
@@ -315,6 +380,7 @@
                     youtube_id: item.youtubeId,
                     title: item.title,
                     thumb_url: item.thumbUrl,
+                    library_id: videoCfg.libraryId,
                   }),
                 })
                 const data = await res.json().catch(() => ({}))
