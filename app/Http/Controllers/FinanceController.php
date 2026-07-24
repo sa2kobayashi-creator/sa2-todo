@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\FinanceCsvService;
 use App\Services\FinanceService;
+use App\Services\FinanceVoiceParseService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -14,6 +16,7 @@ class FinanceController extends Controller
     public function __construct(
         private FinanceService $finance,
         private FinanceCsvService $financeCsv,
+        private FinanceVoiceParseService $voiceParse,
     ) {}
 
     private function actAsUser(Request $request): void
@@ -60,6 +63,8 @@ class FinanceController extends Controller
             'expenseCategoryOther' => $this->finance->expenseCategoryOther(),
             'expenseCategoryCustom' => $this->finance->customExpenseCategoryLabels(),
             'expenseCategoryLabels' => $this->finance->expenseCategoryLabels(),
+            'voiceAiReady' => $this->voiceParse->isReady(),
+            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
             'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
@@ -148,6 +153,49 @@ class FinanceController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, '取引を更新しました');
+    }
+
+    public function parseVoice(Request $request): JsonResponse
+    {
+        $this->actAsUser($request);
+        $transcript = trim((string) $request->input('transcript', ''));
+        if ($transcript === '') {
+            return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        try {
+            $accounts = array_map(static function (array $account): array {
+                return [
+                    'id' => (int) $account['id'],
+                    'name' => (string) $account['name'],
+                    'kind' => (string) ($account['kind'] ?? ''),
+                    'kindLabel' => (string) ($account['kindLabel'] ?? ''),
+                    'region' => (string) ($account['region'] ?? ''),
+                ];
+            }, $this->finance->listAccounts());
+
+            $parsed = $this->voiceParse->parse(
+                $transcript,
+                $accounts,
+                $this->finance->expenseCategoryLabels(),
+                $this->finance->todayIso()
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() ?: __('音声の解析に失敗しました。'),
+            ], 500);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'parsed' => $parsed,
+            'provider' => $parsed['provider'] ?? null,
+        ]);
     }
 
     public function destroy(Request $request, int $id)

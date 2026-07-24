@@ -189,7 +189,56 @@
       @elseif(($section ?? '') === 'ai')
       <div class="panel" id="ai-settings">
         <h2>{{ __('AI設定') }}</h2>
-        <p class="hint">{{ __('翻訳は DeepL のAPIキーを登録します。無料枠・有料の区分と日次／月次上限を設定できます。複数キーがあれば使用制限時に自動切替します。') }}</p>
+        <p class="hint">{{ __('翻訳は DeepL、入出金の音声入力は ChatGPT / Gemini を使います。') }}</p>
+
+        @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; @endphp
+        <div class="storage-settings ai-llm-panel" id="ai-llm-settings">
+          <h3 class="ai-settings-subtitle">{{ __('LLM（入出金音声入力）') }}</h3>
+          <p class="hint">{{ __('Web Speech API で文字起こしした文言を、選択した LLM が JSON に変換します。ChatGPT と Gemini を設定し、使用する方を切り替えられます。') }}</p>
+          @if(!empty($llm['last_test_message']))
+            <p class="hint storage-test-result {{ ($llm['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
+              {{ $llm['last_test_message'] }}
+              @if(!empty($llm['last_tested_at']))
+                <span class="inline-hint">({{ $llm['last_tested_at'] }})</span>
+              @endif
+            </p>
+          @endif
+          <form method="post" action="/settings/ai/llm" class="storage-provider-form" id="ai-llm-form">
+            @csrf
+            <label class="storage-enable">
+              <input type="checkbox" name="enabled" value="1" @checked(!empty($llm['enabled'])) />
+              {{ __('有効にする') }}
+            </label>
+            <label>
+              {{ __('使用するプロバイダ') }}
+              <select name="active_provider" id="ai-llm-active-provider">
+                <option value="openai" @selected(($llmSettingsArr['active_provider'] ?? '') === 'openai')>ChatGPT (OpenAI)</option>
+                <option value="gemini" @selected(($llmSettingsArr['active_provider'] ?? '') === 'gemini')>Gemini (Google)</option>
+              </select>
+            </label>
+            <label>
+              {{ __('OpenAI APIキー') }}
+              <input type="password" name="openai_api_key" value="{{ $llm['openai_api_key_masked'] ?? '' }}" placeholder="sk-..." autocomplete="off" />
+            </label>
+            <label>
+              {{ __('OpenAI モデル') }}
+              <input type="text" name="openai_model" value="{{ $llmSettingsArr['openai_model'] ?? 'gpt-4o-mini' }}" placeholder="gpt-4o-mini" />
+            </label>
+            <label>
+              {{ __('Gemini APIキー') }}
+              <input type="password" name="gemini_api_key" value="{{ $llm['gemini_api_key_masked'] ?? '' }}" placeholder="AIza..." autocomplete="off" />
+            </label>
+            <label>
+              {{ __('Gemini モデル') }}
+              <input type="text" name="gemini_model" value="{{ $llmSettingsArr['gemini_model'] ?? 'gemini-2.0-flash' }}" placeholder="gemini-2.0-flash" />
+            </label>
+            <div class="storage-form-actions">
+              <button type="submit" class="button-link">{{ __('保存') }}</button>
+              <button type="button" class="secondary" id="ai-llm-test-btn">{{ __('接続テスト') }}</button>
+              <span class="storage-test-live hint" id="ai-llm-test-live"></span>
+            </div>
+          </form>
+        </div>
 
         <h3 class="ai-settings-subtitle">{{ __('AI翻訳（DeepL）') }}</h3>
         <p class="hint">{{ __('複数のAPIキーを登録すると、使用制限に達した場合に自動的に次のキーへ切り替わります。') }}</p>
@@ -602,6 +651,40 @@
             fetchUsageBtn.textContent = originalText;
           }
         });
+
+        const llmTestBtn = document.getElementById('ai-llm-test-btn')
+        const llmTestLive = document.getElementById('ai-llm-test-live')
+        const llmProviderSelect = document.getElementById('ai-llm-active-provider')
+        llmTestBtn?.addEventListener('click', async () => {
+          llmTestBtn.disabled = true
+          if (llmTestLive) llmTestLive.textContent = @json(__('テスト中...'))
+          try {
+            const res = await fetch('/settings/ai/llm/test', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                provider: llmProviderSelect?.value || '',
+              }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (llmTestLive) {
+              llmTestLive.textContent = data.message || (data.ok ? @json(__('成功')) : @json(__('失敗')))
+              llmTestLive.classList.toggle('is-ok', Boolean(data.ok))
+              llmTestLive.classList.toggle('is-fail', !data.ok)
+            }
+          } catch (_) {
+            if (llmTestLive) {
+              llmTestLive.textContent = @json(__('通信エラーが発生しました'))
+              llmTestLive.classList.add('is-fail')
+            }
+          } finally {
+            llmTestBtn.disabled = false
+          }
+        })
       })();
     </script>
     @endif

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiLlmSettingsController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
@@ -108,6 +109,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/finance/import', [FinanceController::class, 'importCsv']);
         Route::post('/finance/bulk/delete', [FinanceController::class, 'bulkDestroy']);
         Route::post('/finance', [FinanceController::class, 'store']);
+        Route::post('/finance/voice/parse', [FinanceController::class, 'parseVoice']);
         Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
         Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
         Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
@@ -157,6 +159,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+
+        Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
+        Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
             ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');

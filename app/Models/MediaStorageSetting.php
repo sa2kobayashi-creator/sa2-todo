@@ -16,6 +16,9 @@ class MediaStorageSetting extends Model
 
     public const PROVIDER_PIPELINE = 'pipeline';
 
+    /** ChatGPT / Gemini（入出金音声入力など） */
+    public const PROVIDER_LLM = 'llm';
+
     protected $fillable = [
         'provider',
         'enabled',

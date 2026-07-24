@@ -182,6 +182,43 @@
             </div>
           </div>
         </form>
+
+        <div class="finance-voice-entry" id="finance-voice-entry">
+          <div class="finance-voice-entry-head">
+            <strong>{{ __('音声入力') }}</strong>
+            @if(!empty($voiceAiReady))
+              <span class="hint">{{ __('使用中:') }} {{ $voiceAiProvider }}</span>
+            @else
+              <a class="hint" href="/settings?section=ai#ai-llm-settings">{{ __('AI設定で ChatGPT / Gemini を有効化') }}</a>
+            @endif
+          </div>
+          <div class="finance-voice-entry-row">
+            <button
+              type="button"
+              class="finance-voice-mic-btn"
+              id="finance-voice-mic-btn"
+              aria-pressed="false"
+              @disabled(empty($voiceAiReady))
+              title="{{ __('マイクで話す') }}"
+            >{{ __('話す') }}</button>
+            <input
+              type="text"
+              id="finance-voice-transcript"
+              class="finance-voice-transcript"
+              placeholder="{{ __('例: 楽天銀行から支払い1000円、買い物') }}"
+              autocomplete="off"
+              @disabled(empty($voiceAiReady))
+            />
+            <button
+              type="button"
+              class="button-link"
+              id="finance-voice-parse-btn"
+              @disabled(empty($voiceAiReady))
+            >{{ __('解析') }}</button>
+          </div>
+          <p class="hint finance-voice-status" id="finance-voice-status" aria-live="polite"></p>
+        </div>
+
         <p class="hint finance-quick-entry-hint">{{ __('金額は入力欄をクリックして直接入力するか、横の') }} <span class="finance-easy-amount-inline-hint" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="3" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="3" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect><rect x="14" y="11" width="7" height="6" rx="1.5" fill="currentColor"></rect></svg></span> {{ __('ボタン（簡単入力）から入れられます。今日以前の日付は') }}<strong>{{ __('すぐ残高に反映') }}</strong>{{ __('されます。') }}</p>
       </section>
 
@@ -962,6 +999,87 @@
           <div class="finance-form-actions">
             <button type="button" class="secondary" data-close-finance-modal>{{ __('キャンセル') }}</button>
             <button type="submit" class="button-link" id="finance-submit-btn">{{ __('保存') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="finance-voice-confirm-modal" hidden>
+      <div class="modal-backdrop" data-close-voice-confirm-modal></div>
+      <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="finance-voice-confirm-title">
+        <div class="modal-header">
+          <h2 id="finance-voice-confirm-title">{{ __('音声入力の確認') }}</h2>
+          <button type="button" class="modal-close" data-close-voice-confirm-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form method="post" action="/finance" id="finance-voice-confirm-form" class="modal-form finance-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <p class="hint" id="finance-voice-confirm-transcript"></p>
+          <p class="hint" id="finance-voice-confirm-meta"></p>
+
+          <fieldset class="finance-type-fieldset">
+            <legend>{{ __('種別') }}</legend>
+            <label class="inline-check"><input type="radio" name="type" value="expense" checked /> {{ __('支出') }}</label>
+            <label class="inline-check"><input type="radio" name="type" value="income" /> {{ __('入金') }}</label>
+            <label class="inline-check"><input type="radio" name="type" value="transfer" /> {{ __('振替・送金') }}</label>
+          </fieldset>
+
+          <label>
+            {{ __('日付') }}
+            <input type="date" name="transactionDate" id="finance-voice-date" value="{{ $defaultDate }}" required />
+          </label>
+
+          <label>
+            {{ __('口座') }}
+            <select name="accountId" id="finance-voice-account-id" required>
+              @foreach($accounts as $account)
+                <option value="{{ $account['id'] }}" data-kind="{{ $account['kind'] }}">
+                  {{ $account['kindLabel'] }}: {{ $account['name'] }}
+                </option>
+              @endforeach
+            </select>
+          </label>
+
+          <div id="finance-voice-transfer-fields" hidden>
+            <label>
+              {{ __('振替先') }}
+              <select name="toAccountId" id="finance-voice-to-account-id">
+                @foreach($accounts as $account)
+                  <option value="{{ $account['id'] }}">
+                    {{ $account['kindLabel'] }}: {{ $account['name'] }}
+                  </option>
+                @endforeach
+              </select>
+            </label>
+            <label>
+              {{ __('振替先金額') }}
+              <input type="text" inputmode="decimal" name="toAmount" id="finance-voice-to-amount" autocomplete="off" />
+            </label>
+          </div>
+
+          <label>
+            {{ __('金額') }}
+            <input type="text" inputmode="decimal" name="amount" id="finance-voice-amount" required placeholder="1000" autocomplete="off" />
+          </label>
+
+          <label id="finance-voice-category-field">
+            {{ __('支出カテゴリー') }}
+            <select name="category" id="finance-voice-category">
+              <option value="">{{ __('未分類') }}</option>
+              @foreach($expenseCategoryLabels as $slug => $label)
+                <option value="{{ $slug }}">{{ $label }}</option>
+              @endforeach
+            </select>
+          </label>
+
+          <label>
+            {{ __('メモ') }}
+            <input type="text" name="memo" id="finance-voice-memo" autocomplete="off" />
+          </label>
+
+          <div class="finance-form-actions">
+            <button type="button" class="secondary" data-close-voice-confirm-modal>{{ __('キャンセル') }}</button>
+            <button type="submit" class="button-link" id="finance-voice-confirm-submit">{{ __('登録') }}</button>
           </div>
         </form>
       </div>
@@ -2676,6 +2794,198 @@
             form.submit()
           })
           updateBulkUi()
+        })()
+
+        ;(function initFinanceVoiceEntry() {
+          const voiceReady = @json(!empty($voiceAiReady));
+          const micBtn = document.getElementById('finance-voice-mic-btn')
+          const transcriptInput = document.getElementById('finance-voice-transcript')
+          const parseBtn = document.getElementById('finance-voice-parse-btn')
+          const statusEl = document.getElementById('finance-voice-status')
+          const modal = document.getElementById('finance-voice-confirm-modal')
+          const form = document.getElementById('finance-voice-confirm-form')
+          if (!transcriptInput || !parseBtn || !form) return
+
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+          let recognition = null
+          let listening = false
+
+          function setStatus(message, isError = false) {
+            if (!statusEl) return
+            statusEl.textContent = message || ''
+            statusEl.classList.toggle('is-error', Boolean(isError && message))
+          }
+
+          function syncVoiceTransferUi() {
+            const type = form.querySelector('input[name="type"]:checked')?.value || 'expense'
+            const transferFields = document.getElementById('finance-voice-transfer-fields')
+            const categoryField = document.getElementById('finance-voice-category-field')
+            if (transferFields) transferFields.hidden = type !== 'transfer'
+            if (categoryField) categoryField.hidden = type !== 'expense'
+          }
+
+          form.querySelectorAll('input[name="type"]').forEach((radio) => {
+            radio.addEventListener('change', syncVoiceTransferUi)
+          })
+
+          function openVoiceConfirm(parsed, transcript) {
+            document.getElementById('finance-voice-confirm-transcript').textContent =
+              @json(__('認識テキスト:')) + ' ' + transcript
+            const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
+            const confidenceLabel = {
+              high: @json(__('確信度: 高')),
+              medium: @json(__('確信度: 中')),
+              low: @json(__('確信度: 低')),
+            }[parsed.confidence] || ''
+            document.getElementById('finance-voice-confirm-meta').textContent = [provider, confidenceLabel].filter(Boolean).join(' / ')
+
+            const type = ['income', 'expense', 'transfer'].includes(parsed.type) ? parsed.type : 'expense'
+            const typeRadio = form.querySelector(`input[name="type"][value="${type}"]`)
+            if (typeRadio) typeRadio.checked = true
+
+            const dateInput = document.getElementById('finance-voice-date')
+            if (dateInput) dateInput.value = parsed.transactionDate || @json($defaultDate)
+
+            const accountSelect = document.getElementById('finance-voice-account-id')
+            if (accountSelect && parsed.accountId) accountSelect.value = String(parsed.accountId)
+
+            const toAccountSelect = document.getElementById('finance-voice-to-account-id')
+            if (toAccountSelect && parsed.toAccountId) toAccountSelect.value = String(parsed.toAccountId)
+
+            const amountInput = document.getElementById('finance-voice-amount')
+            if (amountInput) amountInput.value = parsed.amount != null ? String(parsed.amount) : ''
+
+            const toAmountInput = document.getElementById('finance-voice-to-amount')
+            if (toAmountInput) toAmountInput.value = parsed.toAmount != null ? String(parsed.toAmount) : ''
+
+            const categorySelect = document.getElementById('finance-voice-category')
+            if (categorySelect) categorySelect.value = parsed.category || ''
+
+            const memoInput = document.getElementById('finance-voice-memo')
+            if (memoInput) memoInput.value = parsed.memo || ''
+
+            syncVoiceTransferUi()
+            modal?.removeAttribute('hidden')
+          }
+
+          function closeVoiceConfirm() {
+            modal?.setAttribute('hidden', '')
+          }
+
+          document.querySelectorAll('[data-close-voice-confirm-modal]').forEach((el) => {
+            el.addEventListener('click', closeVoiceConfirm)
+          })
+
+          async function parseTranscript() {
+            const transcript = String(transcriptInput.value || '').trim()
+            if (!transcript) {
+              setStatus(@json(__('音声テキストを入力するか、マイクで話してください。')), true)
+              return
+            }
+            if (!voiceReady) {
+              setStatus(@json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')), true)
+              return
+            }
+            parseBtn.disabled = true
+            micBtn && (micBtn.disabled = true)
+            setStatus(@json(__('AIで解析中…')))
+            try {
+              const res = await fetch('/finance/voice/parse', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                  'X-CSRF-TOKEN': csrfToken || '',
+                  'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ transcript }),
+              })
+              const data = await res.json().catch(() => ({}))
+              if (!res.ok || !data.ok) {
+                throw new Error(data.message || @json(__('音声の解析に失敗しました。')))
+              }
+              setStatus(@json(__('解析結果を確認して登録してください。')))
+              openVoiceConfirm(data.parsed || {}, transcript)
+            } catch (err) {
+              setStatus(err?.message || @json(__('音声の解析に失敗しました。')), true)
+            } finally {
+              parseBtn.disabled = !voiceReady
+              if (micBtn) micBtn.disabled = !voiceReady
+            }
+          }
+
+          parseBtn.addEventListener('click', parseTranscript)
+          transcriptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              parseTranscript()
+            }
+          })
+
+          function stopListening() {
+            listening = false
+            micBtn?.classList.remove('is-listening')
+            micBtn?.setAttribute('aria-pressed', 'false')
+            if (micBtn) micBtn.textContent = @json(__('話す'))
+            try { recognition?.stop() } catch (_) {}
+          }
+
+          function startListening() {
+            if (!SpeechRecognition) {
+              setStatus(@json(__('このブラウザは音声認識に対応していません。テキスト入力をご利用ください。')), true)
+              return
+            }
+            if (!voiceReady) {
+              setStatus(@json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')), true)
+              return
+            }
+            if (!recognition) {
+              recognition = new SpeechRecognition()
+              recognition.lang = 'ja-JP'
+              recognition.interimResults = true
+              recognition.continuous = false
+              recognition.onresult = (event) => {
+                let text = ''
+                for (let i = 0; i < event.results.length; i += 1) {
+                  text += event.results[i][0].transcript
+                }
+                transcriptInput.value = text.trim()
+                if (event.results[event.results.length - 1]?.isFinal) {
+                  setStatus(@json(__('文字起こし完了。解析します…')))
+                  stopListening()
+                  parseTranscript()
+                }
+              }
+              recognition.onerror = (event) => {
+                stopListening()
+                const err = event?.error || ''
+                if (err === 'not-allowed') {
+                  setStatus(@json(__('マイクの使用が許可されていません。')), true)
+                } else if (err !== 'aborted') {
+                  setStatus(@json(__('音声認識に失敗しました。')) + (err ? ` (${err})` : ''), true)
+                }
+              }
+              recognition.onend = () => {
+                if (listening) stopListening()
+              }
+            }
+            listening = true
+            micBtn?.classList.add('is-listening')
+            micBtn?.setAttribute('aria-pressed', 'true')
+            if (micBtn) micBtn.textContent = @json(__('停止'))
+            setStatus(@json(__('聞いています…')))
+            try {
+              recognition.start()
+            } catch (_) {
+              stopListening()
+              setStatus(@json(__('音声認識を開始できませんでした。')), true)
+            }
+          }
+
+          micBtn?.addEventListener('click', () => {
+            if (listening) stopListening()
+            else startListening()
+          })
         })()
       })()
     </script>
