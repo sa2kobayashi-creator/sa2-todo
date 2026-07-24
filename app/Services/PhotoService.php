@@ -388,6 +388,15 @@ class PhotoService
             ->all();
     }
 
+    /** @return list<array<string, mixed>> */
+    public function listVideos(int $userId): array
+    {
+        return array_values(array_filter(
+            $this->listPhotos($userId),
+            static fn (array $photo): bool => ($photo['mediaKind'] ?? '') === 'video'
+        ));
+    }
+
     /**
      * @param  list<array<string, mixed>>  $photos
      * @return list<array{date: string, label: string, photos: list<array<string, mixed>>}>

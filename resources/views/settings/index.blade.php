@@ -189,7 +189,7 @@
       @elseif(($section ?? '') === 'ai')
       <div class="panel" id="ai-settings">
         <h2>{{ __('AI設定') }}</h2>
-        <p class="hint">{{ __('翻訳は DeepL、入出金の音声入力は ChatGPT / Gemini を使います。') }}</p>
+        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini を使います。') }}</p>
 
         @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; @endphp
         <div class="storage-settings ai-llm-panel" id="ai-llm-settings">
@@ -243,6 +243,91 @@
         <h3 class="ai-settings-subtitle">{{ __('AI翻訳（DeepL）') }}</h3>
         <p class="hint">{{ __('複数のAPIキーを登録すると、使用制限に達した場合に自動的に次のキーへ切り替わります。') }}</p>
 
+        @php
+          $deeplPricing = $deeplPricing ?? ['paid_monthly_base_eur' => 5.49, 'paid_per_million_chars_eur' => 20];
+          $deeplUsageSummaries = $deeplUsageSummaries ?? [];
+        @endphp
+
+        <div class="deepl-usage-panel" id="deepl-usage-overview">
+          <div class="deepl-usage-panel-head">
+            <div>
+              <h4 class="deepl-usage-heading">{{ __('DeepL使用量・料金') }}</h4>
+              <p class="hint">{{ __('DeepL /v2/usage API から取得した文字数と、設定した単価に基づく推定料金を表示します。') }}</p>
+            </div>
+            @if(count($translationKeys) > 0)
+              <form method="post" action="/settings/translation-keys/fetch-usage-all" class="inline-form">
+                @csrf
+                <button type="submit" class="secondary">{{ __('DeepL使用量を更新') }}</button>
+              </form>
+            @endif
+          </div>
+
+          @if(count($translationKeys) === 0)
+            <p class="hint">{{ __('APIキー登録後に使用量を取得できます。') }}</p>
+          @else
+            <div class="deepl-usage-cards">
+              @foreach($translationKeys as $key)
+                @php $summary = $deeplUsageSummaries[$key->id] ?? null; @endphp
+                <article class="deepl-usage-card">
+                  <div class="deepl-usage-card-top">
+                    <strong>{{ $key->name }}</strong>
+                    <span class="deepl-plan-badge {{ !empty($summary['is_paid_plan']) ? 'is-paid' : 'is-free' }}">
+                      {{ !empty($summary['is_paid_plan']) ? __('有料') : __('無料') }}
+                    </span>
+                  </div>
+                  <div class="deepl-usage-metric">
+                    <span class="deepl-usage-label">{{ __('文字数') }}</span>
+                    <span class="deepl-usage-value">
+                      {{ number_format((int) ($summary['character_count'] ?? 0)) }}
+                      @if(($summary['character_limit'] ?? null) !== null)
+                        <span class="hint">/ {{ number_format((int) $summary['character_limit']) }}</span>
+                      @endif
+                    </span>
+                  </div>
+                  @if(($summary['usage_rate'] ?? null) !== null)
+                    @php $rate = (float) $summary['usage_rate']; @endphp
+                    <div class="deepl-usage-bar" role="progressbar" aria-valuenow="{{ min(100, $rate) }}" aria-valuemin="0" aria-valuemax="100">
+                      <span class="deepl-usage-bar-fill {{ $rate > 80 ? 'is-danger' : ($rate > 50 ? 'is-warn' : '') }}" style="width: {{ min(100, $rate) }}%"></span>
+                    </div>
+                    <div class="hint deepl-usage-rate-text">{{ number_format($rate, 1) }}%</div>
+                  @endif
+                  @if(!empty($summary['is_paid_plan']) && ($summary['estimated_cost'] ?? null) !== null)
+                    <div class="deepl-cost-block">
+                      <div>{{ __('月額基本') }}: €{{ number_format((float) $summary['monthly_base_fee'], 2) }}</div>
+                      <div>{{ __('従量') }}: €{{ number_format((float) $summary['usage_cost'], 4) }}</div>
+                      <div class="deepl-cost-total">{{ __('推定合計') }}: €{{ number_format((float) $summary['estimated_cost'], 2) }}</div>
+                    </div>
+                  @else
+                    <p class="hint">{{ __('無料プランのため従量料金はありません。') }}</p>
+                  @endif
+                  <p class="hint deepl-fetched-at">
+                    {{ __('取得:') }}
+                    {{ !empty($summary['fetched_at']) ? $summary['fetched_at'] : __('未取得') }}
+                  </p>
+                </article>
+              @endforeach
+            </div>
+          @endif
+
+          <form method="post" action="/settings/translation-keys/pricing" class="deepl-pricing-form" id="deepl-usage-pricing">
+            @csrf
+            <h4 class="deepl-usage-heading">{{ __('有料プラン料金設定（EUR）') }}</h4>
+            <p class="hint">{{ __('DeepL API Pro の請求目安です。公式料金が変わったらここを更新してください。') }}</p>
+            <div class="deepl-pricing-grid">
+              <label>
+                {{ __('月額基本料金（EUR）') }}
+                <input type="number" name="paid_monthly_base_eur" step="0.01" min="0" value="{{ $deeplPricing['paid_monthly_base_eur'] }}" required />
+              </label>
+              <label>
+                {{ __('100万文字あたり（EUR）') }}
+                <input type="number" name="paid_per_million_chars_eur" step="0.01" min="0" value="{{ $deeplPricing['paid_per_million_chars_eur'] }}" required />
+              </label>
+            </div>
+            <p class="hint">{{ __('推定料金 = 月額基本 +（使用文字数 × 単価）。実際の請求は DeepL の請求書を確認してください。') }}</p>
+            <button type="submit" class="button-link">{{ __('料金設定を保存') }}</button>
+          </form>
+        </div>
+
         <div class="translation-toolbar">
           <button type="button" class="button-link" id="translation-add-btn">{{ __('APIキーを追加') }}</button>
         </div>
@@ -259,6 +344,7 @@
               @php
                 $dailyRate = $key->getDailyUsageRate();
                 $monthlyRate = $key->getMonthlyUsageRate();
+                $summary = $deeplUsageSummaries[$key->id] ?? null;
               @endphp
               <tr>
                 <td>
@@ -290,6 +376,12 @@
                       <span class="hint inline-hint">{{ __('(制限なし)') }}</span>
                     @endif
                   </div>
+                  @if(!empty($summary['estimated_cost']))
+                    <div class="hint inline-hint">{{ __('推定:') }} €{{ number_format((float) $summary['estimated_cost'], 2) }}</div>
+                  @endif
+                  @if(!empty($summary['fetched_at']))
+                    <div class="hint inline-hint">DeepL: {{ $summary['fetched_at'] }}</div>
+                  @endif
                 </td>
                 <td>
                   @if($key->error_count > 0)
@@ -315,54 +407,6 @@
           </tbody>
         </table>
       </div>
-
-      <div class="modal modal-centered" id="translation-key-modal" hidden>
-        <div class="modal-backdrop" data-close-translation-modal></div>
-        <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="translation-modal-title">
-          <div class="modal-header">
-            <h2 id="translation-modal-title">{{ __('APIキーを追加') }}</h2>
-            <button type="button" class="modal-close" data-close-translation-modal aria-label="{{ __('閉じる') }}">×</button>
-          </div>
-          <form method="post" action="/settings/translation-keys" id="translation-key-form" class="modal-form translation-modal-form">
-            @csrf
-            <input type="hidden" name="editing_id" id="translation-editing-id" value="" />
-            <label>{{ __('識別名') }}<input type="text" name="name" id="translation-name" placeholder="DeepL Key 1" required /></label>
-            <label>
-              {{ __('APIキー') }}
-              <span class="translation-key-input">
-                <input type="password" name="api_key" id="translation-api-key-input" placeholder="xxxxxxxx-xxxx-...:fx" autocomplete="off" required />
-                <button type="button" class="mini-btn secondary" id="translation-key-toggle" aria-label="{{ __('表示切替') }}">{{ __('表示') }}</button>
-              </span>
-            </label>
-            <label>{{ __('APIエンドポイント（任意）') }}<input type="url" name="api_url" id="translation-api-url" placeholder="{{ __('未入力ならキーから自動判定') }}" /></label>
-            <div class="translation-form-grid">
-              <label>{{ __('優先順位') }}<input type="number" name="priority" id="translation-priority" value="0" min="0" /></label>
-              <label>{{ __('日次制限（文字数）') }}<input type="number" name="daily_limit" id="translation-daily-limit" min="0" placeholder="{{ __('無制限') }}" /></label>
-              <label>{{ __('月次制限（文字数）') }}<input type="number" name="monthly_limit" id="translation-monthly-limit" min="0" placeholder="{{ __('無制限') }}" /></label>
-              <label>{{ __('日次使用量（文字数）') }}<input type="number" name="current_daily_usage" id="translation-daily-usage" min="0" placeholder="0" /></label>
-              <label>{{ __('月次使用量（文字数）') }}<input type="number" name="current_monthly_usage" id="translation-monthly-usage" min="0" placeholder="0" /></label>
-            </div>
-            <div id="translation-deepl-usage-section" hidden>
-              <button type="button" class="secondary" id="translation-fetch-usage-btn">{{ __('DeepLから使用量を取得') }}</button>
-              <p class="hint inline-hint">{{ __('DeepL APIから現在の使用量と制限を取得して、上記フィールドに自動入力します。') }}</p>
-            </div>
-            <label>{{ __('メモ') }}<input type="text" name="notes" id="translation-notes" placeholder="{{ __('用途など') }}" /></label>
-            <label class="checkbox-inline"><input type="checkbox" name="is_active" id="translation-is-active" value="1" checked /> {{ __('有効にする') }}</label>
-            <label class="checkbox-inline translation-limit-exceeded-row" id="translation-limit-exceeded-row" hidden>
-              <input type="checkbox" name="set_limit_exceeded" id="translation-set-limit-exceeded" value="1" />
-              {{ __('制限超過を設定（使用量を制限値に設定）') }}
-            </label>
-            <div class="translation-form-actions">
-              <button type="button" class="secondary" id="translation-test-btn">{{ __('接続テスト') }}</button>
-              <span class="translation-test-result hint" id="translation-test-result"></span>
-              <div class="translation-modal-submit-actions">
-                <button type="button" class="secondary" data-close-translation-modal>{{ __('キャンセル') }}</button>
-                <button type="submit" id="translation-submit-btn">{{ __('保存') }}</button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
       @elseif(($section ?? '') === 'integration')
       <div class="panel"><h2>{{ __('LINE 連携') }}</h2><p class="hint">{{ __('次のフェーズで移植予定です。') }}</p></div>
       @elseif(($section ?? '') === 'storage')
@@ -371,6 +415,57 @@
       <div class="panel"><h2>{{ __('通知設定') }}</h2><p class="hint">{{ __('Web Push / LINE 通知は次のフェーズで移植予定です。') }}</p></div>
       @endif
     </main>
+
+    @if(($section ?? '') === 'ai')
+    <div class="modal modal-centered" id="translation-key-modal" hidden>
+      <div class="modal-backdrop" data-close-translation-modal></div>
+      <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="translation-modal-title">
+        <div class="modal-header">
+          <h2 id="translation-modal-title">{{ __('APIキーを追加') }}</h2>
+          <button type="button" class="modal-close" data-close-translation-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form method="post" action="/settings/translation-keys" id="translation-key-form" class="modal-form translation-modal-form">
+          @csrf
+          <input type="hidden" name="editing_id" id="translation-editing-id" value="" />
+          <label>{{ __('識別名') }}<input type="text" name="name" id="translation-name" placeholder="DeepL Key 1" required /></label>
+          <label>
+            {{ __('APIキー') }}
+            <span class="translation-key-input">
+              <input type="password" name="api_key" id="translation-api-key-input" placeholder="xxxxxxxx-xxxx-...:fx" autocomplete="off" required />
+              <button type="button" class="mini-btn secondary" id="translation-key-toggle" aria-label="{{ __('表示切替') }}">{{ __('表示') }}</button>
+            </span>
+          </label>
+          <label>{{ __('APIエンドポイント（任意）') }}<input type="url" name="api_url" id="translation-api-url" placeholder="{{ __('未入力ならキーから自動判定') }}" /></label>
+          <div class="translation-form-grid">
+            <label>{{ __('優先順位') }}<input type="number" name="priority" id="translation-priority" value="0" min="0" /></label>
+            <label>{{ __('日次制限（文字数）') }}<input type="number" name="daily_limit" id="translation-daily-limit" min="0" placeholder="{{ __('無制限') }}" /></label>
+            <label>{{ __('月次制限（文字数）') }}<input type="number" name="monthly_limit" id="translation-monthly-limit" min="0" placeholder="{{ __('無制限') }}" /></label>
+            <label>{{ __('日次使用量（文字数）') }}<input type="number" name="current_daily_usage" id="translation-daily-usage" min="0" placeholder="0" /></label>
+            <label>{{ __('月次使用量（文字数）') }}<input type="number" name="current_monthly_usage" id="translation-monthly-usage" min="0" placeholder="0" /></label>
+          </div>
+          <div id="translation-deepl-usage-section" hidden>
+            <button type="button" class="secondary" id="translation-fetch-usage-btn">{{ __('DeepLから使用量を取得') }}</button>
+            <p class="hint inline-hint">{{ __('DeepL APIから現在の使用量と制限を取得して、上記フィールドに自動入力します。') }}</p>
+          </div>
+          <label>{{ __('メモ') }}<input type="text" name="notes" id="translation-notes" placeholder="{{ __('用途など') }}" /></label>
+          <label class="checkbox-inline"><input type="checkbox" name="is_active" id="translation-is-active" value="1" checked /> {{ __('有効にする') }}</label>
+          <label class="checkbox-inline translation-limit-exceeded-row" id="translation-limit-exceeded-row" hidden>
+            <input type="checkbox" name="set_limit_exceeded" id="translation-set-limit-exceeded" value="1" />
+            {{ __('制限超過を設定（使用量を制限値に設定）') }}
+          </label>
+          <div class="translation-form-actions">
+            <button type="button" class="secondary" id="translation-test-btn">{{ __('接続テスト') }}</button>
+            <span class="translation-test-result hint" id="translation-test-result"></span>
+            <div class="translation-modal-submit-actions">
+              <button type="button" class="secondary" data-close-translation-modal>{{ __('キャンセル') }}</button>
+              <button type="submit" id="translation-submit-btn">{{ __('保存') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    @endif
+
     @if(($section ?? 'holidays') === 'holidays')
     <script>
       (function () {
@@ -484,12 +579,16 @@
         }
 
         function openModal() {
-          if (modal) modal.hidden = false;
+          if (!modal) return
+          modal.removeAttribute('hidden')
+          document.body.classList.add('has-settings-modal')
         }
 
         function closeModal() {
-          if (modal) modal.hidden = true;
-          editingId = null;
+          if (!modal) return
+          modal.setAttribute('hidden', '')
+          document.body.classList.remove('has-settings-modal')
+          editingId = null
         }
 
         function setField(id, value) {
@@ -556,13 +655,25 @@
           }
         }
 
-        document.getElementById('translation-add-btn')?.addEventListener('click', openAddModal);
+        document.getElementById('translation-add-btn')?.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          openAddModal()
+        })
         document.querySelectorAll('.translation-edit-btn').forEach((btn) => {
-          btn.addEventListener('click', () => openEditModal(btn.dataset.id));
-        });
+          btn.addEventListener('click', (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            openEditModal(btn.dataset.id)
+          })
+        })
         document.querySelectorAll('[data-close-translation-modal]').forEach((el) => {
-          el.addEventListener('click', closeModal);
-        });
+          el.addEventListener('click', (event) => {
+            // 背景クリックは背景そのものだけ閉じる（子要素クリックでは閉じない）
+            if (el.classList.contains('modal-backdrop') && event.target !== el) return
+            closeModal()
+          })
+        })
 
         document.getElementById('translation-key-toggle')?.addEventListener('click', () => {
           if (!keyInput) return;
@@ -652,12 +763,18 @@
           }
         });
 
-        const llmTestBtn = document.getElementById('ai-llm-test-btn')
-        const llmTestLive = document.getElementById('ai-llm-test-live')
-        const llmProviderSelect = document.getElementById('ai-llm-active-provider')
+        const llmTestBtn = document.getElementById('ai-llm-test-btn');
+        const llmTestLive = document.getElementById('ai-llm-test-live');
+        const llmProviderSelect = document.getElementById('ai-llm-active-provider');
+        const llmStrings = {
+          testing: @json(__('テスト中...')),
+          success: @json(__('成功')),
+          failed: @json(__('失敗')),
+          networkError: @json(__('通信エラーが発生しました')),
+        };
         llmTestBtn?.addEventListener('click', async () => {
-          llmTestBtn.disabled = true
-          if (llmTestLive) llmTestLive.textContent = @json(__('テスト中...'))
+          llmTestBtn.disabled = true;
+          if (llmTestLive) llmTestLive.textContent = llmStrings.testing;
           try {
             const res = await fetch('/settings/ai/llm/test', {
               method: 'POST',
@@ -669,22 +786,22 @@
               body: JSON.stringify({
                 provider: llmProviderSelect?.value || '',
               }),
-            })
-            const data = await res.json().catch(() => ({}))
+            });
+            const data = await res.json().catch(() => ({}));
             if (llmTestLive) {
-              llmTestLive.textContent = data.message || (data.ok ? @json(__('成功')) : @json(__('失敗')))
-              llmTestLive.classList.toggle('is-ok', Boolean(data.ok))
-              llmTestLive.classList.toggle('is-fail', !data.ok)
+              llmTestLive.textContent = data.message || (data.ok ? llmStrings.success : llmStrings.failed);
+              llmTestLive.classList.toggle('is-ok', Boolean(data.ok));
+              llmTestLive.classList.toggle('is-fail', !data.ok);
             }
           } catch (_) {
             if (llmTestLive) {
-              llmTestLive.textContent = @json(__('通信エラーが発生しました'))
-              llmTestLive.classList.add('is-fail')
+              llmTestLive.textContent = llmStrings.networkError;
+              llmTestLive.classList.add('is-fail');
             }
           } finally {
-            llmTestBtn.disabled = false
+            llmTestBtn.disabled = false;
           }
-        })
+        });
       })();
     </script>
     @endif

@@ -12,6 +12,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MediaStorageSettingsController;
+use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslationApiKeyController;
+use App\Http\Controllers\VideoController;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
@@ -46,6 +48,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/todos', [TodoController::class, 'index']);
     Route::post('/todos', [TodoController::class, 'store']);
+    Route::post('/todos/voice/parse', [TodoController::class, 'parseVoice']);
     Route::post('/todos/bulk/complete', [TodoController::class, 'bulkComplete']);
     Route::post('/todos/bulk/uncomplete', [TodoController::class, 'bulkUncomplete']);
     Route::post('/todos/bulk/delete', [TodoController::class, 'bulkDelete']);
@@ -58,6 +61,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/notes', [NoteController::class, 'index']);
     Route::post('/notes', [NoteController::class, 'store']);
+    Route::post('/notes/voice/parse', [NoteController::class, 'parseVoice']);
     Route::post('/notes/bulk/archive', [NoteController::class, 'bulkArchive']);
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);
     Route::post('/notes/bulk/append', [NoteController::class, 'bulkAppend']);
@@ -93,6 +97,20 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
     Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
+
+    Route::middleware(EnsureFeature::class.':music')->group(function () {
+        Route::get('/music', [MusicController::class, 'index']);
+        Route::post('/music', [MusicController::class, 'store']);
+        Route::get('/music/{id}/file', [MusicController::class, 'file'])->whereNumber('id');
+        Route::post('/music/{id}/delete', [MusicController::class, 'destroy'])->whereNumber('id');
+    });
+
+    Route::middleware(EnsureFeature::class.':video')->group(function () {
+        Route::get('/video', [VideoController::class, 'index']);
+        Route::post('/video', [VideoController::class, 'store']);
+        Route::post('/video/youtube', [VideoController::class, 'storeYoutube']);
+        Route::post('/video/youtube/{id}/delete', [VideoController::class, 'destroyYoutube'])->whereNumber('id');
+    });
 
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
@@ -154,6 +172,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
         Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
         Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
+        Route::post('/settings/translation-keys/fetch-usage-all', [TranslationApiKeyController::class, 'fetchAllUsageFromDeepL']);
+        Route::post('/settings/translation-keys/pricing', [TranslationApiKeyController::class, 'updatePricing']);
         Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
         Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');

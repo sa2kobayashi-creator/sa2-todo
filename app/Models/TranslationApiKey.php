@@ -23,6 +23,9 @@ class TranslationApiKey extends Model
         'is_active',
         'priority',
         'notes',
+        'deepl_character_count',
+        'deepl_character_limit',
+        'deepl_usage_fetched_at',
     ];
 
     protected function casts(): array
@@ -38,6 +41,9 @@ class TranslationApiKey extends Model
             'last_error_at' => 'datetime',
             'is_active' => 'boolean',
             'priority' => 'integer',
+            'deepl_character_count' => 'integer',
+            'deepl_character_limit' => 'integer',
+            'deepl_usage_fetched_at' => 'datetime',
         ];
     }
 

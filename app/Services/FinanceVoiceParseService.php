@@ -2,12 +2,10 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
-
 class FinanceVoiceParseService
 {
     public function __construct(
-        private AiLlmConfigService $llm,
+        private LlmJsonClient $llm,
         private FinanceService $finance,
     ) {}
 
@@ -18,9 +16,7 @@ class FinanceVoiceParseService
 
     public function activeProviderLabel(): string
     {
-        return $this->llm->activeProvider() === AiLlmConfigService::PROVIDER_GEMINI
-            ? 'Gemini'
-            : 'ChatGPT';
+        return $this->llm->activeProviderLabel();
     }
 
     /**
@@ -46,21 +42,17 @@ class FinanceVoiceParseService
         if ($text === '') {
             throw new \InvalidArgumentException(__('音声テキストが空です。'));
         }
-        if (! $this->isReady()) {
-            throw new \InvalidArgumentException(__('AI（ChatGPT / Gemini）が未設定です。設定 → AI設定で有効化してください。'));
-        }
 
         $today = $today ?: $this->finance->todayIso();
         $prompt = $this->buildPrompt($text, $accounts, $categoryLabels, $today);
-        $provider = $this->llm->activeProvider();
-        $rawJson = $provider === AiLlmConfigService::PROVIDER_GEMINI
-            ? $this->callGemini($prompt)
-            : $this->callOpenAi($prompt);
+        $result = $this->llm->completeJson(
+            $prompt,
+            'You are a precise JSON extractor for Japanese finance utterances. Output JSON only.'
+        );
 
-        $decoded = $this->decodeJsonObject($rawJson);
-        $normalized = $this->normalizeParsed($decoded, $accounts, $categoryLabels, $today);
-        $normalized['raw'] = $decoded;
-        $normalized['provider'] = $provider;
+        $normalized = $this->normalizeParsed($result['decoded'], $accounts, $categoryLabels, $today);
+        $normalized['raw'] = $result['decoded'];
+        $normalized['provider'] = $result['provider'];
 
         return $normalized;
     }
@@ -134,110 +126,6 @@ User utterance:
 PROMPT;
     }
 
-    private function callOpenAi(string $prompt): string
-    {
-        $apiKey = $this->llm->apiKeyFor(AiLlmConfigService::PROVIDER_OPENAI);
-        $model = $this->llm->openaiModel();
-        $res = Http::withToken($apiKey)
-            ->timeout(45)
-            ->acceptJson()
-            ->post('https://api.openai.com/v1/chat/completions', [
-                'model' => $model,
-                'temperature' => 0,
-                'response_format' => ['type' => 'json_object'],
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a precise JSON extractor for Japanese finance utterances. Output JSON only.',
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
-                ],
-            ]);
-
-        if (! $res->successful()) {
-            throw new \RuntimeException(__('ChatGPT API エラー: :msg', [
-                'msg' => mb_substr($res->body(), 0, 240),
-            ]));
-        }
-
-        $content = (string) data_get($res->json(), 'choices.0.message.content', '');
-        if (trim($content) === '') {
-            throw new \RuntimeException(__('ChatGPT から空の応答が返りました。'));
-        }
-
-        return $content;
-    }
-
-    private function callGemini(string $prompt): string
-    {
-        $apiKey = $this->llm->apiKeyFor(AiLlmConfigService::PROVIDER_GEMINI);
-        $model = rawurlencode($this->llm->geminiModel());
-        $res = Http::timeout(45)
-            ->acceptJson()
-            ->post(
-                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=".urlencode($apiKey),
-                [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $prompt],
-                            ],
-                        ],
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0,
-                        'responseMimeType' => 'application/json',
-                    ],
-                ]
-            );
-
-        if (! $res->successful()) {
-            throw new \RuntimeException(__('Gemini API エラー: :msg', [
-                'msg' => mb_substr($res->body(), 0, 240),
-            ]));
-        }
-
-        $parts = data_get($res->json(), 'candidates.0.content.parts', []);
-        $text = '';
-        if (is_array($parts)) {
-            foreach ($parts as $part) {
-                if (is_array($part) && isset($part['text'])) {
-                    $text .= (string) $part['text'];
-                }
-            }
-        }
-        if (trim($text) === '') {
-            throw new \RuntimeException(__('Gemini から空の応答が返りました。'));
-        }
-
-        return $text;
-    }
-
-    /** @return array<string, mixed> */
-    private function decodeJsonObject(string $raw): array
-    {
-        $trimmed = trim($raw);
-        if (str_starts_with($trimmed, '```')) {
-            $trimmed = preg_replace('/^```(?:json)?\s*/i', '', $trimmed) ?? $trimmed;
-            $trimmed = preg_replace('/\s*```$/', '', $trimmed) ?? $trimmed;
-        }
-
-        $decoded = json_decode($trimmed, true);
-        if (! is_array($decoded)) {
-            if (preg_match('/\{.*\}/s', $trimmed, $m)) {
-                $decoded = json_decode($m[0], true);
-            }
-        }
-        if (! is_array($decoded)) {
-            throw new \RuntimeException(__('AIの応答をJSONとして解釈できませんでした。'));
-        }
-
-        return $decoded;
-    }
-
     /**
      * @param  array<string, mixed>  $decoded
      * @param  list<array{id: int, name: string}>  $accounts
@@ -289,16 +177,6 @@ PROMPT;
         $memo = trim((string) ($decoded['memo'] ?? ''));
         $memo = $memo !== '' ? mb_substr($memo, 0, 200) : null;
 
-        $date = trim((string) ($decoded['transaction_date'] ?? $decoded['transactionDate'] ?? ''));
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $date = $today;
-        }
-
-        $confidence = strtolower(trim((string) ($decoded['confidence'] ?? 'medium')));
-        if (! in_array($confidence, ['high', 'medium', 'low'], true)) {
-            $confidence = 'medium';
-        }
-
         return [
             'type' => $type,
             'accountId' => $accountId,
@@ -307,8 +185,11 @@ PROMPT;
             'toAmount' => $toAmount,
             'category' => $category,
             'memo' => $memo,
-            'transactionDate' => $date,
-            'confidence' => $confidence,
+            'transactionDate' => $this->llm->normalizeDate(
+                $decoded['transaction_date'] ?? $decoded['transactionDate'] ?? null,
+                $today
+            ),
+            'confidence' => $this->llm->normalizeConfidence($decoded['confidence'] ?? null),
         ];
     }
 

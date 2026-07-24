@@ -11,6 +11,16 @@
     <span class="mobile-nav-icon" aria-hidden="true">📝</span>
     <span class="mobile-nav-label">{{ __('メモ') }}</span>
   </a>
+  <a href="/photos" class="mobile-nav-item {{ ($active ?? '') === 'photos' ? 'active' : '' }}">
+    <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
+    <span class="mobile-nav-label">{{ __('Photos') }}</span>
+  </a>
+  @if(!empty($canFinance))
+    <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">💰</span>
+      <span class="mobile-nav-label">{{ __('入出金') }}</span>
+    </a>
+  @endif
   @if(!empty($canTransit))
     <a href="/transit" class="mobile-nav-item {{ ($active ?? '') === 'transit' ? 'active' : '' }}">
       <span class="mobile-nav-icon" aria-hidden="true">🚌</span>
@@ -23,14 +33,16 @@
       <span class="mobile-nav-label">{{ __('マップ') }}</span>
     </a>
   @endif
-  <a href="/photos" class="mobile-nav-item {{ ($active ?? '') === 'photos' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
-    <span class="mobile-nav-label">{{ __('Photos') }}</span>
-  </a>
-  @if(!empty($canFinance))
-    <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">💰</span>
-      <span class="mobile-nav-label">{{ __('入出金') }}</span>
+  @if(!empty($canMusic))
+    <a href="/music" class="mobile-nav-item {{ ($active ?? '') === 'music' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">♪</span>
+      <span class="mobile-nav-label">{{ __('音楽') }}</span>
+    </a>
+  @endif
+  @if(!empty($canVideo))
+    <a href="/video" class="mobile-nav-item {{ ($active ?? '') === 'video' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">▶</span>
+      <span class="mobile-nav-label">{{ __('動画') }}</span>
     </a>
   @endif
   @if(!empty($canSettings))

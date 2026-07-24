@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TranslationApiKey;
+use App\Services\DeeplUsageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,8 @@ class TranslationApiKeyController extends Controller
     use Concerns\RedirectsWithFlash;
 
     private const SETTINGS_PATH = '/settings?section=ai&tab=translation';
+
+    public function __construct(private DeeplUsageService $deeplUsage) {}
 
     public function store(Request $request)
     {
@@ -104,58 +107,64 @@ class TranslationApiKeyController extends Controller
     }
 
     /**
-     * DeepL API から使用量を取得する。
+     * DeepL API から使用量を取得して保存する。
      */
     public function fetchUsageFromDeepL(int $id)
     {
         $key = TranslationApiKey::find($id);
         if (! $key) {
-            return response()->json(['ok' => false, 'message' => 'APIキーが見つかりません'], 404);
+            return response()->json(['ok' => false, 'message' => __('APIキーが見つかりません')], 404);
         }
 
-        $apiUrl = str_contains($key->api_key, ':fx')
-            ? 'https://api-free.deepl.com/v2/usage'
-            : 'https://api.deepl.com/v2/usage';
+        return response()->json($this->deeplUsage->fetchAndStore($key));
+    }
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'DeepL-Auth-Key '.$key->api_key,
-            ])->timeout(10)->get($apiUrl);
+    /**
+     * 登録済みキーすべての DeepL 使用量を更新する。
+     */
+    public function fetchAllUsageFromDeepL()
+    {
+        $keys = TranslationApiKey::query()
+            ->where('provider', 'deepl')
+            ->where('is_active', true)
+            ->orderByDesc('priority')
+            ->orderBy('id')
+            ->get();
 
-            if (! $response->successful()) {
-                $message = $response->json()['message'] ?? $response->body();
-
-                return response()->json(['ok' => false, 'message' => '使用量の取得に失敗しました: '.$message], 200);
-            }
-
-            $data = $response->json();
-            $characterCount = (int) ($data['character_count'] ?? 0);
-            $characterLimit = isset($data['character_limit']) ? (int) $data['character_limit'] : null;
-            $isPaidPlan = ! str_contains($key->api_key, ':fx');
-            $estimatedCost = null;
-            $monthlyBaseFee = null;
-            $usageCost = null;
-
-            if ($isPaidPlan) {
-                $monthlyBaseFee = 4.99;
-                $usageCost = $characterCount * 0.00002;
-                $estimatedCost = round($monthlyBaseFee + $usageCost, 4);
-            }
-
-            return response()->json([
-                'ok' => true,
-                'character_count' => $characterCount,
-                'character_limit' => $characterLimit,
-                'is_paid_plan' => $isPaidPlan,
-                'estimated_cost' => $estimatedCost,
-                'monthly_base_fee' => $monthlyBaseFee,
-                'usage_cost' => $usageCost !== null ? round($usageCost, 4) : null,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('DeepL usage fetch failed', ['id' => $id, 'error' => $e->getMessage()]);
-
-            return response()->json(['ok' => false, 'message' => '使用量の取得に失敗しました: '.$e->getMessage()], 200);
+        if ($keys->isEmpty()) {
+            return $this->redirectWithMessage(self::SETTINGS_PATH, __('更新対象のAPIキーがありません。'), 'error');
         }
+
+        $ok = 0;
+        $failed = 0;
+        foreach ($keys as $key) {
+            $result = $this->deeplUsage->fetchAndStore($key);
+            if (! empty($result['ok'])) {
+                $ok++;
+            } else {
+                $failed++;
+            }
+        }
+
+        if ($ok === 0) {
+            return $this->redirectWithMessage(self::SETTINGS_PATH, __('DeepL使用量の更新に失敗しました。'), 'error');
+        }
+
+        $message = $failed > 0
+            ? __(':ok件更新（:failed件失敗）', ['ok' => $ok, 'failed' => $failed])
+            : __('DeepL使用量を更新しました（:count件）。', ['count' => $ok]);
+
+        return $this->redirectWithMessage(self::SETTINGS_PATH, $message);
+    }
+
+    public function updatePricing(Request $request)
+    {
+        $this->deeplUsage->savePricing([
+            'paid_monthly_base_eur' => $request->input('paid_monthly_base_eur'),
+            'paid_per_million_chars_eur' => $request->input('paid_per_million_chars_eur'),
+        ]);
+
+        return $this->redirectWithMessage(self::SETTINGS_PATH.'#deepl-usage-pricing', __('DeepL料金設定を保存しました。'));
     }
 
     /**

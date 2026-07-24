@@ -8,6 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('メモ') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    <script src="{{ asset('voice-entry.js') }}" defer></script>
   </head>
   <body class="notes-page">
     @include('partials.header', ['active' => 'notes'])
@@ -132,6 +133,15 @@
         </div>
       </div>
 
+      @if(!$showArchived)
+        @include('partials.voice-entry', [
+          'idPrefix' => 'note',
+          'voiceAiReady' => $voiceAiReady ?? false,
+          'voiceAiProvider' => $voiceAiProvider ?? null,
+          'placeholder' => __('例: 買い物リスト、牛乳と卵とパン'),
+        ])
+      @endif
+
       <div class="notes-bulk-bar panel" id="notes-bulk-bar">
         <input type="hidden" id="notes-bulk-return-to" value="{{ $returnTo }}" />
         <label class="note-bulk-select-all-label">
@@ -207,6 +217,84 @@
         </nav>
       @endif
     </main>
+
+    <div class="modal modal-centered" id="note-voice-confirm-modal" hidden>
+      <div class="modal-backdrop" data-close-note-voice-modal></div>
+      <div class="modal-dialog note-edit-dialog" role="dialog" aria-labelledby="note-voice-confirm-title">
+        <div class="modal-header">
+          <h2 id="note-voice-confirm-title">{{ __('音声入力の確認') }}</h2>
+          <button type="button" class="modal-close" data-close-note-voice-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form method="post" action="/notes" id="note-voice-confirm-form" class="modal-form note-edit-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <input type="hidden" name="type" id="note-voice-type" value="text" />
+          <input type="hidden" name="color" id="note-voice-color" value="default" />
+          <p class="hint" id="note-voice-confirm-transcript"></p>
+          <p class="hint" id="note-voice-confirm-meta"></p>
+
+          <div class="note-composer-meta">
+            <label class="note-date-field">
+              <span class="field-label">{{ __('登録日') }}</span>
+              <input type="date" name="registeredDate" id="note-voice-date" value="{{ $defaultRegisteredDate }}" required />
+            </label>
+            <label class="note-category-field">
+              <span class="field-label">{{ __('カテゴリー') }}</span>
+              <select name="category" id="note-voice-category">
+                @foreach($noteCategories as $key => $label)
+                  <option value="{{ $key }}">{{ $label }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label class="note-share-field">
+              <span class="field-label">{{ __('共有先') }}</span>
+              <select name="groupId" id="note-voice-group-id">
+                <option value="">{{ __('個人（自分のみ）') }}</option>
+                @foreach($approvedGroups ?? [] as $group)
+                  <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+                @endforeach
+              </select>
+            </label>
+          </div>
+
+          <label>
+            {{ __('タイトル') }}
+            <input type="text" name="title" id="note-voice-title" autocomplete="off" />
+          </label>
+
+          <div id="note-voice-text-panel">
+            <label>
+              {{ __('本文') }}
+              <textarea name="body" id="note-voice-body" rows="5"></textarea>
+            </label>
+          </div>
+
+          <div id="note-voice-checklist-panel" class="date-panel-hidden">
+            <div class="checklist-editor" id="note-voice-checklist"></div>
+            <button type="button" class="text-btn" id="note-voice-add-item">{{ __('項目を追加') }}</button>
+          </div>
+
+          <div class="note-color-picker" id="note-voice-colors" role="group" aria-label="{{ __('色') }}">
+            @foreach($colorKeys as $key)
+              <button
+                type="button"
+                @class(['note-color-dot', 'is-selected' => $key === 'default'])
+                data-color="{{ $key }}"
+                style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}"
+                title="{{ $noteColors[$key]['label'] }}"
+                aria-label="{{ $noteColors[$key]['label'] }}"
+              ></button>
+            @endforeach
+          </div>
+
+          <div class="finance-form-actions">
+            <button type="button" class="secondary" data-close-note-voice-modal>{{ __('キャンセル') }}</button>
+            <button type="button" class="text-btn" id="note-voice-toggle-type">{{ __('チェックリスト') }}</button>
+            <button type="submit" class="button-link">{{ __('登録') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="modal modal-centered" id="note-edit-modal" hidden>
       <div class="modal-backdrop" data-close-note-edit></div>
@@ -319,6 +407,37 @@
 
     <script>
       (function () {
+        // json 出力の直後改行が PHP に消されると ASI でスクリプト全体が壊れるため、文字列は先に束ねる
+        const noteStrings = {
+          discardConfirm: @json(__('入力内容を破棄して閉じますか？')),
+          emptyNote: @json(__('メモの内容を入力してください')),
+          removeAttachment: @json(__('削除')),
+          translate: @json(__('日本語⇔英語に翻訳')),
+          restoreOriginal: @json(__('原文に戻す')),
+          translateFailed: @json(__('翻訳に失敗しました')),
+          translateNetworkError: @json(__('翻訳中に通信エラーが発生しました')),
+          noneSelected: @json(__('対象が選択されていません')),
+          textMemo: @json(__('テキストメモ')),
+          checklist: @json(__('チェックリスト')),
+          recognizedPrefix: @json(__('認識テキスト:')),
+          confidenceHigh: @json(__('確信度: 高')),
+          confidenceMedium: @json(__('確信度: 中')),
+          confidenceLow: @json(__('確信度: 低')),
+          speak: @json(__('話す')),
+          stop: @json(__('停止')),
+          emptyVoice: @json(__('音声テキストを入力するか、マイクで話してください。')),
+          notReady: @json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')),
+          parsing: @json(__('AIで解析中…')),
+          parsed: @json(__('解析結果を確認して登録してください。')),
+          parseFailed: @json(__('音声の解析に失敗しました。')),
+          unsupported: @json(__('このブラウザは音声認識に対応していません。テキスト入力をご利用ください。')),
+          listening: @json(__('聞いています…')),
+          transcribed: @json(__('文字起こし完了。解析します…')),
+          micDenied: @json(__('マイクの使用が許可されていません。')),
+          recognizeFailed: @json(__('音声認識に失敗しました。')),
+          startFailed: @json(__('音声認識を開始できませんでした。')),
+        };
+
         const VIEW_KEY = 'notesViewMode'
         const COLS_KEY = 'notesGalleryCols'
         const notesContent = document.getElementById('notes-content')
@@ -423,7 +542,7 @@
         })
 
         closeBtn?.addEventListener('click', () => {
-          if (!isComposerDirty() || window.confirm(@json(__('入力内容を破棄して閉じますか？')))) {
+          if (!isComposerDirty() || window.confirm(noteStrings.discardConfirm)) {
             form?.reset()
             syncComposerType('text')
             selectColor('default')
@@ -493,7 +612,7 @@
             const hasItem = [...(checklistEditor?.querySelectorAll('.checklist-text') || [])].some((el) => el.value.trim())
             if (!hasItem) {
               e.preventDefault()
-              alert(@json(__('メモの内容を入力してください')));
+              alert(noteStrings.emptyNote)
             }
           }
         })
@@ -623,7 +742,7 @@
             cb.name = 'remove_attachment_ids[]'
             cb.value = String(file.id)
             label.appendChild(cb)
-            label.appendChild(document.createTextNode(@json(__('削除'))))
+            label.appendChild(document.createTextNode(noteStrings.removeAttachment))
             li.appendChild(link)
             li.appendChild(meta)
             li.appendChild(label)
@@ -772,7 +891,7 @@
               state.translated = false
               btn.classList.remove('is-translated')
               btn.setAttribute('aria-pressed', 'false')
-              btn.title = @json(__('日本語⇔英語に翻訳'));
+              btn.title = noteStrings.translate
               return
             }
 
@@ -782,7 +901,7 @@
               state.translated = true
               btn.classList.add('is-translated')
               btn.setAttribute('aria-pressed', 'true')
-              btn.title = @json(__('原文に戻す'));
+              btn.title = noteStrings.restoreOriginal
               return
             }
 
@@ -800,7 +919,7 @@
               })
               const data = await res.json()
               if (!res.ok || !data.ok) {
-                window.alert(data.message || @json(__('翻訳に失敗しました')));
+                window.alert(data.message || noteStrings.translateFailed)
                 return
               }
               captureOriginal()
@@ -809,9 +928,9 @@
               state.translated = true
               btn.classList.add('is-translated')
               btn.setAttribute('aria-pressed', 'true')
-              btn.title = @json(__('原文に戻す'));
+              btn.title = noteStrings.restoreOriginal
             } catch (err) {
-              window.alert(@json(__('翻訳中に通信エラーが発生しました')));
+              window.alert(noteStrings.translateNetworkError)
             } finally {
               state.loading = false
               btn.classList.remove('is-loading')
@@ -849,7 +968,7 @@
         function submitBulkAction(url, confirmMsg, extraFields = {}) {
           const ids = getCheckedNoteIds()
           if (ids.length === 0) {
-            window.alert(@json(__('対象が選択されていません')));
+            window.alert(noteStrings.noneSelected)
             return
           }
           if (confirmMsg && !window.confirm(confirmMsg)) return
@@ -923,7 +1042,7 @@
         document.getElementById('notes-bulk-edit-open')?.addEventListener('click', () => {
           const ids = getCheckedNoteIds()
           if (ids.length === 0) {
-            window.alert(@json(__('対象が選択されていません')));
+            window.alert(noteStrings.noneSelected)
             return
           }
           if (bulkAppendIds) {
@@ -947,7 +1066,7 @@
         bulkAppendForm?.addEventListener('submit', (e) => {
           if (getCheckedNoteIds().length === 0) {
             e.preventDefault()
-            window.alert(@json(__('対象が選択されていません')));
+            window.alert(noteStrings.noneSelected)
           }
         })
 
@@ -1015,6 +1134,134 @@
             saveNoteOrder(container)
           })
         })
+
+        ;(function initNoteVoiceEntry() {
+          const modal = document.getElementById('note-voice-confirm-modal')
+          const form = document.getElementById('note-voice-confirm-form')
+          const typeInput = document.getElementById('note-voice-type')
+          const colorInput = document.getElementById('note-voice-color')
+          const textPanel = document.getElementById('note-voice-text-panel')
+          const checklistPanel = document.getElementById('note-voice-checklist-panel')
+          const checklistEditor = document.getElementById('note-voice-checklist')
+          const toggleTypeBtn = document.getElementById('note-voice-toggle-type')
+          if (!form) return
+
+          function addVoiceChecklistItem(text = '', checked = false) {
+            const index = checklistEditor?.querySelectorAll('.checklist-row').length || 0
+            const row = document.createElement('div')
+            row.className = 'checklist-row'
+            const safe = String(text || '').replace(/"/g, '&quot;')
+            row.innerHTML = `
+              <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
+              <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="項目" />
+              <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
+              <button type="button" class="checklist-remove" aria-label="削除">×</button>
+            `
+            const check = row.querySelector('.checklist-check')
+            const hidden = row.querySelector('.checklist-checked-hidden')
+            check?.addEventListener('change', () => {
+              if (hidden) hidden.value = check.checked ? '1' : '0'
+            })
+            row.querySelector('.checklist-remove')?.addEventListener('click', () => row.remove())
+            checklistEditor?.appendChild(row)
+          }
+
+          function syncVoiceNoteType(type) {
+            const isChecklist = type === 'checklist'
+            if (typeInput) typeInput.value = isChecklist ? 'checklist' : 'text'
+            textPanel?.classList.toggle('date-panel-hidden', isChecklist)
+            checklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
+            if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? noteStrings.textMemo : noteStrings.checklist
+            if (isChecklist && checklistEditor && checklistEditor.children.length === 0) {
+              addVoiceChecklistItem()
+            }
+          }
+
+          function setVoiceColor(color) {
+            const next = color || 'default'
+            if (colorInput) colorInput.value = next
+            document.querySelectorAll('#note-voice-colors .note-color-dot').forEach((btn) => {
+              btn.classList.toggle('is-selected', btn.dataset.color === next)
+            })
+          }
+
+          document.querySelectorAll('#note-voice-colors .note-color-dot').forEach((btn) => {
+            btn.addEventListener('click', () => setVoiceColor(btn.dataset.color))
+          })
+          document.getElementById('note-voice-add-item')?.addEventListener('click', () => addVoiceChecklistItem())
+          toggleTypeBtn?.addEventListener('click', () => {
+            syncVoiceNoteType(typeInput?.value === 'checklist' ? 'text' : 'checklist')
+          })
+          document.querySelectorAll('[data-close-note-voice-modal]').forEach((el) => {
+            el.addEventListener('click', () => modal?.setAttribute('hidden', ''))
+          })
+
+          form.addEventListener('submit', () => {
+            if (typeInput?.value !== 'checklist') return
+            const rows = [...(checklistEditor?.querySelectorAll('.checklist-row') || [])]
+            rows.forEach((row, index) => {
+              const text = row.querySelector('.checklist-text')
+              const hidden = row.querySelector('.checklist-checked-hidden')
+              if (text) text.name = `items[${index}][text]`
+              if (hidden) hidden.name = `items[${index}][checked]`
+            })
+          })
+
+          const voiceDefaults = {
+            ready: @json(!empty($voiceAiReady)),
+            defaultDate: @json($defaultRegisteredDate),
+            defaultCategory: @json($defaultCategory),
+          };
+          window.Sa2VoiceEntry?.init({
+            prefix: 'note',
+            parseUrl: '/notes/voice/parse',
+            ready: voiceDefaults.ready,
+            strings: {
+              speak: noteStrings.speak,
+              stop: noteStrings.stop,
+              empty: noteStrings.emptyVoice,
+              notReady: noteStrings.notReady,
+              parsing: noteStrings.parsing,
+              parsed: noteStrings.parsed,
+              parseFailed: noteStrings.parseFailed,
+              unsupported: noteStrings.unsupported,
+              listening: noteStrings.listening,
+              transcribed: noteStrings.transcribed,
+              micDenied: noteStrings.micDenied,
+              recognizeFailed: noteStrings.recognizeFailed,
+              startFailed: noteStrings.startFailed,
+            },
+            onParsed(parsed, transcript) {
+              document.getElementById('note-voice-confirm-transcript').textContent =
+                noteStrings.recognizedPrefix + ' ' + transcript
+              const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
+              const confidenceLabel = {
+                high: noteStrings.confidenceHigh,
+                medium: noteStrings.confidenceMedium,
+                low: noteStrings.confidenceLow,
+              }[parsed.confidence] || ''
+              document.getElementById('note-voice-confirm-meta').textContent = [provider, confidenceLabel].filter(Boolean).join(' / ')
+
+              document.getElementById('note-voice-date').value = parsed.registeredDate || voiceDefaults.defaultDate
+              document.getElementById('note-voice-category').value = parsed.category || voiceDefaults.defaultCategory
+              document.getElementById('note-voice-group-id').value = parsed.groupId ? String(parsed.groupId) : ''
+              document.getElementById('note-voice-title').value = parsed.title || ''
+              document.getElementById('note-voice-body').value = parsed.body || ''
+              setVoiceColor(parsed.color || 'default')
+
+              if (checklistEditor) checklistEditor.innerHTML = ''
+              const items = Array.isArray(parsed.items) ? parsed.items : []
+              if (parsed.type === 'checklist') {
+                syncVoiceNoteType('checklist')
+                items.forEach((item) => addVoiceChecklistItem(item.text || '', Boolean(item.checked)))
+                if (items.length === 0) addVoiceChecklistItem()
+              } else {
+                syncVoiceNoteType('text')
+              }
+              modal?.removeAttribute('hidden')
+            },
+          })
+        })()
       })()
     </script>
   </body>

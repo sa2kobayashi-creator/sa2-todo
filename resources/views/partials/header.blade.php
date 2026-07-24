@@ -9,6 +9,7 @@
       <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">{{ __('ダッシュボード') }}</a>
       <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">{{ __('Todo') }}</a>
       <a href="/notes" class="{{ ($active ?? '') === 'notes' ? 'active' : '' }}">{{ __('メモ') }}</a>
+      <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
       @if(!empty($canFinance))
         <a href="/finance" class="{{ ($active ?? '') === 'finance' ? 'active' : '' }}">{{ __('入出金経費') }}</a>
       @endif
@@ -18,7 +19,12 @@
       @if(!empty($canMap))
         <a href="/map" class="{{ ($active ?? '') === 'map' ? 'active' : '' }}">{{ __('マップ') }}</a>
       @endif
-      <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
+      @if(!empty($canMusic))
+        <a href="/music" class="{{ ($active ?? '') === 'music' ? 'active' : '' }}">{{ __('音楽') }}</a>
+      @endif
+      @if(!empty($canVideo))
+        <a href="/video" class="{{ ($active ?? '') === 'video' ? 'active' : '' }}">{{ __('動画') }}</a>
+      @endif
       @if(!empty($canSettings) || !empty($canAdminUsers))
         <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'is-active' : '' }}" id="settings-dropdown">
           <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">

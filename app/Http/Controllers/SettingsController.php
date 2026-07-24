@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TranslationApiKey;
 use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
+use App\Services\DeeplUsageService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class SettingsController extends Controller
         private HolidayService $holidays,
         private MediaStorageConfigService $mediaStorage,
         private AiLlmConfigService $aiLlm,
+        private DeeplUsageService $deeplUsage,
     ) {}
 
     public function index(Request $request)
@@ -39,6 +41,13 @@ class SettingsController extends Controller
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
+            'deeplPricing' => $section === 'ai' ? $this->deeplUsage->pricingFormState() : null,
+            'deeplUsageSummaries' => $section === 'ai'
+                ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
+                    ->mapWithKeys(fn (TranslationApiKey $key) => [
+                        $key->id => $this->deeplUsage->usageSummary($key),
+                    ])->all()
+                : [],
             'llmSettings' => $section === 'ai' ? $this->aiLlm->formState() : null,
             'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,

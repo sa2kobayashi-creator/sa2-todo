@@ -46,6 +46,8 @@
             'finance' => '入出金経費',
             'transit' => '路線検索',
             'map' => 'マップ',
+            'music' => '音楽',
+            'video' => '動画',
             'settings' => '設定',
             'admin' => 'ユーザー管理',
           ] as $key => $label)

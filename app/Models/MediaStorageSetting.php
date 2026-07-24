@@ -19,6 +19,9 @@ class MediaStorageSetting extends Model
     /** ChatGPT / Gemini（入出金音声入力など） */
     public const PROVIDER_LLM = 'llm';
 
+    /** DeepL 使用量・料金表示の設定 */
+    public const PROVIDER_DEEPL = 'deepl';
+
     protected $fillable = [
         'provider',
         'enabled',

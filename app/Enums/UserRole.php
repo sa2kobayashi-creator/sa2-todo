@@ -22,7 +22,7 @@ enum UserRole: string
         return match ($this) {
             self::Admin => 'すべてのメニューを表示・編集できます。',
             self::Standard => '設定以外のメニューを表示・変更できます。',
-            self::Light => 'ダッシュボード、Todo、メモ、Photos のみ利用できます。',
+            self::Light => 'ダッシュボード、Todo、メモ、Photos、音楽、動画 のみ利用できます。',
         };
     }
 
@@ -38,6 +38,8 @@ enum UserRole: string
                 'finance',
                 'transit',
                 'map',
+                'music',
+                'video',
                 'settings',
                 'admin',
                 'mypage',
@@ -50,6 +52,8 @@ enum UserRole: string
                 'finance',
                 'transit',
                 'map',
+                'music',
+                'video',
                 'mypage',
             ],
             self::Light => [
@@ -57,6 +61,8 @@ enum UserRole: string
                 'todos',
                 'notes',
                 'photos',
+                'music',
+                'video',
                 'mypage',
             ],
         };

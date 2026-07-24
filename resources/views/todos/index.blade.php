@@ -8,6 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('Todo') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    <script src="{{ asset('voice-entry.js') }}" defer></script>
   </head>
   <body>
     @include('partials.header', ['active' => 'todos'])
@@ -147,6 +148,13 @@
             <button type="submit">{{ __('追加') }}</button>
           </div>
         </form>
+
+        @include('partials.voice-entry', [
+          'idPrefix' => 'todo',
+          'voiceAiReady' => $voiceAiReady ?? false,
+          'voiceAiProvider' => $voiceAiProvider ?? null,
+          'placeholder' => __('例: 明日買い物に行く、重要'),
+        ])
       </div>
 
       <div class="panel" id="todo-list-panel">
@@ -456,6 +464,88 @@
         @endif
       </div>
     </main>
+
+    <div class="modal modal-centered" id="todo-voice-confirm-modal" hidden>
+      <div class="modal-backdrop" data-close-todo-voice-modal></div>
+      <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="todo-voice-confirm-title">
+        <div class="modal-header">
+          <h2 id="todo-voice-confirm-title">{{ __('音声入力の確認') }}</h2>
+          <button type="button" class="modal-close" data-close-todo-voice-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form method="post" action="/todos" id="todo-voice-confirm-form" class="modal-form finance-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />
+          <p class="hint" id="todo-voice-confirm-transcript"></p>
+          <p class="hint" id="todo-voice-confirm-meta"></p>
+
+          <label>
+            {{ __('内容') }}
+            <textarea name="titles" id="todo-voice-titles" rows="4" required></textarea>
+          </label>
+
+          <fieldset class="finance-type-fieldset">
+            <legend>{{ __('指定方法') }}</legend>
+            <label class="inline-check"><input type="radio" name="dateMode" value="single" checked /> {{ __('単日') }}</label>
+            <label class="inline-check"><input type="radio" name="dateMode" value="range" /> {{ __('期間') }}</label>
+          </fieldset>
+
+          <label>
+            {{ __('開始日') }}
+            <input type="date" name="startDate" id="todo-voice-start-date" value="{{ $defaultStartDate }}" />
+          </label>
+          <label id="todo-voice-end-wrap">
+            {{ __('終了日') }}
+            <input type="date" name="endDate" id="todo-voice-end-date" value="{{ $defaultEndDate }}" />
+          </label>
+
+          <label>
+            {{ __('重要度') }}
+            <select name="importance" id="todo-voice-importance">
+              @foreach($importanceLabels as $value => $label)
+                <option value="{{ $value }}" @selected($value === 'medium')>{{ $label }}</option>
+              @endforeach
+            </select>
+          </label>
+          <label>
+            {{ __('ステータス') }}
+            <select name="category" id="todo-voice-category">
+              @foreach($categoryLabels as $value => $label)
+                <option value="{{ $value }}" @selected($value === 'task')>{{ $label }}</option>
+              @endforeach
+            </select>
+          </label>
+
+          <label>
+            {{ __('開始時刻') }}
+            <input type="time" name="startTime" id="todo-voice-start-time" />
+          </label>
+          <label>
+            {{ __('終了時刻') }}
+            <input type="time" name="endTime" id="todo-voice-end-time" />
+          </label>
+
+          <label>
+            {{ __('共有先') }}
+            <select name="groupId" id="todo-voice-group-id">
+              <option value="">{{ __('個人（自分のみ）') }}</option>
+              @foreach($approvedGroups ?? [] as $group)
+                <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+              @endforeach
+            </select>
+          </label>
+
+          <label class="inline-check">
+            <input type="checkbox" name="splitByLine" id="todo-voice-split" value="1" checked />
+            {{ __('改行ごとに別の ToDo として登録する') }}
+          </label>
+
+          <div class="finance-form-actions">
+            <button type="button" class="secondary" data-close-todo-voice-modal>{{ __('キャンセル') }}</button>
+            <button type="submit" class="button-link">{{ __('登録') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <form id="row-action-form" method="post" action="/todos/0/toggle" hidden aria-hidden="true">
       @csrf
@@ -922,6 +1012,70 @@
           syncFilterPeriodMode()
         })
       })()
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('todo-voice-confirm-modal')
+        const form = document.getElementById('todo-voice-confirm-form')
+        const endWrap = document.getElementById('todo-voice-end-wrap')
+        function syncVoiceDateMode() {
+          const mode = form?.querySelector('input[name="dateMode"]:checked')?.value || 'single'
+          if (endWrap) endWrap.hidden = mode === 'single'
+        }
+        form?.querySelectorAll('input[name="dateMode"]').forEach((radio) => {
+          radio.addEventListener('change', syncVoiceDateMode)
+        })
+        document.querySelectorAll('[data-close-todo-voice-modal]').forEach((el) => {
+          el.addEventListener('click', () => modal?.setAttribute('hidden', ''))
+        })
+
+        window.Sa2VoiceEntry?.init({
+          prefix: 'todo',
+          parseUrl: '/todos/voice/parse',
+          ready: @json(!empty($voiceAiReady)),
+          strings: {
+            speak: @json(__('話す')),
+            stop: @json(__('停止')),
+            empty: @json(__('音声テキストを入力するか、マイクで話してください。')),
+            notReady: @json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')),
+            parsing: @json(__('AIで解析中…')),
+            parsed: @json(__('解析結果を確認して登録してください。')),
+            parseFailed: @json(__('音声の解析に失敗しました。')),
+            unsupported: @json(__('このブラウザは音声認識に対応していません。テキスト入力をご利用ください。')),
+            listening: @json(__('聞いています…')),
+            transcribed: @json(__('文字起こし完了。解析します…')),
+            micDenied: @json(__('マイクの使用が許可されていません。')),
+            recognizeFailed: @json(__('音声認識に失敗しました。')),
+            startFailed: @json(__('音声認識を開始できませんでした。')),
+          },
+          onParsed(parsed, transcript) {
+            document.getElementById('todo-voice-confirm-transcript').textContent =
+              @json(__('認識テキスト:')) + ' ' + transcript
+            const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
+            const confidenceLabel = {
+              high: @json(__('確信度: 高')),
+              medium: @json(__('確信度: 中')),
+              low: @json(__('確信度: 低')),
+            }[parsed.confidence] || ''
+            document.getElementById('todo-voice-confirm-meta').textContent = [provider, confidenceLabel].filter(Boolean).join(' / ')
+
+            const titles = Array.isArray(parsed.titles) ? parsed.titles.join('\n') : ''
+            document.getElementById('todo-voice-titles').value = titles
+            const mode = parsed.dateMode === 'range' ? 'range' : 'single'
+            const modeRadio = form.querySelector(`input[name="dateMode"][value="${mode}"]`)
+            if (modeRadio) modeRadio.checked = true
+            document.getElementById('todo-voice-start-date').value = parsed.startDate || ''
+            document.getElementById('todo-voice-end-date').value = parsed.endDate || parsed.startDate || ''
+            document.getElementById('todo-voice-importance').value = parsed.importance || 'medium'
+            document.getElementById('todo-voice-category').value = parsed.category || 'task'
+            document.getElementById('todo-voice-start-time').value = parsed.startTime || ''
+            document.getElementById('todo-voice-end-time').value = parsed.endTime || ''
+            document.getElementById('todo-voice-group-id').value = parsed.groupId ? String(parsed.groupId) : ''
+            document.getElementById('todo-voice-split').checked = parsed.splitByLine !== false
+            syncVoiceDateMode()
+            modal?.removeAttribute('hidden')
+          },
+        })
+      })
     </script>
   </body>
 </html>

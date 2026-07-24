@@ -8,11 +8,14 @@ use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use App\Services\TodoVoiceParseService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TodoController extends Controller
 {
     use Concerns\RedirectsWithFlash;
+    use Concerns\ParsesVoiceTranscript;
 
     public function __construct(
         private TodoService $todos,
@@ -21,6 +24,7 @@ class TodoController extends Controller
         private NoteService $notes,
         private DisplayService $display,
         private GroupService $groups,
+        private TodoVoiceParseService $voiceParse,
     ) {}
 
     public function index(Request $request)
@@ -85,8 +89,25 @@ class TodoController extends Controller
                 sprintf('%04d-%02d-01', $calendarYear, $calendarMonth)
             ),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
+            'voiceAiReady' => $this->voiceParse->isReady(),
+            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function parseVoice(Request $request): JsonResponse
+    {
+        $userId = (int) $request->user()->id;
+        $transcript = trim((string) $request->input('transcript', ''));
+        if ($transcript === '') {
+            return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        return $this->voiceParseJsonResponse(fn () => $this->voiceParse->parse(
+            $transcript,
+            $this->voiceGroups($userId, $this->groups),
+            now()->toDateString()
+        ));
     }
 
     public function store(Request $request)

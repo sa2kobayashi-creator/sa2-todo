@@ -5,16 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Note;
 use App\Services\GroupService;
 use App\Services\NoteService;
+use App\Services\NoteVoiceParseService;
 use App\Services\TranslationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class NoteController extends Controller
 {
     use Concerns\RedirectsWithFlash;
+    use Concerns\ParsesVoiceTranscript;
 
     public function __construct(
         private NoteService $notes,
         private GroupService $groups,
+        private NoteVoiceParseService $voiceParse,
     ) {}
 
     /**
@@ -108,9 +112,26 @@ class NoteController extends Controller
             'noteAttachmentMaxCount' => $this->notes->maxAttachmentsPerNote(),
             'noteAttachmentMaxSizeLabel' => $this->formatNoteAttachmentSize($this->notes->maxAttachmentBytes()),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
+            'voiceAiReady' => $this->voiceParse->isReady(),
+            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
             'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function parseVoice(Request $request): JsonResponse
+    {
+        $userId = (int) $request->user()->id;
+        $transcript = trim((string) $request->input('transcript', ''));
+        if ($transcript === '') {
+            return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        return $this->voiceParseJsonResponse(fn () => $this->voiceParse->parse(
+            $transcript,
+            $this->voiceGroups($userId, $this->groups),
+            $this->notes->todayIso()
+        ));
     }
 
     private function formatNoteAttachmentSize(int $bytes): string
@@ -235,9 +256,40 @@ class NoteController extends Controller
     public function archive(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
-        $this->notes->toggleArchive((int) $request->user()->id, $id);
+        $note = $this->notes->toggleArchive((int) $request->user()->id, $id);
+        if (! $note) {
+            return $this->redirectWithMessage($returnTo, __('メモが見つかりません'), 'error');
+        }
 
-        return redirect($returnTo);
+        if (empty($note['archived'])) {
+            // アーカイブ一覧へ戻すと復元後のメモが見えないため、通常一覧へ
+            $returnTo = $this->notesUrlWithoutArchived($returnTo);
+
+            return $this->redirectWithMessage($returnTo, __('アーカイブから戻しました'));
+        }
+
+        return $this->redirectWithMessage($returnTo, __('アーカイブしました'));
+    }
+
+    private function notesUrlWithoutArchived(string $url): string
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts)) {
+            return '/notes';
+        }
+
+        $query = [];
+        if (! empty($parts['query'])) {
+            parse_str($parts['query'], $query);
+        }
+        unset($query['archived']);
+
+        $path = $parts['path'] ?? '/notes';
+        if ($query === []) {
+            return $path;
+        }
+
+        return $path.'?'.http_build_query($query);
     }
 
     public function reschedule(Request $request, int $id)
@@ -288,11 +340,15 @@ class NoteController extends Controller
         $unarchive = $request->boolean('unarchive');
         $count = $this->notes->bulkArchive((int) $request->user()->id, $ids, ! $unarchive);
 
+        if ($unarchive && $count > 0) {
+            $returnTo = $this->notesUrlWithoutArchived($returnTo);
+        }
+
         return $this->redirectWithMessage(
             $returnTo,
             $count > 0
-                ? ($unarchive ? "{$count}件をアーカイブから戻しました" : "{$count}件をアーカイブしました")
-                : '対象が選択されていません',
+                ? ($unarchive ? __(':count件をアーカイブから戻しました', ['count' => $count]) : __(':count件をアーカイブしました', ['count' => $count]))
+                : __('対象が選択されていません'),
             $count > 0 ? 'notice' : 'error'
         );
     }
