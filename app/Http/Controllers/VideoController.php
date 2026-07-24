@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\PhotoService;
 use App\Services\YoutubeVideoService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class VideoController extends Controller
@@ -42,6 +43,7 @@ class VideoController extends Controller
             'playlist' => $playlist,
             'youtubeVideos' => $youtube,
             'uploadedVideos' => $uploads,
+            'youtubeSearchReady' => $this->youtube->isSearchReady(),
             'maxUploadLabel' => $this->formatBytes($this->photos->maxVideoUploadBytes()),
             ...$this->flashFromQuery($request),
         ]);
@@ -79,16 +81,51 @@ class VideoController extends Controller
         );
     }
 
+    public function searchYoutube(Request $request): JsonResponse
+    {
+        $result = $this->youtube->search(
+            (string) $request->input('q', ''),
+            $request->input('pageToken')
+        );
+
+        return response()->json($result, ! empty($result['ok']) ? 200 : 422);
+    }
+
     public function storeYoutube(Request $request)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/video');
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $userId = (int) $request->user()->id;
+        $youtubeId = trim((string) $request->input('youtube_id', ''));
         $url = trim((string) $request->input('youtube_url', ''));
         $title = trim((string) $request->input('title', ''));
+        $thumb = trim((string) $request->input('thumb_url', ''));
 
         try {
-            $this->youtube->addFromUrl((int) $request->user()->id, $url, $title !== '' ? $title : null);
+            if ($youtubeId !== '') {
+                $item = $this->youtube->addFromVideoId(
+                    $userId,
+                    $youtubeId,
+                    $title !== '' ? $title : null,
+                    $thumb !== '' ? $thumb : null
+                );
+            } else {
+                $item = $this->youtube->addFromUrl($userId, $url, $title !== '' ? $title : null);
+            }
         } catch (\InvalidArgumentException $e) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'message' => __('YouTube動画を追加しました。'),
+                'item' => $item,
+            ]);
         }
 
         return $this->redirectWithMessage($returnTo, __('YouTube動画を追加しました。'));

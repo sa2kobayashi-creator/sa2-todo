@@ -189,9 +189,9 @@
       @elseif(($section ?? '') === 'ai')
       <div class="panel" id="ai-settings">
         <h2>{{ __('AI設定') }}</h2>
-        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini を使います。') }}</p>
+        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini、動画検索は YouTube Data API を使います。') }}</p>
 
-        @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; @endphp
+        @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; $yt = $youtubeSettings ?? []; @endphp
         <div class="storage-settings ai-llm-panel" id="ai-llm-settings">
           <h3 class="ai-settings-subtitle">{{ __('LLM（入出金音声入力）') }}</h3>
           <p class="hint">{{ __('Web Speech API で文字起こしした文言を、選択した LLM が JSON に変換します。ChatGPT と Gemini を設定し、使用する方を切り替えられます。') }}</p>
@@ -236,6 +236,35 @@
               <button type="submit" class="button-link">{{ __('保存') }}</button>
               <button type="button" class="secondary" id="ai-llm-test-btn">{{ __('接続テスト') }}</button>
               <span class="storage-test-live hint" id="ai-llm-test-live"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="storage-settings ai-llm-panel" id="youtube-api-settings">
+          <h3 class="ai-settings-subtitle">{{ __('YouTube検索（Data API）') }}</h3>
+          <p class="hint">{{ __('Google Cloud で YouTube Data API v3 を有効化し、APIキーを登録すると、動画ページでキーワード検索が使えます。') }}</p>
+          @if(!empty($yt['last_test_message']))
+            <p class="hint storage-test-result {{ ($yt['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
+              {{ $yt['last_test_message'] }}
+              @if(!empty($yt['last_tested_at']))
+                <span class="inline-hint">({{ $yt['last_tested_at'] }})</span>
+              @endif
+            </p>
+          @endif
+          <form method="post" action="/settings/ai/youtube" class="storage-provider-form" id="youtube-api-form">
+            @csrf
+            <label class="storage-enable">
+              <input type="checkbox" name="enabled" value="1" @checked(!empty($yt['enabled'])) />
+              {{ __('有効にする') }}
+            </label>
+            <label>
+              {{ __('YouTube Data API キー') }}
+              <input type="password" name="api_key" value="{{ $yt['api_key_masked'] ?? '' }}" placeholder="AIza..." autocomplete="off" />
+            </label>
+            <div class="storage-form-actions">
+              <button type="submit" class="button-link">{{ __('保存') }}</button>
+              <button type="button" class="secondary" id="youtube-api-test-btn">{{ __('接続テスト') }}</button>
+              <span class="storage-test-live hint" id="youtube-api-test-live"></span>
             </div>
           </form>
         </div>
@@ -800,6 +829,39 @@
             }
           } finally {
             llmTestBtn.disabled = false;
+          }
+        });
+
+        const ytTestBtn = document.getElementById('youtube-api-test-btn');
+        const ytTestLive = document.getElementById('youtube-api-test-live');
+        const ytStrings = {
+          testing: @json(__('テスト中...')),
+          networkError: @json(__('通信エラーが発生しました')),
+        };
+        ytTestBtn?.addEventListener('click', async () => {
+          ytTestBtn.disabled = true;
+          if (ytTestLive) ytTestLive.textContent = ytStrings.testing;
+          try {
+            const res = await fetch('/settings/ai/youtube/test', {
+              method: 'POST',
+              headers: {
+                'X-CSRF-TOKEN': csrf,
+                Accept: 'application/json',
+              },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (ytTestLive) {
+              ytTestLive.textContent = data.message || '';
+              ytTestLive.classList.toggle('is-ok', Boolean(data.ok));
+              ytTestLive.classList.toggle('is-fail', !data.ok);
+            }
+          } catch (_) {
+            if (ytTestLive) {
+              ytTestLive.textContent = ytStrings.networkError;
+              ytTestLive.classList.add('is-fail');
+            }
+          } finally {
+            ytTestBtn.disabled = false;
           }
         });
       })();

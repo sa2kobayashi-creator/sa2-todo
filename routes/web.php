@@ -21,6 +21,7 @@ use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\VideoController;
+use App\Http\Controllers\YoutubeSettingsController;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
@@ -108,6 +109,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(EnsureFeature::class.':video')->group(function () {
         Route::get('/video', [VideoController::class, 'index']);
         Route::post('/video', [VideoController::class, 'store']);
+        Route::get('/video/youtube/search', [VideoController::class, 'searchYoutube']);
         Route::post('/video/youtube', [VideoController::class, 'storeYoutube']);
         Route::post('/video/youtube/{id}/delete', [VideoController::class, 'destroyYoutube'])->whereNumber('id');
     });
@@ -182,6 +184,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
         Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
         Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
+        Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
+        Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
             ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');

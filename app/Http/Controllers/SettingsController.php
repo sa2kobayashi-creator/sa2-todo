@@ -8,6 +8,7 @@ use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
+use App\Services\YoutubeVideoService;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
@@ -19,6 +20,7 @@ class SettingsController extends Controller
         private MediaStorageConfigService $mediaStorage,
         private AiLlmConfigService $aiLlm,
         private DeeplUsageService $deeplUsage,
+        private YoutubeVideoService $youtube,
     ) {}
 
     public function index(Request $request)
@@ -49,6 +51,7 @@ class SettingsController extends Controller
                     ])->all()
                 : [],
             'llmSettings' => $section === 'ai' ? $this->aiLlm->formState() : null,
+            'youtubeSettings' => $section === 'ai' ? $this->youtube->formState() : null,
             'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,

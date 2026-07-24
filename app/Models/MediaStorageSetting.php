@@ -22,6 +22,9 @@ class MediaStorageSetting extends Model
     /** DeepL 使用量・料金表示の設定 */
     public const PROVIDER_DEEPL = 'deepl';
 
+    /** YouTube Data API（検索） */
+    public const PROVIDER_YOUTUBE = 'youtube';
+
     protected $fillable = [
         'provider',
         'enabled',
