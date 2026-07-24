@@ -269,6 +269,7 @@
           <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
           <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
+            <button type="button" class="photos-secondary-btn" id="photos-bulk-download">{{ __('ダウンロード') }}</button>
             <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
             <label class="photos-bulk-move" id="photos-bulk-move-wrap" hidden>
               <span>{{ __('アルバムへ移動') }}</span>
@@ -332,6 +333,14 @@
                     <div class="photos-list-meta">
                       <strong>{{ $photo['caption'] ?: ($photo['originalName'] ?: __('メディア')) }}</strong>
                       <span>{{ $photo['takenAt'] ?? '' }}</span>
+                      <button
+                        type="button"
+                        class="photos-secondary-btn photos-list-download"
+                        data-photo-id="{{ $photo['id'] }}"
+                        data-photo-index="{{ $flatIndex }}"
+                        title="{{ __('ダウンロード') }}"
+                        aria-label="{{ __('ダウンロード') }}"
+                      >{{ __('ダウンロード') }}</button>
                     </div>
                   </div>
                   @php $flatIndex++; @endphp
@@ -1748,8 +1757,8 @@
         document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => stepLightbox(-1))
         document.getElementById('photos-lightbox-next')?.addEventListener('click', () => stepLightbox(1))
 
-        async function fetchCurrentMediaFile() {
-          const photo = photos[currentIndex]
+        async function fetchPhotoFileByIndex(index) {
+          const photo = photos[index]
           if (!photo) throw new Error('photo')
           const url = photo.fileUrl || (`/photos/${photo.id}/file`)
           const res = await fetch(url, {
@@ -1769,6 +1778,10 @@
           return new File([blob], `${base}.${ext}`, { type: mime, lastModified: Date.now() })
         }
 
+        async function fetchCurrentMediaFile() {
+          return fetchPhotoFileByIndex(currentIndex)
+        }
+
         function downloadFile(file) {
           const objectUrl = URL.createObjectURL(file)
           const a = document.createElement('a')
@@ -1780,6 +1793,63 @@
           a.remove()
           setTimeout(() => URL.revokeObjectURL(objectUrl), 2000)
         }
+
+        async function downloadPhotosByIds(ids, triggerBtn = null) {
+          const idList = (ids || []).map((id) => String(id)).filter(Boolean)
+          if (!idList.length) {
+            window.alert(@json(__('ダウンロードする写真を選択してください。')))
+            return
+          }
+          const originalText = triggerBtn?.textContent
+          if (triggerBtn) {
+            triggerBtn.disabled = true
+            triggerBtn.textContent = @json(__('ダウンロード中…'))
+          }
+          let ok = 0
+          let failed = 0
+          try {
+            for (const id of idList) {
+              const index = photos.findIndex((p) => String(p.id) === id)
+              if (index < 0) {
+                failed += 1
+                continue
+              }
+              try {
+                const file = await fetchPhotoFileByIndex(index)
+                downloadFile(file)
+                ok += 1
+                if (idList.length > 1) {
+                  await new Promise((resolve) => setTimeout(resolve, 350))
+                }
+              } catch (_) {
+                failed += 1
+              }
+            }
+            if (ok === 0) {
+              window.alert(@json(__('ダウンロードに失敗しました。')))
+            } else if (failed > 0) {
+              window.alert(@json(__(':ok件ダウンロードしました（:failed件失敗）')).replace(':ok', String(ok)).replace(':failed', String(failed)))
+            }
+          } finally {
+            if (triggerBtn) {
+              triggerBtn.disabled = false
+              triggerBtn.textContent = originalText
+            }
+          }
+        }
+
+        document.getElementById('photos-bulk-download')?.addEventListener('click', () => {
+          downloadPhotosByIds(selectedPhotoIds(), document.getElementById('photos-bulk-download'))
+        })
+
+        document.querySelectorAll('.photos-list-download').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const id = btn.dataset.photoId
+            downloadPhotosByIds(id ? [id] : [], btn)
+          })
+        })
 
         async function shareCurrentMedia({ messengerHint = false } = {}) {
           const photo = photos[currentIndex]

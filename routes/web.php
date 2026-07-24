@@ -61,6 +61,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);
     Route::post('/notes/bulk/append', [NoteController::class, 'bulkAppend']);
     Route::post('/notes/reorder', [NoteController::class, 'reorder']);
+    Route::get('/notes/attachments/{id}/file', [NoteController::class, 'attachmentFile'])->whereNumber('id');
+    Route::get('/notes/attachments/{id}/download', [NoteController::class, 'attachmentDownload'])->whereNumber('id');
     Route::post('/notes/{id}/update', [NoteController::class, 'update'])->whereNumber('id');
     Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');

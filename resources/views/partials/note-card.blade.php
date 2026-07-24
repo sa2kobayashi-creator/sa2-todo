@@ -14,6 +14,7 @@
       'shareLabel' => $note['shareLabel'] ?? __('個人（自分のみ）'),
       'registeredDate' => app(\App\Services\NoteService::class)->getRegisteredDate($note),
       'items' => $note['items'] ?? [],
+      'attachments' => $note['attachments'] ?? [],
   ];
 @endphp
 <article
@@ -56,6 +57,24 @@
       </ul>
     @elseif(!empty($note['body']))
       <div class="note-card-body">{{ $note['body'] }}</div>
+    @endif
+    @if(!empty($note['attachments']))
+      <ul class="note-card-attachments">
+        @foreach($note['attachments'] as $attachment)
+          <li>
+            @if(!empty($attachment['isImage']))
+              <a href="{{ $attachment['url'] }}" target="_blank" rel="noopener" class="note-attachment-thumb" title="{{ $attachment['name'] }}">
+                <img src="{{ $attachment['url'] }}" alt="{{ $attachment['name'] }}" loading="lazy" />
+              </a>
+            @else
+              <a href="{{ $attachment['downloadUrl'] ?? $attachment['url'] }}" class="note-attachment-file">
+                <span class="note-attachment-name">{{ $attachment['name'] }}</span>
+                <span class="note-attachment-size">{{ $attachment['sizeLabel'] ?? '' }}</span>
+              </a>
+            @endif
+          </li>
+        @endforeach
+      </ul>
     @endif
     <div class="note-card-actions">
       @if(empty($showArchived))

@@ -54,7 +54,7 @@
       <div class="notes-input-row">
         @if(!$showArchived)
           <section class="note-composer" id="note-composer">
-            <form method="post" action="/notes" class="note-composer-form" id="note-composer-form">
+            <form method="post" action="/notes" class="note-composer-form" id="note-composer-form" enctype="multipart/form-data">
           @csrf
               <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
               <input type="hidden" name="type" id="composer-type" value="text" />
@@ -93,6 +93,14 @@
                 <div class="composer-checklist-panel date-panel-hidden" id="composer-checklist-panel">
                   <div class="checklist-editor" id="composer-checklist"></div>
                   <button type="button" class="text-btn" id="composer-add-item">{{ __('項目を追加') }}</button>
+                </div>
+                <div class="note-attachments-field">
+                  <label class="note-attachments-label">
+                    <span class="field-label">{{ __('添付ファイル') }}</span>
+                    <input type="file" name="attachments[]" id="composer-attachments" multiple />
+                  </label>
+                  <p class="hint note-attachments-hint">{{ __('画像・PDF・Office・ZIP など（1ファイル最大 :size、最大 :max 件）', ['size' => $noteAttachmentMaxSizeLabel ?? '20 MB', 'max' => $noteAttachmentMaxCount ?? 10]) }}</p>
+                  <ul class="note-attachment-picked" id="composer-attachment-picked" hidden></ul>
                 </div>
                 <div class="note-composer-footer">
                   <div class="note-color-picker" role="group" aria-label="{{ __('色') }}">
@@ -207,7 +215,7 @@
           <h2 id="note-edit-modal-title">{{ __('メモを編集') }}</h2>
           <button type="button" class="modal-close" data-close-note-edit aria-label="{{ __('閉じる') }}">×</button>
         </div>
-        <form method="post" action="" id="note-edit-form" class="modal-form note-edit-form">
+        <form method="post" action="" id="note-edit-form" class="modal-form note-edit-form" enctype="multipart/form-data">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <input type="hidden" name="type" id="note-edit-type" value="text" />
@@ -249,6 +257,16 @@
             <div class="field-label" style="margin-bottom:6px">{{ __('チェックリスト') }}</div>
             <div class="checklist-editor" id="note-edit-checklist"></div>
             <button type="button" class="text-btn" id="note-edit-add-item">{{ __('項目を追加') }}</button>
+          </div>
+          <div class="note-attachments-field">
+            <div class="field-label">{{ __('添付ファイル') }}</div>
+            <ul class="note-attachment-list" id="note-edit-attachments"></ul>
+            <label class="note-attachments-label">
+              <span class="field-label">{{ __('ファイルを追加') }}</span>
+              <input type="file" name="attachments[]" id="note-edit-attachments-input" multiple />
+            </label>
+            <p class="hint note-attachments-hint">{{ __('画像・PDF・Office・ZIP など（1ファイル最大 :size、最大 :max 件）', ['size' => $noteAttachmentMaxSizeLabel ?? '20 MB', 'max' => $noteAttachmentMaxCount ?? 10]) }}</p>
+            <ul class="note-attachment-picked" id="note-edit-attachment-picked" hidden></ul>
           </div>
           <div class="note-composer-footer">
             <div class="note-color-picker" id="note-edit-colors" role="group" aria-label="{{ __('色') }}">
@@ -570,9 +588,71 @@
             addEditChecklistRow(item.text || '', !!item.checked)
           })
           syncNoteEditType(note.type === 'checklist' ? 'checklist' : 'text')
+          renderEditAttachments(Array.isArray(note.attachments) ? note.attachments : [])
+          const editFileInput = document.getElementById('note-edit-attachments-input')
+          if (editFileInput) editFileInput.value = ''
+          renderPickedFiles(document.getElementById('note-edit-attachment-picked'), [])
           if (noteEditModal) noteEditModal.hidden = false
           noteEditTitle?.focus()
         }
+
+        function renderEditAttachments(attachments) {
+          const list = document.getElementById('note-edit-attachments')
+          if (!list) return
+          list.innerHTML = ''
+          if (!attachments.length) {
+            list.hidden = true
+            return
+          }
+          list.hidden = false
+          attachments.forEach((file) => {
+            const li = document.createElement('li')
+            li.className = 'note-attachment-row'
+            const link = document.createElement('a')
+            link.href = file.downloadUrl || file.url
+            link.textContent = file.name || ('#' + file.id)
+            link.target = '_blank'
+            link.rel = 'noopener'
+            const meta = document.createElement('span')
+            meta.className = 'note-attachment-size'
+            meta.textContent = file.sizeLabel || ''
+            const label = document.createElement('label')
+            label.className = 'note-attachment-remove'
+            const cb = document.createElement('input')
+            cb.type = 'checkbox'
+            cb.name = 'remove_attachment_ids[]'
+            cb.value = String(file.id)
+            label.appendChild(cb)
+            label.appendChild(document.createTextNode(@json(__('削除'))))
+            li.appendChild(link)
+            li.appendChild(meta)
+            li.appendChild(label)
+            list.appendChild(li)
+          })
+        }
+
+        function renderPickedFiles(listEl, files) {
+          if (!listEl) return
+          listEl.innerHTML = ''
+          const arr = Array.from(files || [])
+          if (!arr.length) {
+            listEl.hidden = true
+            return
+          }
+          listEl.hidden = false
+          arr.forEach((file) => {
+            const li = document.createElement('li')
+            li.textContent = file.name
+            listEl.appendChild(li)
+          })
+        }
+
+        document.getElementById('composer-attachments')?.addEventListener('change', (e) => {
+          renderPickedFiles(document.getElementById('composer-attachment-picked'), e.target.files)
+        })
+        document.getElementById('note-edit-attachments-input')?.addEventListener('change', (e) => {
+          renderPickedFiles(document.getElementById('note-edit-attachment-picked'), e.target.files)
+        })
 
         function parseCardNote(card) {
           try {
@@ -596,7 +676,7 @@
             return
           }
           const view = e.target.closest('.note-card-view')
-          if (view && !e.target.closest('.note-card-actions, .note-bulk-check, .note-inline-form')) {
+          if (view && !e.target.closest('.note-card-actions, .note-bulk-check, .note-inline-form, .note-card-attachments')) {
             const card = view.closest('.note-card')
             openNoteEdit(parseCardNote(card))
           }

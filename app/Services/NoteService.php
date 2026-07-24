@@ -3,11 +3,21 @@
 namespace App\Services;
 
 use App\Models\Note;
+use App\Models\NoteAttachment;
 use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class NoteService
 {
     public const PAGE_SIZE = 20;
+
+    public const ATTACHMENT_ALLOWED_EXTENSIONS = [
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
+        'pdf', 'txt', 'csv', 'md',
+        'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+        'zip', 'mp3', 'm4a', 'mp4',
+    ];
 
     public const NOTE_COLORS = [
         'default' => ['label' => '白', 'bg' => '#ffffff', 'border' => '#dadce0'],
@@ -72,7 +82,7 @@ class NoteService
 
     public function findAccessibleNote(int $userId, int $id): ?Note
     {
-        $note = Note::query()->with('group')->find($id);
+        $note = Note::query()->with(['group', 'attachments'])->find($id);
         if (! $note || ! $this->userCanAccessNote($userId, $note)) {
             return null;
         }
@@ -85,7 +95,7 @@ class NoteService
     {
         $groupIds = $this->groups->approvedGroupIdsForUser($userId);
 
-        return Note::query()->with('group')->where(function ($q) use ($userId, $groupIds) {
+        return Note::query()->with(['group', 'attachments'])->where(function ($q) use ($userId, $groupIds) {
             $q->where(function ($personal) use ($userId) {
                 $personal->where('user_id', $userId)->whereNull('group_id');
             });
@@ -190,6 +200,9 @@ class NoteService
                 foreach ($note['items'] ?? [] as $item) {
                     $parts[] = $item['text'] ?? '';
                 }
+                foreach ($note['attachments'] ?? [] as $attachment) {
+                    $parts[] = $attachment['name'] ?? '';
+                }
 
                 return str_contains(strtolower(implode("\n", $parts)), $q);
             }));
@@ -256,7 +269,7 @@ class NoteService
             'items' => $type === 'checklist' ? $items : [],
             'registered_date' => $this->normalizeRegisteredDate($input['registeredDate'] ?? null) ?? $this->todayIso(),
         ]);
-        $note->load('group');
+        $note->load(['group', 'attachments']);
 
         return $this->toArray($note);
     }
@@ -309,7 +322,7 @@ class NoteService
         }
 
         $note->save();
-        $note->load('group');
+        $note->load(['group', 'attachments']);
 
         return $this->toArray($note);
     }
@@ -323,7 +336,7 @@ class NoteService
         $note->pinned = ! $note->pinned;
         $note->sort_order = $this->nextFrontSortOrder((int) $note->user_id, $note->pinned, $note->archived);
         $note->save();
-        $note->load('group');
+        $note->load(['group', 'attachments']);
 
         return $this->toArray($note);
     }
@@ -396,7 +409,7 @@ class NoteService
         }
         $note->sort_order = $this->nextFrontSortOrder((int) $note->user_id, $note->pinned, $note->archived);
         $note->save();
-        $note->load('group');
+        $note->load(['group', 'attachments']);
 
         return $this->toArray($note);
     }
@@ -408,7 +421,233 @@ class NoteService
             return false;
         }
 
+        foreach ($note->attachments as $attachment) {
+            $this->deleteAttachmentFile($attachment);
+        }
+
         return (bool) $note->delete();
+    }
+
+    public function maxAttachmentBytes(): int
+    {
+        return max(1, (int) config('notes.max_attachment_bytes', 20 * 1024 * 1024));
+    }
+
+    public function maxAttachmentsPerNote(): int
+    {
+        return max(1, (int) config('notes.max_attachments_per_note', 10));
+    }
+
+    public function attachmentDisk(): string
+    {
+        $configured = trim((string) config('notes.attachment_disk', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $disk = (string) config('photos.disk', 'public');
+
+        return $disk !== '' ? $disk : 'public';
+    }
+
+    /**
+     * @param  list<UploadedFile|null>|UploadedFile|null  $files
+     * @return list<array<string, mixed>>
+     */
+    public function addAttachments(int $userId, int $noteId, $files): array
+    {
+        $note = $this->findAccessibleNote($userId, $noteId);
+        if (! $note) {
+            throw new \InvalidArgumentException(__('メモが見つかりません'));
+        }
+        if ((int) $note->user_id !== $userId) {
+            throw new \InvalidArgumentException(__('添付の追加はメモの所有者のみできます。'));
+        }
+
+        $list = is_array($files) ? $files : [$files];
+        $uploads = [];
+        foreach ($list as $file) {
+            if ($file instanceof UploadedFile && $file->isValid()) {
+                $uploads[] = $file;
+            }
+        }
+        if ($uploads === []) {
+            return [];
+        }
+
+        $existing = $note->attachments()->count();
+        $max = $this->maxAttachmentsPerNote();
+        if ($existing + count($uploads) > $max) {
+            throw new \InvalidArgumentException(__('添付は1メモあたり最大 :max 件までです。', ['max' => $max]));
+        }
+
+        $created = [];
+        foreach ($uploads as $file) {
+            $created[] = $this->storeAttachment($note, $userId, $file);
+        }
+
+        return $created;
+    }
+
+    /**
+     * @param  list<int|string>  $attachmentIds
+     */
+    public function removeAttachments(int $userId, int $noteId, array $attachmentIds): int
+    {
+        $note = $this->findAccessibleNote($userId, $noteId);
+        if (! $note) {
+            throw new \InvalidArgumentException(__('メモが見つかりません'));
+        }
+        if ((int) $note->user_id !== $userId) {
+            throw new \InvalidArgumentException(__('添付の削除はメモの所有者のみできます。'));
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $attachmentIds))));
+        if ($ids === []) {
+            return 0;
+        }
+
+        $count = 0;
+        $attachments = NoteAttachment::query()
+            ->where('note_id', $note->id)
+            ->whereIn('id', $ids)
+            ->get();
+        foreach ($attachments as $attachment) {
+            $this->deleteAttachmentFile($attachment);
+            $attachment->delete();
+            $count++;
+        }
+
+        return $count;
+    }
+
+    public function findAccessibleAttachment(int $userId, int $attachmentId): ?NoteAttachment
+    {
+        $attachment = NoteAttachment::query()->with('note.group')->find($attachmentId);
+        if (! $attachment || ! $attachment->note) {
+            return null;
+        }
+        if (! $this->userCanAccessNote($userId, $attachment->note)) {
+            return null;
+        }
+
+        return $attachment;
+    }
+
+    public function streamAttachment(int $userId, int $attachmentId, bool $download = false): \Illuminate\Http\Response
+    {
+        $attachment = $this->findAccessibleAttachment($userId, $attachmentId);
+        if (! $attachment) {
+            abort(404, __('添付ファイルが見つかりません'));
+        }
+
+        $disk = Storage::disk($attachment->disk ?: $this->attachmentDisk());
+        if (! $disk->exists($attachment->path)) {
+            abort(404, __('添付ファイルが見つかりません'));
+        }
+
+        try {
+            $contents = $disk->get($attachment->path);
+        } catch (\Throwable $e) {
+            report($e);
+            abort(404, __('添付ファイルが見つかりません'));
+        }
+
+        $mime = $attachment->mime ?: 'application/octet-stream';
+        $filename = str_replace(['"', "\r", "\n"], '', $attachment->original_name);
+        $disposition = ($download ? 'attachment' : 'inline').'; filename="'.$filename.'"';
+
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition,
+            'Content-Length' => (string) strlen($contents),
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function storeAttachment(Note $note, int $userId, UploadedFile $file): array
+    {
+        $maxBytes = $this->maxAttachmentBytes();
+        if ($file->getSize() > $maxBytes) {
+            throw new \InvalidArgumentException(__('添付ファイルは :size 以下にしてください。', [
+                'size' => $this->formatBytes($maxBytes),
+            ]));
+        }
+
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if ($ext === '' || ! in_array($ext, self::ATTACHMENT_ALLOWED_EXTENSIONS, true)) {
+            throw new \InvalidArgumentException(__('この形式のファイルは添付できません。'));
+        }
+
+        $diskName = $this->attachmentDisk();
+        $dir = 'notes/'.$userId.'/'.$note->id;
+        $basename = str_replace('.', '', uniqid('na_', true)).'.'.$ext;
+
+        try {
+            $path = Storage::disk($diskName)->putFileAs($dir, $file, $basename, [
+                'visibility' => 'private',
+                'ContentType' => $file->getMimeType() ?: 'application/octet-stream',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            throw new \RuntimeException(__('添付ファイルの保存に失敗しました。'));
+        }
+
+        if (! is_string($path) || $path === '') {
+            throw new \RuntimeException(__('添付ファイルの保存に失敗しました。'));
+        }
+
+        $attachment = NoteAttachment::create([
+            'note_id' => $note->id,
+            'user_id' => $userId,
+            'disk' => $diskName,
+            'path' => $path,
+            'original_name' => mb_substr($file->getClientOriginalName() ?: ('file.'.$ext), 0, 255),
+            'mime' => $file->getMimeType() ?: null,
+            'size_bytes' => (int) $file->getSize(),
+        ]);
+
+        return $this->attachmentToArray($attachment);
+    }
+
+    private function deleteAttachmentFile(NoteAttachment $attachment): void
+    {
+        $diskName = $attachment->disk ?: $this->attachmentDisk();
+        try {
+            Storage::disk($diskName)->delete($attachment->path);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function attachmentToArray(NoteAttachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'noteId' => $attachment->note_id,
+            'name' => $attachment->original_name,
+            'mime' => $attachment->mime,
+            'sizeBytes' => (int) $attachment->size_bytes,
+            'sizeLabel' => $this->formatBytes((int) $attachment->size_bytes),
+            'isImage' => $attachment->isImage(),
+            'url' => '/notes/attachments/'.$attachment->id.'/file',
+            'downloadUrl' => '/notes/attachments/'.$attachment->id.'/download',
+        ];
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $bytes = max(0, $bytes);
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024, 1, '.', ''), '0'), '.').' KB';
+        }
+
+        return rtrim(rtrim(number_format($bytes / (1024 * 1024), 2, '.', ''), '0'), '.').' MB';
     }
 
     public function rescheduleNote(int $userId, int $id, string $newDate): ?array
@@ -585,6 +824,10 @@ class NoteService
 
     public function toArray(Note $note): array
     {
+        if (! $note->relationLoaded('attachments')) {
+            $note->load('attachments');
+        }
+
         return [
             'id' => $note->id,
             'userId' => $note->user_id,
@@ -602,6 +845,10 @@ class NoteService
             'type' => $note->type,
             'category' => $this->normalizeCategory($note->category ?? null),
             'items' => $note->items ?? [],
+            'attachments' => $note->attachments
+                ->map(fn (NoteAttachment $a) => $this->attachmentToArray($a))
+                ->values()
+                ->all(),
             'registeredDate' => $note->registered_date?->format('Y-m-d'),
             'createdAt' => $note->created_at?->toIso8601String(),
             'updatedAt' => $note->updated_at?->toIso8601String(),

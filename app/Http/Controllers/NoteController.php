@@ -105,10 +105,22 @@ class NoteController extends Controller
             'colorKeys' => NoteService::COLOR_KEYS,
             'noteCategories' => NoteService::NOTE_CATEGORIES,
             'defaultCategory' => NoteService::DEFAULT_CATEGORY,
+            'noteAttachmentMaxCount' => $this->notes->maxAttachmentsPerNote(),
+            'noteAttachmentMaxSizeLabel' => $this->formatNoteAttachmentSize($this->notes->maxAttachmentBytes()),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    private function formatNoteAttachmentSize(int $bytes): string
+    {
+        $bytes = max(0, $bytes);
+        if ($bytes < 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / 1024, 1, '.', ''), '0'), '.').' KB';
+        }
+
+        return rtrim(rtrim(number_format($bytes / (1024 * 1024), 1, '.', ''), '0'), '.').' MB';
     }
 
     public function store(Request $request)
@@ -120,12 +132,21 @@ class NoteController extends Controller
         if ($type === 'checklist' && count($items) === 0) {
             return $this->redirectWithMessage($returnTo, 'チェックリストの項目を1つ以上入力してください', 'error');
         }
-        if ($type === 'text' && trim((string) $request->input('title')) === '' && trim((string) $request->input('body')) === '') {
+        $hasFiles = collect($request->file('attachments', []) ?: [])
+            ->filter(fn ($f) => $f && $f->isValid())
+            ->isNotEmpty();
+        if (
+            $type === 'text'
+            && trim((string) $request->input('title')) === ''
+            && trim((string) $request->input('body')) === ''
+            && ! $hasFiles
+        ) {
             return $this->redirectWithMessage($returnTo, 'メモの内容を入力してください', 'error');
         }
 
+        $updated = null;
         try {
-            $this->notes->createNote([
+            $created = $this->notes->createNote([
                 'userId' => (int) $request->user()->id,
                 'groupId' => $request->input('groupId'),
                 'title' => $request->input('title'),
@@ -136,7 +157,10 @@ class NoteController extends Controller
                 'items' => $items,
                 'registeredDate' => $request->input('registeredDate'),
             ]);
-        } catch (\InvalidArgumentException $e) {
+            if ($hasFiles) {
+                $this->notes->addAttachments((int) $request->user()->id, (int) $created['id'], $request->file('attachments', []));
+            }
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
@@ -160,9 +184,20 @@ class NoteController extends Controller
             $patch['items'] = $request->input('items');
         }
 
+        $updated = null;
         try {
             $updated = $this->notes->updateNote($userId, $id, $patch);
-        } catch (\InvalidArgumentException $e) {
+            if ($updated) {
+                $removeIds = $request->input('remove_attachment_ids', []);
+                if (is_array($removeIds) && $removeIds !== []) {
+                    $this->notes->removeAttachments($userId, $id, $removeIds);
+                }
+                $files = $request->file('attachments', []);
+                if ($files) {
+                    $this->notes->addAttachments($userId, $id, $files);
+                }
+            }
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
@@ -234,6 +269,16 @@ class NoteController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, 'メモを削除しました');
+    }
+
+    public function attachmentFile(Request $request, int $id)
+    {
+        return $this->notes->streamAttachment((int) $request->user()->id, $id, false);
+    }
+
+    public function attachmentDownload(Request $request, int $id)
+    {
+        return $this->notes->streamAttachment((int) $request->user()->id, $id, true);
     }
 
     public function bulkArchive(Request $request)
