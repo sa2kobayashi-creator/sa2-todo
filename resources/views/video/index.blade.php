@@ -311,8 +311,6 @@
           if (current >= 0 && current < list.length - 1) playAt(current + 1)
         })
 
-        if (buttons().length > 0) playAt(0)
-
         // --- YouTube search ---
         const searchForm = document.getElementById('youtube-search-form')
         const searchInput = document.getElementById('youtube-search-q')

@@ -11313,18 +11313,26 @@ body.map-page {
 
 .media-library-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
 }
 
 .media-library-head .media-list-title {
   margin: 0;
+  flex: 0 0 auto;
 }
 
-.media-library-create,
+.media-library-create {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
 .media-library-rename {
   display: flex;
   flex-wrap: wrap;
@@ -11334,7 +11342,7 @@ body.map-page {
 
 .media-library-create .media-field-input,
 .media-library-rename .media-field-input {
-  width: min(260px, 100%);
+  width: min(260px, 42vw);
   height: 42px;
   min-height: 42px;
   padding: 10px 12px;
@@ -11342,6 +11350,32 @@ body.map-page {
   border-radius: 8px;
   font-size: 14px;
   background: #fff;
+}
+
+.media-library-create .button-link {
+  height: 42px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .media-library-head {
+    flex-wrap: wrap;
+  }
+
+  .media-library-create {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .media-library-create .media-field-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 }
 
 .media-library-tabs {
@@ -11354,14 +11388,21 @@ body.map-page {
 .media-library-tab {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 4px 10px;
+  min-height: 28px;
+  line-height: 1.2;
   border: 1px solid #dadce0;
   border-radius: 999px;
   background: #fff;
   text-decoration: none;
   color: #374151;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.media-library-tab .hint {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .media-library-tab.is-active {

@@ -34,9 +34,12 @@ class VideoController extends Controller
             $playlist[] = $item;
         }
 
+        $uploads = $this->photos->listVideos($userId);
+        $uploadCount = count($uploads);
+
         // アップロード動画はマイリスト（デフォルト）にのみ表示
         if (! empty($current['isDefault'])) {
-            foreach ($this->photos->listVideos($userId) as $video) {
+            foreach ($uploads as $video) {
                 $playlist[] = [
                     'id' => $video['id'],
                     'source' => 'upload',
@@ -47,6 +50,20 @@ class VideoController extends Controller
                     'meta' => $video['takenAt'] ?? '',
                     'photoId' => $video['id'],
                 ];
+            }
+        }
+
+        // マイリスト件数にアップロード動画を含める
+        if ($uploadCount > 0) {
+            $libraries = array_map(static function (array $lib) use ($uploadCount): array {
+                if (! empty($lib['isDefault'])) {
+                    $lib['videoCount'] = (int) ($lib['videoCount'] ?? 0) + $uploadCount;
+                }
+
+                return $lib;
+            }, $libraries);
+            if (is_array($current) && ! empty($current['isDefault'])) {
+                $current['videoCount'] = (int) ($current['videoCount'] ?? 0) + $uploadCount;
             }
         }
 

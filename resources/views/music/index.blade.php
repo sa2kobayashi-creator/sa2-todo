@@ -100,8 +100,6 @@
           const current = buttons.findIndex((b) => b.classList.contains('is-active'))
           if (current >= 0 && current < buttons.length - 1) playAt(current + 1)
         })
-
-        if (buttons.length > 0) playAt(0)
       })()
     </script>
   </body>
