@@ -63,6 +63,7 @@ class RealEsrganService
 
         $token = Str::lower(Str::random(12));
         $inputPath = $workDir.DIRECTORY_SEPARATOR.'in_'.$token.'.'.$extIn;
+        $shrunkPath = $workDir.DIRECTORY_SEPARATOR.'in_small_'.$token.'.jpg';
         $outputPath = $workDir.DIRECTORY_SEPARATOR.'out_'.$token.'.'.$format;
 
         try {
@@ -70,34 +71,63 @@ class RealEsrganService
                 throw new \RuntimeException(__('一時ファイルを作成できません。'));
             }
 
-            $command = [
-                $binaryPath,
-                '-i', $inputPath,
-                '-o', $outputPath,
-                '-n', $model,
-                '-s', (string) $scale,
-                '-g', $gpuId !== '' ? $gpuId : '0',
-                '-f', $format,
-            ];
-            if ($tileSize > 0) {
-                $command[] = '-t';
-                $command[] = (string) $tileSize;
-            }
+            // 内蔵GPU向けに入力を縮小してからアップスケール（VRAM 節約）
+            $processInput = $this->shrinkInputForLowVram($inputPath, $shrunkPath) ?: $inputPath;
 
-            $result = Process::timeout($timeout)
-                ->path(dirname($binaryPath))
-                ->run($command);
+            $scaleAttempts = $scale > 2 ? [$scale, 2] : [$scale];
+            $tileAttempts = $tileSize > 0
+                ? array_values(array_unique([max(32, $tileSize), 128, 64, 32]))
+                : [128, 64, 32];
 
-            if (! $result->successful()) {
-                $detail = trim($result->errorOutput() ?: $result->output());
-                if ($detail === '') {
-                    $detail = __('終了コード :code', ['code' => $result->exitCode()]);
+            $result = null;
+            $lastDetail = '';
+            $succeeded = false;
+
+            foreach ($scaleAttempts as $tryScale) {
+                foreach ($tileAttempts as $tryTile) {
+                    @unlink($outputPath);
+                    $attempt = [
+                        $binaryPath,
+                        '-i', $processInput,
+                        '-o', $outputPath,
+                        '-n', $model,
+                        '-s', (string) $tryScale,
+                        '-g', $gpuId !== '' ? $gpuId : '0',
+                        '-f', $format,
+                        '-t', (string) max(32, (int) $tryTile),
+                        '-j', '1:1:1',
+                    ];
+
+                    $result = Process::timeout($timeout)
+                        ->path(dirname($binaryPath))
+                        ->run($attempt);
+
+                    if ($result->successful() && is_file($outputPath) && filesize($outputPath) >= 32) {
+                        $succeeded = true;
+                        break 2;
+                    }
+
+                    $lastDetail = trim($result->errorOutput() ?: $result->output());
+                    if ($lastDetail === '') {
+                        $lastDetail = __('終了コード :code', ['code' => $result->exitCode()]);
+                    }
+
+                    if (! $this->isVramError($lastDetail)) {
+                        throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', [
+                            'detail' => mb_substr($this->friendlyError($lastDetail), 0, 400),
+                        ]));
+                    }
                 }
-                throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', ['detail' => mb_substr($detail, 0, 400)]));
             }
 
-            if (! is_file($outputPath) || filesize($outputPath) < 32) {
-                throw new \RuntimeException(__('Real-ESRGAN から空の画像が返りました。'));
+            if (! $succeeded) {
+                throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', [
+                    'detail' => mb_substr(
+                        $this->friendlyError($lastDetail !== '' ? $lastDetail : __('GPUメモリ不足の可能性があります。鮮明化設定でタイルサイズを 64、倍率を 2x にしてください。')),
+                        0,
+                        400
+                    ),
+                ]));
             }
 
             $outBinary = file_get_contents($outputPath);
@@ -122,6 +152,7 @@ class RealEsrganService
             ];
         } finally {
             @unlink($inputPath);
+            @unlink($shrunkPath);
             @unlink($outputPath);
         }
     }
@@ -240,5 +271,65 @@ class RealEsrganService
         return in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)
             ? ($ext === 'jpeg' ? 'jpg' : $ext)
             : 'jpg';
+    }
+
+    private function shrinkInputForLowVram(string $inputPath, string $outPath): ?string
+    {
+        $maxEdge = max(512, (int) config('photos.realesrgan_max_input_edge', 1024));
+        $info = @getimagesize($inputPath);
+        if (! is_array($info)) {
+            return null;
+        }
+        [$w, $h] = [(int) $info[0], (int) $info[1]];
+        if ($w < 1 || $h < 1) {
+            return null;
+        }
+        $long = max($w, $h);
+        if ($long <= $maxEdge) {
+            return null;
+        }
+
+        $src = @imagecreatefromstring((string) file_get_contents($inputPath));
+        if (! $src) {
+            return null;
+        }
+
+        $ratio = $maxEdge / $long;
+        $nw = max(1, (int) round($w * $ratio));
+        $nh = max(1, (int) round($h * $ratio));
+        $dst = imagecreatetruecolor($nw, $nh);
+        if (! $dst) {
+            imagedestroy($src);
+
+            return null;
+        }
+
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        $ok = imagejpeg($dst, $outPath, 92);
+        imagedestroy($src);
+        imagedestroy($dst);
+
+        return $ok && is_file($outPath) ? $outPath : null;
+    }
+
+    private function isVramError(string $detail): bool
+    {
+        $lower = strtolower($detail);
+
+        return str_contains($lower, 'vkallocatememory')
+            || str_contains($lower, 'out_of_device_memory')
+            || str_contains($lower, 'out of device memory')
+            || str_contains($detail, 'failed -2')
+            || str_contains($lower, 'out of memory')
+            || str_contains($lower, 'vk_error');
+    }
+
+    private function friendlyError(string $detail): string
+    {
+        if ($this->isVramError($detail)) {
+            return __('GPUメモリ不足です。鮮明化設定でタイルサイズを 128 または 64 にするか、倍率を 2x にしてください。');
+        }
+
+        return $detail;
     }
 }

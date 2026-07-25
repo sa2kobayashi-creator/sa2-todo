@@ -43,6 +43,9 @@ return [
      */
     'realesrgan_binary' => env('REALESRGAN_BINARY', storage_path('app/bin/realesrgan-ncnn-vulkan'.(PHP_OS_FAMILY === 'Windows' ? '.exe' : ''))),
 
+    /** Real-ESRGAN 入力の長辺上限（px）。低VRAM向けに事前縮小する */
+    'realesrgan_max_input_edge' => (int) env('REALESRGAN_MAX_INPUT_EDGE', 1024),
+
     /** Real-ESRGAN 1回あたりのタイムアウト（秒） */
     'realesrgan_timeout' => (int) env('REALESRGAN_TIMEOUT', 600),
 

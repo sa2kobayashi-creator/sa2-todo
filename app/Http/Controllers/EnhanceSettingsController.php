@@ -60,9 +60,9 @@ class EnhanceSettingsController extends Controller
                     ], true)
                         ? (string) $request->input('model')
                         : 'realesrgan-x4plus',
-                    'scale' => max(2, min(4, (int) $request->input('scale', 4))),
+                    'scale' => max(2, min(4, (int) $request->input('scale', 2))),
                     'gpu_id' => (string) $request->input('gpu_id', '0'),
-                    'tile_size' => max(0, (int) $request->input('tile_size', 0)),
+                    'tile_size' => max(0, (int) $request->input('tile_size', 64)),
                     'timeout_seconds' => max(30, min(3600, (int) $request->input('timeout_seconds', 600))),
                     'output_format' => in_array($request->input('output_format'), ['jpg', 'png', 'webp'], true)
                         ? (string) $request->input('output_format')

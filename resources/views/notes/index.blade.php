@@ -1212,55 +1212,62 @@
             defaultDate: @json($defaultRegisteredDate),
             defaultCategory: @json($defaultCategory),
           };
-          window.Sa2VoiceEntry?.init({
-            prefix: 'note',
-            parseUrl: '/notes/voice/parse',
-            ready: voiceDefaults.ready,
-            strings: {
-              speak: noteStrings.speak,
-              stop: noteStrings.stop,
-              empty: noteStrings.emptyVoice,
-              notReady: noteStrings.notReady,
-              parsing: noteStrings.parsing,
-              parsed: noteStrings.parsed,
-              parseFailed: noteStrings.parseFailed,
-              unsupported: noteStrings.unsupported,
-              listening: noteStrings.listening,
-              transcribed: noteStrings.transcribed,
-              micDenied: noteStrings.micDenied,
-              recognizeFailed: noteStrings.recognizeFailed,
-              startFailed: noteStrings.startFailed,
-            },
-            onParsed(parsed, transcript) {
-              document.getElementById('note-voice-confirm-transcript').textContent =
-                noteStrings.recognizedPrefix + ' ' + transcript
-              const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
-              const confidenceLabel = {
-                high: noteStrings.confidenceHigh,
-                medium: noteStrings.confidenceMedium,
-                low: noteStrings.confidenceLow,
-              }[parsed.confidence] || ''
-              document.getElementById('note-voice-confirm-meta').textContent = [provider, confidenceLabel].filter(Boolean).join(' / ')
+          const bootNoteVoice = () => {
+            window.Sa2VoiceEntry?.init({
+              prefix: 'note',
+              parseUrl: '/notes/voice/parse',
+              ready: voiceDefaults.ready,
+              strings: {
+                speak: noteStrings.speak,
+                stop: noteStrings.stop,
+                empty: noteStrings.emptyVoice,
+                notReady: noteStrings.notReady,
+                parsing: noteStrings.parsing,
+                parsed: noteStrings.parsed,
+                parseFailed: noteStrings.parseFailed,
+                unsupported: noteStrings.unsupported,
+                listening: noteStrings.listening,
+                transcribed: noteStrings.transcribed,
+                micDenied: noteStrings.micDenied,
+                recognizeFailed: noteStrings.recognizeFailed,
+                startFailed: noteStrings.startFailed,
+              },
+              onParsed(parsed, transcript) {
+                document.getElementById('note-voice-confirm-transcript').textContent =
+                  noteStrings.recognizedPrefix + ' ' + transcript
+                const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
+                const confidenceLabel = {
+                  high: noteStrings.confidenceHigh,
+                  medium: noteStrings.confidenceMedium,
+                  low: noteStrings.confidenceLow,
+                }[parsed.confidence] || ''
+                document.getElementById('note-voice-confirm-meta').textContent = [provider, confidenceLabel].filter(Boolean).join(' / ')
 
-              document.getElementById('note-voice-date').value = parsed.registeredDate || voiceDefaults.defaultDate
-              document.getElementById('note-voice-category').value = parsed.category || voiceDefaults.defaultCategory
-              document.getElementById('note-voice-group-id').value = parsed.groupId ? String(parsed.groupId) : ''
-              document.getElementById('note-voice-title').value = parsed.title || ''
-              document.getElementById('note-voice-body').value = parsed.body || ''
-              setVoiceColor(parsed.color || 'default')
+                document.getElementById('note-voice-date').value = parsed.registeredDate || voiceDefaults.defaultDate
+                document.getElementById('note-voice-category').value = parsed.category || voiceDefaults.defaultCategory
+                document.getElementById('note-voice-group-id').value = parsed.groupId ? String(parsed.groupId) : ''
+                document.getElementById('note-voice-title').value = parsed.title || ''
+                document.getElementById('note-voice-body').value = parsed.body || ''
+                setVoiceColor(parsed.color || 'default')
 
-              if (checklistEditor) checklistEditor.innerHTML = ''
-              const items = Array.isArray(parsed.items) ? parsed.items : []
-              if (parsed.type === 'checklist') {
-                syncVoiceNoteType('checklist')
-                items.forEach((item) => addVoiceChecklistItem(item.text || '', Boolean(item.checked)))
-                if (items.length === 0) addVoiceChecklistItem()
-              } else {
-                syncVoiceNoteType('text')
-              }
-              modal?.removeAttribute('hidden')
-            },
-          })
+                if (checklistEditor) checklistEditor.innerHTML = ''
+                const items = Array.isArray(parsed.items) ? parsed.items : []
+                if (parsed.type === 'checklist') {
+                  syncVoiceNoteType('checklist')
+                  items.forEach((item) => addVoiceChecklistItem(item.text || '', Boolean(item.checked)))
+                  if (items.length === 0) addVoiceChecklistItem()
+                } else {
+                  syncVoiceNoteType('text')
+                }
+                modal?.removeAttribute('hidden')
+              },
+            })
+          }
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootNoteVoice, { once: true })
+          } else {
+            bootNoteVoice()
+          }
         })()
       })()
     </script>

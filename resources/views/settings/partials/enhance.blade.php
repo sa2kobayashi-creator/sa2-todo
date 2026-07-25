@@ -118,18 +118,18 @@
     </label>
     <label>{{ __('倍率') }}
       <select name="scale">
-        <option value="2" @selected((int) ($eSettings['scale'] ?? 4) === 2)>2x</option>
-        <option value="3" @selected((int) ($eSettings['scale'] ?? 4) === 3)>3x</option>
-        <option value="4" @selected((int) ($eSettings['scale'] ?? 4) === 4)>4x</option>
+        <option value="2" @selected((int) ($eSettings['scale'] ?? 2) === 2)>2x（{{ __('推奨・低VRAM') }}）</option>
+        <option value="3" @selected((int) ($eSettings['scale'] ?? 2) === 3)>3x</option>
+        <option value="4" @selected((int) ($eSettings['scale'] ?? 2) === 4)>4x</option>
       </select>
     </label>
     <label>{{ __('GPU ID') }}
       <input type="text" name="gpu_id" value="{{ $eSettings['gpu_id'] ?? '0' }}" placeholder="0" />
     </label>
     <label>{{ __('タイルサイズ') }}
-      <input type="number" name="tile_size" min="0" step="32" value="{{ (int) ($eSettings['tile_size'] ?? 0) }}" />
+      <input type="number" name="tile_size" min="0" step="32" value="{{ (int) ($eSettings['tile_size'] ?? 64) }}" />
     </label>
-    <p class="hint">{{ __('タイルサイズ 0 は自動。VRAM 不足時は 256 や 400 を試してください。') }}</p>
+    <p class="hint">{{ __('AMD 内蔵GPU は タイル 64・倍率 2x を推奨。失敗時は入力縮小＋タイル 128→64→32、必要なら倍率 2x へ自動再試行します。') }}</p>
     <label>{{ __('出力形式') }}
       <select name="output_format">
         <option value="png" @selected(($eSettings['output_format'] ?? 'png') === 'png')>PNG</option>

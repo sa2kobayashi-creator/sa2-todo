@@ -5029,9 +5029,14 @@ body.finance-page {
 }
 
 .finance-voice-mic-btn:disabled,
+.finance-voice-mic-btn.is-disabled,
 #finance-voice-parse-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.finance-voice-mic-btn.is-disabled {
+  pointer-events: auto;
 }
 
 .finance-voice-transcript {

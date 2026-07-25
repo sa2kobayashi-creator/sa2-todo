@@ -8,6 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('入出金経費') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    <script src="{{ asset('voice-entry.js') }}" defer></script>
   </head>
   <body class="finance-page">
     @include('partials.header', ['active' => 'finance'])
@@ -195,10 +196,10 @@
           <div class="finance-voice-entry-row">
             <button
               type="button"
-              class="finance-voice-mic-btn"
+              class="finance-voice-mic-btn {{ empty($voiceAiReady) ? 'is-disabled' : '' }}"
               id="finance-voice-mic-btn"
               aria-pressed="false"
-              @disabled(empty($voiceAiReady))
+              aria-disabled="{{ empty($voiceAiReady) ? 'true' : 'false' }}"
               title="{{ __('マイクで話す') }}"
             >{{ __('話す') }}</button>
             <input
@@ -2795,40 +2796,51 @@
           })
           updateBulkUi()
         })()
+      })()
+    </script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const voiceReady = @json(!empty($voiceAiReady));
+        const defaultDate = @json($defaultDate);
+        const modal = document.getElementById('finance-voice-confirm-modal')
+        const form = document.getElementById('finance-voice-confirm-form')
+        if (!form) return
 
-        ;(function initFinanceVoiceEntry() {
-          const voiceReady = @json(!empty($voiceAiReady));
-          const micBtn = document.getElementById('finance-voice-mic-btn')
-          const transcriptInput = document.getElementById('finance-voice-transcript')
-          const parseBtn = document.getElementById('finance-voice-parse-btn')
-          const statusEl = document.getElementById('finance-voice-status')
-          const modal = document.getElementById('finance-voice-confirm-modal')
-          const form = document.getElementById('finance-voice-confirm-form')
-          if (!transcriptInput || !parseBtn || !form) return
+        function syncVoiceTransferUi() {
+          const type = form.querySelector('input[name="type"]:checked')?.value || 'expense'
+          const transferFields = document.getElementById('finance-voice-transfer-fields')
+          const categoryField = document.getElementById('finance-voice-category-field')
+          if (transferFields) transferFields.hidden = type !== 'transfer'
+          if (categoryField) categoryField.hidden = type !== 'expense'
+        }
 
-          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-          let recognition = null
-          let listening = false
+        form.querySelectorAll('input[name="type"]').forEach((radio) => {
+          radio.addEventListener('change', syncVoiceTransferUi)
+        })
+        document.querySelectorAll('[data-close-voice-confirm-modal]').forEach((el) => {
+          el.addEventListener('click', () => modal?.setAttribute('hidden', ''))
+        })
 
-          function setStatus(message, isError = false) {
-            if (!statusEl) return
-            statusEl.textContent = message || ''
-            statusEl.classList.toggle('is-error', Boolean(isError && message))
-          }
-
-          function syncVoiceTransferUi() {
-            const type = form.querySelector('input[name="type"]:checked')?.value || 'expense'
-            const transferFields = document.getElementById('finance-voice-transfer-fields')
-            const categoryField = document.getElementById('finance-voice-category-field')
-            if (transferFields) transferFields.hidden = type !== 'transfer'
-            if (categoryField) categoryField.hidden = type !== 'expense'
-          }
-
-          form.querySelectorAll('input[name="type"]').forEach((radio) => {
-            radio.addEventListener('change', syncVoiceTransferUi)
-          })
-
-          function openVoiceConfirm(parsed, transcript) {
+        window.Sa2VoiceEntry?.init({
+          prefix: 'finance',
+          parseUrl: '/finance/voice/parse',
+          ready: voiceReady,
+          strings: {
+            speak: @json(__('話す')),
+            stop: @json(__('停止')),
+            empty: @json(__('音声テキストを入力するか、マイクで話してください。')),
+            notReady: @json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')),
+            parsing: @json(__('AIで解析中…')),
+            parsed: @json(__('解析結果を確認して登録してください。')),
+            parseFailed: @json(__('音声の解析に失敗しました。')),
+            unsupported: @json(__('このブラウザは音声認識に対応していません。テキスト入力をご利用ください。')),
+            listening: @json(__('聞いています…')),
+            transcribed: @json(__('文字起こし完了。解析します…')),
+            micDenied: @json(__('マイクの使用が許可されていません。')),
+            recognizeFailed: @json(__('音声認識に失敗しました。')),
+            startFailed: @json(__('音声認識を開始できませんでした。')),
+          },
+          onParsed(parsed, transcript) {
             document.getElementById('finance-voice-confirm-transcript').textContent =
               @json(__('認識テキスト:')) + ' ' + transcript
             const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
@@ -2844,7 +2856,7 @@
             if (typeRadio) typeRadio.checked = true
 
             const dateInput = document.getElementById('finance-voice-date')
-            if (dateInput) dateInput.value = parsed.transactionDate || @json($defaultDate)
+            if (dateInput) dateInput.value = parsed.transactionDate || defaultDate
 
             const accountSelect = document.getElementById('finance-voice-account-id')
             if (accountSelect && parsed.accountId) accountSelect.value = String(parsed.accountId)
@@ -2866,128 +2878,9 @@
 
             syncVoiceTransferUi()
             modal?.removeAttribute('hidden')
-          }
-
-          function closeVoiceConfirm() {
-            modal?.setAttribute('hidden', '')
-          }
-
-          document.querySelectorAll('[data-close-voice-confirm-modal]').forEach((el) => {
-            el.addEventListener('click', closeVoiceConfirm)
-          })
-
-          async function parseTranscript() {
-            const transcript = String(transcriptInput.value || '').trim()
-            if (!transcript) {
-              setStatus(@json(__('音声テキストを入力するか、マイクで話してください。')), true)
-              return
-            }
-            if (!voiceReady) {
-              setStatus(@json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')), true)
-              return
-            }
-            parseBtn.disabled = true
-            micBtn && (micBtn.disabled = true)
-            setStatus(@json(__('AIで解析中…')))
-            try {
-              const res = await fetch('/finance/voice/parse', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Accept: 'application/json',
-                  'X-CSRF-TOKEN': csrfToken || '',
-                  'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ transcript }),
-              })
-              const data = await res.json().catch(() => ({}))
-              if (!res.ok || !data.ok) {
-                throw new Error(data.message || @json(__('音声の解析に失敗しました。')))
-              }
-              setStatus(@json(__('解析結果を確認して登録してください。')))
-              openVoiceConfirm(data.parsed || {}, transcript)
-            } catch (err) {
-              setStatus(err?.message || @json(__('音声の解析に失敗しました。')), true)
-            } finally {
-              parseBtn.disabled = !voiceReady
-              if (micBtn) micBtn.disabled = !voiceReady
-            }
-          }
-
-          parseBtn.addEventListener('click', parseTranscript)
-          transcriptInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              parseTranscript()
-            }
-          })
-
-          function stopListening() {
-            listening = false
-            micBtn?.classList.remove('is-listening')
-            micBtn?.setAttribute('aria-pressed', 'false')
-            if (micBtn) micBtn.textContent = @json(__('話す'))
-            try { recognition?.stop() } catch (_) {}
-          }
-
-          function startListening() {
-            if (!SpeechRecognition) {
-              setStatus(@json(__('このブラウザは音声認識に対応していません。テキスト入力をご利用ください。')), true)
-              return
-            }
-            if (!voiceReady) {
-              setStatus(@json(__('AI（ChatGPT / Gemini）が未設定です。設定画面で有効化してください。')), true)
-              return
-            }
-            if (!recognition) {
-              recognition = new SpeechRecognition()
-              recognition.lang = 'ja-JP'
-              recognition.interimResults = true
-              recognition.continuous = false
-              recognition.onresult = (event) => {
-                let text = ''
-                for (let i = 0; i < event.results.length; i += 1) {
-                  text += event.results[i][0].transcript
-                }
-                transcriptInput.value = text.trim()
-                if (event.results[event.results.length - 1]?.isFinal) {
-                  setStatus(@json(__('文字起こし完了。解析します…')))
-                  stopListening()
-                  parseTranscript()
-                }
-              }
-              recognition.onerror = (event) => {
-                stopListening()
-                const err = event?.error || ''
-                if (err === 'not-allowed') {
-                  setStatus(@json(__('マイクの使用が許可されていません。')), true)
-                } else if (err !== 'aborted') {
-                  setStatus(@json(__('音声認識に失敗しました。')) + (err ? ` (${err})` : ''), true)
-                }
-              }
-              recognition.onend = () => {
-                if (listening) stopListening()
-              }
-            }
-            listening = true
-            micBtn?.classList.add('is-listening')
-            micBtn?.setAttribute('aria-pressed', 'true')
-            if (micBtn) micBtn.textContent = @json(__('停止'))
-            setStatus(@json(__('聞いています…')))
-            try {
-              recognition.start()
-            } catch (_) {
-              stopListening()
-              setStatus(@json(__('音声認識を開始できませんでした。')), true)
-            }
-          }
-
-          micBtn?.addEventListener('click', () => {
-            if (listening) stopListening()
-            else startListening()
-          })
-        })()
-      })()
+          },
+        })
+      })
     </script>
   </body>
 </html>

@@ -19,7 +19,7 @@
     startFailed: '音声認識を開始できませんでした。',
   }
 
-  function init(options) {
+  function bind(options) {
     const cfg = options || {}
     const prefix = cfg.prefix || 'voice'
     const parseUrl = cfg.parseUrl
@@ -33,6 +33,15 @@
     const parseBtn = document.getElementById(`${prefix}-voice-parse-btn`)
     const statusEl = document.getElementById(`${prefix}-voice-status`)
     if (!transcriptInput || !parseBtn) return null
+
+    // HTML disabled だとクリックすら届かないため、JS側で制御する
+    if (micBtn) {
+      micBtn.disabled = false
+      micBtn.setAttribute('aria-disabled', voiceReady ? 'false' : 'true')
+      micBtn.classList.toggle('is-disabled', !voiceReady)
+    }
+    transcriptInput.disabled = !voiceReady
+    parseBtn.disabled = !voiceReady
 
     const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition
     let recognition = null
@@ -78,7 +87,10 @@
         setStatus((err && err.message) || strings.parseFailed, true)
       } finally {
         parseBtn.disabled = !voiceReady
-        if (micBtn) micBtn.disabled = !voiceReady
+        if (micBtn) {
+          micBtn.disabled = false
+          micBtn.setAttribute('aria-disabled', voiceReady ? 'false' : 'true')
+        }
       }
     }
 
@@ -152,6 +164,15 @@
     })
 
     return { parseTranscript, setStatus, stopListening }
+  }
+
+  function init(options) {
+    // defer スクリプトより先に呼ばれても、DOMContentLoaded 後に確実にバインドする
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => bind(options), { once: true })
+      return null
+    }
+    return bind(options)
   }
 
   global.Sa2VoiceEntry = { init }

@@ -21,10 +21,10 @@
   <div class="finance-voice-entry-row">
     <button
       type="button"
-      class="finance-voice-mic-btn"
+      class="finance-voice-mic-btn {{ empty($voiceAiReady) ? 'is-disabled' : '' }}"
       id="{{ $idPrefix }}-voice-mic-btn"
       aria-pressed="false"
-      @disabled(empty($voiceAiReady))
+      aria-disabled="{{ empty($voiceAiReady) ? 'true' : 'false' }}"
       title="{{ __('マイクで話す') }}"
     >{{ __('話す') }}</button>
     <input
