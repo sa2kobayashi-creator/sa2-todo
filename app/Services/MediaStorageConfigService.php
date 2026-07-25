@@ -17,7 +17,10 @@ class MediaStorageConfigService
             MediaStorageSetting::PROVIDER_CLOUDINARY,
             MediaStorageSetting::PROVIDER_BACKBLAZE,
             MediaStorageSetting::PROVIDER_STABILITY,
+            MediaStorageSetting::PROVIDER_REALESRGAN,
+            MediaStorageSetting::PROVIDER_SWINIR,
             MediaStorageSetting::PROVIDER_PIPELINE,
+            MediaStorageSetting::PROVIDER_ENHANCE,
         ];
     }
 
@@ -162,9 +165,22 @@ class MediaStorageConfigService
 
     public function stabilityEnabled(): bool
     {
-        $row = $this->get(MediaStorageSetting::PROVIDER_STABILITY);
+        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_STABILITY);
+    }
 
-        return $row->enabled && $row->hasSecret('api_key');
+    public function realesrganEnabled(): bool
+    {
+        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_REALESRGAN);
+    }
+
+    public function swinirEnabled(): bool
+    {
+        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_SWINIR);
+    }
+
+    public function enhanceReady(): bool
+    {
+        return app(EnhanceConfigService::class)->isReady();
     }
 
     public function pipelineArchivesToBackblaze(): bool

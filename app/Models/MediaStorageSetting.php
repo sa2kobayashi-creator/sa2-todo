@@ -16,6 +16,15 @@ class MediaStorageSetting extends Model
 
     public const PROVIDER_PIPELINE = 'pipeline';
 
+    /** 鮮明化の使用プロバイダ切替（Stability / Real-ESRGAN / SwinIR） */
+    public const PROVIDER_ENHANCE = 'enhance';
+
+    public const PROVIDER_REMINI = 'remini';
+
+    public const PROVIDER_SWINIR = 'swinir';
+
+    public const PROVIDER_REALESRGAN = 'realesrgan';
+
     /** ChatGPT / Gemini（入出金音声入力など） */
     public const PROVIDER_LLM = 'llm';
 

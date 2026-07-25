@@ -6,6 +6,7 @@ use App\Models\TranslationApiKey;
 use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
+use App\Services\EnhanceConfigService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
 use App\Services\YoutubeVideoService;
@@ -21,6 +22,7 @@ class SettingsController extends Controller
         private AiLlmConfigService $aiLlm,
         private DeeplUsageService $deeplUsage,
         private YoutubeVideoService $youtube,
+        private EnhanceConfigService $enhance,
     ) {}
 
     public function index(Request $request)
@@ -55,8 +57,8 @@ class SettingsController extends Controller
             'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,
-            'storageStability' => $section === 'storage' ? $this->mediaStorage->formState('stability') : null,
             'storagePipeline' => $section === 'storage' ? $this->mediaStorage->formState('pipeline') : null,
+            'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -156,7 +158,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

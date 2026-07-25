@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
@@ -192,9 +193,14 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
-            ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');
+            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
         Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
-            ->where('provider', 'r2|cloudinary|backblaze|stability|pipeline');
+            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+        Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive']);
+        Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])
+            ->where('provider', 'stability|realesrgan|swinir');
+        Route::post('/settings/enhance/{provider}/test', [EnhanceSettingsController::class, 'testProvider'])
+            ->where('provider', 'stability|realesrgan|swinir');
     });
 
     Route::middleware(RequireAdmin::class)->group(function () {

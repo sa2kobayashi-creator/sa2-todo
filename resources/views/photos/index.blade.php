@@ -117,8 +117,8 @@
             @if(!empty($storageStats['cloudinaryEditor']))
               · {{ __('編集') }} = Cloudinary（{{ __('一時のみ・常設保管なし') }}）
             @endif
-            @if(!empty($storageStats['stabilityEnabled']))
-              · {{ __('AI鮮明化') }} = Stability AI
+            @if(!empty($storageStats['enhanceReady']))
+              · {{ __('AI鮮明化') }} = {{ $storageStats['enhanceProviderLabel'] ?? 'Stability AI' }}
             @endif
             @if(!empty($storageStats['archiveEnabled']))
               · {{ __('長期保存') }} = Backblaze B2
@@ -575,7 +575,7 @@
                         <dt>{{ __('使用率') }}</dt>
                         <dd>{{ $provider['percent'] }}%</dd>
                       </div>
-                    @elseif(($provider['id'] ?? '') === 'stability')
+                    @elseif(in_array(($provider['id'] ?? ''), ['stability', 'realesrgan', 'swinir'], true))
                       <div>
                         <dt>{{ __('鮮明化件数') }}</dt>
                         <dd>{{ $provider['countLabel'] ?? __('鮮明化 :count 件', ['count' => $provider['count']]) }}</dd>

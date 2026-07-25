@@ -38,6 +38,18 @@ return [
     'stability_max_output_edge' => (int) env('PHOTO_STABILITY_MAX_OUTPUT_EDGE', 8192),
 
     /**
+     * Real-ESRGAN ncnn-vulkan 実行ファイルの既定パス。
+     * 設定画面のパスが空のときに参照する。
+     */
+    'realesrgan_binary' => env('REALESRGAN_BINARY', storage_path('app/bin/realesrgan-ncnn-vulkan'.(PHP_OS_FAMILY === 'Windows' ? '.exe' : ''))),
+
+    /** Real-ESRGAN 1回あたりのタイムアウト（秒） */
+    'realesrgan_timeout' => (int) env('REALESRGAN_TIMEOUT', 600),
+
+    /** SwinIR GPU VPS API の既定タイムアウト（秒） */
+    'swinir_timeout' => (int) env('SWINIR_TIMEOUT', 600),
+
+    /**
      * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。
      * （互換のため残置。現行実装では未使用）
      */

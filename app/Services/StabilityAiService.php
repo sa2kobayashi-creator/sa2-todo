@@ -24,7 +24,7 @@ class StabilityAiService
     public function enhanceImage(string $binary, string $filename, string $mime = 'image/jpeg'): array
     {
         if (! $this->isReady()) {
-            throw new \InvalidArgumentException(__('Stability AI が有効ではありません。ストレージ設定を確認してください。'));
+            throw new \InvalidArgumentException(__('Stability AI が有効ではありません。鮮明化設定を確認してください。'));
         }
 
         if (function_exists('ini_set')) {

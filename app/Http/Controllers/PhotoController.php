@@ -47,9 +47,16 @@ class PhotoController extends Controller
                 'chunkBytes' => 4 * 1024 * 1024,
             ],
             'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
-            'stabilityEnhanceReady' => $this->mediaStorage->stabilityEnabled(),
+            'stabilityEnhanceReady' => $this->enhanceButtonReady(),
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    private function enhanceButtonReady(): bool
+    {
+        $enhance = app(\App\Services\EnhanceConfigService::class);
+
+        return $enhance->isReady() && $enhance->isImplemented($enhance->activeProvider());
     }
 
     public function storeAlbum(Request $request)
@@ -353,7 +360,7 @@ class PhotoController extends Controller
     public function stabilityEnhance(Request $request, int $id)
     {
         try {
-            $result = $this->photos->enhanceWithStability((int) $request->user()->id, $id);
+            $result = $this->photos->enhancePhoto((int) $request->user()->id, $id);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
