@@ -155,7 +155,7 @@ class CloudinaryMediaService
         if ($path !== '' && Storage::disk($disk)->exists($path)) {
             return [$disk, $path];
         }
-        if (($photo->storage_tier ?? 'hot') === 'cold'
+        if (in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)
             && is_string($photo->cold_disk)
             && $photo->cold_disk !== '') {
             $coldPath = (string) ($photo->cold_path ?: $path);

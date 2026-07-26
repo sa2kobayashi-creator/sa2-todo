@@ -14,7 +14,7 @@
 <div class="panel storage-settings" id="storage-pipeline">
   <h2>{{ __('保存パイプライン') }}</h2>
   <p class="hint">{{ __('アップロード → Cloudflare R2（原本）。Cloudinary は編集用、古い原本は Backblaze B2 へ、という流れをここで切り替えます。AI鮮明化は「鮮明化設定」で行います。') }}</p>
-  <form method="post" action="/settings/storage/pipeline" class="storage-provider-form">
+  <form method="post" action="/settings/storage/pipeline" class="storage-provider-form" id="storage-pipeline-form">
     @csrf
     <label class="storage-enable">
       <input type="checkbox" name="enabled" value="1" @checked(!empty($pipeline['enabled'])) />
@@ -31,17 +31,97 @@
       {{ __('一覧表示にも Cloudinary を使う（非推奨・Cloudinary に常設コピーが増えます）') }}
     </label>
     <p class="hint">{{ __('推奨: Cloudinary はオフのまま。Photos の「Cloudinaryで編集」だけが一時アップロード→編集→R2保存→削除します。') }}</p>
-    <label class="storage-enable">
-      <input type="checkbox" name="archive_to_backblaze" value="1" @checked(!empty($pSettings['archive_to_backblaze'])) />
-      {{ __('古い写真・動画を Backblaze B2 へ自動アーカイブ') }}
+
+    @php
+      $capacityMode = $pSettings['capacity_mode'] ?? (
+        !empty($pSettings['archive_to_backblaze'])
+          ? \App\Services\MediaStorageConfigService::CAPACITY_MODE_AGE_ARCHIVE
+          : \App\Services\MediaStorageConfigService::CAPACITY_MODE_AGE_ARCHIVE
+      );
+    @endphp
+    <label>{{ __('容量の運用モード') }}
+      <select name="capacity_mode" id="storage-capacity-mode">
+        <option value="r2_cap" @selected($capacityMode === 'r2_cap')>
+          {{ __('1. R2は無料枠（10GB）までしか使わない') }}
+        </option>
+        <option value="age_archive" @selected($capacityMode === 'age_archive')>
+          {{ __('2. 日数経過でB2へアーカイブ（現行）') }}
+        </option>
+        <option value="overflow_priority" @selected($capacityMode === 'overflow_priority')>
+          {{ __('3. R2/B2とも無料枠超過後は次の保存先へ') }}
+        </option>
+      </select>
     </label>
-    <label>{{ __('アーカイブ対象（登録日から何日後）') }}
-      <input type="number" name="archive_after_days" min="0" value="{{ (int) ($pSettings['archive_after_days'] ?? 365) }}" />
-    </label>
-    <p class="hint">{{ __('毎日 3:30 に自動実行します。手動実行: php artisan photos:archive-cold') }}</p>
+    <p class="hint" data-capacity-hint="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
+      {{ __('R2（ホット）が約10GBを超えないよう、古い原本を自動で B2 へ移します。一覧用サムネは R2 に残します。') }}
+    </p>
+    <p class="hint" data-capacity-hint="age_archive" @if($capacityMode !== 'age_archive') hidden @endif>
+      {{ __('登録日（なければ作成日）から指定日数を過ぎた原本を B2 へ移します。R2 が10GBを超えても、日数条件を満たすまで移動しません。') }}
+    </p>
+    <p class="hint" data-capacity-hint="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>
+      {{ __('まず R2 無料枠 → 次に B2 無料枠へ収容し、どちらも超えた新規保存は下の「次の保存先」を使います。超過分の料金見込に保存料を反映します。') }}
+    </p>
+
+    <div data-capacity-panel="age_archive" @if($capacityMode !== 'age_archive') hidden @endif>
+      <p class="hint">{{ __('毎日 3:30 に自動実行します。手動実行: php artisan photos:archive-cold') }}</p>
+    </div>
+
+    <div data-capacity-panel="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
+      <p class="hint">{{ __('毎日 3:30 とアップロード時に、R2 使用量が無料枠内へ収まるよう古い原本を B2 へ移します。') }}</p>
+    </div>
+
+    <div data-capacity-panel="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>
+      <label>{{ __('次の保存先（R2/B2とも無料枠超過後）') }}
+        <select name="overflow_disk">
+          <option value="public" @selected(($pSettings['overflow_disk'] ?? 'public') === 'public')>{{ __('サーバーローカル (public)') }}</option>
+          <option value="r2" @selected(($pSettings['overflow_disk'] ?? '') === 'r2')>Cloudflare R2（{{ __('有料継続') }}）</option>
+          <option value="backblaze" @selected(($pSettings['overflow_disk'] ?? '') === 'backblaze')>Backblaze B2（{{ __('有料継続') }}）</option>
+        </select>
+      </label>
+      <label>{{ __('次の保存先の保存料（USD / GB / 月）') }}
+        <input type="number" name="overflow_price_per_gb_month_usd" min="0" step="0.001" value="{{ number_format((float) ($pSettings['overflow_price_per_gb_month_usd'] ?? 0.015), 3, '.', '') }}" />
+      </label>
+      <p class="hint">{{ __('使用状況の「超過課金見込」に反映する単価です。サーバーローカルなら 0 を推奨。') }}</p>
+    </div>
+
+    <div data-capacity-panel="age_or_overflow" @if(!in_array($capacityMode, ['age_archive', 'overflow_priority'], true)) hidden @endif>
+      <label>{{ __('B2へ移す目安日数（登録日から何日後）') }}
+        <input type="number" name="archive_after_days" min="0" value="{{ (int) ($pSettings['archive_after_days'] ?? 365) }}" />
+      </label>
+      <p class="hint" data-capacity-hint-days="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>
+        {{ __('0 にすると日数アーカイブは行わず、容量ベースの振り分けのみです。モード2では日数経過で B2 へ移します。') }}
+      </p>
+    </div>
+
     <button type="submit" class="button-link">{{ __('パイプラインを保存') }}</button>
   </form>
 </div>
+
+<script>
+  (function () {
+    const select = document.getElementById('storage-capacity-mode')
+    if (!select) return
+    const sync = () => {
+      const mode = select.value
+      document.querySelectorAll('[data-capacity-hint]').forEach((el) => {
+        el.hidden = el.getAttribute('data-capacity-hint') !== mode
+      })
+      document.querySelectorAll('[data-capacity-panel]').forEach((el) => {
+        const key = el.getAttribute('data-capacity-panel')
+        if (key === 'age_or_overflow') {
+          el.hidden = !(mode === 'age_archive' || mode === 'overflow_priority')
+          return
+        }
+        el.hidden = key !== mode
+      })
+      document.querySelectorAll('[data-capacity-hint-days]').forEach((el) => {
+        el.hidden = el.getAttribute('data-capacity-hint-days') !== mode
+      })
+    }
+    select.addEventListener('change', sync)
+    sync()
+  })()
+</script>
 
 <div class="panel storage-settings" id="storage-r2">
   <h2>Cloudflare R2</h2>

@@ -122,14 +122,19 @@ class PhotoService
         $coldQuery = Photo::query()
             ->where('user_id', $userId)
             ->where('storage_tier', 'cold');
+        $overflowQuery = Photo::query()
+            ->where('user_id', $userId)
+            ->where('storage_tier', 'overflow');
 
         $hotUsed = (int) (clone $hotQuery)->sum('size_bytes');
         $coldUsed = (int) (clone $coldQuery)->sum('size_bytes');
+        $overflowUsed = (int) (clone $overflowQuery)->sum('size_bytes');
         $hotCount = (int) (clone $hotQuery)->count();
         $coldCount = (int) (clone $coldQuery)->count();
+        $overflowCount = (int) (clone $overflowQuery)->count();
         $hotUsedApprox = $hotUsed + $thumbExtra;
-        $usedApprox = $hotUsedApprox + $coldUsed;
-        $photoCount = $hotCount + $coldCount;
+        $usedApprox = $hotUsedApprox + $coldUsed + $overflowUsed;
+        $photoCount = $hotCount + $coldCount + $overflowCount;
 
         $quota = $this->userQuotaBytes();
         $b2Quota = $this->b2QuotaBytes();
@@ -151,9 +156,21 @@ class PhotoService
         $combinedQuota = $archiveEnabled ? ($quota + $b2Quota) : $quota;
         $barUsed = $archiveEnabled ? $usedApprox : $hotUsedApprox;
         $percent = round(($barUsed / max(1, $combinedQuota)) * 100, 1);
+        $capacityMode = $this->mediaConfig->capacityMode();
 
         $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
         $b2OverageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
+        $overflowPrice = $this->mediaConfig->overflowPricePerGbMonthUsd();
+        $overflowDisk = $this->mediaConfig->overflowDisk();
+        $overflowUsd = 0.0;
+
+        // モード3: 合計が無料枠合計を超えた分を「次の保存先」単価で見込む
+        if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW && $usedApprox > $combinedQuota) {
+            $overflowUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $overflowPrice);
+            // 二重計上を避けるため、R2/B2 超過見込は無料枠内として 0 表示
+            $r2OverageUsd = 0.0;
+            $b2OverageUsd = 0.0;
+        }
 
         $cloudinaryResidual = Photo::query()
             ->where('user_id', $userId)
@@ -213,6 +230,25 @@ class PhotoService
                 'overagePriceLabel' => $this->formatUsdPerGbMonth($b2Price),
                 'estimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
                 'billingNote' => __('無料枠超過分のみ従量課金（目安）。'),
+                'meter' => 'bytes',
+            ],
+            [
+                'id' => 'overflow',
+                'name' => __('次の保存先'),
+                'role' => match ($overflowDisk) {
+                    'r2' => 'Cloudflare R2',
+                    'backblaze' => 'Backblaze B2',
+                    default => __('サーバーローカル'),
+                },
+                'enabled' => $capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW,
+                'usedLabel' => $this->formatBytes(max($overflowUsed, max(0, $usedApprox - $combinedQuota))),
+                'quotaLabel' => __('無料枠合計後'),
+                'count' => $overflowCount,
+                'percent' => 0,
+                'overFreeTier' => $overflowUsd > 0,
+                'overagePriceLabel' => $this->formatUsdPerGbMonth($overflowPrice),
+                'estimatedBillLabel' => $this->formatUsdMonth($overflowUsd).__('/月'),
+                'billingNote' => __('R2/B2 の無料枠を超えた分の見込（設定した保存料）。'),
                 'meter' => 'bytes',
             ],
             [
@@ -307,7 +343,8 @@ class PhotoService
             'coldOverFreeTier' => $coldUsed > $b2Quota,
             'r2EstimatedBillLabel' => $this->formatUsdMonth($r2OverageUsd).__('/月'),
             'b2EstimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
-            'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd).__('/月'),
+            'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd + $overflowUsd).__('/月'),
+            'capacityMode' => $capacityMode,
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
             'cloudinaryEditor' => $cloudinaryEditor,
@@ -579,6 +616,7 @@ class PhotoService
         $skipped = [];
         $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
         $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
+        $archive = app(PhotoColdArchiveService::class);
 
         foreach ($files as $index => $file) {
             if (! $file instanceof UploadedFile) {
@@ -599,11 +637,15 @@ class PhotoService
                 continue;
             }
 
+            $incomingBytes = max(0, (int) $file->getSize());
+            $archive->ensureHotWithinQuota($userId, $incomingBytes);
+            $target = $this->resolveUploadTarget($userId, $incomingBytes);
+
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
             $videoThumb = $videoThumbsByIndex[$index] ?? null;
             $stored = $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())
-                ? $this->storeVideo($file, $dir, $videoThumb instanceof UploadedFile ? $videoThumb : null)
-                : $this->storeOptimizedImage($file, $dir);
+                ? $this->storeVideo($file, $dir, $videoThumb instanceof UploadedFile ? $videoThumb : null, $target['disk'])
+                : $this->storeOptimizedImage($file, $dir, $target['disk']);
             if ($stored === null) {
                 continue;
             }
@@ -622,13 +664,16 @@ class PhotoService
                     'height' => $stored['height'],
                     'taken_at' => now(),
                     'sort_order' => $nextOrder,
+                    'storage_tier' => $target['tier'],
+                    'cold_disk' => in_array($target['tier'], ['cold', 'overflow'], true) ? $target['disk'] : null,
+                    'cold_path' => in_array($target['tier'], ['cold', 'overflow'], true) ? $stored['path'] : null,
                 ]);
             } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
                 // 並行アップロード時の競合
                 $this->deleteStoragePaths(array_values(array_filter([
                     $stored['path'] ?? null,
                     $stored['thumbPath'] ?? null,
-                ])));
+                ])), $target['disk']);
                 if ($hash) {
                     $skipped[] = ['name' => $originalName !== '' ? $originalName : 'file', 'hash' => $hash];
                 }
@@ -1191,31 +1236,82 @@ class PhotoService
     }
 
     /** @param list<string> $paths */
-    private function deleteStoragePaths(array $paths): void
+    /** @param list<string|null> $paths */
+    private function deleteStoragePaths(array $paths, ?string $diskName = null): void
     {
         $paths = array_values(array_filter($paths, static fn ($p) => is_string($p) && $p !== ''));
         if ($paths === []) {
             return;
         }
 
-        if ($this->usesObjectStorage() && $this->deleteObjectStoragePathsBatched($paths)) {
-            return;
-        }
+        $diskNames = array_values(array_unique(array_filter([
+            $diskName,
+            $this->diskName(),
+        ])));
 
-        // exists() を挟まない（S3/R2 では HEAD が増えてタイムアウトの原因になる）
-        foreach (array_chunk($paths, 100) as $chunk) {
-            try {
-                $this->storage()->delete($chunk);
-            } catch (\Throwable) {
-                foreach ($chunk as $path) {
-                    try {
-                        $this->storage()->delete($path);
-                    } catch (\Throwable) {
-                        // 欠落ファイルは無視
+        foreach ($diskNames as $name) {
+            $disk = Storage::disk($name);
+            if ($name === $this->diskName() && $this->usesObjectStorage() && $this->deleteObjectStoragePathsBatched($paths)) {
+                continue;
+            }
+            foreach (array_chunk($paths, 100) as $chunk) {
+                try {
+                    $disk->delete($chunk);
+                } catch (\Throwable) {
+                    foreach ($chunk as $path) {
+                        try {
+                            $disk->delete($path);
+                        } catch (\Throwable) {
+                            // 欠落ファイルは無視
+                        }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * @return array{disk: string, tier: string}
+     */
+    private function resolveUploadTarget(int $userId, int $incomingBytes): array
+    {
+        $primary = $this->diskName();
+        $mode = $this->mediaConfig->capacityMode();
+        if ($mode !== MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
+            return ['disk' => $primary, 'tier' => 'hot'];
+        }
+
+        $r2Quota = $this->userQuotaBytes();
+        $b2Quota = $this->b2QuotaBytes();
+        $hotUsed = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->where(function ($q) {
+                $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
+            })
+            ->sum('size_bytes');
+        $coldUsed = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->where('storage_tier', 'cold')
+            ->sum('size_bytes');
+
+        if ($hotUsed + $incomingBytes <= $r2Quota) {
+            return ['disk' => $primary, 'tier' => 'hot'];
+        }
+
+        if ($this->mediaConfig->backblazeEnabled() && $coldUsed + $incomingBytes <= $b2Quota) {
+            return ['disk' => 'backblaze', 'tier' => 'cold'];
+        }
+
+        $overflow = $this->mediaConfig->overflowDisk();
+        if ($overflow === 'backblaze' && $this->mediaConfig->backblazeEnabled()) {
+            return ['disk' => 'backblaze', 'tier' => 'cold'];
+        }
+        if ($overflow === 'r2') {
+            return ['disk' => 'r2', 'tier' => 'hot'];
+        }
+
+        // サーバーローカルは primary と別ディスクになるため overflow ティアで保持
+        return ['disk' => 'public', 'tier' => 'overflow'];
     }
 
     /** @param list<string> $paths */
@@ -1377,20 +1473,21 @@ class PhotoService
      *
      * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
      */
-    private function storeVideo(UploadedFile $file, string $dir, ?UploadedFile $thumbFile = null): ?array
+    private function storeVideo(UploadedFile $file, string $dir, ?UploadedFile $thumbFile = null, ?string $diskName = null): ?array
     {
         // 動画を丸ごとメモリに載せない（ストリーム転送）
         if (function_exists('ini_set')) {
             @ini_set('memory_limit', '1024M');
         }
 
+        $writeDisk = Storage::disk($diskName ?: $this->diskName());
         $basename = str_replace('.', '', uniqid('vid_', true));
         $filename = $basename.'.mp4';
         $dir = trim($dir, '/');
 
         try {
-            $path = $this->storage()->putFileAs($dir, $file, $filename, [
-                'visibility' => 'public',
+            $path = $writeDisk->putFileAs($dir, $file, $filename, [
+                'visibility' => $diskName === 'backblaze' ? 'private' : 'public',
                 'ContentType' => 'video/mp4',
                 'mimetype' => 'video/mp4',
             ]);
@@ -1409,6 +1506,7 @@ class PhotoService
 
         $width = 1280;
         $height = 720;
+        // サムネは常にホット（主ディスク）へ
         $thumbPath = $this->storeUploadedVideoThumb($thumbFile, $dir.'/'.$basename.'_thumb.jpg', $width, $height)
             ?? $this->storeVideoPlaceholderThumb($dir.'/'.$basename.'_thumb.jpg');
 
@@ -1506,7 +1604,7 @@ class PhotoService
      *
      * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
      */
-    private function storeOptimizedImage(UploadedFile $file, string $dir): ?array
+    private function storeOptimizedImage(UploadedFile $file, string $dir, ?string $diskName = null): ?array
     {
         $sourcePath = $file->getRealPath();
         if (! $sourcePath) {
@@ -1517,6 +1615,7 @@ class PhotoService
             @ini_set('memory_limit', '512M');
         }
 
+        $writeDisk = Storage::disk($diskName ?: $this->diskName());
         $mime = (string) ($file->getMimeType() ?: 'application/octet-stream');
         $ext = $this->imageStorageExtension($file, $mime);
         $basename = str_replace('.', '', uniqid('ph_', true));
@@ -1525,8 +1624,8 @@ class PhotoService
         $thumbRel = $dir.'/'.$basename.'_thumb.jpg';
 
         try {
-            $path = $this->storage()->putFileAs($dir, $file, $filename, [
-                'visibility' => 'public',
+            $path = $writeDisk->putFileAs($dir, $file, $filename, [
+                'visibility' => $diskName === 'backblaze' ? 'private' : 'public',
                 'ContentType' => $mime,
                 'mimetype' => $mime,
             ]);
@@ -1536,7 +1635,7 @@ class PhotoService
             return null;
         }
 
-        if (! is_string($path) || $path === '' || ! $this->storage()->exists($path)) {
+        if (! is_string($path) || $path === '' || ! $writeDisk->exists($path)) {
             return null;
         }
 
@@ -1703,8 +1802,8 @@ class PhotoService
     {
         $path = (string) $photo->path;
         $disk = $this->storageForPhoto($photo);
-        if (! $disk->exists($path) && ($photo->storage_tier ?? 'hot') === 'cold') {
-            // cold_path が別キーの場合
+        if (! $disk->exists($path) && in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)) {
+            // cold_path / overflow が別キーの場合
             $alt = (string) ($photo->cold_path ?: '');
             if ($alt !== '' && $disk->exists($alt)) {
                 $path = $alt;
@@ -2270,7 +2369,7 @@ class PhotoService
 
     public function diskForPhoto(Photo $photo): string
     {
-        if (($photo->storage_tier ?? 'hot') === 'cold'
+        if (in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)
             && is_string($photo->cold_disk)
             && $photo->cold_disk !== '') {
             return $photo->cold_disk;

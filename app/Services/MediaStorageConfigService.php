@@ -186,8 +186,59 @@ class MediaStorageConfigService
     public function pipelineArchivesToBackblaze(): bool
     {
         $pipeline = $this->get(MediaStorageSetting::PROVIDER_PIPELINE);
+        if (! $pipeline->enabled) {
+            return false;
+        }
 
-        return $pipeline->enabled && (bool) $pipeline->setting('archive_to_backblaze', false);
+        // 3つの運用モードはいずれも B2 連携を前提にする
+        return in_array($this->capacityMode(), $this->capacityModes(), true);
+    }
+
+    public const CAPACITY_MODE_R2_CAP = 'r2_cap';
+
+    public const CAPACITY_MODE_AGE_ARCHIVE = 'age_archive';
+
+    public const CAPACITY_MODE_OVERFLOW = 'overflow_priority';
+
+    /** @return list<string> */
+    public function capacityModes(): array
+    {
+        return [
+            self::CAPACITY_MODE_R2_CAP,
+            self::CAPACITY_MODE_AGE_ARCHIVE,
+            self::CAPACITY_MODE_OVERFLOW,
+        ];
+    }
+
+    public function capacityMode(): string
+    {
+        $pipeline = $this->get(MediaStorageSetting::PROVIDER_PIPELINE);
+        $mode = (string) $pipeline->setting('capacity_mode', '');
+
+        // 旧設定からの移行: capacity_mode 未設定なら現行（日数アーカイブ）相当
+        if ($mode === '' || ! in_array($mode, $this->capacityModes(), true)) {
+            if ((bool) $pipeline->setting('archive_to_backblaze', false)) {
+                return self::CAPACITY_MODE_AGE_ARCHIVE;
+            }
+
+            return self::CAPACITY_MODE_AGE_ARCHIVE;
+        }
+
+        return $mode;
+    }
+
+    public function overflowDisk(): string
+    {
+        $disk = (string) $this->get(MediaStorageSetting::PROVIDER_PIPELINE)
+            ->setting('overflow_disk', 'public');
+
+        return in_array($disk, ['public', 'r2', 'backblaze'], true) ? $disk : 'public';
+    }
+
+    public function overflowPricePerGbMonthUsd(): float
+    {
+        return max(0, (float) $this->get(MediaStorageSetting::PROVIDER_PIPELINE)
+            ->setting('overflow_price_per_gb_month_usd', 0.015));
     }
 
     public function archiveAfterDays(): int

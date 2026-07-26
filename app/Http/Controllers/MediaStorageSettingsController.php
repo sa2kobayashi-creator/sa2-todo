@@ -64,8 +64,19 @@ class MediaStorageSettingsController extends Controller
                         ? (string) $request->input('primary_disk')
                         : 'r2',
                     'use_cloudinary_display' => $request->boolean('use_cloudinary_display'),
-                    'archive_to_backblaze' => $request->boolean('archive_to_backblaze'),
+                    'capacity_mode' => in_array($request->input('capacity_mode'), [
+                        MediaStorageConfigService::CAPACITY_MODE_R2_CAP,
+                        MediaStorageConfigService::CAPACITY_MODE_AGE_ARCHIVE,
+                        MediaStorageConfigService::CAPACITY_MODE_OVERFLOW,
+                    ], true)
+                        ? (string) $request->input('capacity_mode')
+                        : MediaStorageConfigService::CAPACITY_MODE_AGE_ARCHIVE,
+                    'archive_to_backblaze' => true,
                     'archive_after_days' => max(0, (int) $request->input('archive_after_days', 365)),
+                    'overflow_disk' => in_array($request->input('overflow_disk'), ['public', 'r2', 'backblaze'], true)
+                        ? (string) $request->input('overflow_disk')
+                        : 'public',
+                    'overflow_price_per_gb_month_usd' => max(0, (float) $request->input('overflow_price_per_gb_month_usd', 0.015)),
                 ],
                 [],
             ],
