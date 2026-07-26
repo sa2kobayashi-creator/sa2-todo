@@ -149,6 +149,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/finance/accounts/{id}/update', [FinanceController::class, 'updateAccount'])->whereNumber('id');
         Route::post('/finance/accounts/{id}/delete', [FinanceController::class, 'destroyAccount'])->whereNumber('id');
         Route::post('/finance/accounts/{id}/balance', [FinanceController::class, 'updateAccountBalance'])->whereNumber('id');
+        Route::post('/finance/accounts/{id}/balance/reset', [FinanceController::class, 'resetAccountBalance'])->whereNumber('id');
         Route::post('/finance/accounts/{id}/linked-bank', [FinanceController::class, 'updateLinkedBank'])->whereNumber('id');
     });
 

@@ -547,7 +547,7 @@
 
           <div class="finance-account-settings" id="finance-account-settings" hidden>
             <h3 class="finance-account-group-title">{{ __('口座・クレカの管理') }}</h3>
-            <p class="hint finance-settings-hint">{{ __('各口座の名前・種別・開始残高・調整金額・引落口座・予定の管理、削除ができます。カードをクリックしても同様の編集ができます。') }}</p>
+            <p class="hint finance-settings-hint">{{ __('各口座の名前・種別・開始残高・調整金額・引落口座・予定の管理、削除ができます。カードをクリックしても同様の編集ができます。残高がおかしいときは「残高を0円にリセット」が使えます。') }}</p>
             @foreach($accounts as $account)
               <details class="finance-account-setting-row" data-account='@json($account)'>
                 <summary>
@@ -580,6 +580,11 @@
                     <input type="text" inputmode="decimal" class="finance-amount-calc" name="adjustmentAmount" value="{{ $account['adjustmentAmount'] ?? 0 }}" autocomplete="off" />
                   </label>
                   <button type="submit" class="button-link secondary">{{ __('残高を保存') }}</button>
+                </form>
+                <form method="post" action="/finance/accounts/{{ $account['id'] }}/balance/reset" class="finance-inline-form" onsubmit='return confirm(@json(__('この口座の残高を0円にリセットしますか？') . "\n" . __('開始残高・調整金額を0にし、取引による残りは自動で打ち消します。')))'>
+                  @csrf
+                  <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                  <button type="submit" class="text-btn danger">{{ __('残高を0円にリセット') }}</button>
                 </form>
                 @if($account['kind'] === 'credit_card')
                   <form method="post" action="/finance/accounts/{{ $account['id'] }}/linked-bank" class="finance-inline-form">

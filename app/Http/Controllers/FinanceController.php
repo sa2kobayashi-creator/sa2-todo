@@ -277,6 +277,24 @@ class FinanceController extends Controller
         return $this->redirectWithMessage($returnTo, '口座残高設定を更新しました');
     }
 
+    public function resetAccountBalance(Request $request, int $id)
+    {
+        $this->actAsUser($request);
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            if (! $this->finance->resetAccountBalanceToZero($id)) {
+                return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        } catch (\Throwable) {
+            return $this->redirectWithMessage($returnTo, '残高のリセットに失敗しました', 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, '残高を0円にリセットしました');
+    }
+
     public function updateLinkedBank(Request $request, int $id)
     {
         $this->actAsUser($request);

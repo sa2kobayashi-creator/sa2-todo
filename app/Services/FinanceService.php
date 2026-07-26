@@ -2232,6 +2232,47 @@ class FinanceService
         return $account->save();
     }
 
+    /**
+     * 表示残高（クレカは利用額）を 0 円にする。
+     * クレカは開始・調整を 0 にしたうえで、残る利用額を「残高リセット」収入で相殺する。
+     * 銀行等は開始残高を 0 にし、取引ネットを調整金額で打ち消す。
+     */
+    public function resetAccountBalanceToZero(int $id): bool
+    {
+        $account = $this->accountsQuery()->find($id);
+        if (! $account) {
+            return false;
+        }
+
+        $account->initial_balance = 0;
+        $account->adjustment_amount = 0;
+        $account->save();
+        $account = $account->fresh();
+
+        if ($account->kind === 'credit_card') {
+            $remaining = $this->calculateCreditCardBalance($account);
+            if ($remaining > 0.005) {
+                $this->createTransaction([
+                    'type' => 'income',
+                    'accountId' => $account->id,
+                    'amount' => $remaining,
+                    'transactionDate' => $this->todayIso(),
+                    'memo' => '残高リセット',
+                ]);
+            }
+
+            return true;
+        }
+
+        $balance = $this->calculateAccountBalance($account);
+        if (abs($balance) > 0.005) {
+            $account->adjustment_amount = round(-$balance, 2);
+            $account->save();
+        }
+
+        return true;
+    }
+
     public function updateLinkedBank(int $accountId, ?int $linkedBankId): bool
     {
         $account = $this->accountsQuery()->find($accountId);
