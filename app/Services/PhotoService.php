@@ -159,7 +159,7 @@ class PhotoService
         $capacityMode = $this->mediaConfig->capacityMode();
 
         $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
-        $b2OverageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
+        $b2StorageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
         $overflowPrice = $this->mediaConfig->overflowPricePerGbMonthUsd();
         $overflowDisk = $this->mediaConfig->overflowDisk();
         $overflowUsd = 0.0;
@@ -167,10 +167,30 @@ class PhotoService
         // モード3: 合計が無料枠合計を超えた分を「次の保存先」単価で見込む
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW && $usedApprox > $combinedQuota) {
             $overflowUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $overflowPrice);
-            // 二重計上を避けるため、R2/B2 超過見込は無料枠内として 0 表示
+            // 二重計上を避けるため、保管超過見込は無料枠内として 0 表示（転送・操作は別途）
             $r2OverageUsd = 0.0;
-            $b2OverageUsd = 0.0;
+            $b2StorageUsd = 0.0;
         }
+
+        $b2Bill = $this->mediaConfig->estimateB2BillUsd($coldUsed, $b2StorageUsd);
+        $b2OverageUsd = $b2Bill['total_usd'];
+        $b2EgressPrice = max(0, (float) config('photos.b2_egress_price_per_gb_usd', 0.01));
+        $b2ClassBPrice = max(0, (float) config('photos.b2_class_b_price_per_10k_usd', 0));
+        $b2PriceLabel = $this->formatUsdPerGbMonth($b2Price)
+            .' · '.__('転送料').' $'.rtrim(rtrim(number_format($b2EgressPrice, 3, '.', ''), '0'), '.').__('/GB')
+            .' · '.__('操作料').' $'.rtrim(rtrim(number_format($b2ClassBPrice, 4, '.', ''), '0'), '.').__('/1万回');
+        $b2BillingNote = __(
+            '保管・転送・操作を合算（当月実測）。転送は保管量の約:mult倍まで無料・超過 :egress。操作は現行プランでは無料（単価0）。',
+            [
+                'mult' => rtrim(rtrim(number_format((float) config('photos.b2_free_egress_storage_multiplier', 3), 1, '.', ''), '0'), '.'),
+                'egress' => '$'.rtrim(rtrim(number_format($b2EgressPrice, 3, '.', ''), '0'), '.').__('/GB'),
+            ]
+        );
+        $b2Breakdown = [
+            ['label' => __('保管料'), 'amount' => $this->formatUsdMonth($b2Bill['storage_usd']).__('/月')],
+            ['label' => __('転送料'), 'amount' => $this->formatUsdMonth($b2Bill['egress_usd']).__('/月')],
+            ['label' => __('操作料'), 'amount' => $this->formatUsdMonth($b2Bill['ops_usd']).__('/月')],
+        ];
 
         $cloudinaryResidual = Photo::query()
             ->where('user_id', $userId)
@@ -226,29 +246,11 @@ class PhotoService
                 'quotaLabel' => $this->formatBytes($b2Quota),
                 'count' => $coldCount,
                 'percent' => round(($coldUsed / max(1, $b2Quota)) * 100, 1),
-                'overFreeTier' => $coldUsed > $b2Quota,
-                'overagePriceLabel' => $this->formatUsdPerGbMonth($b2Price),
+                'overFreeTier' => $coldUsed > $b2Quota || $b2Bill['egress_usd'] > 0 || $b2Bill['ops_usd'] > 0,
+                'overagePriceLabel' => $b2PriceLabel,
                 'estimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
-                'billingNote' => __('無料枠超過分のみ従量課金（目安）。'),
-                'meter' => 'bytes',
-            ],
-            [
-                'id' => 'overflow',
-                'name' => __('次の保存先'),
-                'role' => match ($overflowDisk) {
-                    'r2' => 'Cloudflare R2',
-                    'backblaze' => 'Backblaze B2',
-                    default => __('サーバーローカル'),
-                },
-                'enabled' => $capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW,
-                'usedLabel' => $this->formatBytes(max($overflowUsed, max(0, $usedApprox - $combinedQuota))),
-                'quotaLabel' => __('無料枠合計後'),
-                'count' => $overflowCount,
-                'percent' => 0,
-                'overFreeTier' => $overflowUsd > 0,
-                'overagePriceLabel' => $this->formatUsdPerGbMonth($overflowPrice),
-                'estimatedBillLabel' => $this->formatUsdMonth($overflowUsd).__('/月'),
-                'billingNote' => __('R2/B2 の無料枠を超えた分の見込（設定した保存料）。'),
+                'billingNote' => $b2BillingNote,
+                'billingBreakdown' => $b2Breakdown,
                 'meter' => 'bytes',
             ],
             [
@@ -315,6 +317,29 @@ class PhotoService
                 'countLabel' => __('鮮明化 :count 件', ['count' => $stabilityEnhanceCount]),
             ],
         ];
+
+        // 「次の保存先」は超過時優先モード専用（R2/B2 無料枠を使い切った後の行き先）
+        if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
+            array_splice($providers, 2, 0, [[
+                'id' => 'overflow',
+                'name' => __('次の保存先'),
+                'role' => match ($overflowDisk) {
+                    'r2' => 'Cloudflare R2',
+                    'backblaze' => 'Backblaze B2',
+                    default => __('サーバーローカル'),
+                },
+                'enabled' => true,
+                'usedLabel' => $this->formatBytes(max($overflowUsed, max(0, $usedApprox - $combinedQuota))),
+                'quotaLabel' => __('無料枠合計後'),
+                'count' => $overflowCount,
+                'percent' => 0,
+                'overFreeTier' => $overflowUsd > 0,
+                'overagePriceLabel' => $this->formatUsdPerGbMonth($overflowPrice),
+                'estimatedBillLabel' => $this->formatUsdMonth($overflowUsd).__('/月'),
+                'billingNote' => __('R2/B2 の無料枠を超えた分の見込（設定した保存料）。'),
+                'meter' => 'bytes',
+            ]]);
+        }
 
         return [
             'usedBytes' => $usedApprox,
@@ -1801,6 +1826,7 @@ class PhotoService
     public function readPhotoFile(Photo $photo): array
     {
         $path = (string) $photo->path;
+        $diskName = $this->diskForPhoto($photo);
         $disk = $this->storageForPhoto($photo);
         if (! $disk->exists($path) && in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)) {
             // cold_path / overflow が別キーの場合
@@ -1811,14 +1837,21 @@ class PhotoService
         }
         if (! $disk->exists($path)) {
             // フォールバック: 主ディスク
+            $diskName = $this->diskName();
             $disk = $this->storage();
         }
         if (! $disk->exists($path)) {
             throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
         }
 
+        $contents = $disk->get($path);
+        if ($diskName === 'backblaze') {
+            $bytes = is_string($contents) ? strlen($contents) : (int) ($photo->size_bytes ?? 0);
+            $this->mediaConfig->recordB2Usage($bytes, 1, 0);
+        }
+
         return [
-            'contents' => $disk->get($path),
+            'contents' => $contents,
             'mime' => (string) ($photo->mime ?: 'application/octet-stream'),
             'name' => (string) ($photo->original_name ?: basename($path)),
         ];

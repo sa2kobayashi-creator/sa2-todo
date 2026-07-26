@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ @filemtime(public_path('app.css')) ?: time() }}" />
   </head>
   <body class="photos-page">
     @include('partials.header', ['active' => 'photos'])
@@ -93,6 +93,7 @@
               @endif
             </span>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
+            <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
           </span>
         </div>
         <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}">
@@ -610,6 +611,16 @@
                       </dd>
                     </div>
                   </dl>
+                  @if(!empty($provider['billingBreakdown']) && is_array($provider['billingBreakdown']))
+                    <dl class="photos-usage-dl photos-usage-breakdown">
+                      @foreach($provider['billingBreakdown'] as $row)
+                        <div>
+                          <dt>{{ $row['label'] ?? '' }}</dt>
+                          <dd>{{ $row['amount'] ?? '' }}</dd>
+                        </div>
+                      @endforeach
+                    </dl>
+                  @endif
                   <p class="photos-usage-note">{{ $provider['billingNote'] }}</p>
                   @if(($provider['meter'] ?? 'bytes') === 'bytes')
                     <div class="photos-storage-bar photos-usage-mini-bar" role="presentation">
@@ -629,6 +640,407 @@
         </div>
       </div>
     </div>
+
+    <div class="modal modal-centered" id="photos-sim-modal" hidden>
+      <div class="modal-backdrop" data-close-sim-modal></div>
+      <div class="modal-dialog photos-usage-dialog photos-sim-dialog" role="dialog" aria-labelledby="photos-sim-modal-title">
+        <div class="modal-header">
+          <h2 id="photos-sim-modal-title">{{ __('料金シミュレーション') }}</h2>
+          <button type="button" class="modal-close" data-close-sim-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="photos-usage-body photos-sim-body">
+          <p class="photos-usage-lead">
+            {{ __('全体容量を R2 / B2 に振り分け、転送・操作の仮条件から月額概算を出します。実際の請求とは異なる場合があります。') }}
+          </p>
+
+          <div class="photos-sim-layout">
+            <form id="photos-sim-form" class="photos-sim-form" autocomplete="off">
+              <fieldset class="photos-sim-fieldset">
+                <legend>{{ __('全体容量') }}</legend>
+                <div class="photos-sim-row">
+                  <label class="photos-sim-grow">
+                    <span>{{ __('容量') }}</span>
+                    <input type="number" id="photos-sim-total" name="total" min="0" step="0.1" value="1" />
+                  </label>
+                  <label>
+                    <span>{{ __('単位') }}</span>
+                    <select id="photos-sim-unit" name="unit">
+                      <option value="gb">GB</option>
+                      <option value="tb" selected>TB</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="photos-sim-presets" role="group" aria-label="{{ __('容量プリセット') }}">
+                  <button type="button" class="photos-secondary-btn" data-sim-total-gb="100">100 GB</button>
+                  <button type="button" class="photos-secondary-btn" data-sim-total-gb="500">500 GB</button>
+                  <button type="button" class="photos-secondary-btn" data-sim-total-gb="1024">1 TB</button>
+                  <button type="button" class="photos-secondary-btn" data-sim-total-gb="5120">5 TB</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="photos-sim-fieldset">
+                <legend>{{ __('振り分け') }}</legend>
+                <label>
+                  <span>{{ __('方法') }}</span>
+                  <select id="photos-sim-split" name="split">
+                    <option value="r2_free_rest_b2">{{ __('R2無料枠(10GB)＋残りをB2') }}</option>
+                    <option value="free_then_b2">{{ __('R2/B2無料枠(各10GB)＋残りをB2') }}</option>
+                    <option value="free_then_r2">{{ __('R2/B2無料枠(各10GB)＋残りをR2') }}</option>
+                    <option value="fifty_fifty">{{ __('半々（50% / 50%）') }}</option>
+                    <option value="r2_only">{{ __('すべて R2') }}</option>
+                    <option value="b2_only">{{ __('すべて B2') }}</option>
+                    <option value="custom">{{ __('手動（R2比率）') }}</option>
+                  </select>
+                </label>
+                <label id="photos-sim-r2-pct-wrap" hidden>
+                  <span>{{ __('R2 に置く割合') }}: <strong id="photos-sim-r2-pct-label">50</strong>%</span>
+                  <input type="range" id="photos-sim-r2-pct" name="r2_pct" min="0" max="100" step="1" value="50" />
+                </label>
+                <p class="photos-sim-split-summary" id="photos-sim-split-summary" aria-live="polite"></p>
+              </fieldset>
+
+              <fieldset class="photos-sim-fieldset">
+                <legend>{{ __('転送・操作（仮入力・月）') }}</legend>
+                <label>
+                  <span>{{ __('B2 からの転送量') }} (GB)</span>
+                  <input type="number" id="photos-sim-b2-egress" name="b2_egress_gb" min="0" step="0.1" value="0" />
+                </label>
+                <p class="hint photos-sim-hint">{{ __('一覧サムネは通常 R2 側。原本を B2 から開く量だけを入れてください。保管量の約3倍まで無料です。') }}</p>
+                <div class="photos-sim-row">
+                  <label class="photos-sim-grow">
+                    <span>{{ __('B2 Class B（読取）') }}</span>
+                    <input type="number" id="photos-sim-class-b" name="class_b" min="0" step="1" value="0" />
+                  </label>
+                  <label class="photos-sim-grow">
+                    <span>{{ __('B2 Class A（書込）') }}</span>
+                    <input type="number" id="photos-sim-class-a" name="class_a" min="0" step="1" value="0" />
+                  </label>
+                </div>
+                <p class="hint photos-sim-hint">{{ __('現行の従量プランでは Class A/B/C は無料（単価0）です。将来単価が戻った場合の感度確認用です。') }}</p>
+              </fieldset>
+            </form>
+
+            <aside class="photos-sim-result" aria-live="polite">
+              <h3>{{ __('月額概算') }}</h3>
+              <p class="photos-sim-total" id="photos-sim-total-usd">$0/月</p>
+              <p class="photos-sim-total-jpy" id="photos-sim-total-jpy">約 ¥0/月</p>
+              <dl class="photos-sim-result-dl">
+                <div>
+                  <dt>R2 {{ __('保管料') }}</dt>
+                  <dd id="photos-sim-r2-storage">$0/月</dd>
+                </div>
+                <div>
+                  <dt>B2 {{ __('保管料') }}</dt>
+                  <dd id="photos-sim-b2-storage">$0/月</dd>
+                </div>
+                <div>
+                  <dt>R2 {{ __('転送料') }}</dt>
+                  <dd id="photos-sim-r2-egress-usd">$0/月</dd>
+                </div>
+                <div>
+                  <dt>B2 {{ __('転送料') }}</dt>
+                  <dd id="photos-sim-b2-egress-usd">$0/月</dd>
+                </div>
+                <div>
+                  <dt>B2 {{ __('操作料') }}</dt>
+                  <dd id="photos-sim-b2-ops-usd">$0/月</dd>
+                </div>
+              </dl>
+              <p class="photos-usage-note" id="photos-sim-fx-note"></p>
+              <p class="photos-usage-note" id="photos-sim-result-note"></p>
+            </aside>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="button-link" form="photos-sim-form" id="photos-sim-run">{{ __('計算する') }}</button>
+          <button type="button" class="secondary" data-close-sim-modal>{{ __('閉じる') }}</button>
+        </div>
+      </div>
+    </div>
+
+    @php
+      $usdToJpyFallback = max(1, (float) config('photos.usd_to_jpy_fallback', 150));
+      try {
+          $usdToJpy = (float) \Illuminate\Support\Facades\Cache::remember('photos_sim_usd_jpy', now()->addHours(6), function () use ($usdToJpyFallback) {
+              $res = \Illuminate\Support\Facades\Http::timeout(4)
+                  ->acceptJson()
+                  ->get('https://api.frankfurter.app/latest', [
+                      'from' => 'USD',
+                      'to' => 'JPY',
+                  ]);
+              if ($res->successful()) {
+                  $rate = (float) data_get($res->json(), 'rates.JPY', 0);
+                  if ($rate > 0) {
+                      return $rate;
+                  }
+              }
+
+              return $usdToJpyFallback;
+          });
+      } catch (\Throwable $e) {
+          $usdToJpy = $usdToJpyFallback;
+      }
+      if ($usdToJpy <= 0) {
+          $usdToJpy = $usdToJpyFallback;
+      }
+
+      $photosSimRates = [
+        'r2FreeGb' => round(((int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024), 4),
+        'b2FreeGb' => round(((int) config('photos.b2_quota_bytes', 10 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024), 4),
+        'r2StoragePerGb' => (float) config('photos.overage_price_per_gb_month_usd', 0.015),
+        'b2StoragePerGb' => (float) config('photos.b2_overage_price_per_gb_month_usd', 0.006),
+        'b2EgressPerGb' => (float) config('photos.b2_egress_price_per_gb_usd', 0.01),
+        'b2FreeEgressMult' => (float) config('photos.b2_free_egress_storage_multiplier', 3),
+        'b2ClassAPer10k' => (float) config('photos.b2_class_a_price_per_10k_usd', 0),
+        'b2ClassBPer10k' => (float) config('photos.b2_class_b_price_per_10k_usd', 0),
+        'b2ClassBFreePerDay' => (int) config('photos.b2_class_b_free_per_day', 2500),
+        'daysInMonth' => (int) now()->daysInMonth,
+        'usdToJpy' => round($usdToJpy, 4),
+        'i18n' => [
+          'splitSummary' => __('振り分け結果: R2 :r2 · B2 :b2'),
+          'resultNote' => __('R2 転送は無料。B2 転送の無料枠は保管 :stored の約 :mult 倍（:free）。'),
+          'perMonth' => __('/月'),
+          'fxNote' => __('換算レート: 1 USD ≒ ¥:rate（計算時）'),
+          'approxYen' => __('約 ¥:yen/月'),
+        ],
+      ];
+    @endphp
+    <script type="application/json" id="photos-sim-rates">{!! json_encode($photosSimRates, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
+    <script>
+      (function () {
+        const simModal = document.getElementById('photos-sim-modal')
+        const simOpenBtn = document.getElementById('photos-sim-open')
+        const form = document.getElementById('photos-sim-form')
+        const ratesEl = document.getElementById('photos-sim-rates')
+        if (!simModal || !form) return
+
+        const fallbackRates = {
+          r2FreeGb: 10,
+          b2FreeGb: 10,
+          r2StoragePerGb: 0.015,
+          b2StoragePerGb: 0.006,
+          b2EgressPerGb: 0.01,
+          b2FreeEgressMult: 3,
+          b2ClassAPer10k: 0,
+          b2ClassBPer10k: 0,
+          b2ClassBFreePerDay: 2500,
+          daysInMonth: 30,
+          usdToJpy: 150,
+          i18n: {
+            splitSummary: '振り分け結果: R2 :r2 · B2 :b2',
+            resultNote: 'R2 転送は無料。B2 転送の無料枠は保管 :stored の約 :mult 倍（:free）。',
+            perMonth: '/月',
+            fxNote: '換算レート: 1 USD ≒ ¥:rate（計算時）',
+            approxYen: '約 ¥:yen/月'
+          }
+        }
+
+        let rates = fallbackRates
+        try {
+          const parsed = JSON.parse((ratesEl && ratesEl.textContent) || '{}')
+          if (parsed && typeof parsed === 'object') {
+            rates = Object.assign({}, fallbackRates, parsed, {
+              i18n: Object.assign({}, fallbackRates.i18n, parsed.i18n || {})
+            })
+          }
+        } catch (_) {}
+
+        let usdJpy = Number(rates.usdToJpy) > 0 ? Number(rates.usdToJpy) : 150
+        let fxFetch = null
+
+        const totalInput = document.getElementById('photos-sim-total')
+        const unitSelect = document.getElementById('photos-sim-unit')
+        const splitSelect = document.getElementById('photos-sim-split')
+        const r2PctWrap = document.getElementById('photos-sim-r2-pct-wrap')
+        const r2PctInput = document.getElementById('photos-sim-r2-pct')
+        const r2PctLabel = document.getElementById('photos-sim-r2-pct-label')
+        const splitSummary = document.getElementById('photos-sim-split-summary')
+        const egressInput = document.getElementById('photos-sim-b2-egress')
+        const classBInput = document.getElementById('photos-sim-class-b')
+        const classAInput = document.getElementById('photos-sim-class-a')
+        const outTotal = document.getElementById('photos-sim-total-usd')
+        const outTotalJpy = document.getElementById('photos-sim-total-jpy')
+        const outR2Storage = document.getElementById('photos-sim-r2-storage')
+        const outB2Storage = document.getElementById('photos-sim-b2-storage')
+        const outB2Egress = document.getElementById('photos-sim-b2-egress-usd')
+        const outB2Ops = document.getElementById('photos-sim-b2-ops-usd')
+        const outR2Egress = document.getElementById('photos-sim-r2-egress-usd')
+        const outNote = document.getElementById('photos-sim-result-note')
+        const outFxNote = document.getElementById('photos-sim-fx-note')
+        const perMonth = (rates.i18n && rates.i18n.perMonth) || '/月'
+
+        function num(el, fallback) {
+          const v = parseFloat(el && el.value !== undefined ? el.value : '')
+          return Number.isFinite(v) ? Math.max(0, v) : (fallback || 0)
+        }
+
+        function fmtYen(usd) {
+          const yen = Math.round((Number.isFinite(usd) ? usd : 0) * usdJpy)
+          const yenText = yen.toLocaleString('ja-JP')
+          const tpl = (rates.i18n && rates.i18n.approxYen) || '約 ¥:yen/月'
+          return tpl.replace(':yen', yenText)
+        }
+
+        function money(v) {
+          let usdPart = '$0' + perMonth
+          if (Number.isFinite(v) && v > 0) {
+            const s = v.toFixed(4).replace(/\.?0+$/, '')
+            usdPart = '$' + s + perMonth
+          }
+          return usdPart + '（' + fmtYen(v) + '）'
+        }
+
+        function fmtGb(v) {
+          if (v >= 1024) {
+            const tb = v / 1024
+            return tb.toFixed(tb >= 10 ? 1 : 2).replace(/\.?0+$/, '') + ' TB'
+          }
+          return v.toFixed(v >= 100 ? 0 : 1).replace(/\.?0+$/, '') + ' GB'
+        }
+
+        function totalGb() {
+          const n = num(totalInput, 0)
+          return (unitSelect && unitSelect.value === 'tb') ? n * 1024 : n
+        }
+
+        function splitGb(total) {
+          const mode = (splitSelect && splitSelect.value) || 'r2_free_rest_b2'
+          const r2Free = Number(rates.r2FreeGb) || 10
+          const b2Free = Number(rates.b2FreeGb) || 10
+          if (mode === 'r2_only') return { r2: total, b2: 0 }
+          if (mode === 'b2_only') return { r2: 0, b2: total }
+          if (mode === 'fifty_fifty') return { r2: total / 2, b2: total / 2 }
+          if (mode === 'custom') {
+            const pct = Math.min(100, Math.max(0, num(r2PctInput, 50)))
+            return { r2: total * (pct / 100), b2: total * (1 - pct / 100) }
+          }
+          if (mode === 'free_then_r2') {
+            const freeBoth = Math.min(total, r2Free + b2Free)
+            const r2Part = Math.min(r2Free, freeBoth)
+            const b2Part = Math.min(b2Free, Math.max(0, freeBoth - r2Part))
+            return { r2: r2Part + Math.max(0, total - freeBoth), b2: b2Part }
+          }
+          if (mode === 'free_then_b2') {
+            const freeBoth = Math.min(total, r2Free + b2Free)
+            const r2Part = Math.min(r2Free, freeBoth)
+            const b2Part = Math.min(b2Free, Math.max(0, freeBoth - r2Part))
+            return { r2: r2Part, b2: b2Part + Math.max(0, total - freeBoth) }
+          }
+          const r2 = Math.min(r2Free, total)
+          return { r2: r2, b2: Math.max(0, total - r2) }
+        }
+
+        function ensureFx() {
+          if (fxFetch) return fxFetch
+          fxFetch = fetch('https://api.frankfurter.app/latest?from=USD&to=JPY')
+            .then(function (res) { return res.ok ? res.json() : Promise.reject() })
+            .then(function (data) {
+              const rate = Number(data && data.rates && data.rates.JPY)
+              if (Number.isFinite(rate) && rate > 0) usdJpy = rate
+              return usdJpy
+            })
+            .catch(function () { return usdJpy })
+          return fxFetch
+        }
+
+        function calc() {
+          const total = totalGb()
+          const parts = splitGb(total)
+          const r2 = parts.r2
+          const b2 = parts.b2
+          const r2Free = Number(rates.r2FreeGb) || 10
+          const b2Free = Number(rates.b2FreeGb) || 10
+          const r2Storage = Math.max(0, r2 - r2Free) * (Number(rates.r2StoragePerGb) || 0)
+          const b2Storage = Math.max(0, b2 - b2Free) * (Number(rates.b2StoragePerGb) || 0)
+          const egressGb = num(egressInput, 0)
+          const freeEgress = b2 * (Number(rates.b2FreeEgressMult) || 3)
+          const b2EgressUsd = Math.max(0, egressGb - freeEgress) * (Number(rates.b2EgressPerGb) || 0)
+          const classA = num(classAInput, 0)
+          const classB = num(classBInput, 0)
+          const classAPrice = Number(rates.b2ClassAPer10k) || 0
+          const classBPrice = Number(rates.b2ClassBPer10k) || 0
+          const freeB = classBPrice > 0
+            ? (Number(rates.b2ClassBFreePerDay) || 0) * (Number(rates.daysInMonth) || 30)
+            : Number.POSITIVE_INFINITY
+          const b2OpsUsd = (classA / 10000) * classAPrice + (Math.max(0, classB - freeB) / 10000) * classBPrice
+          const grand = r2Storage + b2Storage + b2EgressUsd + b2OpsUsd
+
+          if (outTotal) {
+            if (Number.isFinite(grand) && grand > 0) {
+              const s = grand.toFixed(4).replace(/\.?0+$/, '')
+              outTotal.textContent = '$' + s + perMonth
+            } else {
+              outTotal.textContent = '$0' + perMonth
+            }
+          }
+          if (outTotalJpy) outTotalJpy.textContent = fmtYen(grand)
+          if (outR2Storage) outR2Storage.textContent = money(r2Storage)
+          if (outB2Storage) outB2Storage.textContent = money(b2Storage)
+          if (outB2Egress) outB2Egress.textContent = money(b2EgressUsd)
+          if (outB2Ops) outB2Ops.textContent = money(b2OpsUsd)
+          if (outR2Egress) outR2Egress.textContent = money(0)
+          if (splitSummary) {
+            const tpl = (rates.i18n && rates.i18n.splitSummary) || 'R2 :r2 · B2 :b2'
+            splitSummary.textContent = tpl.replace(':r2', fmtGb(r2)).replace(':b2', fmtGb(b2))
+          }
+          if (outFxNote) {
+            const tpl = (rates.i18n && rates.i18n.fxNote) || '1 USD ≒ ¥:rate'
+            outFxNote.textContent = tpl.replace(':rate', usdJpy.toFixed(2).replace(/\.?0+$/, ''))
+          }
+          if (outNote) {
+            const tpl = (rates.i18n && rates.i18n.resultNote) || ''
+            outNote.textContent = tpl
+              .replace(':stored', fmtGb(b2))
+              .replace(':mult', String(rates.b2FreeEgressMult || 3))
+              .replace(':free', fmtGb(freeEgress))
+          }
+          if (r2PctLabel && r2PctInput) r2PctLabel.textContent = String(Math.round(num(r2PctInput, 50)))
+          if (r2PctWrap) r2PctWrap.hidden = !(splitSelect && splitSelect.value === 'custom')
+          return false
+        }
+
+        function calcWithFx() {
+          calc()
+          ensureFx().then(function () { calc() })
+        }
+
+        function openSim() {
+          simModal.hidden = false
+          calcWithFx()
+        }
+
+        if (simOpenBtn) simOpenBtn.addEventListener('click', openSim)
+        document.querySelectorAll('[data-close-sim-modal]').forEach(function (el) {
+          el.addEventListener('click', function () { simModal.hidden = true })
+        })
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault()
+          calcWithFx()
+        })
+
+        ;[totalInput, unitSelect, splitSelect, r2PctInput, egressInput, classBInput, classAInput].forEach(function (el) {
+          if (!el) return
+          el.addEventListener('input', calc)
+          el.addEventListener('change', calc)
+        })
+
+        document.querySelectorAll('[data-sim-total-gb]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const gb = parseFloat(btn.getAttribute('data-sim-total-gb') || '0')
+            if (!Number.isFinite(gb) || gb <= 0) return
+            if (gb >= 1024 && gb % 1024 === 0) {
+              if (unitSelect) unitSelect.value = 'tb'
+              if (totalInput) totalInput.value = String(gb / 1024)
+            } else {
+              if (unitSelect) unitSelect.value = 'gb'
+              if (totalInput) totalInput.value = String(gb)
+            }
+            calcWithFx()
+          })
+        })
+      })()
+    </script>
 
     <div class="modal modal-centered" id="photos-dup-modal" hidden>
       <div class="modal-backdrop" data-close-dup-modal></div>

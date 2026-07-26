@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MediaStorageSetting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -58,6 +59,13 @@ class MediaStorageConfigService
                 $cleanSettings[$key] = $value;
             } elseif (is_string($value)) {
                 $cleanSettings[$key] = trim($value);
+            }
+        }
+
+        // フォーム保存でメータ値を消さない
+        foreach ($row->settingsArray() as $key => $value) {
+            if (is_string($key) && str_starts_with($key, 'meter_') && ! array_key_exists($key, $cleanSettings)) {
+                $cleanSettings[$key] = $value;
             }
         }
 
@@ -427,6 +435,110 @@ class MediaStorageConfigService
             'last_tested_at' => $row->last_tested_at?->format('Y-m-d H:i'),
             'last_test_status' => $row->last_test_status,
             'last_test_message' => $row->last_test_message,
+        ];
+    }
+
+    /** 当月の B2 転送・操作メータを加算（見込課金用） */
+    public function recordB2Usage(int $egressBytes = 0, int $classBOps = 0, int $classAOps = 0): void
+    {
+        if ($egressBytes <= 0 && $classBOps <= 0 && $classAOps <= 0) {
+            return;
+        }
+
+        $ym = now()->format('Y-m');
+        $ttl = now()->copy()->endOfMonth()->addDays(14);
+
+        foreach ([
+            "b2_meter:{$ym}:egress_bytes" => max(0, $egressBytes),
+            "b2_meter:{$ym}:class_b" => max(0, $classBOps),
+            "b2_meter:{$ym}:class_a" => max(0, $classAOps),
+        ] as $key => $delta) {
+            if ($delta <= 0) {
+                continue;
+            }
+            if (! Cache::has($key)) {
+                Cache::put($key, 0, $ttl);
+            }
+            Cache::increment($key, $delta);
+        }
+    }
+
+    /**
+     * @return array{
+     *   month: string,
+     *   egress_bytes: int,
+     *   class_a: int,
+     *   class_b: int,
+     *   storage_usd: float,
+     *   egress_usd: float,
+     *   ops_usd: float,
+     *   total_usd: float,
+     *   free_egress_bytes: int
+     * }
+     */
+    public function estimateB2BillUsd(int $storedBytes, float $storageOverageUsd): array
+    {
+        $ym = now()->format('Y-m');
+        $cacheEgress = (int) Cache::get("b2_meter:{$ym}:egress_bytes", 0);
+        $cacheClassA = (int) Cache::get("b2_meter:{$ym}:class_a", 0);
+        $cacheClassB = (int) Cache::get("b2_meter:{$ym}:class_b", 0);
+
+        $row = $this->get(MediaStorageSetting::PROVIDER_BACKBLAZE);
+        $settings = $row->settingsArray();
+        $dbMonth = (string) ($settings['meter_month'] ?? '');
+        $dbEgress = $dbMonth === $ym ? (int) ($settings['meter_egress_bytes'] ?? 0) : 0;
+        $dbClassA = $dbMonth === $ym ? (int) ($settings['meter_class_a'] ?? 0) : 0;
+        $dbClassB = $dbMonth === $ym ? (int) ($settings['meter_class_b'] ?? 0) : 0;
+
+        $egressBytes = max($cacheEgress, $dbEgress);
+        $classA = max($cacheClassA, $dbClassA);
+        $classB = max($cacheClassB, $dbClassB);
+
+        // 使用状況表示時にスナップショットを残し、キャッシュ消失後も見込を維持
+        if ($egressBytes > $dbEgress || $classA > $dbClassA || $classB > $dbClassB || $dbMonth !== $ym) {
+            try {
+                $settings['meter_month'] = $ym;
+                $settings['meter_egress_bytes'] = $egressBytes;
+                $settings['meter_class_a'] = $classA;
+                $settings['meter_class_b'] = $classB;
+                $row->settings = $settings;
+                $row->save();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $multiplier = max(0, (float) config('photos.b2_free_egress_storage_multiplier', 3));
+        $freeEgressBytes = (int) floor(max(0, $storedBytes) * $multiplier);
+        $billableEgress = max(0, $egressBytes - $freeEgressBytes);
+        $egressPrice = max(0, (float) config('photos.b2_egress_price_per_gb_usd', 0.01));
+        $egressUsd = round(($billableEgress / (1024 * 1024 * 1024)) * $egressPrice, 4);
+
+        $classAPrice = max(0, (float) config('photos.b2_class_a_price_per_10k_usd', 0));
+        $classBPrice = max(0, (float) config('photos.b2_class_b_price_per_10k_usd', 0));
+        $classBFreePerDay = max(0, (int) config('photos.b2_class_b_free_per_day', 2500));
+        $daysInMonth = max(1, (int) now()->daysInMonth);
+        $classBFreeMonth = $classBPrice > 0 ? $classBFreePerDay * $daysInMonth : PHP_INT_MAX;
+        $billableClassB = max(0, $classB - $classBFreeMonth);
+
+        $opsUsd = round(
+            ($classA / 10000) * $classAPrice
+            + ($billableClassB / 10000) * $classBPrice,
+            4
+        );
+
+        $storageUsd = max(0, $storageOverageUsd);
+
+        return [
+            'month' => $ym,
+            'egress_bytes' => $egressBytes,
+            'class_a' => $classA,
+            'class_b' => $classB,
+            'storage_usd' => $storageUsd,
+            'egress_usd' => $egressUsd,
+            'ops_usd' => $opsUsd,
+            'total_usd' => round($storageUsd + $egressUsd + $opsUsd, 4),
+            'free_egress_bytes' => $freeEgressBytes,
         ];
     }
 }

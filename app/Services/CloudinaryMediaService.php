@@ -124,6 +124,9 @@ class CloudinaryMediaService
             if (! is_string($binary) || $binary === '') {
                 return null;
             }
+            if ($sourceDisk === 'backblaze') {
+                $this->config->recordB2Usage(strlen($binary), 1, 0);
+            }
             $filename = basename($path) ?: ('photo_'.$photo->id.($resourceType === 'video' ? '.mp4' : '.jpg'));
             $response = Http::withBasicAuth($apiKey, $apiSecret)
                 ->timeout($timeout)

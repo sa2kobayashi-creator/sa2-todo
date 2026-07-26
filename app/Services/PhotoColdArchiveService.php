@@ -261,6 +261,10 @@ class PhotoColdArchiveService
             throw new \RuntimeException('Cold object missing after write: '.$path);
         }
 
+        if ($coldDisk === 'backblaze') {
+            $this->mediaConfig->recordB2Usage(0, 0, 1);
+        }
+
         // サムネは一覧用にホット側へ残す（無ければコピーしない）
         $hot->delete($path);
 

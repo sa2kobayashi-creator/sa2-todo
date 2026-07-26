@@ -22,6 +22,30 @@ return [
     /** B2 無料枠超過時のストレージ単価目安（USD / GB / 月）。約 $6.95/TB */
     'b2_overage_price_per_gb_month_usd' => (float) env('PHOTO_B2_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.006),
 
+    /**
+     * B2 転送（egress）単価（USD / GB）。保管量の N 倍まで無料、超過分に適用。
+     * アプリ経由の原本配信は CDN 経由ではないため、通常は課金対象になり得る。
+     */
+    'b2_egress_price_per_gb_usd' => (float) env('PHOTO_B2_EGRESS_PRICE_PER_GB_USD', 0.01),
+
+    /** B2 無料転送枠 = 当月保管量 × この倍率（公式は平均保管量の約 3 倍） */
+    'b2_free_egress_storage_multiplier' => (float) env('PHOTO_B2_FREE_EGRESS_STORAGE_MULTIPLIER', 3),
+
+    /**
+     * B2 Class B（ダウンロード等）10,000 回あたりの単価（USD）。
+     * 2025-05 以降の従量プランでは Class A/B/C は無料のため既定 0。
+     */
+    'b2_class_b_price_per_10k_usd' => (float) env('PHOTO_B2_CLASS_B_PRICE_PER_10K_USD', 0),
+
+    /** Class B の日次無料枠（単価が 0 より大きい場合のみ使用） */
+    'b2_class_b_free_per_day' => (int) env('PHOTO_B2_CLASS_B_FREE_PER_DAY', 2500),
+
+    /** B2 Class A（アップロード等）10,000 回あたりの単価（USD）。現行は無料のため既定 0 */
+    'b2_class_a_price_per_10k_usd' => (float) env('PHOTO_B2_CLASS_A_PRICE_PER_10K_USD', 0),
+
+    /** 料金シミュレーション用 USD→JPY フォールバック（取得失敗時） */
+    'usd_to_jpy_fallback' => (float) env('PHOTO_USD_TO_JPY_FALLBACK', 150),
+
     /** Cloudinary Free プランの月間クレジット（ストレージ・帯域・変換の合算） */
     'cloudinary_free_credits' => (int) env('PHOTO_CLOUDINARY_FREE_CREDITS', 25),
 
