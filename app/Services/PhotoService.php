@@ -1782,11 +1782,29 @@ class PhotoService
             ]));
         }
 
-        return match ($enhance->activeProvider()) {
-            EnhanceConfigService::PROVIDER_REALESRGAN => $this->enhanceWithRealEsrgan($userId, $photoId),
-            EnhanceConfigService::PROVIDER_SWINIR => $this->enhanceWithSwinIr($userId, $photoId),
-            default => $this->enhanceWithStability($userId, $photoId),
-        };
+        $cancel = app(EnhanceCancelService::class);
+        $cancel->begin($userId, $photoId);
+
+        try {
+            return match ($enhance->activeProvider()) {
+                EnhanceConfigService::PROVIDER_REALESRGAN => $this->enhanceWithRealEsrgan($userId, $photoId),
+                EnhanceConfigService::PROVIDER_SWINIR => $this->enhanceWithSwinIr($userId, $photoId),
+                default => $this->enhanceWithStability($userId, $photoId),
+            };
+        } finally {
+            $cancel->clear($userId, $photoId);
+        }
+    }
+
+    public function cancelEnhance(int $userId, int $photoId): void
+    {
+        app(EnhanceCancelService::class)->requestCancel($userId, $photoId);
+
+        try {
+            app(SwinIrService::class)->requestRemoteCancel();
+        } catch (\Throwable) {
+            // ワーカー未起動時は無視（ローカル Abort とキャッシュで十分）
+        }
     }
 
     /**
@@ -1930,6 +1948,8 @@ class PhotoService
         ?int $sourceWidth,
         ?int $sourceHeight
     ): array {
+        app(EnhanceCancelService::class)->throwIfCancelled($userId, $photoId);
+
         $tmp = tempnam(sys_get_temp_dir(), 'enh_out_');
         if ($tmp === false) {
             throw new \RuntimeException(__('一時ファイルを作成できません。'));

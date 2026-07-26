@@ -9,19 +9,26 @@
   $eSettings = $realesrgan['settings'] ?? [];
   $wSettings = $swinir['settings'] ?? [];
   $defaultBinary = storage_path('app/bin/realesrgan-ncnn-vulkan.exe');
+  $realesrganPaused = !empty($realesrgan['temporarily_disabled']);
+  $swinirPaused = !empty($swinir['temporarily_disabled']);
 @endphp
 
 <div class="panel storage-settings" id="enhance-active">
   <h2>{{ __('鮮明化設定') }}</h2>
   <p class="hint">{{ __('Photos の「AIで鮮明化」で使うエンジンを選びます。Stability AI / Real-ESRGAN（ローカル GPU）/ SwinIR（GPU VPS）を切り替えられます。') }}</p>
+  <p class="hint">{{ __('Real-ESRGAN と SwinIR は当面利用停止中です（実装は残しています）。') }}</p>
   <form method="post" action="/settings/enhance/active" class="storage-provider-form">
     @csrf
     <label>
       {{ __('使用するエンジン') }}
       <select name="active_provider">
         <option value="stability" @selected($active === 'stability')>Stability AI</option>
-        <option value="realesrgan" @selected($active === 'realesrgan')>Real-ESRGAN（ローカル GPU）</option>
-        <option value="swinir" @selected($active === 'swinir')>SwinIR（GPU VPS）</option>
+        <option value="realesrgan" @selected($active === 'realesrgan') @disabled($realesrganPaused)>
+          Real-ESRGAN（ローカル GPU）@if($realesrganPaused) — {{ __('当面利用停止中') }}@endif
+        </option>
+        <option value="swinir" @selected($active === 'swinir') @disabled($swinirPaused)>
+          SwinIR（GPU VPS）@if($swinirPaused) — {{ __('当面利用停止中') }}@endif
+        </option>
       </select>
     </label>
     <p class="hint">
@@ -101,8 +108,11 @@
   @endif
   <form method="post" action="/settings/enhance/realesrgan" class="storage-provider-form" data-provider="realesrgan">
     @csrf
+    @if($realesrganPaused)
+      <p class="hint">{{ __('当面利用停止中です。設定の保存はできますが、有効化・実行はできません。') }}</p>
+    @endif
     <label class="storage-enable">
-      <input type="checkbox" name="enabled" value="1" @checked(!empty($realesrgan['enabled'])) />
+      <input type="checkbox" name="enabled" value="1" @checked(!empty($realesrgan['enabled'])) @disabled($realesrganPaused) />
       {{ __('Real-ESRGAN を有効にする') }}
     </label>
     <label>{{ __('実行ファイルのパス') }}
@@ -142,7 +152,7 @@
     </label>
     <div class="storage-form-actions">
       <button type="submit" class="button-link">{{ __('保存') }}</button>
-      <button type="button" class="secondary enhance-test-btn" data-provider="realesrgan">{{ __('接続テスト') }}</button>
+      <button type="button" class="secondary enhance-test-btn" data-provider="realesrgan" @disabled($realesrganPaused)>{{ __('接続テスト') }}</button>
       <span class="storage-test-live hint" data-test-live="realesrgan"></span>
     </div>
   </form>
@@ -163,8 +173,11 @@
   @endif
   <form method="post" action="/settings/enhance/swinir" class="storage-provider-form" data-provider="swinir">
     @csrf
+    @if($swinirPaused)
+      <p class="hint">{{ __('当面利用停止中です。設定の保存はできますが、有効化・実行はできません。') }}</p>
+    @endif
     <label class="storage-enable">
-      <input type="checkbox" name="enabled" value="1" @checked(!empty($swinir['enabled'])) />
+      <input type="checkbox" name="enabled" value="1" @checked(!empty($swinir['enabled'])) @disabled($swinirPaused) />
       {{ __('SwinIR を有効にする') }}
     </label>
     <label>{{ __('エンドポイント URL') }}
@@ -193,7 +206,7 @@
     </label>
     <div class="storage-form-actions">
       <button type="submit" class="button-link">{{ __('保存') }}</button>
-      <button type="button" class="secondary enhance-test-btn" data-provider="swinir">{{ __('接続テスト') }}</button>
+      <button type="button" class="secondary enhance-test-btn" data-provider="swinir" @disabled($swinirPaused)>{{ __('接続テスト') }}</button>
       <span class="storage-test-live hint" data-test-live="swinir"></span>
     </div>
   </form>

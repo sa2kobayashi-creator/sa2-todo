@@ -361,6 +361,8 @@ class PhotoController extends Controller
     {
         try {
             $result = $this->photos->enhancePhoto((int) $request->user()->id, $id);
+        } catch (\App\Exceptions\EnhanceCancelledException $e) {
+            return response()->json(['ok' => false, 'cancelled' => true, 'message' => $e->getMessage()], 499);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
@@ -382,6 +384,16 @@ class PhotoController extends Controller
             'message' => $message,
             'photo' => $photo,
             'zoom' => 2,
+        ]);
+    }
+
+    public function stabilityEnhanceCancel(Request $request, int $id)
+    {
+        $this->photos->cancelEnhance((int) $request->user()->id, $id);
+
+        return response()->json([
+            'ok' => true,
+            'message' => __('鮮明化の中止を受け付けました。'),
         ]);
     }
 

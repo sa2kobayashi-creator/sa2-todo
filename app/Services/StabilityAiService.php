@@ -275,6 +275,7 @@ class StabilityAiService
 
         for ($row = 0; $row < $rows; $row++) {
             for ($col = 0; $col < $cols; $col++) {
+                app(EnhanceCancelService::class)->throwIfCancelled();
                 $x0 = max(0, $col * $tileW - ($col > 0 ? $overlap : 0));
                 $y0 = max(0, $row * $tileH - ($row > 0 ? $overlap : 0));
                 $x1 = min($w, ($col + 1) * $tileW + ($col < $cols - 1 ? $overlap : 0));
@@ -647,6 +648,7 @@ class StabilityAiService
         $lastError = __('鮮明化の完了待ちがタイムアウトしました。');
 
         while (microtime(true) < $deadline) {
+            app(EnhanceCancelService::class)->throwIfCancelled();
             foreach ($candidates as $candidate) {
                 $response = Http::withToken($apiKey)
                     ->timeout(60)

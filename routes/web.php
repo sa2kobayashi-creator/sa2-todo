@@ -90,6 +90,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
     Route::post('/photos/{id}/stability-enhance', [PhotoController::class, 'stabilityEnhance'])->whereNumber('id');
+    Route::post('/photos/{id}/stability-enhance/cancel', [PhotoController::class, 'stabilityEnhanceCancel'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/start', [PhotoController::class, 'cloudinaryEditStart'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/commit', [PhotoController::class, 'cloudinaryEditCommit'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/cancel', [PhotoController::class, 'cloudinaryEditCancel'])->whereNumber('id');

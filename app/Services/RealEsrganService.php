@@ -79,46 +79,60 @@ class RealEsrganService
                 ? array_values(array_unique([max(32, $tileSize), 128, 64, 32]))
                 : [128, 64, 32];
 
-            $result = null;
-            $lastDetail = '';
-            $succeeded = false;
+                    $result = null;
+                    $lastDetail = '';
+                    $succeeded = false;
+                    $cancel = app(EnhanceCancelService::class);
 
-            foreach ($scaleAttempts as $tryScale) {
-                foreach ($tileAttempts as $tryTile) {
-                    @unlink($outputPath);
-                    $attempt = [
-                        $binaryPath,
-                        '-i', $processInput,
-                        '-o', $outputPath,
-                        '-n', $model,
-                        '-s', (string) $tryScale,
-                        '-g', $gpuId !== '' ? $gpuId : '0',
-                        '-f', $format,
-                        '-t', (string) max(32, (int) $tryTile),
-                        '-j', '1:1:1',
-                    ];
+                    foreach ($scaleAttempts as $tryScale) {
+                        foreach ($tileAttempts as $tryTile) {
+                            $cancel->throwIfCancelled();
+                            @unlink($outputPath);
+                            $attempt = [
+                                $binaryPath,
+                                '-i', $processInput,
+                                '-o', $outputPath,
+                                '-n', $model,
+                                '-s', (string) $tryScale,
+                                '-g', $gpuId !== '' ? $gpuId : '0',
+                                '-f', $format,
+                                '-t', (string) max(32, (int) $tryTile),
+                                '-j', '1:1:1',
+                            ];
 
-                    $result = Process::timeout($timeout)
-                        ->path(dirname($binaryPath))
-                        ->run($attempt);
+                            $invoked = Process::timeout($timeout)
+                                ->path(dirname($binaryPath))
+                                ->start($attempt);
 
-                    if ($result->successful() && is_file($outputPath) && filesize($outputPath) >= 32) {
-                        $succeeded = true;
-                        break 2;
+                            try {
+                                while ($invoked->running()) {
+                                    $cancel->throwIfCancelled();
+                                    usleep(200_000);
+                                }
+                            } catch (\App\Exceptions\EnhanceCancelledException $e) {
+                                $invoked->stop(1);
+                                throw $e;
+                            }
+
+                            $result = $invoked->wait();
+
+                            if ($result->successful() && is_file($outputPath) && filesize($outputPath) >= 32) {
+                                $succeeded = true;
+                                break 2;
+                            }
+
+                            $lastDetail = trim($result->errorOutput() ?: $result->output());
+                            if ($lastDetail === '') {
+                                $lastDetail = __('終了コード :code', ['code' => $result->exitCode()]);
+                            }
+
+                            if (! $this->isVramError($lastDetail)) {
+                                throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', [
+                                    'detail' => mb_substr($this->friendlyError($lastDetail), 0, 400),
+                                ]));
+                            }
+                        }
                     }
-
-                    $lastDetail = trim($result->errorOutput() ?: $result->output());
-                    if ($lastDetail === '') {
-                        $lastDetail = __('終了コード :code', ['code' => $result->exitCode()]);
-                    }
-
-                    if (! $this->isVramError($lastDetail)) {
-                        throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', [
-                            'detail' => mb_substr($this->friendlyError($lastDetail), 0, 400),
-                        ]));
-                    }
-                }
-            }
 
             if (! $succeeded) {
                 throw new \RuntimeException(__('Real-ESRGAN エラー: :detail', [

@@ -20,6 +20,7 @@ Or from this folder after setting SWINIR_ROOT:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import sys
 import threading
@@ -54,6 +55,7 @@ from main_test_swinir import define_model  # noqa: E402
 
 app = FastAPI(title="SwinIR Worker", version="1.0.0")
 _lock = threading.Lock()
+_cancel = threading.Event()
 _models: dict[str, torch.nn.Module] = {}
 _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -129,6 +131,8 @@ def test_tile(img, model, window_size: int, scale: int, tile: int, tile_overlap:
     w_count = torch.zeros_like(e)
     for h_idx in h_idx_list:
         for w_idx in w_idx_list:
+            if _cancel.is_set():
+                raise HTTPException(status_code=499, detail="Cancelled")
             in_patch = img[..., h_idx : h_idx + tile, w_idx : w_idx + tile]
             out_patch = model(in_patch)
             out_h = h_idx * scale
@@ -178,7 +182,15 @@ def health(_: None = Depends(require_api_key)):
         "model": str(_model_path(False)),
         "large_model": str(_model_path(True)),
         "swinir_root": str(SWINIR_ROOT),
+        "busy": _lock.locked(),
+        "cancel_requested": _cancel.is_set(),
     }
+
+
+@app.post("/cancel")
+def cancel(_: None = Depends(require_api_key)):
+    _cancel.set()
+    return {"ok": True, "message": "cancel requested"}
 
 
 @app.post("/upscale")
@@ -210,13 +222,23 @@ async def upscale(
     if img is None:
         raise HTTPException(status_code=400, detail="Could not decode image")
 
-    with _lock:
-        try:
-            out = enhance_bgr(img, scale=scale, large_model=use_large, tile=max(0, int(tile)))
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+    tile_size = max(0, int(tile))
+
+    def _run() -> np.ndarray:
+        with _lock:
+            _cancel.clear()
+            try:
+                return enhance_bgr(img, scale=scale, large_model=use_large, tile=tile_size)
+            finally:
+                _cancel.clear()
+
+    try:
+        # 別スレッドで推論し、/cancel をイベントループで受けられるようにする
+        out = await asyncio.to_thread(_run)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     ext = ".jpg" if fmt == "jpg" else f".{fmt}"
     ok, encoded = cv2.imencode(ext, out, [int(cv2.IMWRITE_JPEG_QUALITY), 92] if fmt == "jpg" else [])

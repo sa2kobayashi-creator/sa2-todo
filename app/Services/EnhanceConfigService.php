@@ -12,6 +12,16 @@ class EnhanceConfigService
 
     public const PROVIDER_SWINIR = 'swinir';
 
+    /**
+     * 当面利用停止（実装は残す）。選択・有効化不可。
+     *
+     * @var list<string>
+     */
+    public const TEMPORARILY_DISABLED_PROVIDERS = [
+        self::PROVIDER_REALESRGAN,
+        self::PROVIDER_SWINIR,
+    ];
+
     /** @return list<string> */
     public function providers(): array
     {
@@ -20,6 +30,11 @@ class EnhanceConfigService
             self::PROVIDER_REALESRGAN,
             self::PROVIDER_SWINIR,
         ];
+    }
+
+    public function isTemporarilyDisabled(string $provider): bool
+    {
+        return in_array($provider, self::TEMPORARILY_DISABLED_PROVIDERS, true);
     }
 
     public function enhanceRow(): MediaStorageSetting
@@ -31,9 +46,11 @@ class EnhanceConfigService
     {
         $provider = (string) $this->enhanceRow()->setting('active_provider', self::PROVIDER_STABILITY);
 
-        return in_array($provider, $this->providers(), true)
-            ? $provider
-            : self::PROVIDER_STABILITY;
+        if (! in_array($provider, $this->providers(), true) || $this->isTemporarilyDisabled($provider)) {
+            return self::PROVIDER_STABILITY;
+        }
+
+        return $provider;
     }
 
     public function providerRow(string $provider): MediaStorageSetting
@@ -50,6 +67,10 @@ class EnhanceConfigService
     public function isReady(?string $provider = null): bool
     {
         $provider = $provider ?: $this->activeProvider();
+        if ($this->isTemporarilyDisabled($provider)) {
+            return false;
+        }
+
         $row = $this->providerRow($provider);
         if (! $row->enabled) {
             return false;
@@ -105,10 +126,11 @@ class EnhanceConfigService
         }
 
         return [
-            'enabled' => (bool) $row->enabled,
+            'enabled' => $this->isTemporarilyDisabled($provider) ? false : (bool) $row->enabled,
             'settings' => $settings,
             'hasSecrets' => $has,
             'implemented' => $this->isImplemented($provider),
+            'temporarily_disabled' => $this->isTemporarilyDisabled($provider),
             'ready' => $this->isReady($provider),
             'last_test_status' => $row->last_test_status,
             'last_test_message' => $row->last_test_message,
@@ -118,7 +140,7 @@ class EnhanceConfigService
 
     public function saveActiveProvider(string $provider): MediaStorageSetting
     {
-        if (! in_array($provider, $this->providers(), true)) {
+        if (! in_array($provider, $this->providers(), true) || $this->isTemporarilyDisabled($provider)) {
             $provider = self::PROVIDER_STABILITY;
         }
         $row = $this->enhanceRow();
@@ -142,6 +164,10 @@ class EnhanceConfigService
             throw new \InvalidArgumentException(__('不正なプロバイダです'));
         }
 
+        if ($this->isTemporarilyDisabled($provider)) {
+            $enabled = false;
+        }
+
         return app(MediaStorageConfigService::class)->save(
             $this->storageProviderKey($provider),
             $enabled,
@@ -155,6 +181,10 @@ class EnhanceConfigService
     {
         if (! in_array($provider, $this->providers(), true)) {
             return ['ok' => false, 'message' => __('不正なプロバイダです')];
+        }
+
+        if ($this->isTemporarilyDisabled($provider)) {
+            return ['ok' => false, 'message' => __(':name は当面利用停止中です。', ['name' => $this->providerLabel($provider)])];
         }
 
         $result = match ($provider) {

@@ -17,6 +17,16 @@ class EnhanceSettingsController extends Controller
     public function updateActive(Request $request)
     {
         $provider = (string) $request->input('active_provider', EnhanceConfigService::PROVIDER_STABILITY);
+        if ($this->enhance->isTemporarilyDisabled($provider)) {
+            return $this->redirectWithMessage(
+                self::SETTINGS_PATH.'#enhance-active',
+                __(':name は当面利用停止中のため選択できません。', [
+                    'name' => $this->enhance->providerLabel($provider),
+                ]),
+                'error'
+            );
+        }
+
         $this->enhance->saveActiveProvider($provider);
 
         return $this->redirectWithMessage(
@@ -34,6 +44,10 @@ class EnhanceSettingsController extends Controller
         }
 
         $enabled = $request->boolean('enabled');
+        if ($this->enhance->isTemporarilyDisabled($provider)) {
+            $enabled = false;
+        }
+
         [$settings, $secrets] = match ($provider) {
             EnhanceConfigService::PROVIDER_STABILITY => [
                 [

@@ -44,9 +44,23 @@ class SwinIrService
         }
 
         $url = $endpoint.'/upscale';
+        $cancel = app(EnhanceCancelService::class);
+        $cancel->throwIfCancelled();
+
         $request = Http::timeout($timeout)
             ->connectTimeout(15)
             ->accept('image/*, application/json')
+            ->withOptions([
+                'curl' => [
+                    CURLOPT_NOPROGRESS => false,
+                ],
+                'progress' => function () use ($cancel): void {
+                    if ($cancel->isCancelled()) {
+                        // Guzzle に処理中断させる（例外は progress から投げない）
+                        throw new \RuntimeException('ENHANCE_CANCELLED');
+                    }
+                },
+            ])
             ->attach('image', $binary, $filename !== '' ? $filename : 'photo.jpg');
 
         if ($apiKey !== '') {
@@ -56,15 +70,28 @@ class SwinIrService
             ]);
         }
 
-        $response = $request->post($url, [
-            'scale' => (string) $scale,
-            'tile' => (string) $tile,
-            'large_model' => $largeModel ? '1' : '0',
-            'output_format' => $outputFormat,
-        ]);
+        try {
+            $response = $request->post($url, [
+                'scale' => (string) $scale,
+                'tile' => (string) $tile,
+                'large_model' => $largeModel ? '1' : '0',
+                'output_format' => $outputFormat,
+            ]);
+        } catch (\Throwable $e) {
+            $this->requestRemoteCancel();
+            if ($cancel->isCancelled() || str_contains($e->getMessage(), 'ENHANCE_CANCELLED')) {
+                throw new \App\Exceptions\EnhanceCancelledException(__('鮮明化を中止しました。'));
+            }
+            throw $e;
+        }
+
+        $cancel->throwIfCancelled();
 
         if (! $response->successful()) {
             $detail = $this->errorDetail($response->body(), $response->status());
+            if (str_contains(strtolower($detail), 'cancel')) {
+                throw new \App\Exceptions\EnhanceCancelledException(__('鮮明化を中止しました。'));
+            }
             throw new \RuntimeException(__('SwinIR エラー: :detail', ['detail' => $detail]));
         }
 
@@ -96,6 +123,27 @@ class SwinIrService
             'width' => $width,
             'height' => $height,
         ];
+    }
+
+    /** ワーカー側の進行中ジョブを中止要求する（失敗しても例外は投げない想定で呼ぶ側が握る）。 */
+    public function requestRemoteCancel(): void
+    {
+        $row = $this->enhance->providerRow(EnhanceConfigService::PROVIDER_SWINIR);
+        $endpoint = rtrim(trim((string) $row->setting('endpoint', '')), '/');
+        if ($endpoint === '' || ! preg_match('#^https?://#i', $endpoint)) {
+            return;
+        }
+
+        $apiKey = (string) $row->secret('api_key', '');
+        $request = Http::timeout(5)->connectTimeout(3)->acceptJson();
+        if ($apiKey !== '') {
+            $request = $request->withHeaders([
+                'Authorization' => 'Bearer '.$apiKey,
+                'X-API-Key' => $apiKey,
+            ]);
+        }
+
+        $request->post($endpoint.'/cancel');
     }
 
     /** @return array{ok: bool, message: string} */

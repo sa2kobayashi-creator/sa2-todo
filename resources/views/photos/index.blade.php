@@ -404,7 +404,22 @@
                 <button type="button" class="photos-secondary-btn" id="photos-cloudinary-edit-btn" hidden>{{ __('Cloudinaryで編集') }}</button>
               @endif
               @if(!empty($stabilityEnhanceReady))
-                <button type="button" class="photos-secondary-btn" id="photos-stability-enhance-btn" hidden>{{ __('AIで鮮明化') }}</button>
+                <button
+                  type="button"
+                  class="photos-secondary-btn"
+                  id="photos-stability-enhance-btn"
+                  hidden
+                  data-label-idle="{{ __('AIで鮮明化') }}"
+                  data-label-busy="{{ __('鮮明化中…') }}"
+                >{{ __('AIで鮮明化') }}</button>
+                <button
+                  type="button"
+                  class="photos-secondary-btn photos-danger-btn"
+                  id="photos-stability-enhance-cancel-btn"
+                  hidden
+                  data-label-idle="{{ __('鮮明化を中止') }}"
+                  data-label-busy="{{ __('中止中…') }}"
+                >{{ __('鮮明化を中止') }}</button>
               @endif
               <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
                 @csrf
@@ -1319,6 +1334,11 @@
             stabilityEnhanceBtn.hidden = !canEdit || isVideo
             stabilityEnhanceBtn.dataset.photoId = String(photo.id)
           }
+          const stabilityEnhanceCancelBtn = document.getElementById('photos-stability-enhance-cancel-btn')
+          if (stabilityEnhanceCancelBtn && !window.__photosEnhanceInFlight) {
+            stabilityEnhanceCancelBtn.hidden = true
+            stabilityEnhanceCancelBtn.disabled = true
+          }
           if (trimForm) {
             // 動画のみ：写真では動画トリムを出さない
             trimForm.action = `/photos/${photo.id}/trim-video`
@@ -1737,6 +1757,11 @@
             openLightbox(Number(tile.dataset.photoIndex || 0))
           })
         })
+        document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
+          el.addEventListener('click', closeLightbox)
+        })
+        document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => stepLightbox(-1))
+        document.getElementById('photos-lightbox-next')?.addEventListener('click', () => stepLightbox(1))
         ;(function openPhotoFromQuery() {
           const params = new URLSearchParams(window.location.search)
           const focusId = Number(params.get('photo') || 0)
@@ -1751,11 +1776,6 @@
           url.searchParams.delete('zoom')
           window.history.replaceState({}, '', url.pathname + url.search + url.hash)
         })()
-        document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
-          el.addEventListener('click', closeLightbox)
-        })
-        document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => stepLightbox(-1))
-        document.getElementById('photos-lightbox-next')?.addEventListener('click', () => stepLightbox(1))
 
         async function fetchPhotoFileByIndex(index) {
           const photo = photos[index]
@@ -3361,51 +3381,105 @@
         @endif
 
         @if(!empty($stabilityEnhanceReady))
-        ;(function setupStabilityEnhance() {
-          const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
-          const btn = document.getElementById('photos-stability-enhance-btn')
-          if (!btn) return
-          btn.addEventListener('click', async () => {
-            const photoId = Number(btn.dataset.photoId || 0)
-            if (!photoId) return
-            if (!window.confirm(@json(__('この写真を AI で鮮明化して R2 に保存しますか？（元画像は残ります）')))) {
-              return
-            }
-            btn.disabled = true
-            const originalText = btn.textContent
-            btn.textContent = @json(__('鮮明化中…'));
-            try {
-              const res = await fetch(`/photos/${photoId}/stability-enhance`, {
-                method: 'POST',
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json',
-                  'X-CSRF-TOKEN': csrf,
-                },
-                body: '{}',
-              })
-              const data = await res.json().catch(() => ({}))
-              if (!res.ok || data.ok === false) {
-                throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')))
-              }
-              window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')))
-              const newId = data.photo?.id
-              if (newId) {
-                const url = new URL(window.location.href)
-                url.searchParams.set('photo', String(newId))
-                url.searchParams.set('zoom', String(data.zoom || 2))
-                window.location.href = url.toString()
+        try {
+          ;(function setupStabilityEnhance() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+            const btn = document.getElementById('photos-stability-enhance-btn')
+            const cancelBtn = document.getElementById('photos-stability-enhance-cancel-btn')
+            if (!btn) return
+
+            let enhanceAbort = null
+            window.__photosEnhanceInFlight = false
+
+            const label = (el, key) => (el && el.dataset[key]) ? el.dataset[key] : ''
+
+            const setEnhancing = (on, photoId) => {
+              window.__photosEnhanceInFlight = !!on
+              btn.disabled = !!on
+              if (on) {
+                btn.textContent = label(btn, 'labelBusy') || btn.textContent
               } else {
-                window.location.reload()
+                btn.textContent = label(btn, 'labelIdle') || btn.textContent
               }
-            } catch (e) {
-              window.alert(e.message || @json(__('AI鮮明化に失敗しました。')))
-            } finally {
-              btn.disabled = false
-              btn.textContent = originalText
+              if (cancelBtn) {
+                cancelBtn.hidden = !on
+                cancelBtn.disabled = !on
+                cancelBtn.dataset.photoId = on ? String(photoId || 0) : ''
+                cancelBtn.textContent = label(cancelBtn, 'labelIdle') || cancelBtn.textContent
+              }
             }
-          })
-        })()
+
+            cancelBtn?.addEventListener('click', () => {
+              if (!window.__photosEnhanceInFlight) return
+              const photoId = Number(cancelBtn.dataset.photoId || btn.dataset.photoId || 0)
+              cancelBtn.disabled = true
+              cancelBtn.textContent = label(cancelBtn, 'labelBusy') || cancelBtn.textContent
+              try { enhanceAbort?.abort() } catch (_) {}
+              if (photoId) {
+                fetch('/photos/' + photoId + '/stability-enhance/cancel', {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                  },
+                  body: '{}',
+                }).catch(() => null)
+              }
+            })
+
+            btn.addEventListener('click', async () => {
+              const photoId = Number(btn.dataset.photoId || 0)
+              if (!photoId || window.__photosEnhanceInFlight) return
+              if (!window.confirm(@json(__('この写真を AI で鮮明化して R2 に保存しますか？（元画像は残ります）')))) {
+                return
+              }
+              enhanceAbort = new AbortController()
+              setEnhancing(true, photoId)
+              try {
+                const res = await fetch('/photos/' + photoId + '/stability-enhance', {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                  },
+                  body: '{}',
+                  signal: enhanceAbort.signal,
+                })
+                const data = await res.json().catch(() => ({}))
+                if (data.cancelled || res.status === 499) {
+                  window.alert(data.message || @json(__('鮮明化を中止しました。')))
+                  return
+                }
+                if (!res.ok || data.ok === false) {
+                  throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')))
+                }
+                window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')))
+                const newId = data.photo && data.photo.id
+                if (newId) {
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('photo', String(newId))
+                  url.searchParams.set('zoom', String(data.zoom || 2))
+                  window.location.href = url.toString()
+                } else {
+                  window.location.reload()
+                }
+              } catch (e) {
+                if (e && e.name === 'AbortError') {
+                  window.alert(@json(__('鮮明化を中止しました。')))
+                } else {
+                  window.alert((e && e.message) || @json(__('AI鮮明化に失敗しました。')))
+                }
+              } finally {
+                enhanceAbort = null
+                setEnhancing(false, 0)
+              }
+            })
+          })()
+        } catch (err) {
+          console.warn('Stability enhance setup skipped', err)
+        }
         @endif
       })()
     </script>
