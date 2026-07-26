@@ -16,6 +16,8 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      @include('dashboard.partials.ai-usage')
+
       <div class="calendar-shell" data-calendar-view="{{ $view }}">
         <div class="calendar-toolbar">
           <div class="nav-group">

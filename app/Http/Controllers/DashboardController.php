@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CalendarService;
+use App\Services\DashboardAiUsageService;
 use App\Services\DisplayService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
@@ -20,6 +21,7 @@ class DashboardController extends Controller
         private CalendarService $calendar,
         private HolidayService $holidays,
         private DisplayService $display,
+        private DashboardAiUsageService $aiUsage,
     ) {}
 
     public function index(Request $request)
@@ -109,6 +111,7 @@ class DashboardController extends Controller
             'todosForJs' => $allTodos,
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
+            'aiUsage' => $this->aiUsage->summary($userId),
             ...$this->flashFromQuery($request),
         ]);
     }
