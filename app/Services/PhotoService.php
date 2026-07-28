@@ -66,6 +66,12 @@ class PhotoService
         return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
     }
 
+    /** ユーザーごとの製品無料枠（R2+B2 合算）。既定 20GB */
+    public function userFreeQuotaBytes(): int
+    {
+        return max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
+    }
+
     public function overagePricePerGbMonthUsd(): float
     {
         return max(0, (float) config('photos.overage_price_per_gb_month_usd', 0.015));
@@ -79,6 +85,65 @@ class PhotoService
     public function b2OveragePricePerGbMonthUsd(): float
     {
         return max(0, (float) config('photos.b2_overage_price_per_gb_month_usd', 0.006));
+    }
+
+    /**
+     * 将来の有料超過プラン（Stripe 等）でアップロード継続を許可するか。
+     * PHOTO_PAID_OVERAGE_ENABLED=true かつユーザー側フラグが立っているときのみ。
+     */
+    public function userAllowsPaidOverageUploads(int $userId): bool
+    {
+        if (! (bool) config('photos.paid_overage_enabled', false)) {
+            return false;
+        }
+
+        $user = \App\Models\User::query()->find($userId);
+        if (! $user) {
+            return false;
+        }
+
+        // 将来: Stripe 購読状態や storage_plan カラムを参照
+        return (bool) ($user->storage_overage_active ?? false);
+    }
+
+    public function uploadsBlockedForUser(int $userId, int $extraBytes = 0): bool
+    {
+        if (! (bool) config('photos.block_uploads_over_free_quota', true)) {
+            return false;
+        }
+        if ($this->userAllowsPaidOverageUploads($userId)) {
+            return false;
+        }
+
+        return ($this->userUsedBytesApprox($userId) + max(0, $extraBytes)) > $this->userFreeQuotaBytes();
+    }
+
+    public function assertWithinFreeQuotaOrPaid(int $userId, int $extraBytes = 0): void
+    {
+        if (! $this->uploadsBlockedForUser($userId, $extraBytes)) {
+            return;
+        }
+
+        $free = $this->formatBytes($this->userFreeQuotaBytes());
+        $used = $this->formatBytes($this->userUsedBytesApprox($userId));
+        throw new \InvalidArgumentException(
+            __('無料枠（:free）を超えているため追加できません。使用量: :used。有料プラン連携後に超過分の利用が可能になります。', [
+                'free' => $free,
+                'used' => $used,
+            ])
+        );
+    }
+
+    public function userUsedBytesApprox(int $userId): int
+    {
+        $thumbExtra = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('thumb_path')
+            ->count() * 80_000;
+
+        $bytes = (int) Photo::query()->where('user_id', $userId)->sum('size_bytes');
+
+        return $bytes + $thumbExtra;
     }
 
     private function formatUsdPerGbMonth(float $price): string
@@ -152,12 +217,14 @@ class PhotoService
         $activeEnhanceLabel = $enhance->providerLabel($enhance->activeProvider());
         $enhanceReady = $enhance->isReady();
 
-        // パイプライン＋長期保存時は R2 10GB + B2 10GB = 20GB を合計無料枠とする
-        $combinedQuota = $archiveEnabled ? ($quota + $b2Quota) : $quota;
-        $barUsed = $archiveEnabled ? $usedApprox : $hotUsedApprox;
+        // 製品無料枠は常にユーザー合計 20GB（R2+B2 合算相当）。ホット/コールドの内訳は表示用。
+        $combinedQuota = $this->userFreeQuotaBytes();
+        $barUsed = $usedApprox;
         $percent = round(($barUsed / max(1, $combinedQuota)) * 100, 1);
         $capacityMode = $this->mediaConfig->capacityMode();
 
+        // 見込課金: 合計無料枠超過分を主単価で概算（2A）。将来 2B では請求エンジンへ接続。
+        $combinedOverageUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $r2Price);
         $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
         $b2StorageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
         $overflowPrice = $this->mediaConfig->overflowPricePerGbMonthUsd();
@@ -167,8 +234,12 @@ class PhotoService
         // モード3: 合計が無料枠合計を超えた分を「次の保存先」単価で見込む
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW && $usedApprox > $combinedQuota) {
             $overflowUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $overflowPrice);
-            // 二重計上を避けるため、保管超過見込は無料枠内として 0 表示（転送・操作は別途）
+            $combinedOverageUsd = $overflowUsd;
             $r2OverageUsd = 0.0;
+            $b2StorageUsd = 0.0;
+        } else {
+            // 合計超過見込を優先表示（内訳の単純合算より製品仕様に合わせる）
+            $r2OverageUsd = $combinedOverageUsd;
             $b2StorageUsd = 0.0;
         }
 
@@ -355,6 +426,9 @@ class PhotoService
             'disk' => $disk,
             'diskLabel' => $diskLabel,
             'overFreeTier' => $barUsed > $combinedQuota,
+            'uploadsBlocked' => $this->uploadsBlockedForUser($userId),
+            'paidOverageEnabled' => (bool) config('photos.paid_overage_enabled', false),
+            'billingMode' => (bool) config('photos.paid_overage_enabled', false) ? 'paid' : 'estimate',
             'overagePriceLabel' => $this->formatUsdPerGbMonth($r2Price),
             'hotUsedBytes' => $hotUsedApprox,
             'coldUsedBytes' => $coldUsed,
@@ -368,7 +442,7 @@ class PhotoService
             'coldOverFreeTier' => $coldUsed > $b2Quota,
             'r2EstimatedBillLabel' => $this->formatUsdMonth($r2OverageUsd).__('/月'),
             'b2EstimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
-            'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd + $overflowUsd).__('/月'),
+            'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd + ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW ? $overflowUsd : 0)).__('/月'),
             'capacityMode' => $capacityMode,
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
@@ -696,6 +770,7 @@ class PhotoService
             }
 
             $incomingBytes = max(0, (int) $file->getSize());
+            $this->assertWithinFreeQuotaOrPaid($userId, $incomingBytes);
             $archive->ensureHotWithinQuota($userId, $incomingBytes);
             $target = $this->resolveUploadTarget($userId, $incomingBytes);
 
@@ -1998,6 +2073,8 @@ class PhotoService
             throw new \InvalidArgumentException(__('動画は画像編集できません。動画トリムを使ってください。'));
         }
 
+        $this->assertWithinFreeQuotaOrPaid($userId, max(0, (int) $image->getSize()));
+
         $dir = 'photos/'.$userId;
         $stored = $this->storeOptimizedImage($image, $dir);
         if (! $stored) {
@@ -2338,6 +2415,9 @@ class PhotoService
         if (! $this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
             throw new \InvalidArgumentException(__('動画以外はトリムできません。'));
         }
+
+        // 切り出し後サイズは元より小さいことが多いが、新規レコードとして加算される
+        $this->assertWithinFreeQuotaOrPaid($userId, max(0, (int) ($source->size_bytes ?? 0)));
 
         $disk = $this->storage();
         $tmpIn = tempnam(sys_get_temp_dir(), 'vid_in_');

@@ -9619,6 +9619,16 @@ label.photos-camera-btn input {
   color: #b45309;
 }
 
+.photos-storage-block-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(180, 83, 9, 0.12);
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .photos-storage-bar {
   margin-top: 8px;
   height: 8px;

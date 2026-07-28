@@ -88,20 +88,11 @@
           <strong>{{ __('保存容量') }}</strong>
           <span class="photos-storage-head-actions">
             <span>
-              @if(!empty($storageStats['archiveEnabled']))
-                {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
-                / {{ __('無料枠合計') }} {{ $storageStats['formattedCombinedQuota'] }}
-                {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
-                @if(!empty($storageStats['overFreeTier']))
-                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-                @endif
-              @else
-                {{ __('常用') }} {{ $storageStats['formattedHotUsed'] }}
-                / {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}
-                {{ __('（:count枚）', ['count' => $storageStats['hotCount']]) }}
-                @if(!empty($storageStats['hotOverFreeTier']))
-                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-                @endif
+              {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
+              / {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
+              {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+              @if(!empty($storageStats['overFreeTier']))
+                <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
               @endif
             </span>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
@@ -111,6 +102,14 @@
         <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}">
           <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
         </div>
+        @if(!empty($storageStats['uploadsBlocked']))
+          <p class="photos-storage-block-note" role="alert">
+            {{ __('無料枠（:free）を超えているため、新規の写真・動画の追加はできません。超過分の見込は約 :bill です。有料プラン連携後に超過利用が可能になります。', [
+              'free' => $storageStats['formattedCombinedQuota'],
+              'bill' => $storageStats['estimatedTotalBillLabel'] ?? '—',
+            ]) }}
+          </p>
+        @endif
         @if(!empty($storageStats['archiveEnabled']) || ($storageStats['coldCount'] ?? 0) > 0)
           <div class="photos-storage-sub">
             {{ __('常用') }} ({{ $storageStats['primaryLabel'] }}):
@@ -124,6 +123,7 @@
         @endif
         <p class="photos-storage-note">
           {{ __('画像は解像度そのまま保存。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
+          {{ __('ユーザーごとの無料枠は合計') }} {{ $storageStats['formattedCombinedQuota'] }}{{ __('です（超過分は見込表示。有料課金は今後対応予定）。') }}
           @if(!empty($storageStats['pipelineEnabled']))
             {{ __('構成:') }}
             {{ __('常用原本') }} = {{ $storageStats['primaryLabel'] }}
@@ -135,27 +135,13 @@
             @endif
             @if(!empty($storageStats['archiveEnabled']))
               · {{ __('長期保存') }} = Backblaze B2
+              （{{ __('内訳目安') }} {{ $storageStats['primaryLabel'] }} {{ $storageStats['formattedQuota'] }} + B2 {{ $storageStats['formattedB2Quota'] }}）
             @endif
             。
-            @if(!empty($storageStats['archiveEnabled']))
-              {{ __('無料枠合計') }} {{ $storageStats['formattedCombinedQuota'] }}
-              （{{ $storageStats['primaryLabel'] }} {{ $storageStats['formattedQuota'] }} + Backblaze B2 {{ $storageStats['formattedB2Quota'] }}）。
-              {{ $storageStats['primaryLabel'] }} {{ __('超過') }} {{ $storageStats['overagePriceLabel'] }}、
-              B2 {{ __('超過') }} {{ $storageStats['b2OveragePriceLabel'] }}。
-            @else
-              {{ $storageStats['primaryLabel'] }}:
-              {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}、
-              {{ __('超過分は約') }} {{ $storageStats['overagePriceLabel'] }}。
-            @endif
+            {{ __('超過見込単価') }} {{ $storageStats['overagePriceLabel'] }}。
           @else
             {{ __('保存先:') }} {{ $storageStats['diskLabel'] }}。
-            @if(($storageStats['disk'] ?? '') === 'r2')
-              Cloudflare R2:
-              {{ __('無料枠') }} {{ $storageStats['formattedQuota'] }}、
-              {{ __('超過分は約') }} {{ $storageStats['overagePriceLabel'] }}。
-            @elseif(($storageStats['disk'] ?? '') === 'public')
-              {{ __('（本番ではストレージ設定のパイプラインで R2 / B2 / Cloudinary を切り替え可能）') }}
-            @endif
+            {{ __('超過見込単価') }} {{ $storageStats['overagePriceLabel'] }}。
           @endif
         </p>
       </aside>
@@ -555,16 +541,14 @@
         </div>
         <div class="photos-usage-body">
           <p class="photos-usage-lead">
+            {{ __('無料枠') }}: {{ $storageStats['formattedCombinedQuota'] }}
             @if(!empty($storageStats['archiveEnabled']))
-              {{ __('無料枠合計') }}:
-              {{ $storageStats['formattedCombinedQuota'] }}
-              （Cloudflare R2 {{ $storageStats['formattedQuota'] }} + Backblaze B2 {{ $storageStats['formattedB2Quota'] }}）
-              · {{ __('現在の使用') }} {{ $storageStats['formattedTotalUsed'] }}
-              · {{ __('超過課金見込') }} {{ $storageStats['estimatedTotalBillLabel'] }}
-            @else
-              {{ __('無料枠') }}: {{ $storageStats['formattedCombinedQuota'] }}
-              · {{ __('現在の使用') }} {{ $storageStats['formattedUsed'] }}
-              · {{ __('超過課金見込') }} {{ $storageStats['estimatedTotalBillLabel'] }}
+              （{{ __('内訳目安') }} R2 {{ $storageStats['formattedQuota'] }} + B2 {{ $storageStats['formattedB2Quota'] }}）
+            @endif
+            · {{ __('現在の使用') }} {{ $storageStats['formattedTotalUsed'] ?? $storageStats['formattedUsed'] }}
+            · {{ __('超過課金見込') }} {{ $storageStats['estimatedTotalBillLabel'] }}
+            @if(($storageStats['billingMode'] ?? '') === 'estimate')
+              · {{ __('現在は見込表示のみ（実課金は今後）') }}
             @endif
           </p>
           <div class="photos-usage-grid">
@@ -1168,6 +1152,8 @@
     <script>
       (() => {
         const photos = @json($photos);
+        const uploadsBlocked = @json(!empty($storageStats['uploadsBlocked']));
+        const uploadsBlockedMessage = @json(__('無料枠を超えているため追加できません。有料プラン連携後に超過利用が可能になります。'));
         const selectedAlbumId = @json($selectedAlbumId);
         const coverPhotoId = @json($selectedAlbum['coverPhotoId'] ?? null);
         const fileInput = document.getElementById('photos-file-input')
@@ -1486,6 +1472,10 @@
         async function submitFiles(fileList, options = {}) {
           const soft = !!options.soft
           if (!fileList?.length || !form || uploading) return { created: 0, skipped: 0, failed: 0 }
+          if (uploadsBlocked) {
+            if (!soft) window.alert(uploadsBlockedMessage)
+            return { created: 0, skipped: 0, failed: fileList.length }
+          }
           uploading = true
           const list = Array.from(fileList)
           const totalSelected = list.length

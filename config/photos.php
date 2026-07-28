@@ -10,14 +10,26 @@ return [
     /** ffmpeg 実行ファイル（PATH 上の名前、または絶対パス） */
     'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
 
-    /** ユーザーあたりの無料枠目安（バイト）。Cloudflare R2 無料枠相当の 10GB（ホット原本） */
+    /** ユーザーあたりの無料枠（合計バイト）。R2+B2 合算の製品無料枠。既定 20GB */
+    'user_free_quota_bytes' => (int) env('PHOTO_USER_FREE_QUOTA_BYTES', 20 * 1024 * 1024 * 1024),
+
+    /** ホット（R2 等）側のソフト上限目安（バイト）。長期保存へ移す閾値。既定 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 
-    /** R2 無料枠超過時のストレージ単価目安（USD / GB / 月） */
+    /** R2 無料枠超過時のストレージ単価目安（USD / GB / 月）※見込表示・将来の実課金単価のたたき台 */
     'overage_price_per_gb_month_usd' => (float) env('PHOTO_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.015),
 
-    /** Backblaze B2 無料枠目安（バイト）。公式の常時無料 10GB */
+    /** Backblaze B2 側のソフト上限目安（バイト）。既定 10GB */
     'b2_quota_bytes' => (int) env('PHOTO_B2_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
+
+    /**
+     * 無料枠超過後のアップロードを許可するか（将来の Stripe 等・有料プラン）。
+     * false の間は超過すると新規追加を止める（見込料金は表示のみ）。
+     */
+    'paid_overage_enabled' => (bool) env('PHOTO_PAID_OVERAGE_ENABLED', false),
+
+    /** 無料枠超過かつ有料プラン未契約のとき、新規アップロードを拒否する */
+    'block_uploads_over_free_quota' => (bool) env('PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA', true),
 
     /** B2 無料枠超過時のストレージ単価目安（USD / GB / 月）。約 $6.95/TB */
     'b2_overage_price_per_gb_month_usd' => (float) env('PHOTO_B2_OVERAGE_PRICE_PER_GB_MONTH_USD', 0.006),
