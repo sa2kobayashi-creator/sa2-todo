@@ -37,7 +37,10 @@ class MediaStorageConfigService
     public function save(string $provider, bool $enabled, array $settings, array $secrets): MediaStorageSetting
     {
         $row = $this->get($provider);
+
+        // APP_KEY 不一致などで復号できない場合は空から作り直す
         $mergedSecrets = $row->secretsArray();
+
         foreach ($secrets as $key => $value) {
             if (! is_string($key)) {
                 continue;
@@ -69,16 +72,48 @@ class MediaStorageConfigService
             }
         }
 
-        $row->fill([
-            'enabled' => $enabled,
-            'settings' => $cleanSettings,
-            'secrets' => $mergedSecrets,
-        ]);
-        $row->save();
+        // 破損した暗号化文字列が attributes に残っていると save 時に再爆発することがある
+        $attrs = $row->getAttributes();
+        $attrs['secrets'] = null;
+        $row->setRawAttributes($attrs, true);
+
+        $row->enabled = $enabled;
+        $row->settings = $cleanSettings;
+        if ($provider === MediaStorageSetting::PROVIDER_PIPELINE) {
+            // パイプラインはシークレットを持たない。壊れた ciphertext を消す
+            $row->secrets = [];
+        } else {
+            $row->secrets = $mergedSecrets;
+        }
+
+        try {
+            $row->save();
+        } catch (\Throwable $e) {
+            report($e);
+            // 最終手段: クエリで settings のみ更新し、secrets は空で書き直す
+            MediaStorageSetting::query()->updateOrCreate(
+                ['provider' => $provider],
+                [
+                    'enabled' => $enabled,
+                    'settings' => $cleanSettings,
+                    'secrets' => [],
+                ]
+            );
+            $row = $this->get($provider);
+            if ($provider !== MediaStorageSetting::PROVIDER_PIPELINE && $mergedSecrets !== []) {
+                try {
+                    $row->secrets = $mergedSecrets;
+                    $row->save();
+                } catch (\Throwable $inner) {
+                    report($inner);
+                    throw $e;
+                }
+            }
+        }
 
         $this->applyRuntimeDisks();
 
-        return $row->fresh() ?? $row;
+        return $row;
     }
 
     public function applyRuntimeDisks(): void

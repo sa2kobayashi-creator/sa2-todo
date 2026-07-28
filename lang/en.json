@@ -835,7 +835,8 @@
     "監視中: :name（追加 :count 件）": "Watching: :name (:count added)",
     "監視中: 新規 :n 件を追加中…": "Watching: uploading :n new file(s)…",
     "監視中: :name（追加 :count 件）・一覧は再読み込みで更新": "Watching: :name (:count added). Reload to refresh the gallery.",
-    "ストレージ設定の読み込みに失敗しました。マイグレーションと APP_KEY を確認してください。": "Failed to load storage settings. Check migrations and APP_KEY.",
+    "設定の保存に失敗しました。APP_KEY を確認し、秘密鍵を再入力してください。": "Failed to save settings. Check APP_KEY and re-enter secrets.",
+    ":name の設定を保存しました": ":name settings saved.",
 
     "枚を表示中": "photos shown",
     "まだメディアがありません": "No media yet",

@@ -83,7 +83,17 @@ class MediaStorageSettingsController extends Controller
             default => [[], []],
         };
 
-        $this->storageConfig->save($provider, $enabled, $settings, $secrets);
+        try {
+            $this->storageConfig->save($provider, $enabled, $settings, $secrets);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage(
+                '/settings?section=storage#storage-'.$provider,
+                __('設定の保存に失敗しました。APP_KEY を確認し、秘密鍵を再入力してください。'),
+                'error'
+            );
+        }
 
         $labels = [
             'r2' => 'Cloudflare R2',
