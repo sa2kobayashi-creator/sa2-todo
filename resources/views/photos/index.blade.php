@@ -180,17 +180,9 @@
             @class(['photos-cover-card', 'is-active' => $selectedAlbumId === $album['id']])
           >
             @if(!empty($album['coverUrl']))
+              <img src="{{ $album['coverUrl'] }}" alt="" class="photos-cover-image" loading="lazy" />
               @if(($album['coverMediaKind'] ?? '') === 'video')
-                <video
-                  class="photos-cover-image photos-cover-video"
-                  src="{{ $album['coverUrl'] }}#t=0.1"
-                  muted
-                  playsinline
-                  preload="metadata"
-                  aria-hidden="true"
-                ></video>
-              @else
-                <img src="{{ $album['coverUrl'] }}" alt="" class="photos-cover-image" loading="lazy" />
+                <span class="photos-cover-play" aria-hidden="true">▶</span>
               @endif
             @else
               <span class="photos-cover-placeholder" aria-hidden="true"></span>
@@ -325,14 +317,13 @@
                       aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: ((($photo['mediaKind'] ?? '') === 'video') ? __('動画を再生') : __('写真を表示'))) }}"
                     >
                       @if(($photo['mediaKind'] ?? '') === 'video')
-                        <video
+                        <img
                           class="photos-tile-video"
-                          src="{{ $photo['url'] }}#t=0.1"
-                          muted
-                          playsinline
-                          preload="metadata"
-                          aria-hidden="true"
-                        ></video>
+                          src="{{ $photo['thumbUrl'] }}"
+                          alt="{{ $photo['caption'] ?: ($photo['originalName'] ?: __('動画')) }}"
+                          loading="lazy"
+                          decoding="async"
+                        />
                         <span class="photos-play-badge" aria-hidden="true">▶</span>
                       @else
                         <img
@@ -1885,12 +1876,12 @@
             lightboxImage.removeAttribute('src')
             if (lightboxVideo) {
               lightboxVideo.hidden = false
-              lightboxVideo.src = photo.url
+              lightboxVideo.src = photo.fileUrl || photo.url || (`/photos/${photo.id}/file`)
             }
           } else {
             if (lightboxImage) {
               lightboxImage.hidden = false
-              lightboxImage.src = photo.url
+              lightboxImage.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
               lightboxImage.alt = photo.caption || photo.originalName || '写真'
             }
           }
@@ -2677,10 +2668,10 @@
           }
           if (isVideo && video) {
             video.hidden = false
-            video.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
+            video.src = photo.fileUrl || photo.url || (`/photos/${photo.id}/file`)
           } else if (img) {
             img.hidden = false
-            img.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
+            img.src = photo.thumbUrl || photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
             img.alt = photo.caption || photo.originalName || @json(__('写真'))
           }
         }

@@ -1620,7 +1620,7 @@ class PhotoService
             return null;
         }
 
-        return $this->storage()->exists($thumbPath) ? $thumbPath : null;
+        return $thumbPath;
     }
 
     private function storeVideoPlaceholderThumb(string $thumbPath): ?string
@@ -1664,7 +1664,7 @@ class PhotoService
             @unlink($tmp);
         }
 
-        return $this->storage()->exists($thumbPath) ? $thumbPath : null;
+        return $thumbPath;
     }
 
     /**
@@ -1894,24 +1894,43 @@ class PhotoService
     }
 
     /** @return array{contents: string, mime: string, name: string} */
-    public function readPhotoFile(Photo $photo): array
+    public function readPhotoFile(Photo $photo, string $variant = 'original'): array
     {
-        $path = (string) $photo->path;
-        $diskName = $this->diskForPhoto($photo);
-        $disk = $this->storageForPhoto($photo);
-        if (! $disk->exists($path) && in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)) {
-            // cold_path / overflow が別キーの場合
-            $alt = (string) ($photo->cold_path ?: '');
-            if ($alt !== '' && $disk->exists($alt)) {
-                $path = $alt;
-            }
+        $wantThumb = $variant === 'thumb';
+        $hasThumb = is_string($photo->thumb_path) && $photo->thumb_path !== '';
+        $isVideo = $this->isVideoMime((string) ($photo->mime ?? ''), pathinfo((string) $photo->path, PATHINFO_EXTENSION));
+
+        if ($wantThumb && ! $hasThumb && $isVideo) {
+            return $this->videoMissingThumbPayload($photo);
         }
-        if (! $disk->exists($path)) {
-            // フォールバック: 主ディスク
+
+        $path = $wantThumb && $hasThumb
+            ? (string) $photo->thumb_path
+            : (string) $photo->path;
+
+        // サムネはホット（主ディスク）優先
+        if ($wantThumb && $path === (string) $photo->thumb_path && $path !== (string) $photo->path) {
             $diskName = $this->diskName();
             $disk = $this->storage();
+        } else {
+            $diskName = $this->diskForPhoto($photo);
+            $disk = $this->storageForPhoto($photo);
+            if (! $disk->exists($path) && in_array(($photo->storage_tier ?? 'hot'), ['cold', 'overflow'], true)) {
+                $alt = (string) ($photo->cold_path ?: '');
+                if ($alt !== '' && $disk->exists($alt)) {
+                    $path = $alt;
+                }
+            }
+            if (! $disk->exists($path)) {
+                $diskName = $this->diskName();
+                $disk = $this->storage();
+            }
         }
+
         if (! $disk->exists($path)) {
+            if ($wantThumb && $isVideo) {
+                return $this->videoMissingThumbPayload($photo);
+            }
             throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
         }
 
@@ -1921,10 +1940,51 @@ class PhotoService
             $this->mediaConfig->recordB2Usage($bytes, 1, 0);
         }
 
+        $mime = $wantThumb && $path === (string) $photo->thumb_path
+            ? 'image/jpeg'
+            : (string) ($photo->mime ?: 'application/octet-stream');
+        $name = $wantThumb && $path === (string) $photo->thumb_path
+            ? (pathinfo((string) ($photo->original_name ?: 'thumb'), PATHINFO_FILENAME).'_thumb.jpg')
+            : (string) ($photo->original_name ?: basename($path));
+
         return [
             'contents' => $contents,
-            'mime' => (string) ($photo->mime ?: 'application/octet-stream'),
-            'name' => (string) ($photo->original_name ?: basename($path)),
+            'mime' => $mime,
+            'name' => $name,
+        ];
+    }
+
+    /** @return array{contents: string, mime: string, name: string} */
+    private function videoMissingThumbPayload(Photo $photo): array
+    {
+        $contents = null;
+        if (function_exists('imagecreatetruecolor')) {
+            $w = 640;
+            $h = 360;
+            $im = imagecreatetruecolor($w, $h);
+            $bg = imagecolorallocate($im, 42, 49, 56);
+            $accent = imagecolorallocate($im, 47, 111, 126);
+            $white = imagecolorallocate($im, 245, 247, 248);
+            imagefilledrectangle($im, 0, 0, $w, $h, $bg);
+            $cx = (int) ($w / 2);
+            $cy = (int) ($h / 2);
+            imagefilledellipse($im, $cx, $cy, 96, 96, $accent);
+            imagefilledpolygon($im, [$cx - 14, $cy - 22, $cx - 14, $cy + 22, $cx + 24, $cy], $white);
+            ob_start();
+            imagejpeg($im, null, 82);
+            $contents = ob_get_clean();
+            imagedestroy($im);
+        }
+
+        if (! is_string($contents) || $contents === '') {
+            // 最小の 1x1 JPEG
+            $contents = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGcP//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//Z');
+        }
+
+        return [
+            'contents' => $contents,
+            'mime' => 'image/jpeg',
+            'name' => pathinfo((string) ($photo->original_name ?: 'video'), PATHINFO_FILENAME).'_thumb.jpg',
         ];
     }
 
@@ -2359,7 +2419,7 @@ class PhotoService
             'coverPhotoId' => $album->cover_photo_id,
             'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
             'coverUrl' => $coverArr
-                ? ($coverIsVideo ? ($coverArr['url'] ?? null) : ($coverArr['thumbUrl'] ?? null))
+                ? ($coverArr['thumbUrl'] ?? $coverArr['url'] ?? null)
                 : null,
             'coverMediaKind' => $coverIsVideo ? 'video' : 'image',
             'sortOrder' => (int) $album->sort_order,
@@ -2377,10 +2437,19 @@ class PhotoService
             ? 'video'
             : 'image';
 
-        $storageUrl = $this->publicUrlForPhoto($photo, $photo->path);
-        $storageThumb = $this->publicUrlForPhoto($photo, $photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
-        $url = $storageUrl;
-        $thumbUrl = $storageThumb;
+        $fileUrl = '/photos/'.$photo->id.'/file';
+        $thumbFileUrl = '/photos/'.$photo->id.'/file?variant=thumb';
+        $useAppProxy = $this->shouldProxyPhotoDelivery($photo);
+
+        if ($useAppProxy) {
+            $url = $fileUrl;
+            $thumbUrl = $thumbFileUrl;
+        } else {
+            $storageUrl = $this->publicUrlForPhoto($photo, $photo->path);
+            $storageThumb = $this->publicUrlForPhoto($photo, $photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
+            $url = $storageUrl ?: $fileUrl;
+            $thumbUrl = $storageThumb;
+        }
 
         if ($this->mediaConfig->pipelineUsesCloudinaryDisplay()
             && is_string($photo->cloudinary_public_id)
@@ -2423,9 +2492,19 @@ class PhotoService
             'takenAtLocal' => $takenAtLocal,
             'createdAt' => $photo->created_at?->toIso8601String(),
             'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
-            'fileUrl' => '/photos/'.$photo->id.'/file',
+            'fileUrl' => $fileUrl,
             'storageTier' => $photo->storage_tier ?? 'hot',
         ];
+    }
+
+    private function shouldProxyPhotoDelivery(Photo $photo): bool
+    {
+        $disk = $this->diskForPhoto($photo);
+        if (in_array($disk, ['r2', 'backblaze'], true)) {
+            return true;
+        }
+
+        return (string) config('filesystems.disks.'.$disk.'.driver', 'local') === 's3';
     }
 
     private function formatDateGroupLabel(string $date, string $today, string $yesterday): string

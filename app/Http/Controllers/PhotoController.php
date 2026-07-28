@@ -449,7 +449,11 @@ class PhotoController extends Controller
         }
 
         try {
-            $file = $this->photos->readPhotoFile($photo);
+            $variant = (string) $request->query('variant', 'original');
+            if (! in_array($variant, ['original', 'thumb'], true)) {
+                $variant = 'original';
+            }
+            $file = $this->photos->readPhotoFile($photo, $variant);
         } catch (\InvalidArgumentException $e) {
             abort(404, $e->getMessage());
         }
