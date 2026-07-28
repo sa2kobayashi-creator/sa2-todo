@@ -48,6 +48,18 @@
               />
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
             </label>
+            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('カメラで撮ってすぐ追加') }}">
+              <input
+                type="file"
+                id="photos-camera-input"
+                accept="image/*,video/mp4,video/*"
+                capture="environment"
+                hidden
+              />
+              <span>{{ __('カメラで撮る') }}</span>
+            </label>
+            <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
               <input type="checkbox" id="photos-allow-duplicates" />
               <span>{{ __('重複も追加') }}</span>
@@ -151,7 +163,8 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('このページをスマホで開き「写真・動画を追加」。下のボタンからホーム画面に追加できます（iPhone は案内を表示）。動画は MP4 のみです。') }}</span>
+          <span>{{ __('「カメラで撮る」ですぐ追加できます。フォルダ監視は Chrome 等でページを開いている間のみ可能です（スマホのカメラロール常時監視はブラウザ制限で不可）。') }}</span>
+          <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
       </aside>
@@ -1185,10 +1198,21 @@
         const usageModal = document.getElementById('photos-usage-modal')
         const usageOpenBtn = document.getElementById('photos-usage-open')
         const installBtn = document.getElementById('photos-pwa-install')
+        const cameraInput = document.getElementById('photos-camera-input')
+        const folderWatchBtn = document.getElementById('photos-folder-watch-btn')
+        const folderWatchStop = document.getElementById('photos-folder-watch-stop')
+        const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
         let currentIndex = 0
         let deferredPrompt = null
         let uploading = false
+        let folderWatch = {
+          handle: null,
+          timer: null,
+          seen: new Set(),
+          added: 0,
+          name: '',
+        }
 
         function isVideoFile(file) {
           return !!file && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name || ''))
@@ -1468,8 +1492,9 @@
           }
         }
 
-        async function submitFiles(fileList) {
-          if (!fileList?.length || !form || uploading) return
+        async function submitFiles(fileList, options = {}) {
+          const soft = !!options.soft
+          if (!fileList?.length || !form || uploading) return { created: 0, skipped: 0, failed: 0 }
           uploading = true
           const list = Array.from(fileList)
           const totalSelected = list.length
@@ -1568,6 +1593,17 @@
               }
             }
 
+            if (soft) {
+              if (totalCreated > 0 || totalSkipped > 0 || failed.length) {
+                const parts = []
+                if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
+                if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
+                if (failed.length) parts.push(`失敗 ${failed.length}件`)
+                setUploadProgress(parts.join(' · ') || @json(__('写真・動画を追加')))
+              }
+              return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
+            }
+
             const url = new URL(returnTo, window.location.origin)
             const parts = []
             if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
@@ -1587,16 +1623,139 @@
               url.searchParams.set('notice', '追加する新規ファイルはありませんでした')
             }
             window.location.assign(url.pathname + url.search + url.hash)
+            return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
           } catch (_) {
-            window.alert(@json(__('ファイルの処理に失敗しました。別の形式で試してください。')));
+            if (!soft) {
+              window.alert(@json(__('ファイルの処理に失敗しました。別の形式で試してください。')));
+            }
+            return { created: totalCreated, skipped: totalSkipped, failed: failed.length + 1 }
           } finally {
             uploading = false
-            setUploadProgress(@json(__('写真・動画を追加')));
+            if (!soft) {
+              setUploadProgress(@json(__('写真・動画を追加')));
+            } else if (!folderWatch.timer) {
+              setUploadProgress(@json(__('写真・動画を追加')));
+            }
           }
         }
 
         function triggerUpload() {
           fileInput?.click()
+        }
+
+        function isMediaFile(file) {
+          return !!file && (
+            file.type.startsWith('image/') ||
+            file.type === 'video/mp4' ||
+            file.type.startsWith('video/') ||
+            /\.(heic|heif|mp4|mov|jpeg|jpg|png|webp|gif)$/i.test(file.name || '')
+          )
+        }
+
+        function fileWatchKey(file) {
+          return `${file.name}|${file.size}|${file.lastModified}`
+        }
+
+        function setFolderWatchStatus(text, visible = true) {
+          if (!folderWatchStatus) return
+          folderWatchStatus.hidden = !visible
+          folderWatchStatus.textContent = text || ''
+        }
+
+        function stopFolderWatch() {
+          if (folderWatch.timer) {
+            clearInterval(folderWatch.timer)
+            folderWatch.timer = null
+          }
+          folderWatch.handle = null
+          if (folderWatchBtn) folderWatchBtn.hidden = !(typeof window.showDirectoryPicker === 'function')
+          if (folderWatchStop) folderWatchStop.hidden = true
+          setFolderWatchStatus('', false)
+        }
+
+        async function collectNewFilesFromDir(dirHandle) {
+          const files = []
+          for await (const entry of dirHandle.values()) {
+            if (entry.kind !== 'file') continue
+            try {
+              const file = await entry.getFile()
+              if (!isMediaFile(file)) continue
+              // 動画は mp4 のみ本番アップロード対象
+              if (file.type.startsWith('video/') && file.type !== 'video/mp4' && !/\.mp4$/i.test(file.name || '')) {
+                continue
+              }
+              const key = fileWatchKey(file)
+              if (folderWatch.seen.has(key)) continue
+              folderWatch.seen.add(key)
+              files.push(file)
+            } catch (_) {}
+          }
+          return files
+        }
+
+        async function pollFolderWatch() {
+          if (!folderWatch.handle || uploading) return
+          try {
+            const permission = await folderWatch.handle.queryPermission?.({ mode: 'read' })
+              ?? await folderWatch.handle.requestPermission?.({ mode: 'read' })
+            if (permission && permission !== 'granted') {
+              setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')))
+              stopFolderWatch()
+              if (folderWatchBtn) folderWatchBtn.hidden = false
+              return
+            }
+            const newcomers = await collectNewFilesFromDir(folderWatch.handle)
+            if (!newcomers.length) {
+              setFolderWatchStatus(
+                @json(__('監視中: :name（追加 :count 件）'))
+                  .replace(':name', folderWatch.name || 'folder')
+                  .replace(':count', String(folderWatch.added))
+              )
+              return
+            }
+            setFolderWatchStatus(
+              @json(__('監視中: 新規 :n 件を追加中…')).replace(':n', String(newcomers.length))
+            )
+            const result = await submitFiles(newcomers, { soft: true })
+            folderWatch.added += result.created || 0
+            setFolderWatchStatus(
+              @json(__('監視中: :name（追加 :count 件）・一覧は再読み込みで更新'))
+                .replace(':name', folderWatch.name || 'folder')
+                .replace(':count', String(folderWatch.added))
+            )
+          } catch (err) {
+            setFolderWatchStatus(@json(__('フォルダ監視でエラーが発生しました。')))
+          }
+        }
+
+        async function startFolderWatch() {
+          if (typeof window.showDirectoryPicker !== 'function') {
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。')))
+            return
+          }
+          try {
+            const handle = await window.showDirectoryPicker({ mode: 'read' })
+            folderWatch.handle = handle
+            folderWatch.name = handle.name || 'folder'
+            folderWatch.added = 0
+            folderWatch.seen = new Set()
+            // 初回は既存ファイルを「既知」にして、これから増えたものだけ送る
+            const existing = await collectNewFilesFromDir(handle)
+            // collectNewFilesFromDir marks them as seen; discard list
+            void existing
+            if (folderWatchBtn) folderWatchBtn.hidden = true
+            if (folderWatchStop) folderWatchStop.hidden = false
+            setFolderWatchStatus(
+              @json(__('監視中: :name（追加 :count 件）'))
+                .replace(':name', folderWatch.name)
+                .replace(':count', '0')
+            )
+            if (folderWatch.timer) clearInterval(folderWatch.timer)
+            folderWatch.timer = setInterval(() => { void pollFolderWatch() }, 8000)
+          } catch (err) {
+            if (err && err.name === 'AbortError') return
+            window.alert(@json(__('フォルダを開けませんでした。')))
+          }
         }
 
         document.querySelectorAll('.photos-upload-btn').forEach((btn) => {
@@ -1607,9 +1766,36 @@
           })
         })
 
+        document.querySelectorAll('.photos-camera-btn').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            if (e.target === cameraInput) return
+            e.preventDefault()
+            cameraInput?.click()
+          })
+        })
+
         fileInput?.addEventListener('change', () => {
           if (!fileInput.files?.length) return
           submitFiles(fileInput.files)
+          fileInput.value = ''
+        })
+
+        cameraInput?.addEventListener('change', () => {
+          if (!cameraInput.files?.length) return
+          submitFiles(cameraInput.files)
+          cameraInput.value = ''
+        })
+
+        if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {
+          folderWatchBtn.hidden = false
+          folderWatchBtn.addEventListener('click', () => { void startFolderWatch() })
+        }
+        folderWatchStop?.addEventListener('click', () => {
+          stopFolderWatch()
+          if (folderWatchBtn && typeof window.showDirectoryPicker === 'function') {
+            folderWatchBtn.hidden = false
+          }
+          setUploadProgress(@json(__('写真・動画を追加')))
         })
 
         ;['dragenter', 'dragover'].forEach((type) => {
@@ -1627,11 +1813,9 @@
         emptyZone?.addEventListener('drop', (e) => {
           const files = e.dataTransfer?.files
           if (!files?.length) return
-          const filtered = Array.from(files).filter((f) =>
-            f.type.startsWith('image/') ||
-            f.type === 'video/mp4' ||
-            /\.(heic|heif|mp4)$/i.test(f.name)
-          )
+          const filtered = Array.from(files).filter((f) => isMediaFile(f) && (
+            !f.type.startsWith('video/') || f.type === 'video/mp4' || /\.mp4$/i.test(f.name || '')
+          ))
           submitFiles(filtered)
         })
 
