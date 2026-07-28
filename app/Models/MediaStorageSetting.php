@@ -95,7 +95,21 @@ class MediaStorageSetting extends Model
     public function secretsArray(): array
     {
         try {
-            return is_array($this->secrets) ? $this->secrets : [];
+            $value = $this->secrets;
+
+            return is_array($value) ? $value : [];
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            report($e);
+            $this->attributes['secrets'] = null;
+            if ($this->exists) {
+                try {
+                    static::query()->whereKey($this->getKey())->update(['secrets' => null]);
+                } catch (\Throwable) {
+                    // ignore cleanup failure
+                }
+            }
+
+            return [];
         } catch (\Throwable $e) {
             report($e);
 
