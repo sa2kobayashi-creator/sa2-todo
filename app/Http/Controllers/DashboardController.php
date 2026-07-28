@@ -8,6 +8,7 @@ use App\Services\DisplayService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use App\Services\TravelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -22,6 +23,7 @@ class DashboardController extends Controller
         private HolidayService $holidays,
         private DisplayService $display,
         private DashboardAiUsageService $aiUsage,
+        private TravelService $travel,
     ) {}
 
     public function index(Request $request)
@@ -112,6 +114,9 @@ class DashboardController extends Controller
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'aiUsage' => $this->aiUsage->summary($userId),
+            'travelSummary' => $request->user()->canAccess('travel')
+                ? $this->travel->dashboardSummary($userId)
+                : null,
             ...$this->flashFromQuery($request),
         ]);
     }

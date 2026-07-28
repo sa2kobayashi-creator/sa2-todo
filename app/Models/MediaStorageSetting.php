@@ -34,6 +34,9 @@ class MediaStorageSetting extends Model
     /** YouTube Data API（検索） */
     public const PROVIDER_YOUTUBE = 'youtube';
 
+    /** Travelpayouts（航空運賃） */
+    public const PROVIDER_TRAVELPAYOUTS = 'travelpayouts';
+
     protected $fillable = [
         'provider',
         'enabled',

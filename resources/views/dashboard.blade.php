@@ -17,6 +17,7 @@
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
       @include('dashboard.partials.ai-usage')
+      @include('dashboard.partials.travel')
 
       <div class="calendar-shell" data-calendar-view="{{ $view }}">
         <div class="calendar-toolbar">

@@ -46,4 +46,14 @@ return [
         'cache_ttl' => (int) env('TRANSLATION_CACHE_TTL', 86400),
     ],
 
+    'travelpayouts' => [
+        'token' => env('TRAVELPAYOUTS_TOKEN'),
+        'project_id' => env('TRAVELPAYOUTS_PROJECT_ID', env('TRAVELPAYOUTS_MARKER')),
+        'base_url' => env('TRAVELPAYOUTS_BASE_URL', 'https://api.travelpayouts.com'),
+        'market_php' => env('TRAVELPAYOUTS_MARKET_PHP', 'ph'),
+        'market_jpy' => env('TRAVELPAYOUTS_MARKET_JPY', 'jp'),
+        'prefer_airline' => env('TRAVELPAYOUTS_PREFER_AIRLINE', '5J'),
+        'direct_only' => filter_var(env('TRAVELPAYOUTS_DIRECT_ONLY', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];

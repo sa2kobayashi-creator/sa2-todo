@@ -101,6 +101,7 @@ class ShareViewData
                 'isAdmin' => $user->isAdmin(),
                 'canFinance' => $user->canAccess('finance'),
                 'canTransit' => $user->canAccess('transit'),
+                'canTravel' => $user->canAccess('travel'),
                 'canMap' => $user->canAccess('map'),
                 'canMusic' => $user->canAccess('music'),
                 'canVideo' => $user->canAccess('video'),

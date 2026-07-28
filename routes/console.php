@@ -1,6 +1,8 @@
 <?php
 
 use App\Console\Commands\ArchivePhotosToBackblaze;
+use App\Console\Commands\CheckTravelAlerts;
+use App\Console\Commands\FetchTravelPromos;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -11,4 +13,17 @@ Artisan::command('inspire', function () {
 
 Schedule::command(ArchivePhotosToBackblaze::class)
     ->dailyAt('03:30')
+    ->withoutOverlapping();
+
+Schedule::command(CheckTravelAlerts::class)
+    ->dailyAt('08:00')
+    ->withoutOverlapping();
+
+// Seat Sale は深夜〜早朝（JST）に出ることが多いため、夜間は30分ごと・昼間は2時間ごと
+Schedule::command(FetchTravelPromos::class)
+    ->cron('*/30 0-7,22-23 * * *')
+    ->withoutOverlapping();
+
+Schedule::command(FetchTravelPromos::class)
+    ->cron('0 8,10,12,14,16,18,20 * * *')
     ->withoutOverlapping();

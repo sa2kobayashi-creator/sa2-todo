@@ -39,6 +39,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/admin/users')->assertForbidden();
         $this->actingAs($user)->get('/finance')->assertOk();
         $this->actingAs($user)->get('/transit')->assertOk();
+        $this->actingAs($user)->get('/travel')->assertOk();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
     }
@@ -55,6 +56,7 @@ class RoleAccessTest extends TestCase
 
         $this->actingAs($user)->get('/finance')->assertForbidden();
         $this->actingAs($user)->get('/transit')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertForbidden();
         $this->actingAs($user)->get('/map')->assertForbidden();
         $this->actingAs($user)->get('/settings')->assertForbidden();
         $this->actingAs($user)->get('/admin/users')->assertForbidden();

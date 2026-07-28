@@ -14,7 +14,7 @@
 @endphp
 
 <div class="panel storage-settings" id="enhance-active">
-  <h2>{{ __('鮮明化設定') }}</h2>
+  <h2>{{ __('写真鮮明化') }}</h2>
   <p class="hint">{{ __('Photos の「AIで鮮明化」で使うエンジンを選びます。Stability AI / Real-ESRGAN（ローカル GPU）/ SwinIR（GPU VPS）を切り替えられます。') }}</p>
   <p class="hint">{{ __('Real-ESRGAN と SwinIR は当面利用停止中です（実装は残しています）。') }}</p>
   <form method="post" action="/settings/enhance/active" class="storage-provider-form">

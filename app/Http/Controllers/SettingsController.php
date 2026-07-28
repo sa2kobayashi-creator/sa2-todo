@@ -9,6 +9,7 @@ use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
+use App\Services\TravelpayoutsConfigService;
 use App\Services\YoutubeVideoService;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,7 @@ class SettingsController extends Controller
         private DeeplUsageService $deeplUsage,
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
+        private TravelpayoutsConfigService $travelpayouts,
     ) {}
 
     public function index(Request $request)
@@ -59,6 +61,7 @@ class SettingsController extends Controller
             'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,
             'storagePipeline' => $section === 'storage' ? $this->mediaStorage->formState('pipeline') : null,
             'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
+            'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
             ...$this->flashFromQuery($request),
         ]);
     }

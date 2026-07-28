@@ -20,6 +20,8 @@ use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
+use App\Http\Controllers\TravelController;
+use App\Http\Controllers\TravelpayoutsSettingsController;
 use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\VideoController;
 use App\Http\Controllers\YoutubeSettingsController;
@@ -162,6 +164,24 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
     });
 
+    Route::middleware(EnsureFeature::class.':travel')->group(function () {
+        Route::get('/travel', [TravelController::class, 'index']);
+        Route::post('/travel/profile', [TravelController::class, 'updateProfile']);
+        Route::post('/travel/trips', [TravelController::class, 'storeTrip']);
+        Route::post('/travel/trips/quote', [TravelController::class, 'quoteTrip']);
+        Route::post('/travel/trips/draft/clear', [TravelController::class, 'clearTripDraft']);
+        Route::post('/travel/fares/table', [TravelController::class, 'fareTable']);
+        Route::post('/travel/fares/table/clear', [TravelController::class, 'clearFareTable']);
+        Route::post('/travel/trips/{id}/update', [TravelController::class, 'updateTrip'])->whereNumber('id');
+        Route::post('/travel/trips/{id}/delete', [TravelController::class, 'destroyTrip'])->whereNumber('id');
+        Route::post('/travel/promos', [TravelController::class, 'storePromo']);
+        Route::post('/travel/promos/fetch', [TravelController::class, 'fetchPromos']);
+        Route::post('/travel/promos/{id}/update', [TravelController::class, 'updatePromo'])->whereNumber('id');
+        Route::post('/travel/promos/{id}/delete', [TravelController::class, 'destroyPromo'])->whereNumber('id');
+        Route::post('/travel/alerts/{id}/read', [TravelController::class, 'markAlertRead'])->whereNumber('id');
+        Route::post('/travel/alerts/read-all', [TravelController::class, 'markAllAlertsRead']);
+    });
+
     Route::middleware(EnsureFeature::class.':map')->group(function () {
         Route::get('/map', [MapController::class, 'index']);
         Route::post('/map', [MapController::class, 'store']);
@@ -193,6 +213,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
         Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
         Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
+
+        Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
+        Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');
