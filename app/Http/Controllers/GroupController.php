@@ -82,4 +82,15 @@ class GroupController extends Controller
 
         return $this->redirectWithMessage('/groups', __('メンバーを削除しました。'));
     }
+
+    public function destroy(Request $request, int $id)
+    {
+        try {
+            $this->groups->deleteByOwner((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage('/groups', $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage('/groups', __('グループを削除しました。'));
+    }
 }

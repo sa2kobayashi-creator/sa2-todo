@@ -8433,12 +8433,121 @@ body.map-page {
 }
 
 .admin-users-actions {
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  white-space: normal;
 }
 
 .admin-users-actions .inline-form {
   display: inline;
-  margin-left: 4px;
+  margin: 0;
+}
+
+.admin-users-actions .mini-btn {
+  text-decoration: none;
+}
+
+.admin-users-table-readonly {
+  min-width: 640px;
+}
+
+.menu-feature-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.menu-feature-label {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.admin-user-detail {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0 0;
+}
+
+.admin-user-detail > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 16px;
+  align-items: start;
+}
+
+.admin-user-detail dt {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-user-detail dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .admin-user-detail > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+.menu-feature-fieldset {
+  border: 1px solid var(--border, #d8dee6);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 0;
+  grid-column: 1 / -1;
+}
+
+.menu-feature-fieldset legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.menu-feature-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 6px;
+}
+
+.menu-feature-checks-compact {
+  max-width: 280px;
+  gap: 4px 10px;
+}
+
+.menu-feature-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.menu-feature-fieldset.is-admin-locked .menu-feature-checks {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.group-menu-form {
+  margin-top: 12px;
+}
+
+.group-menu-form .mini-btn {
+  margin-top: 8px;
 }
 
 @media (max-width: 768px) {
@@ -8461,6 +8570,10 @@ body.map-page {
   }
 
   .admin-users-password-row input {
+    max-width: none;
+  }
+
+  .menu-feature-checks-compact {
     max-width: none;
   }
 }

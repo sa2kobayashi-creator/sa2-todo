@@ -43,6 +43,15 @@
             @endif
             <p class="hint">{{ __('オーナー') }}: {{ $group['ownerName'] ?? '—' }}</p>
 
+            @if(($group['ownerUserId'] ?? null) === ($currentUser['id'] ?? null))
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <form method="post" action="/groups/{{ $group['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このグループを削除しますか？共有設定は解除されます。')))'>
+                  @csrf
+                  <button type="submit" class="danger mini-btn">{{ __('グループを削除') }}</button>
+                </form>
+              </div>
+            @endif
+
             @if(($group['ownerUserId'] ?? null) === ($currentUser['id'] ?? null) && ($group['status'] ?? '') === 'approved')
               <form method="post" action="/groups/{{ $group['id'] }}/members" class="stack-form" style="margin-top:12px;">
                 @csrf

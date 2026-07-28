@@ -15,14 +15,7 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      <nav class="settings-subnav" aria-label="{{ __('設定メニュー') }}">
-        <a href="{{ $settingsPath('holidays') }}" @class(['active' => ($section ?? '') === 'holidays'])>{{ __('休日設定') }}</a>
-        <a href="/settings?section=ai&tab=translation" @class(['active' => ($section ?? '') === 'ai'])>{{ __('AI設定') }}</a>
-        <a href="{{ $settingsPath('storage') }}" @class(['active' => ($section ?? '') === 'storage'])>{{ __('ストレージ設定') }}</a>
-        <a href="{{ $settingsPath('enhance') }}" @class(['active' => ($section ?? '') === 'enhance'])>{{ __('API設定') }}</a>
-        <a href="{{ $settingsPath('integration') }}" @class(['active' => ($section ?? '') === 'integration'])>{{ __('LINE連携') }}</a>
-        <a href="{{ $settingsPath('notifications') }}" @class(['active' => ($section ?? '') === 'notifications'])>{{ __('通知設定') }}</a>
-      </nav>
+      @include('partials.settings-subnav', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
 
       @if(($section ?? 'holidays') === 'holidays')
       <div class="panel" id="weekday-holidays">

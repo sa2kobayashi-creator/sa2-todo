@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\GroupStatus;
+use App\Enums\MenuFeature;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -42,6 +43,11 @@ class Group extends Model
         return $this->hasMany(GroupMember::class);
     }
 
+    public function menuFeatures(): HasMany
+    {
+        return $this->hasMany(GroupMenuFeature::class);
+    }
+
     public function isApproved(): bool
     {
         return $this->status === GroupStatus::Approved;
@@ -54,6 +60,10 @@ class Group extends Model
             ? $this->status
             : GroupStatus::tryFrom((string) $this->status) ?? GroupStatus::Pending;
 
+        $menuFeatures = $this->relationLoaded('menuFeatures')
+            ? $this->menuFeatures->pluck('feature')->map(fn ($f) => (string) $f)->values()->all()
+            : $this->menuFeatures()->pluck('feature')->map(fn ($f) => (string) $f)->values()->all();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -65,6 +75,7 @@ class Group extends Model
             'reviewedAt' => optional($this->reviewed_at)?->format('Y-m-d H:i'),
             'reviewNote' => $this->review_note,
             'memberCount' => (int) ($this->members_count ?? $this->members()->count()),
+            'menuFeatures' => array_values(array_intersect($menuFeatures, MenuFeature::values())),
         ];
     }
 }

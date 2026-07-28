@@ -14,9 +14,11 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      @include('partials.settings-subnav', ['active' => 'admin'])
+
       <div class="panel">
         <h2>{{ __('ユーザー管理') }}</h2>
-        <p class="hint">{{ __('権限ごとに表示・編集できるメニューが変わります。') }}</p>
+        <p class="hint">{{ __('権限の基本メニューに加え、ユーザー単位で追加メニューを指定できます。グループ権限も合算されます。') }}</p>
         <ul class="role-permission-summary">
           @foreach($roles as $role)
             <li>
@@ -29,8 +31,9 @@
 
       <div class="panel">
         <h2>{{ __('ユーザーを追加') }}</h2>
-        <form method="post" action="/admin/users" class="admin-user-form">
+        <form method="post" action="/admin/users" class="admin-user-form" id="admin-user-create-form">
           @csrf
+          <input type="hidden" name="menuFeaturesConfigured" value="1" />
           <label>{{ __('表示名') }}
             <input type="text" name="displayName" value="{{ old('displayName') }}" required maxlength="100" />
           </label>
@@ -41,12 +44,29 @@
             <input type="password" name="password" required minlength="8" />
           </label>
           <label>{{ __('権限') }}
-            <select name="role" required>
+            <select name="role" id="create-user-role" required>
               @foreach($roles as $role)
                 <option value="{{ $role->value }}" @selected(old('role', 'standard') === $role->value)>{{ __($role->label()) }}</option>
               @endforeach
             </select>
           </label>
+          <fieldset class="menu-feature-fieldset" id="create-menu-features">
+            <legend>{{ __('利用メニュー') }}</legend>
+            <p class="hint">{{ __('管理者はすべてのメニューを利用できます。') }}</p>
+            <div class="menu-feature-checks">
+              @foreach($menuFeatures as $feature)
+                <label class="menu-feature-check">
+                  <input
+                    type="checkbox"
+                    name="menuFeatures[]"
+                    value="{{ $feature->value }}"
+                    @checked(in_array($feature->value, old('menuFeatures', $menuFeaturesByRole['standard'] ?? []), true))
+                  />
+                  <span>{{ __($feature->label()) }}</span>
+                </label>
+              @endforeach
+            </div>
+          </fieldset>
           <button type="submit">{{ __('追加') }}</button>
         </form>
       </div>
@@ -57,13 +77,13 @@
           <p class="hint">{{ __('ユーザーがいません。') }}</p>
         @else
           <div class="admin-users-table-wrap">
-            <table class="admin-users-table">
+            <table class="admin-users-table admin-users-table-readonly">
               <thead>
                 <tr>
                   <th scope="col">{{ __('表示名') }}</th>
                   <th scope="col">{{ __('メールアドレス') }}</th>
                   <th scope="col">{{ __('権限') }}</th>
-                  <th scope="col">{{ __('パスワード') }}</th>
+                  <th scope="col">{{ __('利用メニュー') }}</th>
                   <th scope="col">{{ __('操作') }}</th>
                 </tr>
               </thead>
@@ -71,34 +91,27 @@
                 @foreach($users as $user)
                   <tr>
                     <td>
-                      <form method="post" action="/admin/users/{{ $user['id'] }}/update" class="admin-users-row-form" id="user-update-{{ $user['id'] }}">
-                        @csrf
-                        <input type="text" name="displayName" value="{{ $user['displayName'] }}" required maxlength="100" aria-label="{{ __('表示名') }}" />
-                        @if(!empty($user['isSelf']))
-                          <span class="hint admin-users-self-tag">{{ __('（自分）') }}</span>
-                        @endif
-                      </form>
+                      <strong>{{ $user['displayName'] }}</strong>
+                      @if(!empty($user['isSelf']))
+                        <span class="hint admin-users-self-tag">{{ __('（自分）') }}</span>
+                      @endif
+                    </td>
+                    <td>{{ $user['email'] }}</td>
+                    <td>
+                      <span class="role-badge {{ $user['role'] }}">{{ $user['roleLabel'] }}</span>
                     </td>
                     <td>
-                      <input form="user-update-{{ $user['id'] }}" type="email" name="email" value="{{ $user['email'] }}" required maxlength="255" aria-label="{{ __('メールアドレス') }}" />
-                    </td>
-                    <td>
-                      <select form="user-update-{{ $user['id'] }}" name="role" required aria-label="{{ __('権限') }}">
-                        @foreach($roles as $role)
-                          <option value="{{ $role->value }}" @selected($user['role'] === $role->value)>{{ __($role->label()) }}</option>
-                        @endforeach
-                      </select>
-                    </td>
-                    <td>
-                      <form method="post" action="/admin/users/{{ $user['id'] }}/password" class="admin-users-password-row">
-                        @csrf
-                        <input type="password" name="password" required minlength="8" placeholder="{{ __('新しいパスワード') }}" aria-label="{{ __('新しいパスワード') }}" />
-                        <input type="password" name="password_confirmation" required minlength="8" placeholder="{{ __('確認') }}" aria-label="{{ __('パスワード（確認）') }}" />
-                        <button type="submit" class="secondary mini-btn">{{ __('変更') }}</button>
-                      </form>
+                      <div class="menu-feature-labels">
+                        @forelse($user['menuFeatureLabels'] as $label)
+                          <span class="menu-feature-label">{{ $label }}</span>
+                        @empty
+                          <span class="hint">{{ __('なし') }}</span>
+                        @endforelse
+                      </div>
                     </td>
                     <td class="admin-users-actions">
-                      <button type="submit" form="user-update-{{ $user['id'] }}" class="secondary mini-btn">{{ __('更新') }}</button>
+                      <a href="/admin/users/{{ $user['id'] }}" class="secondary mini-btn">{{ __('詳細') }}</a>
+                      <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
                       @if(empty($user['isSelf']))
                         <form method="post" action="/admin/users/{{ $user['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このユーザーを削除しますか？')))'>
                           @csrf
@@ -114,5 +127,31 @@
         @endif
       </div>
     </main>
+    <script>
+      (function () {
+        const byRole = @json($menuFeaturesByRole);
+        const createRole = document.getElementById('create-user-role');
+        const createFieldset = document.getElementById('create-menu-features');
+
+        function applyRoleDefaults(container, role) {
+          if (!container) return;
+          const defaults = byRole[role] || [];
+          container.querySelectorAll('input[type="checkbox"][name="menuFeatures[]"]').forEach((input) => {
+            input.checked = defaults.includes(input.value);
+            input.disabled = role === 'admin';
+          });
+          if (role === 'admin') {
+            container.classList.add('is-admin-locked');
+          } else {
+            container.classList.remove('is-admin-locked');
+          }
+        }
+
+        if (createRole && createFieldset) {
+          createRole.addEventListener('change', () => applyRoleDefaults(createFieldset, createRole.value));
+          applyRoleDefaults(createFieldset, createRole.value);
+        }
+      })();
+    </script>
   </body>
 </html>

@@ -14,9 +14,11 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      @include('partials.settings-subnav', ['active' => 'admin-groups'])
+
       <div class="panel">
         <h2>{{ __('グループ管理') }}</h2>
-        <p class="hint">{{ __('申請されたグループの承認・却下を行います。承認後に ToDo / Photos の共有先として利用できます。') }}</p>
+        <p class="hint">{{ __('申請されたグループの承認・却下を行います。承認後に ToDo / Photos の共有先として利用でき、メニュー権限もメンバーに付与できます。') }}</p>
       </div>
 
       <div class="panel">
@@ -41,6 +43,13 @@
               <p class="hint">{{ __('メモ') }}: {{ $group['reviewNote'] }}</p>
             @endif
 
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+              <form method="post" action="/admin/groups/{{ $group['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このグループを削除しますか？共有設定は解除されます。')))'>
+                @csrf
+                <button type="submit" class="danger mini-btn">{{ __('グループを削除') }}</button>
+              </form>
+            </div>
+
             @if(($group['status'] ?? '') === 'pending')
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
                 <form method="post" action="/admin/groups/{{ $group['id'] }}/approve" class="inline-form">
@@ -54,6 +63,30 @@
                   <button type="submit" class="danger">{{ __('却下') }}</button>
                 </form>
               </div>
+            @endif
+
+            @if(($group['status'] ?? '') === 'approved')
+              <form method="post" action="/admin/groups/{{ $group['id'] }}/menus" class="group-menu-form">
+                @csrf
+                <fieldset class="menu-feature-fieldset">
+                  <legend>{{ __('メンバーに付与するメニュー') }}</legend>
+                  <p class="hint">{{ __('承認済みグループのメンバーに、ユーザー設定に加えてこれらのメニューを付与します。') }}</p>
+                  <div class="menu-feature-checks">
+                    @foreach($menuFeatures as $feature)
+                      <label class="menu-feature-check">
+                        <input
+                          type="checkbox"
+                          name="menuFeatures[]"
+                          value="{{ $feature->value }}"
+                          @checked(in_array($feature->value, $group['menuFeatures'] ?? [], true))
+                        />
+                        <span>{{ __($feature->label()) }}</span>
+                      </label>
+                    @endforeach
+                  </div>
+                </fieldset>
+                <button type="submit" class="secondary mini-btn">{{ __('メニュー権限を保存') }}</button>
+              </form>
             @endif
           </div>
         @empty

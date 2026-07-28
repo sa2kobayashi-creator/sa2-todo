@@ -126,6 +126,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/groups', [GroupController::class, 'store']);
     Route::post('/groups/{id}/members', [GroupController::class, 'addMember'])->whereNumber('id');
     Route::post('/groups/{id}/members/remove', [GroupController::class, 'removeMember'])->whereNumber('id');
+    Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
@@ -231,6 +232,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(RequireAdmin::class)->group(function () {
         Route::get('/admin/users', [AdminUserController::class, 'index']);
         Route::post('/admin/users', [AdminUserController::class, 'store']);
+        Route::get('/admin/users/{id}', [AdminUserController::class, 'show'])->whereNumber('id');
+        Route::get('/admin/users/{id}/edit', [AdminUserController::class, 'edit'])->whereNumber('id');
         Route::post('/admin/users/{id}/update', [AdminUserController::class, 'update'])->whereNumber('id');
         Route::post('/admin/users/{id}/password', [AdminUserController::class, 'updatePassword'])->whereNumber('id');
         Route::post('/admin/users/{id}/delete', [AdminUserController::class, 'destroy'])->whereNumber('id');
@@ -238,5 +241,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/admin/groups', [AdminGroupController::class, 'index']);
         Route::post('/admin/groups/{id}/approve', [AdminGroupController::class, 'approve'])->whereNumber('id');
         Route::post('/admin/groups/{id}/reject', [AdminGroupController::class, 'reject'])->whereNumber('id');
+        Route::post('/admin/groups/{id}/menus', [AdminGroupController::class, 'updateMenus'])->whereNumber('id');
+        Route::post('/admin/groups/{id}/delete', [AdminGroupController::class, 'destroy'])->whereNumber('id');
     });
 });

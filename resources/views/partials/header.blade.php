@@ -83,10 +83,6 @@
             </div>
             <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
             <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
-            @if(!empty($canAdminUsers))
-              <a href="/admin/users" role="menuitem">{{ __('ユーザー管理') }}</a>
-              <a href="/admin/groups" role="menuitem">{{ __('グループ管理') }}</a>
-            @endif
             <form method="post" action="/logout" class="logout-form">
               @csrf
               <button type="submit" role="menuitem">{{ __('ログアウト') }}</button>

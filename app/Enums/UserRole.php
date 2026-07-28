@@ -21,8 +21,8 @@ enum UserRole: string
     {
         return match ($this) {
             self::Admin => 'すべてのメニューを表示・編集できます。',
-            self::Standard => '設定以外のメニューを表示・変更できます。',
-            self::Light => 'ダッシュボード、Todo、メモ、Photos、音楽、動画 のみ利用できます。',
+            self::Standard => '設定以外の基本メニュー。追加メニューはユーザー／グループ設定で調整できます。',
+            self::Light => 'ダッシュボード、Todo、メモ、Photos、マイページが基本。追加メニューはユーザー／グループ設定で付与できます。',
         };
     }
 

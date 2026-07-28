@@ -137,6 +137,43 @@ class GroupsSharingTest extends TestCase
             ->assertDontSee('Shared note');
     }
 
+    public function test_owner_can_delete_own_group(): void
+    {
+        $owner = $this->makeUser('owner-delete@example.com');
+        $outsider = $this->makeUser('outsider-delete@example.com');
+
+        $this->actingAs($owner)->post('/groups', ['name' => 'Delete Me'])->assertRedirect();
+        $group = Group::query()->where('name', 'Delete Me')->firstOrFail();
+
+        $this->actingAs($outsider)->post('/groups/'.$group->id.'/delete')->assertRedirect();
+        $this->assertDatabaseHas('groups', ['id' => $group->id]);
+
+        $this->actingAs($owner)->post('/groups/'.$group->id.'/delete')->assertRedirect();
+        $this->assertDatabaseMissing('groups', ['id' => $group->id]);
+        $this->assertDatabaseMissing('group_members', ['group_id' => $group->id]);
+    }
+
+    public function test_admin_can_delete_any_group_and_clears_share(): void
+    {
+        $owner = $this->makeUser('owner-admin-delete@example.com');
+        $admin = $this->makeUser('admin-delete@example.com', UserRole::Admin);
+
+        $this->actingAs($owner)->post('/groups', ['name' => 'Admin Delete'])->assertRedirect();
+        $group = Group::query()->where('name', 'Admin Delete')->firstOrFail();
+        $this->actingAs($admin)->post('/admin/groups/'.$group->id.'/approve')->assertRedirect();
+
+        $todo = Todo::create([
+            'user_id' => $owner->id,
+            'group_id' => $group->id,
+            'title' => 'shared todo',
+            'completed' => false,
+        ]);
+
+        $this->actingAs($admin)->post('/admin/groups/'.$group->id.'/delete')->assertRedirect();
+        $this->assertDatabaseMissing('groups', ['id' => $group->id]);
+        $this->assertNull($todo->fresh()->group_id);
+    }
+
     public function test_album_group_visibility_and_public_visibility(): void
     {
         $owner = $this->makeUser('album-owner@example.com');

@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\GroupStatus;
+use App\Enums\MenuFeature;
 use App\Models\Group;
 use App\Models\GroupMember;
+use App\Models\GroupMenuFeature;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -60,12 +62,32 @@ class GroupService
     public function listAllForAdmin(): Collection
     {
         return Group::query()
-            ->with('owner')
+            ->with(['owner', 'menuFeatures'])
             ->withCount('members')
             ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END")
             ->orderByDesc('id')
             ->get()
             ->map(fn (Group $group) => $group->toPublicArray());
+    }
+
+    /** @param list<string> $features */
+    public function syncMenuFeatures(int $groupId, array $features): array
+    {
+        $group = Group::query()->findOrFail($groupId);
+        $allowed = array_values(array_intersect($features, MenuFeature::values()));
+
+        DB::transaction(function () use ($group, $allowed) {
+            GroupMenuFeature::query()->where('group_id', $group->id)->delete();
+
+            foreach ($allowed as $feature) {
+                GroupMenuFeature::create([
+                    'group_id' => $group->id,
+                    'feature' => $feature,
+                ]);
+            }
+        });
+
+        return $group->load(['owner', 'menuFeatures'])->loadCount('members')->toPublicArray();
     }
 
     /** @return array<string, mixed> */
@@ -149,6 +171,18 @@ class GroupService
             ->where('group_id', $groupId)
             ->where('user_id', $memberUserId)
             ->delete();
+    }
+
+    public function deleteByOwner(int $actorUserId, int $groupId): void
+    {
+        $group = Group::query()->findOrFail($groupId);
+        $this->assertOwner($group, $actorUserId);
+        $group->delete();
+    }
+
+    public function deleteByAdmin(int $groupId): void
+    {
+        Group::query()->findOrFail($groupId)->delete();
     }
 
     /** @return list<array<string, mixed>> */
