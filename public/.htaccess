@@ -24,6 +24,11 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# PWA manifest（octet-stream だと「アプリで開く／インストール」が出ないことがある）
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 # Photos 動画アップロード用（XAMPP / Apache + mod_php）
 <IfModule mod_php.c>
     php_value upload_max_filesize 900M
