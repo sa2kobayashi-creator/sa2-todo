@@ -56,10 +56,10 @@ class SettingsController extends Controller
                 : [],
             'llmSettings' => $section === 'ai' ? $this->aiLlm->formState() : null,
             'youtubeSettings' => $section === 'ai' ? $this->youtube->formState() : null,
-            'storageR2' => $section === 'storage' ? $this->mediaStorage->formState('r2') : null,
-            'storageCloudinary' => $section === 'storage' ? $this->mediaStorage->formState('cloudinary') : null,
-            'storageBackblaze' => $section === 'storage' ? $this->mediaStorage->formState('backblaze') : null,
-            'storagePipeline' => $section === 'storage' ? $this->mediaStorage->formState('pipeline') : null,
+            'storageR2' => $section === 'storage' ? $this->safeStorageFormState('r2') : null,
+            'storageCloudinary' => $section === 'storage' ? $this->safeStorageFormState('cloudinary') : null,
+            'storageBackblaze' => $section === 'storage' ? $this->safeStorageFormState('backblaze') : null,
+            'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
             'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
             ...$this->flashFromQuery($request),
@@ -175,5 +175,33 @@ class SettingsController extends Controller
         }
 
         return '/settings?'.http_build_query($params);
+    }
+
+    /** @return array<string, mixed> */
+    private function safeStorageFormState(string $provider): array
+    {
+        try {
+            return $this->mediaStorage->formState($provider);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [
+                'provider' => $provider,
+                'enabled' => false,
+                'settings' => [],
+                'envFallback' => [],
+                'hasSecrets' => [
+                    'access_key_id' => false,
+                    'secret_access_key' => false,
+                    'api_key' => false,
+                    'api_secret' => false,
+                    'key_id' => false,
+                    'application_key' => false,
+                ],
+                'last_tested_at' => null,
+                'last_test_status' => 'fail',
+                'last_test_message' => __('ストレージ設定の読み込みに失敗しました。マイグレーションと APP_KEY を確認してください。'),
+            ];
+        }
     }
 }

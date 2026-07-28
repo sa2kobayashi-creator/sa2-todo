@@ -59,22 +59,48 @@ class MediaStorageSetting extends Model
 
     public static function forProvider(string $provider): self
     {
-        return static::query()->firstOrCreate(
-            ['provider' => $provider],
-            ['enabled' => false, 'settings' => [], 'secrets' => []]
-        );
+        try {
+            return static::query()->firstOrCreate(
+                ['provider' => $provider],
+                ['enabled' => false, 'settings' => [], 'secrets' => []]
+            );
+        } catch (\Throwable $e) {
+            // テーブル未作成や復号失敗時でも設定画面が 500 にならないようフォールバック
+            report($e);
+            $row = new static([
+                'provider' => $provider,
+                'enabled' => false,
+                'settings' => [],
+                'secrets' => [],
+            ]);
+            $row->exists = false;
+
+            return $row;
+        }
     }
 
     /** @return array<string, mixed> */
     public function settingsArray(): array
     {
-        return is_array($this->settings) ? $this->settings : [];
+        try {
+            return is_array($this->settings) ? $this->settings : [];
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     /** @return array<string, mixed> */
     public function secretsArray(): array
     {
-        return is_array($this->secrets) ? $this->secrets : [];
+        try {
+            return is_array($this->secrets) ? $this->secrets : [];
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     public function setting(string $key, mixed $default = null): mixed

@@ -835,7 +835,8 @@
     "監視中: :name（追加 :count 件）": "Watching: :name (:count added)",
     "監視中: 新規 :n 件を追加中…": "Watching: uploading :n new file(s)…",
     "監視中: :name（追加 :count 件）・一覧は再読み込みで更新": "Watching: :name (:count added). Reload to refresh the gallery.",
-    "ホーム画面に追加": "Add to Home Screen",
+    "ストレージ設定の読み込みに失敗しました。マイグレーションと APP_KEY を確認してください。": "Failed to load storage settings. Check migrations and APP_KEY.",
+
     "枚を表示中": "photos shown",
     "まだメディアがありません": "No media yet",
     "写真または MP4 動画を追加できます。": "You can add photos or MP4 videos.",
