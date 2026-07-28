@@ -155,7 +155,7 @@ class PhotoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         } catch (\Throwable $e) {
             report($e);
-            $message = 'アップロードに失敗しました。動画は800MB以下のMP4でお試しください。';
+            $message = $this->uploadFailureMessage($e);
             if ($wantsJson) {
                 return response()->json(['ok' => false, 'message' => $message], 500);
             }
@@ -312,7 +312,7 @@ class PhotoController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'アップロードに失敗しました。動画は800MB以下のMP4でお試しください。',
+                'message' => $this->uploadFailureMessage($e),
             ], 500);
         }
 
@@ -492,6 +492,16 @@ class PhotoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('登録日を更新しました。'));
+    }
+
+    private function uploadFailureMessage(\Throwable $e): string
+    {
+        $detail = trim(mb_substr($e->getMessage(), 0, 240));
+        if ($detail !== '') {
+            return 'アップロードに失敗しました: '.$detail;
+        }
+
+        return 'アップロードに失敗しました。ストレージ設定（R2）と PHP の upload_max_filesize / post_max_size を確認してください。';
     }
 
     private function uploadLimitMessage(Request $request): ?string

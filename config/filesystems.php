@@ -75,7 +75,7 @@ return [
             'use_path_style_endpoint' => env('R2_USE_PATH_STYLE_ENDPOINT', true),
             'throw' => false,
             'report' => false,
-            'visibility' => 'public',
+            'visibility' => 'private',
             // 大容量動画の put が途中切断されないよう余裕を持たせる
             'http' => [
                 'timeout' => 600,

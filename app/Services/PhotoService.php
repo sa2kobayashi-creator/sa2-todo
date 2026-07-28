@@ -389,6 +389,40 @@ class PhotoService
         return $disk !== '' ? $disk : 'public';
     }
 
+    /**
+     * 新しい写真を一覧先頭に出すための sort_order（既存 min - 10）。
+     * 下限に近づいたら相対順を保ったまま振り直す。
+     */
+    private function allocateFrontPhotoSortOrder(int $userId): int
+    {
+        $min = Photo::query()->where('user_id', $userId)->min('sort_order');
+        $next = $min === null ? 0 : ((int) $min - 10);
+
+        // signed INT の下限に余裕を残す（約 2^31）
+        if ($next < -2_000_000_000) {
+            $this->renumberPhotoSortOrders($userId);
+            $min = Photo::query()->where('user_id', $userId)->min('sort_order');
+            $next = $min === null ? 0 : ((int) $min - 10);
+        }
+
+        return $next;
+    }
+
+    private function renumberPhotoSortOrders(int $userId): void
+    {
+        $ids = Photo::query()
+            ->where('user_id', $userId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id');
+
+        $order = 0;
+        foreach ($ids as $id) {
+            Photo::query()->where('id', $id)->update(['sort_order' => $order]);
+            $order += 10;
+        }
+    }
+
     public function diskDriver(): string
     {
         return (string) config('filesystems.disks.'.$this->diskName().'.driver', 'local');
@@ -639,8 +673,7 @@ class PhotoService
 
         $created = [];
         $skipped = [];
-        $existingMin = Photo::query()->where('user_id', $userId)->min('sort_order');
-        $nextOrder = $existingMin === null ? 0 : ((int) $existingMin - 10);
+        $nextOrder = $this->allocateFrontPhotoSortOrder($userId);
         $archive = app(PhotoColdArchiveService::class);
 
         foreach ($files as $index => $file) {
@@ -668,11 +701,22 @@ class PhotoService
 
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
             $videoThumb = $videoThumbsByIndex[$index] ?? null;
-            $stored = $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())
-                ? $this->storeVideo($file, $dir, $videoThumb instanceof UploadedFile ? $videoThumb : null, $target['disk'])
-                : $this->storeOptimizedImage($file, $dir, $target['disk']);
+            try {
+                $stored = $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension())
+                    ? $this->storeVideo($file, $dir, $videoThumb instanceof UploadedFile ? $videoThumb : null, $target['disk'])
+                    : $this->storeOptimizedImage($file, $dir, $target['disk']);
+            } catch (\InvalidArgumentException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                report($e);
+                throw new \InvalidArgumentException(
+                    '保存に失敗しました（'.$target['disk'].'）: '.mb_substr($e->getMessage(), 0, 180)
+                );
+            }
             if ($stored === null) {
-                continue;
+                throw new \InvalidArgumentException(
+                    'ファイルを保存できませんでした。ストレージ設定（R2 / ディスク）と接続テストを確認してください。'
+                );
             }
 
             try {
@@ -1512,7 +1556,7 @@ class PhotoService
 
         try {
             $path = $writeDisk->putFileAs($dir, $file, $filename, [
-                'visibility' => $diskName === 'backblaze' ? 'private' : 'public',
+                'visibility' => $this->objectVisibility($diskName),
                 'ContentType' => 'video/mp4',
                 'mimetype' => 'video/mp4',
             ]);
@@ -1650,18 +1694,21 @@ class PhotoService
 
         try {
             $path = $writeDisk->putFileAs($dir, $file, $filename, [
-                'visibility' => $diskName === 'backblaze' ? 'private' : 'public',
+                'visibility' => $this->objectVisibility($diskName),
                 'ContentType' => $mime,
                 'mimetype' => $mime,
             ]);
         } catch (\Throwable $e) {
             report($e);
-
-            return null;
+            throw new \InvalidArgumentException(
+                '画像の保存に失敗しました（'.($diskName ?: $this->diskName()).'）: '.mb_substr($e->getMessage(), 0, 180)
+            );
         }
 
-        if (! is_string($path) || $path === '' || ! $writeDisk->exists($path)) {
-            return null;
+        if (! is_string($path) || $path === '') {
+            throw new \InvalidArgumentException(
+                '画像の保存に失敗しました。ストレージ設定（R2）の接続テストを確認してください。'
+            );
         }
 
         $width = null;
@@ -1685,10 +1732,13 @@ class PhotoService
                 if ($thumbTmp !== false) {
                     imagejpeg($thumb, $thumbTmp, $quality);
                     try {
-                        $this->putFileContents($thumbRel, (string) file_get_contents($thumbTmp), 'image/jpeg');
-                        if ($this->storage()->exists($thumbRel)) {
-                            $thumbPath = $thumbRel;
-                        }
+                        $thumbDisk = Storage::disk($diskName ?: $this->diskName());
+                        $thumbDisk->put($thumbRel, (string) file_get_contents($thumbTmp), [
+                            'visibility' => $this->objectVisibility($diskName),
+                            'ContentType' => 'image/jpeg',
+                            'mimetype' => 'image/jpeg',
+                        ]);
+                        $thumbPath = $thumbRel;
                     } finally {
                         @unlink($thumbTmp);
                     }
@@ -1704,11 +1754,17 @@ class PhotoService
             }
         }
 
+        try {
+            $sizeBytes = (int) $writeDisk->size($path);
+        } catch (\Throwable) {
+            $sizeBytes = (int) $file->getSize();
+        }
+
         return [
             'path' => $path,
             'thumbPath' => $thumbPath,
             'mime' => $mime,
-            'sizeBytes' => (int) $this->storage()->size($path),
+            'sizeBytes' => $sizeBytes > 0 ? $sizeBytes : (int) $file->getSize(),
             'width' => $width,
             'height' => $height,
         ];
@@ -1740,10 +1796,25 @@ class PhotoService
     private function putFileContents(string $path, string $contents, string $contentType): void
     {
         $options = [
-            'visibility' => 'public',
+            'visibility' => $this->objectVisibility(),
             'ContentType' => $contentType,
         ];
         $this->storage()->put($path, $contents, $options);
+    }
+
+    /**
+     * R2 / B2 はオブジェクト ACL（public-read）非対応のため private で保存し、配信はアプリ側 URL で行う。
+     */
+    private function objectVisibility(?string $diskName = null): string
+    {
+        $name = $diskName ?: $this->diskName();
+        if (in_array($name, ['r2', 'backblaze'], true)) {
+            return 'private';
+        }
+
+        $driver = (string) config('filesystems.disks.'.$name.'.driver', 'local');
+
+        return $driver === 's3' ? 'private' : 'public';
     }
 
     /** @return \GdImage|false|resource */
@@ -1873,7 +1944,7 @@ class PhotoService
             throw new \InvalidArgumentException(__('編集画像の保存に失敗しました。'));
         }
 
-        $minSort = (int) Photo::query()->where('user_id', $userId)->min('sort_order');
+        $minSort = $this->allocateFrontPhotoSortOrder($userId);
         $photo = Photo::create([
             'user_id' => $userId,
             'album_id' => $source->album_id,
@@ -1888,7 +1959,7 @@ class PhotoService
             'caption' => $source->caption,
             'edit_label' => $label ? mb_substr(trim($label), 0, 120) : __('編集版'),
             'taken_at' => $source->taken_at,
-            'sort_order' => $minSort - 10,
+            'sort_order' => $minSort,
             'storage_tier' => 'hot',
         ]);
 
@@ -2222,14 +2293,14 @@ class PhotoService
             $basename = str_replace('.', '', uniqid('vid_trim_', true)).'.mp4';
             $dir = 'photos/'.$userId;
             $path = $disk->putFileAs($dir, new UploadedFile($tmpOut, $basename, 'video/mp4', null, true), $basename, [
-                'visibility' => 'public',
+                'visibility' => $this->objectVisibility(),
                 'ContentType' => 'video/mp4',
             ]);
             if (! is_string($path) || $path === '') {
                 throw new \RuntimeException(__('切り出し動画の保存に失敗しました。'));
             }
 
-            $minSort = (int) Photo::query()->where('user_id', $userId)->min('sort_order');
+            $minSort = $this->allocateFrontPhotoSortOrder($userId);
             $photo = Photo::create([
                 'user_id' => $userId,
                 'album_id' => $source->album_id,
@@ -2244,7 +2315,7 @@ class PhotoService
                 'caption' => $source->caption,
                 'edit_label' => sprintf('%s %.1f-%.1fs', __('トリム'), $startSec, $endSec),
                 'taken_at' => $source->taken_at,
-                'sort_order' => $minSort - 10,
+                'sort_order' => $minSort,
             ]);
 
             return $this->photoToArray($photo, $userId);

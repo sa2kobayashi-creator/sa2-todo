@@ -32,7 +32,7 @@ return new class extends Migration
             $table->unsignedInteger('height')->nullable();
             $table->string('caption', 500)->nullable();
             $table->timestamp('taken_at')->nullable();
-            $table->unsignedInteger('sort_order')->default(0);
+            $table->integer('sort_order')->default(0);
             $table->timestamps();
 
             $table->index(['user_id', 'album_id', 'sort_order']);

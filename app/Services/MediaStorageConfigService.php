@@ -317,7 +317,7 @@ class MediaStorageConfigService
             'use_path_style_endpoint' => (bool) $row->setting('use_path_style_endpoint', true),
             'throw' => false,
             'report' => false,
-            'visibility' => 'public',
+            'visibility' => 'private',
             'http' => [
                 'timeout' => 600,
                 'connect_timeout' => 30,
