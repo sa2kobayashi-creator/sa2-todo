@@ -42,7 +42,7 @@
                 type="file"
                 name="photos[]"
                 id="photos-file-input"
-                accept="image/*,video/mp4,.heic,.heif,.mp4"
+                accept="image/*,video/mp4,.heic,.heif,.mp4,.json,application/json"
                 multiple
                 hidden
               />
@@ -1232,6 +1232,8 @@
           name: '',
         }
 
+        const takeoutTakenAtByFile = new WeakMap()
+
         function takenAtHintFromFile(file) {
           const ms = Number(file?.lastModified) || 0
           if (!ms) return ''
@@ -1240,6 +1242,79 @@
           } catch (_) {
             return ''
           }
+        }
+
+        /** Google Takeout: video.mp4.supplemental-metadata.json や短縮 .suppl.json など */
+        function isTakeoutMetadataJsonFileName(mediaName, jsonName) {
+          if (!mediaName || !jsonName) return false
+          const json = String(jsonName)
+          if (!/\.json$/i.test(json)) return false
+          const media = String(mediaName)
+          if (json.length < media.length + 5) return false
+          if (!json.toLowerCase().startsWith(media.toLowerCase())) return false
+          const suffix = json.slice(media.length)
+          if (suffix === '.json') return true
+          if (/\.suppl/i.test(suffix)) return true
+          return false
+        }
+
+        function takenAtIsoFromTakeoutMetadata(data) {
+          if (!data || typeof data !== 'object') return ''
+          const keys = ['photoTakenTime', 'creationTime', 'modificationTime']
+          for (const key of keys) {
+            const raw = data[key]?.timestamp
+            if (raw == null || String(raw).trim() === '') continue
+            const sec = parseInt(String(raw).trim(), 10)
+            if (!Number.isFinite(sec) || sec <= 0) continue
+            try {
+              return new Date(sec * 1000).toISOString()
+            } catch (_) {}
+          }
+          return ''
+        }
+
+        async function readTakeoutTakenAtFromJsonFile(jsonFile) {
+          try {
+            const text = await jsonFile.text()
+            const data = JSON.parse(text)
+            return takenAtIsoFromTakeoutMetadata(data)
+          } catch (_) {
+            return ''
+          }
+        }
+
+        function findTakeoutJsonForMedia(mediaName, jsonFiles) {
+          for (const json of jsonFiles) {
+            if (isTakeoutMetadataJsonFileName(mediaName, json.name || '')) {
+              return json
+            }
+          }
+          return null
+        }
+
+        async function buildTakeoutTakenAtMap(files) {
+          const map = new Map()
+          const list = Array.from(files || [])
+          const jsonFiles = list.filter((f) => /\.json$/i.test(f.name || '') && !isMediaFile(f))
+          for (const file of list) {
+            if (!isMediaFile(file)) continue
+            const cached = takeoutTakenAtByFile.get(file)
+            if (cached) {
+              map.set(file, cached)
+              continue
+            }
+            const json = findTakeoutJsonForMedia(file.name, jsonFiles)
+            if (!json) continue
+            const hint = await readTakeoutTakenAtFromJsonFile(json)
+            if (hint) map.set(file, hint)
+          }
+          return map
+        }
+
+        function takenAtHintForUpload(file, takeoutMap) {
+          const fromTakeout = takeoutMap?.get(file) || takeoutTakenAtByFile.get(file)
+          if (fromTakeout) return fromTakeout
+          return takenAtHintFromFile(file)
         }
 
         function applyPhotosListQuery(patch = {}) {
@@ -1476,7 +1551,7 @@
           return existing
         }
 
-        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates }) {
+        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap }) {
           const chunkBytes = Math.max(1 * 1024 * 1024, Number(uploadLimits.chunkBytes) || 4 * 1024 * 1024)
           const total = Math.max(1, Math.ceil((Number(file.size) || 0) / chunkBytes))
           const uploadId = newUploadId()
@@ -1504,7 +1579,7 @@
           if (albumId) done.append('album_id', albumId)
           if (file.type) done.append('mime', file.type)
           if (allowDuplicates) done.append('allow_duplicates', '1')
-          const takenHint = takenAtHintFromFile(file)
+          const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) done.append('taken_at', takenHint)
           if (thumb) done.append('video_thumb', thumb, thumb.name)
           if (typeof onProgress === 'function') onProgress(95, `保存中… ${fileLabel}`)
@@ -1518,13 +1593,13 @@
           }
         }
 
-        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates }) {
+        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap }) {
           const fd = new FormData()
           fd.append('returnTo', returnTo)
           if (albumId) fd.append('album_id', albumId)
           if (allowDuplicates) fd.append('allow_duplicates', '1')
           fd.append('photos[]', file, file.name)
-          const takenHint = takenAtHintFromFile(file)
+          const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) fd.append('taken_ats[]', takenHint)
           if (thumb) {
             fd.append('video_thumbs[]', thumb, thumb.name)
@@ -1551,7 +1626,11 @@
           }
           uploading = true
           const list = Array.from(fileList)
-          const totalSelected = list.length
+          const mediaList = list.filter((f) => isMediaFile(f) && (
+            !f.type.startsWith('video/') || f.type === 'video/mp4' || /\.mp4$/i.test(f.name || '')
+          ))
+          const takeoutMap = await buildTakeoutTakenAtMap(list)
+          const totalSelected = mediaList.length
           const returnTo = form.querySelector('input[name="returnTo"]')?.value || '/photos'
           const albumId = form.querySelector('input[name="album_id"]')?.value || ''
           const allowDuplicates = allowDuplicatesChecked()
@@ -1563,8 +1642,8 @@
           try {
             setUploadProgress(`重複チェック中… 0/${totalSelected}`)
             const hashed = []
-            for (let i = 0; i < list.length; i++) {
-              const file = list[i]
+            for (let i = 0; i < mediaList.length; i++) {
+              const file = mediaList[i]
               const displayName = file.name || `file-${i + 1}`
               if (isVideoFile(file) && (Number(file.size) || 0) > videoMax) {
                 failed.push(`${displayName}: 最大 ${Math.round(videoMax / 1048576)}MB まで`)
@@ -1621,8 +1700,8 @@
                 for (let attempt = 1; attempt <= 2; attempt++) {
                   try {
                     result = shouldUseChunkedUpload(file)
-                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates })
-                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates })
+                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap })
+                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap })
                     lastErr = null
                     break
                   } catch (err) {
@@ -1729,6 +1808,8 @@
 
         async function collectNewFilesFromDir(dirHandle, { markSeen = false, depth = 0, maxDepth = 4 } = {}) {
           const files = []
+          const jsonCandidates = []
+          const mediaCandidates = []
           for await (const entry of dirHandle.values()) {
             if (entry.kind === 'directory') {
               if (depth < maxDepth) {
@@ -1742,15 +1823,26 @@
             if (entry.kind !== 'file') continue
             try {
               const file = await entry.getFile()
+              if (/\.json$/i.test(file.name || '') && !isMediaFile(file)) {
+                jsonCandidates.push(file)
+                continue
+              }
               if (!isMediaFile(file)) continue
               if (file.type.startsWith('video/') && file.type !== 'video/mp4' && !/\.mp4$/i.test(file.name || '')) {
                 continue
               }
-              const key = fileWatchKey(file)
-              if (folderWatch.seen.has(key)) continue
-              if (markSeen) folderWatch.seen.add(key)
-              files.push(file)
+              mediaCandidates.push(file)
             } catch (_) {}
+          }
+
+          const takeoutMap = await buildTakeoutTakenAtMap([...mediaCandidates, ...jsonCandidates])
+          for (const file of mediaCandidates) {
+            const hint = takeoutMap.get(file)
+            if (hint) takeoutTakenAtByFile.set(file, hint)
+            const key = fileWatchKey(file)
+            if (folderWatch.seen.has(key)) continue
+            if (markSeen) folderWatch.seen.add(key)
+            files.push(file)
           }
           return files
         }
@@ -1880,10 +1972,7 @@
         emptyZone?.addEventListener('drop', (e) => {
           const files = e.dataTransfer?.files
           if (!files?.length) return
-          const filtered = Array.from(files).filter((f) => isMediaFile(f) && (
-            !f.type.startsWith('video/') || f.type === 'video/mp4' || /\.mp4$/i.test(f.name || '')
-          ))
-          submitFiles(filtered)
+          submitFiles(files)
         })
 
         function stopLightboxVideo() {
