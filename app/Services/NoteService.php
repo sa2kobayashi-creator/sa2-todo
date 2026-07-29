@@ -673,6 +673,7 @@ class NoteService
             if ($archived) {
                 $note->pinned = false;
             }
+            $note->sort_order = $this->nextFrontSortOrder((int) $note->user_id, $note->pinned, $note->archived);
             $note->save();
             $count++;
         }
@@ -905,7 +906,37 @@ class NoteService
             ->where('archived', $archived)
             ->min('sort_order');
 
-        return $min === null ? 0 : ((int) $min - 10);
+        $next = $min === null ? 0 : ((int) $min - 10);
+
+        // signed INT 下限に余裕を残す
+        if ($next < -2_000_000_000) {
+            $this->renumberNoteSortOrders($userId, $pinned, $archived);
+            $min = Note::query()
+                ->where('user_id', $userId)
+                ->where('pinned', $pinned)
+                ->where('archived', $archived)
+                ->min('sort_order');
+            $next = $min === null ? 0 : ((int) $min - 10);
+        }
+
+        return $next;
+    }
+
+    private function renumberNoteSortOrders(int $userId, bool $pinned, bool $archived): void
+    {
+        $ids = Note::query()
+            ->where('user_id', $userId)
+            ->where('pinned', $pinned)
+            ->where('archived', $archived)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id');
+
+        $order = 0;
+        foreach ($ids as $id) {
+            Note::query()->where('id', $id)->update(['sort_order' => $order]);
+            $order += 10;
+        }
     }
 
     /** @param list<array<string, mixed>> $list */

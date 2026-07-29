@@ -22,24 +22,45 @@ class PhotoController extends Controller
         $albumId = $request->query('album') !== null && $request->query('album') !== ''
             ? (int) $request->query('album')
             : null;
+        $sort = (string) $request->query('sort', 'taken_desc');
+        if (! in_array($sort, ['taken_desc', 'taken_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc'], true)) {
+            $sort = 'taken_desc';
+        }
+        $year = $request->filled('year') ? (int) $request->query('year') : null;
         $albums = $this->photos->listAlbums($userId);
         $selectedAlbum = $albumId
             ? collect($albums)->firstWhere('id', $albumId)
             : null;
-        $photoList = $this->photos->listPhotos($userId, $albumId);
+        // 年選択肢用にフィルタ前の一覧（同一アルバム範囲）
+        $allForYears = $this->photos->listPhotos($userId, $albumId, 'taken_desc', null);
+        $photoList = $this->photos->listPhotos($userId, $albumId, $sort, $year);
         $ownedAlbums = array_values(array_filter($albums, fn ($a) => ! empty($a['canManage'])));
+        $queryBase = [];
+        if ($albumId) {
+            $queryBase['album'] = $albumId;
+        }
+        if ($sort !== 'taken_desc') {
+            $queryBase['sort'] = $sort;
+        }
+        if ($year) {
+            $queryBase['year'] = $year;
+        }
+        $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
 
         return view('photos.index', [
             'albums' => $albums,
             'ownedAlbums' => $ownedAlbums,
             'photos' => $photoList,
-            'photoGroups' => $this->photos->groupPhotosByDate($photoList),
+            'photoGroups' => $this->photos->groupPhotosForDisplay($photoList, $sort),
+            'photoYears' => $this->photos->photoYearOptions($allForYears),
+            'photosSort' => $sort,
+            'photosYear' => $year,
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
             'canManageSelected' => ! empty($selectedAlbum['canManage']),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'storageStats' => $this->photos->storageStats($userId),
-            'returnTo' => '/photos'.($albumId ? '?album='.$albumId : ''),
+            'returnTo' => '/photos'.$returnQuery,
             'uploadLimits' => [
                 'postMaxBytes' => $this->iniBytes((string) ini_get('post_max_size')),
                 'uploadMaxBytes' => $this->iniBytes((string) ini_get('upload_max_filesize')),
@@ -138,6 +159,16 @@ class PhotoController extends Controller
         }
 
         $allowDuplicates = $request->boolean('allow_duplicates');
+        $takenAts = $request->input('taken_ats', []);
+        if (! is_array($takenAts)) {
+            $takenAts = [];
+        }
+        $takenAtByIndex = [];
+        foreach ($takenAts as $i => $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $takenAtByIndex[(int) $i] = trim($value);
+            }
+        }
 
         try {
             $result = $this->photos->uploadPhotos(
@@ -145,7 +176,8 @@ class PhotoController extends Controller
                 $files,
                 $albumId,
                 $thumbsByIndex,
-                $allowDuplicates
+                $allowDuplicates,
+                $takenAtByIndex
             );
         } catch (\InvalidArgumentException $e) {
             if ($wantsJson) {
@@ -303,7 +335,8 @@ class PhotoController extends Controller
                 $albumId,
                 $thumb,
                 $request->input('mime'),
-                $allowDuplicates
+                $allowDuplicates,
+                $request->input('taken_at')
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);

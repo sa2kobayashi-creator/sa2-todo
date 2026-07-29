@@ -48,15 +48,23 @@
               />
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
             </label>
-            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('カメラで撮ってすぐ追加') }}">
+            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('背面カメラで撮影して追加（写真）') }}">
               <input
                 type="file"
                 id="photos-camera-input"
-                accept="image/*,video/mp4,video/*"
+                accept="image/*"
                 capture="environment"
-                hidden
               />
               <span>{{ __('カメラで撮る') }}</span>
+            </label>
+            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('カメラで動画撮影（MP4）') }}">
+              <input
+                type="file"
+                id="photos-camera-video-input"
+                accept="video/mp4,video/*"
+                capture="environment"
+              />
+              <span>{{ __('動画を撮る') }}</span>
             </label>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
@@ -149,20 +157,30 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「カメラで撮る」ですぐ追加できます。フォルダ監視は Chrome 等でページを開いている間のみ可能です（スマホのカメラロール常時監視はブラウザ制限で不可）。') }}</span>
+          <span>{{ __('「カメラで撮る」は背面カメラで撮影します。「フォルダを監視」は PC の Chrome 等で、DCIM や Camera フォルダを選ぶとサブフォルダも監視します（ページを開いている間のみ。スマホの常時同期はブラウザ制限で不可）。') }}</span>
           <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
       </aside>
 
       <section class="photos-album-covers" aria-label="アルバム">
-        <a href="/photos" @class(['photos-cover-card', 'is-all', 'is-active' => !$selectedAlbumId])>
+        <a
+          href="/photos{{ request()->filled('sort') || request()->filled('year') ? '?'.http_build_query(array_filter(['sort' => request('sort'), 'year' => request('year')])) : '' }}"
+          @class(['photos-cover-card', 'is-all', 'is-active' => !$selectedAlbumId])
+        >
           <span class="photos-cover-all-label">{{ __('すべて') }}</span>
           <span class="photos-cover-meta">{{ count($photos) }}{{ __('枚を表示中') }}</span>
         </a>
         @foreach($albums as $album)
+          @php
+            $albumQuery = array_filter([
+              'album' => $album['id'],
+              'sort' => request('sort'),
+              'year' => request('year'),
+            ], fn ($v) => $v !== null && $v !== '');
+          @endphp
           <a
-            href="/photos?album={{ $album['id'] }}"
+            href="/photos?{{ http_build_query($albumQuery) }}"
             @class(['photos-cover-card', 'is-active' => $selectedAlbumId === $album['id']])
           >
             @if(!empty($album['coverUrl']))
@@ -220,6 +238,26 @@
             <button type="button" class="photos-mode-btn" data-photos-kind="image" aria-pressed="false">{{ __('写真') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
           </div>
+          <label class="photos-toolbar-select">
+            <span class="visually-hidden">{{ __('並び替え') }}</span>
+            <select id="photos-sort-select" aria-label="{{ __('並び替え') }}">
+              <option value="taken_desc" @selected(($photosSort ?? 'taken_desc') === 'taken_desc')>{{ __('撮影日（新しい順）') }}</option>
+              <option value="taken_asc" @selected(($photosSort ?? '') === 'taken_asc')>{{ __('撮影日（古い順）') }}</option>
+              <option value="name_asc" @selected(($photosSort ?? '') === 'name_asc')>{{ __('名前（A→Z）') }}</option>
+              <option value="name_desc" @selected(($photosSort ?? '') === 'name_desc')>{{ __('名前（Z→A）') }}</option>
+              <option value="size_desc" @selected(($photosSort ?? '') === 'size_desc')>{{ __('サイズ（大きい順）') }}</option>
+              <option value="size_asc" @selected(($photosSort ?? '') === 'size_asc')>{{ __('サイズ（小さい順）') }}</option>
+            </select>
+          </label>
+          <label class="photos-toolbar-select">
+            <span class="visually-hidden">{{ __('年で絞り込み') }}</span>
+            <select id="photos-year-select" aria-label="{{ __('年で絞り込み') }}">
+              <option value="" @selected(empty($photosYear))>{{ __('すべての年') }}</option>
+              @foreach(($photoYears ?? []) as $yearOpt)
+                <option value="{{ $yearOpt }}" @selected((int) ($photosYear ?? 0) === (int) $yearOpt)>{{ __(':year年', ['year' => $yearOpt]) }}</option>
+              @endforeach
+            </select>
+          </label>
           <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
             <span class="photos-cols-icon" aria-hidden="true">
               <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
@@ -1176,10 +1214,13 @@
         const usageOpenBtn = document.getElementById('photos-usage-open')
         const installBtn = document.getElementById('photos-pwa-install')
         const cameraInput = document.getElementById('photos-camera-input')
+        const cameraVideoInput = document.getElementById('photos-camera-video-input')
         const folderWatchBtn = document.getElementById('photos-folder-watch-btn')
         const folderWatchStop = document.getElementById('photos-folder-watch-stop')
         const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
+        const photosSortSelect = document.getElementById('photos-sort-select')
+        const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
         let deferredPrompt = null
         let uploading = false
@@ -1190,6 +1231,34 @@
           added: 0,
           name: '',
         }
+
+        function takenAtHintFromFile(file) {
+          const ms = Number(file?.lastModified) || 0
+          if (!ms) return ''
+          try {
+            return new Date(ms).toISOString()
+          } catch (_) {
+            return ''
+          }
+        }
+
+        function applyPhotosListQuery(patch = {}) {
+          const url = new URL(window.location.href)
+          const next = {
+            album: url.searchParams.get('album') || '',
+            sort: photosSortSelect?.value || 'taken_desc',
+            year: photosYearSelect?.value || '',
+            ...patch,
+          }
+          ;['album', 'sort', 'year'].forEach((key) => url.searchParams.delete(key))
+          if (next.album) url.searchParams.set('album', next.album)
+          if (next.sort && next.sort !== 'taken_desc') url.searchParams.set('sort', next.sort)
+          if (next.year) url.searchParams.set('year', next.year)
+          window.location.assign(url.pathname + url.search + url.hash)
+        }
+
+        photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
+        photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
 
         function isVideoFile(file) {
           return !!file && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name || ''))
@@ -1435,6 +1504,8 @@
           if (albumId) done.append('album_id', albumId)
           if (file.type) done.append('mime', file.type)
           if (allowDuplicates) done.append('allow_duplicates', '1')
+          const takenHint = takenAtHintFromFile(file)
+          if (takenHint) done.append('taken_at', takenHint)
           if (thumb) done.append('video_thumb', thumb, thumb.name)
           if (typeof onProgress === 'function') onProgress(95, `保存中… ${fileLabel}`)
           const complete = await postUploadFormDataWithRetry('/photos/upload/complete', done, {
@@ -1453,6 +1524,8 @@
           if (albumId) fd.append('album_id', albumId)
           if (allowDuplicates) fd.append('allow_duplicates', '1')
           fd.append('photos[]', file, file.name)
+          const takenHint = takenAtHintFromFile(file)
+          if (takenHint) fd.append('taken_ats[]', takenHint)
           if (thumb) {
             fd.append('video_thumbs[]', thumb, thumb.name)
             fd.append('video_thumb_for', '0')
@@ -1654,20 +1727,28 @@
           setFolderWatchStatus('', false)
         }
 
-        async function collectNewFilesFromDir(dirHandle) {
+        async function collectNewFilesFromDir(dirHandle, { markSeen = false, depth = 0, maxDepth = 4 } = {}) {
           const files = []
           for await (const entry of dirHandle.values()) {
+            if (entry.kind === 'directory') {
+              if (depth < maxDepth) {
+                try {
+                  const nested = await collectNewFilesFromDir(entry, { markSeen, depth: depth + 1, maxDepth })
+                  files.push(...nested)
+                } catch (_) {}
+              }
+              continue
+            }
             if (entry.kind !== 'file') continue
             try {
               const file = await entry.getFile()
               if (!isMediaFile(file)) continue
-              // 動画は mp4 のみ本番アップロード対象
               if (file.type.startsWith('video/') && file.type !== 'video/mp4' && !/\.mp4$/i.test(file.name || '')) {
                 continue
               }
               const key = fileWatchKey(file)
               if (folderWatch.seen.has(key)) continue
-              folderWatch.seen.add(key)
+              if (markSeen) folderWatch.seen.add(key)
               files.push(file)
             } catch (_) {}
           }
@@ -1677,15 +1758,19 @@
         async function pollFolderWatch() {
           if (!folderWatch.handle || uploading) return
           try {
-            const permission = await folderWatch.handle.queryPermission?.({ mode: 'read' })
-              ?? await folderWatch.handle.requestPermission?.({ mode: 'read' })
-            if (permission && permission !== 'granted') {
-              setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')))
-              stopFolderWatch()
-              if (folderWatchBtn) folderWatchBtn.hidden = false
-              return
+            if (typeof folderWatch.handle.requestPermission === 'function') {
+              const permission = await folderWatch.handle.queryPermission?.({ mode: 'read' })
+              if (permission !== 'granted') {
+                const next = await folderWatch.handle.requestPermission({ mode: 'read' })
+                if (next !== 'granted') {
+                  setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')))
+                  stopFolderWatch()
+                  if (folderWatchBtn) folderWatchBtn.hidden = false
+                  return
+                }
+              }
             }
-            const newcomers = await collectNewFilesFromDir(folderWatch.handle)
+            const newcomers = await collectNewFilesFromDir(folderWatch.handle, { markSeen: false })
             if (!newcomers.length) {
               setFolderWatchStatus(
                 @json(__('監視中: :name（追加 :count 件）'))
@@ -1698,12 +1783,16 @@
               @json(__('監視中: 新規 :n 件を追加中…')).replace(':n', String(newcomers.length))
             )
             const result = await submitFiles(newcomers, { soft: true })
+            newcomers.forEach((file) => folderWatch.seen.add(fileWatchKey(file)))
             folderWatch.added += result.created || 0
             setFolderWatchStatus(
-              @json(__('監視中: :name（追加 :count 件）・一覧は再読み込みで更新'))
+              @json(__('監視中: :name（追加 :count 件）'))
                 .replace(':name', folderWatch.name || 'folder')
                 .replace(':count', String(folderWatch.added))
             )
+            if ((result.created || 0) > 0) {
+              window.location.reload()
+            }
           } catch (err) {
             setFolderWatchStatus(@json(__('フォルダ監視でエラーが発生しました。')))
           }
@@ -1711,7 +1800,7 @@
 
         async function startFolderWatch() {
           if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。')))
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「カメラで撮る」か「写真・動画を追加」を使ってください。')))
             return
           }
           try {
@@ -1720,19 +1809,17 @@
             folderWatch.name = handle.name || 'folder'
             folderWatch.added = 0
             folderWatch.seen = new Set()
-            // 初回は既存ファイルを「既知」にして、これから増えたものだけ送る
-            const existing = await collectNewFilesFromDir(handle)
-            // collectNewFilesFromDir marks them as seen; discard list
-            void existing
+            await collectNewFilesFromDir(handle, { markSeen: true })
             if (folderWatchBtn) folderWatchBtn.hidden = true
             if (folderWatchStop) folderWatchStop.hidden = false
             setFolderWatchStatus(
-              @json(__('監視中: :name（追加 :count 件）'))
+              @json(__('監視中: :name（サブフォルダ含む・追加 :count 件）'))
                 .replace(':name', folderWatch.name)
                 .replace(':count', '0')
             )
             if (folderWatch.timer) clearInterval(folderWatch.timer)
-            folderWatch.timer = setInterval(() => { void pollFolderWatch() }, 8000)
+            folderWatch.timer = setInterval(() => { void pollFolderWatch() }, 5000)
+            void pollFolderWatch()
           } catch (err) {
             if (err && err.name === 'AbortError') return
             window.alert(@json(__('フォルダを開けませんでした。')))
@@ -1747,14 +1834,7 @@
           })
         })
 
-        document.querySelectorAll('.photos-camera-btn').forEach((btn) => {
-          btn.addEventListener('click', (e) => {
-            if (e.target === cameraInput) return
-            e.preventDefault()
-            cameraInput?.click()
-          })
-        })
-
+        // カメラは label + input のネイティブ動作を使い、ギャラリー優先を避ける
         fileInput?.addEventListener('change', () => {
           if (!fileInput.files?.length) return
           submitFiles(fileInput.files)
@@ -1765,6 +1845,12 @@
           if (!cameraInput.files?.length) return
           submitFiles(cameraInput.files)
           cameraInput.value = ''
+        })
+
+        cameraVideoInput?.addEventListener('change', () => {
+          if (!cameraVideoInput.files?.length) return
+          submitFiles(cameraVideoInput.files)
+          cameraVideoInput.value = ''
         })
 
         if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {

@@ -565,30 +565,135 @@ class PhotoService
     }
 
     /** @return list<array<string, mixed>> */
-    public function listPhotos(int $userId, ?int $albumId = null): array
-    {
+    public function listPhotos(
+        int $userId,
+        ?int $albumId = null,
+        string $sort = 'taken_desc',
+        ?int $year = null
+    ): array {
+        $query = Photo::query();
         if ($albumId !== null) {
             $album = $this->findViewableAlbum($userId, $albumId);
             if (! $album) {
                 return [];
             }
-
-            return Photo::query()
-                ->where('album_id', $albumId)
-                ->orderByDesc('taken_at')
-                ->orderByDesc('id')
-                ->get()
-                ->map(fn (Photo $photo) => $this->photoToArray($photo, $userId))
-                ->all();
+            $query->where('album_id', $albumId);
+        } else {
+            $query->where('user_id', $userId);
         }
 
-        return Photo::query()
-            ->where('user_id', $userId)
-            ->orderByDesc('taken_at')
-            ->orderByDesc('id')
+        if ($year !== null && $year >= 1970 && $year <= 2100) {
+            $query->whereYear('taken_at', $year);
+        }
+
+        match ($sort) {
+            'taken_asc' => $query->orderBy('taken_at')->orderBy('id'),
+            'name_asc' => $query->orderBy('original_name')->orderByDesc('id'),
+            'name_desc' => $query->orderByDesc('original_name')->orderByDesc('id'),
+            'size_desc' => $query->orderByDesc('size_bytes')->orderByDesc('id'),
+            'size_asc' => $query->orderBy('size_bytes')->orderByDesc('id'),
+            default => $query->orderByDesc('taken_at')->orderByDesc('id'),
+        };
+
+        return $query
             ->get()
             ->map(fn (Photo $photo) => $this->photoToArray($photo, $userId))
             ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $photos
+     * @return list<int>
+     */
+    public function photoYearOptions(array $photos): array
+    {
+        $years = [];
+        foreach ($photos as $photo) {
+            $date = substr((string) ($photo['takenAt'] ?? ''), 0, 4);
+            if (preg_match('/^\d{4}$/', $date)) {
+                $years[(int) $date] = true;
+            }
+        }
+        $list = array_keys($years);
+        rsort($list);
+
+        return $list;
+    }
+
+    /**
+     * コピー元の撮影日時を優先: EXIF → クライアントヒント → サーバー時刻。
+     */
+    public function resolveTakenAtForUpload(UploadedFile $file, ?string $clientHint = null): \Carbon\Carbon
+    {
+        $fromExif = $this->readTakenAtFromExif($file);
+        if ($fromExif !== null) {
+            return $fromExif;
+        }
+
+        $fromClient = $this->normalizeTakenAt($clientHint);
+        if ($fromClient !== null) {
+            return $fromClient;
+        }
+
+        return now();
+    }
+
+    private function readTakenAtFromExif(UploadedFile $file): ?\Carbon\Carbon
+    {
+        $path = $file->getRealPath();
+        if (! is_string($path) || $path === '' || ! function_exists('exif_read_data')) {
+            return null;
+        }
+
+        $mime = strtolower((string) ($file->getMimeType() ?: ''));
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $looksJpeg = str_contains($mime, 'jpeg') || str_contains($mime, 'jpg') || in_array($ext, ['jpg', 'jpeg'], true);
+        if (! $looksJpeg) {
+            return null;
+        }
+
+        try {
+            $exif = @exif_read_data($path, 'EXIF', true);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (! is_array($exif)) {
+            return null;
+        }
+
+        $candidates = [
+            $exif['EXIF']['DateTimeOriginal'] ?? null,
+            $exif['EXIF']['DateTimeDigitized'] ?? null,
+            $exif['IFD0']['DateTime'] ?? null,
+            $exif['DateTimeOriginal'] ?? null,
+            $exif['DateTime'] ?? null,
+        ];
+
+        $tz = config('app.timezone', 'Asia/Tokyo');
+        foreach ($candidates as $raw) {
+            if (! is_string($raw) || trim($raw) === '') {
+                continue;
+            }
+            $normalized = str_replace('-', ':', trim($raw));
+            // EXIF: "YYYY:MM:DD HH:MM:SS"
+            if (preg_match('/^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/', $normalized, $m)) {
+                try {
+                    return \Carbon\Carbon::create(
+                        (int) $m[1],
+                        (int) $m[2],
+                        (int) $m[3],
+                        (int) $m[4],
+                        (int) $m[5],
+                        (int) $m[6],
+                        $tz
+                    );
+                } catch (\Throwable) {
+                    continue;
+                }
+            }
+        }
+
+        return null;
     }
 
     /** @return list<array<string, mixed>> */
@@ -598,6 +703,23 @@ class PhotoService
             $this->listPhotos($userId),
             static fn (array $photo): bool => ($photo['mediaKind'] ?? '') === 'video'
         ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $photos
+     * @return list<array{date: string, label: string, photos: list<array<string, mixed>>}>
+     */
+    public function groupPhotosForDisplay(array $photos, string $sort = 'taken_desc'): array
+    {
+        if (in_array($sort, ['name_asc', 'name_desc', 'size_asc', 'size_desc'], true)) {
+            return [[
+                'date' => 'all',
+                'label' => __('すべて'),
+                'photos' => $photos,
+            ]];
+        }
+
+        return $this->groupPhotosByDate($photos);
     }
 
     /**
@@ -736,7 +858,8 @@ class PhotoService
         array $files,
         ?int $albumId = null,
         array $videoThumbsByIndex = [],
-        bool $allowDuplicates = false
+        bool $allowDuplicates = false,
+        array $takenAtByIndex = []
     ): array {
         if ($albumId !== null) {
             $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -806,7 +929,10 @@ class PhotoService
                     'content_hash' => $allowDuplicates ? null : $hash,
                     'width' => $stored['width'],
                     'height' => $stored['height'],
-                    'taken_at' => now(),
+                    'taken_at' => $this->resolveTakenAtForUpload(
+                        $file,
+                        is_string($takenAtByIndex[$index] ?? null) ? $takenAtByIndex[$index] : null
+                    ),
                     'sort_order' => $nextOrder,
                     'storage_tier' => $target['tier'],
                     'cold_disk' => in_array($target['tier'], ['cold', 'overflow'], true) ? $target['disk'] : null,
@@ -1153,7 +1279,8 @@ class PhotoService
         ?int $albumId = null,
         ?UploadedFile $videoThumb = null,
         ?string $mimeHint = null,
-        bool $allowDuplicates = false
+        bool $allowDuplicates = false,
+        ?string $takenAtHint = null
     ): array {
         $uploadId = $this->assertChunkUploadId($uploadId);
         $dir = $this->chunkDir($userId, $uploadId);
@@ -1208,7 +1335,8 @@ class PhotoService
                 [$uploaded],
                 $albumId,
                 $videoThumb ? [0 => $videoThumb] : [],
-                $allowDuplicates
+                $allowDuplicates,
+                $takenAtHint !== null && $takenAtHint !== '' ? [0 => $takenAtHint] : []
             );
         } finally {
             $this->deleteChunkDir($userId, $uploadId);

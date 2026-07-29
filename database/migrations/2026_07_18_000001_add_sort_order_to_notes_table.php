@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('notes', function (Blueprint $table) {
-            $table->unsignedInteger('sort_order')->default(0)->after('pinned');
+            $table->integer('sort_order')->default(0)->after('pinned');
             $table->index('sort_order');
         });
 
