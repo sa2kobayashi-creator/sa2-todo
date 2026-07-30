@@ -881,7 +881,8 @@ class PhotoService
 
     /**
      * @param  list<UploadedFile>  $files
-     * @param  array<int, UploadedFile>  $videoThumbsByIndex  photos[] のインデックス => サムネ JPEG
+     * @param  array<int, string>  $takenAtByIndex
+     * @param  array<int, string>  $contentHashByIndex  クライアント計算の sa2-photo-v1 / SHA-256（再計算を省略）
      * @return array{created: list<array<string, mixed>>, skipped: list<array{name: string, hash: string}>}
      */
     public function uploadPhotos(
@@ -890,7 +891,8 @@ class PhotoService
         ?int $albumId = null,
         array $videoThumbsByIndex = [],
         bool $allowDuplicates = false,
-        array $takenAtByIndex = []
+        array $takenAtByIndex = [],
+        array $contentHashByIndex = []
     ): array {
         if ($albumId !== null) {
             $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -915,7 +917,12 @@ class PhotoService
             $this->assertValidUpload($file);
 
             $path = $file->getRealPath();
-            $hash = is_string($path) && $path !== '' ? $this->computeContentHashFromPath($path) : null;
+            $clientHash = $contentHashByIndex[$index] ?? null;
+            if (is_string($clientHash) && preg_match('/^[a-f0-9]{64}$/i', trim($clientHash))) {
+                $hash = strtolower(trim($clientHash));
+            } else {
+                $hash = is_string($path) && $path !== '' ? $this->computeContentHashFromPath($path) : null;
+            }
             $originalName = mb_substr((string) $file->getClientOriginalName(), 0, 255);
 
             if ($hash && ! $allowDuplicates && $this->findOwnedByContentHash($userId, $hash)) {
@@ -988,7 +995,7 @@ class PhotoService
             $nextOrder -= 10;
             $this->bumpUsedBytesApproxCache($userId, (int) ($stored['sizeBytes'] ?? 0) + 80_000);
             $this->maybeSyncCloudinary($photo);
-            $created[] = $this->photoToArray($photo->fresh() ?? $photo, $userId);
+            $created[] = $this->photoToArray($photo, $userId);
 
             if ($albumId !== null) {
                 $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -1316,7 +1323,8 @@ class PhotoService
         ?UploadedFile $videoThumb = null,
         ?string $mimeHint = null,
         bool $allowDuplicates = false,
-        ?string $takenAtHint = null
+        ?string $takenAtHint = null,
+        ?string $contentHash = null
     ): array {
         $uploadId = $this->assertChunkUploadId($uploadId);
         $dir = $this->chunkDir($userId, $uploadId);
@@ -1372,7 +1380,8 @@ class PhotoService
                 $albumId,
                 $videoThumb ? [0 => $videoThumb] : [],
                 $allowDuplicates,
-                $takenAtHint !== null && $takenAtHint !== '' ? [0 => $takenAtHint] : []
+                $takenAtHint !== null && $takenAtHint !== '' ? [0 => $takenAtHint] : [],
+                is_string($contentHash) && $contentHash !== '' ? [0 => $contentHash] : []
             );
         } finally {
             $this->deleteChunkDir($userId, $uploadId);
@@ -2786,15 +2795,9 @@ class PhotoService
             return;
         }
 
-        $isVideo = $this->isVideoMime((string) $photo->mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION));
-
         try {
-            if ($isVideo) {
-                // 大容量になりやすいのでキューへ
-                SyncPhotoToCloudinary::dispatch($photo->id);
-            } else {
-                $this->cloudinary->syncPhoto($photo);
-            }
+            // レスポンス返却後に実行（同期キューでもアップロード待ちを伸ばさない）
+            SyncPhotoToCloudinary::dispatch($photo->id)->afterResponse();
         } catch (\Throwable $e) {
             report($e);
         }

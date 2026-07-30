@@ -1422,7 +1422,7 @@
               'postMaxBytes' => 134217728,
               'uploadMaxBytes' => 134217728,
               'videoMaxBytes' => 838860800,
-              'chunkBytes' => 4194304,
+              'chunkBytes' => 8388608,
           ];
         @endphp
         const uploadLimits = @json($photosUploadLimits);
@@ -1555,7 +1555,7 @@
           return existing
         }
 
-        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap }) {
+        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash }) {
           const chunkBytes = Math.max(1 * 1024 * 1024, Number(uploadLimits.chunkBytes) || 4 * 1024 * 1024)
           const total = Math.max(1, Math.ceil((Number(file.size) || 0) / chunkBytes))
           const uploadId = newUploadId()
@@ -1585,6 +1585,7 @@
           if (allowDuplicates) done.append('allow_duplicates', '1')
           const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) done.append('taken_at', takenHint)
+          if (contentHash) done.append('content_hash', contentHash)
           if (thumb) done.append('video_thumb', thumb, thumb.name)
           if (typeof onProgress === 'function') onProgress(95, `保存中… ${fileLabel}`)
           const complete = await postUploadFormDataWithRetry('/photos/upload/complete', done, {
@@ -1597,7 +1598,7 @@
           }
         }
 
-        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap }) {
+        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash }) {
           const fd = new FormData()
           fd.append('returnTo', returnTo)
           if (albumId) fd.append('album_id', albumId)
@@ -1605,6 +1606,7 @@
           fd.append('photos[]', file, file.name)
           const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) fd.append('taken_ats[]', takenHint)
+          if (contentHash) fd.append('content_hashes[]', contentHash)
           if (thumb) {
             fd.append('video_thumbs[]', thumb, thumb.name)
             fd.append('video_thumb_for', '0')
@@ -1687,14 +1689,15 @@
             }
 
             for (let i = 0; i < queue.length; i++) {
-              const { file, displayName } = queue[i]
+              const { file, displayName, hash } = queue[i]
               const fileLabel = `${i + 1}/${queue.length}`
 
               setUploadProgress(`準備中… ${fileLabel}`)
+              // 動画サムネは時間をかけない（失敗時はサーバー側プレースホルダ）
               let thumb = null
               if (isVideoFile(file)) {
                 setUploadProgress(`サムネ準備… ${fileLabel}`)
-                thumb = await captureVideoThumb(file, 2500)
+                thumb = await captureVideoThumb(file, 800)
               }
 
               try {
@@ -1704,8 +1707,8 @@
                 for (let attempt = 1; attempt <= 2; attempt++) {
                   try {
                     result = shouldUseChunkedUpload(file)
-                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap })
-                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap })
+                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash })
+                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash })
                     lastErr = null
                     break
                   } catch (err) {

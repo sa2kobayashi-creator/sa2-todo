@@ -65,7 +65,7 @@ class PhotoController extends Controller
                 'postMaxBytes' => $this->iniBytes((string) ini_get('post_max_size')),
                 'uploadMaxBytes' => $this->iniBytes((string) ini_get('upload_max_filesize')),
                 'videoMaxBytes' => $this->photos->maxVideoUploadBytes(),
-                'chunkBytes' => 4 * 1024 * 1024,
+                'chunkBytes' => 8 * 1024 * 1024,
             ],
             'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
             'stabilityEnhanceReady' => $this->enhanceButtonReady(),
@@ -169,6 +169,16 @@ class PhotoController extends Controller
                 $takenAtByIndex[(int) $i] = trim($value);
             }
         }
+        $contentHashes = $request->input('content_hashes', []);
+        if (! is_array($contentHashes)) {
+            $contentHashes = [];
+        }
+        $contentHashByIndex = [];
+        foreach ($contentHashes as $i => $value) {
+            if (is_string($value) && preg_match('/^[a-f0-9]{64}$/i', trim($value))) {
+                $contentHashByIndex[(int) $i] = strtolower(trim($value));
+            }
+        }
 
         try {
             $result = $this->photos->uploadPhotos(
@@ -177,7 +187,8 @@ class PhotoController extends Controller
                 $albumId,
                 $thumbsByIndex,
                 $allowDuplicates,
-                $takenAtByIndex
+                $takenAtByIndex,
+                $contentHashByIndex
             );
         } catch (\InvalidArgumentException $e) {
             if ($wantsJson) {
@@ -336,7 +347,8 @@ class PhotoController extends Controller
                 $thumb,
                 $request->input('mime'),
                 $allowDuplicates,
-                $request->input('taken_at')
+                $request->input('taken_at'),
+                $request->input('content_hash')
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
