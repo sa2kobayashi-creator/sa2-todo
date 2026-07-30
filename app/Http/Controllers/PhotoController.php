@@ -380,6 +380,56 @@ class PhotoController extends Controller
         ]);
     }
 
+    /**
+     * R2 の古い原本を Backblaze B2 へ移す（photos:archive-cold 相当）。
+     */
+    public function archiveCold(Request $request)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+
+        $limit = max(1, min(500, (int) $request->input('limit', 200)));
+        $archive = app(\App\Services\PhotoColdArchiveService::class);
+
+        try {
+            $stats = $archive->archiveDuePhotos($limit);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => __('アーカイブに失敗しました: :err', [
+                    'err' => mb_substr($e->getMessage(), 0, 180),
+                ]),
+            ], 500);
+        }
+
+        $archived = (int) ($stats['archived'] ?? 0);
+        $skipped = (int) ($stats['skipped'] ?? 0);
+        $errors = (int) ($stats['errors'] ?? 0);
+        $mode = $this->mediaStorage->capacityMode();
+
+        $message = __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件（mode=:mode, limit=:limit）', [
+            'archived' => $archived,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'mode' => $mode,
+            'limit' => $limit,
+        ]);
+
+        return response()->json([
+            'ok' => $errors === 0,
+            'message' => $message,
+            'archived' => $archived,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'mode' => $mode,
+            'limit' => $limit,
+            'storageStats' => $this->photos->storageStats((int) $request->user()->id),
+        ], $errors > 0 ? 422 : 200);
+    }
+
     public function editImage(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');

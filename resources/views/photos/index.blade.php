@@ -106,6 +106,14 @@
             </span>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
+            @if(!empty($storageStats['archiveEnabled']))
+              <button
+                type="button"
+                class="photos-secondary-btn photos-storage-usage-btn"
+                id="photos-archive-cold-btn"
+                title="{{ __('古い常用原本を Backblaze B2 へ最大200件移します（photos:archive-cold）') }}"
+              >{{ __('B2へアーカイブ') }}</button>
+            @endif
           </span>
         </div>
         <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}" aria-label="{{ __('表示容量に対する使用量') }}">
@@ -3254,6 +3262,42 @@
             if (usageModal) usageModal.hidden = true
           })
         })
+
+        const archiveColdBtn = document.getElementById('photos-archive-cold-btn')
+        if (archiveColdBtn) {
+          archiveColdBtn.addEventListener('click', async () => {
+            if (archiveColdBtn.disabled) return
+            const ok = window.confirm(
+              @json(__('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。\nアップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？'))
+            )
+            if (!ok) return
+            const prev = archiveColdBtn.textContent
+            archiveColdBtn.disabled = true
+            archiveColdBtn.textContent = @json(__('アーカイブ中…'))
+            try {
+              const fd = new FormData()
+              fd.append('limit', '200')
+              fd.append('_token', readCsrfToken())
+              const res = await postUploadFormData('/photos/archive-cold', fd, {
+                timeoutMs: 15 * 60 * 1000,
+              })
+              const msg = res.data?.message || (res.ok
+                ? @json(__('アーカイブが完了しました'))
+                : @json(__('アーカイブに失敗しました')))
+              window.alert(msg)
+              if (res.ok || (res.data && Number(res.data.archived) > 0)) {
+                window.location.reload()
+              }
+            } catch (err) {
+              window.alert(err?.message === 'timeout'
+                ? @json(__('タイムアウトしました。しばらくしてから再度お試しください。'))
+                : @json(__('アーカイブに失敗しました')))
+            } finally {
+              archiveColdBtn.disabled = false
+              archiveColdBtn.textContent = prev
+            }
+          })
+        }
 
         const dupModal = document.getElementById('photos-dup-modal')
         const dupList = document.getElementById('photos-dup-list')
