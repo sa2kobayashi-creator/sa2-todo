@@ -237,6 +237,26 @@ class MediaStorageConfigService
         return in_array($this->capacityMode(), $this->capacityModes(), true);
     }
 
+    /**
+     * ストレージ設定の「有料枠を許可」がいずれか ON なら、製品無料枠超過後も追加を許可する。
+     * （実 Stripe 課金とは別。運営が明示的に超過利用を認めるスイッチ）
+     */
+    public function allowsPaidOverageFromSettings(): bool
+    {
+        foreach ([
+            MediaStorageSetting::PROVIDER_PIPELINE,
+            MediaStorageSetting::PROVIDER_R2,
+            MediaStorageSetting::PROVIDER_BACKBLAZE,
+            MediaStorageSetting::PROVIDER_CLOUDINARY,
+        ] as $provider) {
+            if ((bool) $this->get($provider)->setting('allow_paid_overage', false)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public const CAPACITY_MODE_R2_CAP = 'r2_cap';
 
     public const CAPACITY_MODE_AGE_ARCHIVE = 'age_archive';

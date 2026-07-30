@@ -29,6 +29,7 @@ class MediaStorageSettingsController extends Controller
                     'url' => (string) $request->input('url', ''),
                     'region' => (string) $request->input('region', 'auto'),
                     'use_path_style_endpoint' => $request->boolean('use_path_style_endpoint'),
+                    'allow_paid_overage' => $request->boolean('allow_paid_overage'),
                 ],
                 [
                     'access_key_id' => (string) $request->input('access_key_id', ''),
@@ -39,6 +40,7 @@ class MediaStorageSettingsController extends Controller
                 [
                     'cloud_name' => (string) $request->input('cloud_name', ''),
                     'folder' => (string) $request->input('folder', 'sa2todo'),
+                    'allow_paid_overage' => $request->boolean('allow_paid_overage'),
                 ],
                 [
                     'api_key' => (string) $request->input('api_key', ''),
@@ -52,6 +54,7 @@ class MediaStorageSettingsController extends Controller
                     'url' => (string) $request->input('url', ''),
                     'region' => (string) $request->input('region', 'us-west-004'),
                     'use_path_style_endpoint' => $request->boolean('use_path_style_endpoint', true),
+                    'allow_paid_overage' => $request->boolean('allow_paid_overage'),
                 ],
                 [
                     'key_id' => (string) $request->input('key_id', ''),
@@ -64,6 +67,7 @@ class MediaStorageSettingsController extends Controller
                         ? (string) $request->input('primary_disk')
                         : 'r2',
                     'use_cloudinary_display' => $request->boolean('use_cloudinary_display'),
+                    'allow_paid_overage' => $request->boolean('allow_paid_overage'),
                     'capacity_mode' => in_array($request->input('capacity_mode'), [
                         MediaStorageConfigService::CAPACITY_MODE_R2_CAP,
                         MediaStorageConfigService::CAPACITY_MODE_AGE_ARCHIVE,

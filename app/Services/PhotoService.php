@@ -89,10 +89,14 @@ class PhotoService
 
     /**
      * 将来の有料超過プラン（Stripe 等）でアップロード継続を許可するか。
-     * PHOTO_PAID_OVERAGE_ENABLED=true かつユーザー側フラグが立っているときのみ。
+     * ストレージ設定の「有料枠を許可」、または PHOTO_PAID_OVERAGE_ENABLED + ユーザーフラグ。
      */
     public function userAllowsPaidOverageUploads(int $userId): bool
     {
+        if ($this->mediaConfig->allowsPaidOverageFromSettings()) {
+            return true;
+        }
+
         if (! (bool) config('photos.paid_overage_enabled', false)) {
             return false;
         }
@@ -127,7 +131,7 @@ class PhotoService
         $free = $this->formatBytes($this->userFreeQuotaBytes());
         $used = $this->formatBytes($this->userUsedBytesApprox($userId));
         throw new \InvalidArgumentException(
-            __('無料枠（:free）を超えているため追加できません。使用量: :used。有料プラン連携後に超過分の利用が可能になります。', [
+            __('無料枠（:free）を超えているため追加できません。使用量: :used。設定 → ストレージで「有料枠（無料枠超過）を許可する」をオンにすると追加できます。', [
                 'free' => $free,
                 'used' => $used,
             ])

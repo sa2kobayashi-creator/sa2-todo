@@ -20,6 +20,11 @@
       <input type="checkbox" name="enabled" value="1" @checked(!empty($pipeline['enabled'])) />
       {{ __('パイプライン設定を有効にする') }}
     </label>
+    <label class="storage-enable">
+      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($pSettings['allow_paid_overage'])) />
+      {{ __('有料枠（無料枠超過）を許可する') }}
+    </label>
+    <p class="hint">{{ __('オンにすると、製品無料枠（合計20GB）を超えても写真・動画を追加できます。実課金ではなく、運営が超過利用を認めるスイッチです。') }}</p>
     <label>{{ __('原本の保存先') }}
       <select name="primary_disk">
         <option value="r2" @selected(($pSettings['primary_disk'] ?? 'r2') === 'r2')>Cloudflare R2</option>
@@ -137,6 +142,11 @@
       <input type="checkbox" name="enabled" value="1" @checked(!empty($r2['enabled'])) />
       {{ __('設定メニューの R2 認証情報を優先する') }}
     </label>
+    <label class="storage-enable">
+      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($r2Settings['allow_paid_overage'])) />
+      {{ __('有料枠（無料枠超過）を許可する') }}
+    </label>
+    <p class="hint">{{ __('オンにすると、製品無料枠を超えても追加できます（見込料金は表示のみ）。いずれかのストレージでオンなら全体で解除されます。') }}</p>
     <label>{{ __('Access Key ID') }}
       <input type="password" name="access_key_id" autocomplete="off" placeholder="{{ !empty($r2['hasSecrets']['access_key_id']) || ($r2Env['access_key_id'] ?? '') !== '' ? '••••••••' : '' }}" />
     </label>
@@ -181,6 +191,11 @@
       <input type="checkbox" name="enabled" value="1" @checked(!empty($cloudinary['enabled'])) />
       {{ __('Cloudinary を有効にする') }}
     </label>
+    <label class="storage-enable">
+      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($cSettings['allow_paid_overage'])) />
+      {{ __('有料枠（無料枠超過）を許可する') }}
+    </label>
+    <p class="hint">{{ __('オンにすると、製品無料枠を超えても追加できます。いずれかのストレージでオンなら全体で解除されます。') }}</p>
     <label>Cloud name
       <input type="text" name="cloud_name" value="{{ $cSettings['cloud_name'] ?? '' }}" autocomplete="off" />
     </label>
@@ -215,6 +230,11 @@
       <input type="checkbox" name="enabled" value="1" @checked(!empty($backblaze['enabled'])) />
       {{ __('Backblaze B2 を有効にする') }}
     </label>
+    <label class="storage-enable">
+      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($bSettings['allow_paid_overage'])) />
+      {{ __('有料枠（無料枠超過）を許可する') }}
+    </label>
+    <p class="hint">{{ __('オンにすると、製品無料枠を超えても追加できます。いずれかのストレージでオンなら全体で解除されます。') }}</p>
     <label>Key ID
       <input type="password" name="key_id" autocomplete="off" placeholder="{{ !empty($backblaze['hasSecrets']['key_id']) ? '••••••••' : '' }}" />
     </label>

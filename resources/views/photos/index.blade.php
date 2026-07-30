@@ -116,7 +116,7 @@
         </div>
         @if(!empty($storageStats['uploadsBlocked']))
           <p class="photos-storage-block-note" role="alert">
-            {{ __('無料枠（:free）を超えているため、新規の写真・動画の追加はできません。超過分の見込は約 :bill です。有料プラン連携後に超過利用が可能になります。', [
+            {{ __('無料枠（:free）を超えているため、新規の写真・動画の追加はできません。超過分の見込は約 :bill です。設定 → ストレージで「有料枠（無料枠超過）を許可する」をオンにすると追加できます。', [
               'free' => $storageStats['formattedCombinedQuota'],
               'bill' => $storageStats['estimatedTotalBillLabel'] ?? '—',
             ]) }}
