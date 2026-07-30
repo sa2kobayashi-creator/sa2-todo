@@ -208,14 +208,26 @@ class PhotoColdArchiveService
         return $stats;
     }
 
+    /**
+     * R2（ホット側）使用量。使用状況表示と同じく「ホット原本 + サムネ概算」。
+     * サムネはコールド移行後も一覧用に R2 に残るため、全件分を加算する。
+     */
     private function hotUsedBytes(int $userId): int
     {
-        return (int) Photo::query()
+        $hotOriginals = (int) Photo::query()
             ->where('user_id', $userId)
             ->where(function ($q) {
                 $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
             })
             ->sum('size_bytes');
+
+        // PhotoService::storageStats の thumbExtra と同じ概算（1枚あたり約 80KB）
+        $thumbExtra = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('thumb_path')
+            ->count() * 80_000;
+
+        return $hotOriginals + $thumbExtra;
     }
 
     private function archiveOne(Photo $photo, string $hotDisk, string $coldDisk): bool
