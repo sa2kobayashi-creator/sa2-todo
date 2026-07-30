@@ -219,8 +219,11 @@ class PhotoService
 
         // 製品無料枠は常にユーザー合計 20GB（R2+B2 合算相当）。ホット/コールドの内訳は表示用。
         $combinedQuota = $this->userFreeQuotaBytes();
+        $displayCapacity = max(1, (int) config('photos.storage_display_capacity_bytes', 1024 * 1024 * 1024 * 1024));
         $barUsed = $usedApprox;
-        $percent = round(($barUsed / max(1, $combinedQuota)) * 100, 1);
+        // メインバーは表示容量（既定 1TiB）基準。無料枠超過バッジは別判定。
+        $percent = round(($barUsed / $displayCapacity) * 100, 1);
+        $freeMarkPercent = round(($combinedQuota / $displayCapacity) * 100, 2);
         $capacityMode = $this->mediaConfig->capacityMode();
 
         // 見込課金: 合計無料枠超過分を主単価で概算（2A）。将来 2B では請求エンジンへ接続。
@@ -416,12 +419,15 @@ class PhotoService
             'usedBytes' => $usedApprox,
             'quotaBytes' => $quota,
             'combinedQuotaBytes' => $combinedQuota,
+            'displayCapacityBytes' => $displayCapacity,
             'percent' => $percent,
+            'freeMarkPercent' => min(100, $freeMarkPercent),
             'photoCount' => $photoCount,
             'remainingBytes' => max(0, $combinedQuota - $barUsed),
             'formattedUsed' => $this->formatBytes($barUsed),
             'formattedQuota' => $this->formatBytes($quota),
             'formattedCombinedQuota' => $this->formatBytes($combinedQuota),
+            'formattedDisplayCapacity' => $this->formatBytes($displayCapacity),
             'formattedTotalUsed' => $this->formatBytes($usedApprox),
             'disk' => $disk,
             'diskLabel' => $diskLabel,
@@ -2065,8 +2071,14 @@ class PhotoService
         if ($bytes < 1024 * 1024 * 1024) {
             return round($bytes / (1024 * 1024), 1).' MB';
         }
+        if ($bytes < 1024 * 1024 * 1024 * 1024) {
+            return round($bytes / (1024 * 1024 * 1024), 2).' GB';
+        }
 
-        return round($bytes / (1024 * 1024 * 1024), 2).' GB';
+        $tb = $bytes / (1024 * 1024 * 1024 * 1024);
+        $decimals = $tb >= 10 ? 1 : 2;
+
+        return round($tb, $decimals).' TB';
     }
 
     /**

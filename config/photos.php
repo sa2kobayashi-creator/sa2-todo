@@ -13,6 +13,15 @@ return [
     /** ユーザーあたりの無料枠（合計バイト）。R2+B2 合算の製品無料枠。既定 20GB */
     'user_free_quota_bytes' => (int) env('PHOTO_USER_FREE_QUOTA_BYTES', 20 * 1024 * 1024 * 1024),
 
+    /**
+     * 保存容量バーの表示上限（バイト）。使用量グラフの「満杯」基準。既定 1TiB。
+     * 無料枠（user_free_quota_bytes）とは別。アップロード可否は無料枠側で判定する。
+     */
+    'storage_display_capacity_bytes' => (int) env(
+        'PHOTO_STORAGE_DISPLAY_CAPACITY_BYTES',
+        1024 * 1024 * 1024 * 1024
+    ),
+
     /** ホット（R2 等）側のソフト上限目安（バイト）。長期保存へ移す閾値。既定 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 

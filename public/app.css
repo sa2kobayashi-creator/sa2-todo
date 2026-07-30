@@ -9656,6 +9656,7 @@ label.photos-camera-btn span {
 }
 
 .photos-storage-bar {
+  position: relative;
   margin-top: 8px;
   height: 8px;
   border-radius: 999px;
@@ -9673,6 +9674,16 @@ label.photos-camera-btn span {
 
 .photos-storage-bar-fill.is-warn {
   background: #c2410c;
+}
+
+.photos-storage-bar-free-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(23, 27, 31, 0.45);
+  pointer-events: none;
 }
 
 .photos-storage-note {

@@ -97,8 +97,9 @@
           <span class="photos-storage-head-actions">
             <span>
               {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
-              / {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
+              / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
               {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+              · {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
               @if(!empty($storageStats['overFreeTier']))
                 <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
               @endif
@@ -107,8 +108,11 @@
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
           </span>
         </div>
-        <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}">
-          <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, $storageStats['percent']) }}%"></span>
+        <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}" aria-label="{{ __('表示容量に対する使用量') }}">
+          <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, max(0, (float) $storageStats['percent'])) }}%"></span>
+          @if(isset($storageStats['freeMarkPercent']))
+            <span class="photos-storage-bar-free-mark" style="left: {{ min(100, max(0, (float) $storageStats['freeMarkPercent'])) }}%" title="{{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}"></span>
+          @endif
         </div>
         @if(!empty($storageStats['uploadsBlocked']))
           <p class="photos-storage-block-note" role="alert">
