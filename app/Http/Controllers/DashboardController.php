@@ -197,53 +197,25 @@ class DashboardController extends Controller
      */
     private function mergeGoogleEvents($user, array $localTodos, string $view, string $focusDate, int $year, int $month): array
     {
-        if (! $this->googleCalendar->connectionFor($user)) {
-            return $localTodos;
+        if ($view === 'day') {
+            $timeMin = $focusDate.' 00:00:00';
+            $timeMax = $focusDate.' 23:59:59';
+        } elseif ($view === 'week') {
+            $start = Carbon::parse($focusDate, config('app.timezone'))->startOfWeek(Carbon::SUNDAY);
+            $end = $start->copy()->addDays(6);
+            $timeMin = $start->format('Y-m-d').' 00:00:00';
+            $timeMax = $end->format('Y-m-d').' 23:59:59';
+        } elseif ($view === 'year') {
+            $timeMin = sprintf('%04d-01-01 00:00:00', $year);
+            $timeMax = sprintf('%04d-12-31 23:59:59', $year);
+        } else {
+            $prev = $this->calendar->shiftMonth($year, $month, -1);
+            $next = $this->calendar->shiftMonth($year, $month, 1);
+            $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
+            $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
+            $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
         }
 
-        try {
-            if ($view === 'day') {
-                $timeMin = $focusDate.' 00:00:00';
-                $timeMax = $focusDate.' 23:59:59';
-            } elseif ($view === 'week') {
-                $start = Carbon::parse($focusDate, config('app.timezone'))->startOfWeek(Carbon::SUNDAY);
-                $end = $start->copy()->addDays(6);
-                $timeMin = $start->format('Y-m-d').' 00:00:00';
-                $timeMax = $end->format('Y-m-d').' 23:59:59';
-            } elseif ($view === 'year') {
-                $timeMin = sprintf('%04d-01-01 00:00:00', $year);
-                $timeMax = sprintf('%04d-12-31 23:59:59', $year);
-            } else {
-                $prev = $this->calendar->shiftMonth($year, $month, -1);
-                $next = $this->calendar->shiftMonth($year, $month, 1);
-                $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
-                $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
-                $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
-            }
-
-            $remote = $this->googleCalendar->listEventsAsTodos($user, $timeMin, $timeMax);
-        } catch (\Throwable $e) {
-            return $localTodos;
-        }
-
-        $known = [];
-        foreach ($localTodos as $todo) {
-            if (! empty($todo['googleEventId'])) {
-                $known[(string) $todo['googleEventId']] = true;
-            }
-        }
-
-        foreach ($remote as $event) {
-            $eid = (string) ($event['googleEventId'] ?? '');
-            if ($eid !== '' && isset($known[$eid])) {
-                continue;
-            }
-            $localTodos[] = $event;
-            if ($eid !== '') {
-                $known[$eid] = true;
-            }
-        }
-
-        return $localTodos;
+        return $this->googleCalendar->mergeEventsIntoTodos($user, $localTodos, $timeMin, $timeMax);
     }
 }

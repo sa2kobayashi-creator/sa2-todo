@@ -206,4 +206,60 @@ class GoogleCalendarOAuthTest extends TestCase
         $this->assertSame('new-access', $fresh->access_token);
         $this->assertTrue($fresh->token_expires_at->isFuture());
     }
+
+    public function test_create_work_todo_event_requests_google_meet(): void
+    {
+        config([
+            'services.google.client_id' => 'test-client-id',
+            'services.google.client_secret' => 'test-client-secret',
+            'services.google.redirect' => 'http://localhost/auth/google/calendar/callback',
+        ]);
+
+        Http::fake([
+            'oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'access-token-value',
+                'expires_in' => 3600,
+                'token_type' => 'Bearer',
+            ], 200),
+            'www.googleapis.com/calendar/v3/calendars/*/events*' => Http::response([
+                'id' => 'evt-meet-1',
+                'hangoutLink' => 'https://meet.google.com/abc-defg-hij',
+                'htmlLink' => 'https://calendar.google.com/event?eid=1',
+            ], 200),
+        ]);
+
+        $user = $this->makeAdmin();
+        GoogleCalendarConnection::create([
+            'user_id' => $user->id,
+            'google_user_id' => 'sub-meet',
+            'google_email' => 'work@example.com',
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'token_expires_at' => now()->addHour(),
+            'scopes' => 'openid email https://www.googleapis.com/auth/calendar.events',
+            'sync_calendar_id' => 'primary',
+            'selected_calendar_ids' => ['primary'],
+        ]);
+
+        $result = app(\App\Services\GoogleCalendarService::class)->createEventFromTodo($user, [
+            'title' => 'standup',
+            'startDate' => '2026-08-01',
+            'endDate' => '2026-08-01',
+            'startTime' => '10:00',
+            'endTime' => '10:30',
+        ]);
+
+        $this->assertSame('evt-meet-1', $result['id']);
+        $this->assertSame('https://meet.google.com/abc-defg-hij', $result['meetLink']);
+
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), '/calendars/primary/events')) {
+                return false;
+            }
+            $data = $request->data();
+
+            return ($data['conferenceData']['createRequest']['conferenceSolutionKey']['type'] ?? null) === 'hangoutsMeet'
+                && str_contains($request->url(), 'conferenceDataVersion=1');
+        });
+    }
 }

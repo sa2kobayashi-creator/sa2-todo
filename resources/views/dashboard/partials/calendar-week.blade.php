@@ -71,6 +71,7 @@
               data-tip-title="{{ $todo['title'] }}"
               data-tip-date="{{ $formatPeriodLabel($todo) }}"
               data-tip-time="{{ $todo['layoutStartLabel'] }}"
+              @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
             >
               <span class="cal-timed-event-time">{{ $todo['layoutStartLabel'] }}</span>
               <span class="event-title">{{ $truncateTitle($todo['title'], 20) }}</span>

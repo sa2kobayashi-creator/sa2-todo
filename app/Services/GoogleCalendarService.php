@@ -8,6 +8,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GoogleCalendarService
 {
@@ -161,7 +162,7 @@ class GoogleCalendarService
 
     /**
      * @param  array<string, mixed>  $todo  Todo配列
-     * @return array{id: string, htmlLink?: string}
+     * @return array{id: string, htmlLink: ?string, calendarId: string, meetLink: ?string}
      */
     public function createEventFromTodo(User $user, array $todo, ?string $calendarId = null): array
     {
@@ -171,13 +172,27 @@ class GoogleCalendarService
         }
 
         $calendarId = $calendarId ?: $connection->syncCalendarId();
-        $payload = $this->todoToGoogleEventPayload($todo);
+        $payload = $this->todoToGoogleEventPayload($todo, withMeet: true);
         $token = $this->accessTokenFor($user);
+        $url = 'https://www.googleapis.com/calendar/v3/calendars/'.rawurlencode($calendarId).'/events';
 
         $response = Http::withToken($token)
             ->timeout(20)
             ->acceptJson()
-            ->post('https://www.googleapis.com/calendar/v3/calendars/'.rawurlencode($calendarId).'/events', $payload);
+            ->post($url.'?conferenceDataVersion=1', $payload);
+
+        // Meet 作成不可（権限・ワークスペース設定等）の場合は Meet なしで再試行
+        if (! $response->successful()) {
+            Log::warning('Google Calendar createEvent with Meet failed, retrying without Meet', [
+                'user_id' => $user->id,
+                'status' => $response->status(),
+            ]);
+            $payloadNoMeet = $this->todoToGoogleEventPayload($todo, withMeet: false);
+            $response = Http::withToken($token)
+                ->timeout(20)
+                ->acceptJson()
+                ->post($url, $payloadNoMeet);
+        }
 
         if (! $response->successful()) {
             Log::warning('Google Calendar createEvent failed', [
@@ -188,32 +203,38 @@ class GoogleCalendarService
         }
 
         $data = $response->json();
+        if (! is_array($data)) {
+            $data = [];
+        }
 
         return [
             'id' => (string) ($data['id'] ?? ''),
             'htmlLink' => isset($data['htmlLink']) ? (string) $data['htmlLink'] : null,
             'calendarId' => $calendarId,
+            'meetLink' => $this->extractMeetLink($data),
         ];
     }
 
     /**
      * @param  array<string, mixed>  $todo
+     * @return array{meetLink: ?string}
      */
-    public function updateEventFromTodo(User $user, array $todo): void
+    public function updateEventFromTodo(User $user, array $todo): array
     {
         $eventId = (string) ($todo['googleEventId'] ?? '');
         $calendarId = (string) ($todo['googleCalendarId'] ?? '');
         if ($eventId === '' || $calendarId === '') {
-            return;
+            return ['meetLink' => $todo['googleMeetLink'] ?? null];
         }
 
         $token = $this->accessTokenFor($user);
-        $payload = $this->todoToGoogleEventPayload($todo);
+        // PATCH: conferenceData を送らないので既存 Meet を維持
+        $payload = $this->todoToGoogleEventPayload($todo, withMeet: false);
 
         $response = Http::withToken($token)
             ->timeout(20)
             ->acceptJson()
-            ->put(
+            ->patch(
                 'https://www.googleapis.com/calendar/v3/calendars/'.rawurlencode($calendarId).'/events/'.rawurlencode($eventId),
                 $payload
             );
@@ -225,6 +246,13 @@ class GoogleCalendarService
             ]);
             throw new \RuntimeException(__('Google カレンダーの予定更新に失敗しました。'));
         }
+
+        $data = $response->json();
+        $meet = is_array($data) ? $this->extractMeetLink($data) : null;
+
+        return [
+            'meetLink' => $meet ?: ($todo['googleMeetLink'] ?? null),
+        ];
     }
 
     public function deleteEvent(User $user, string $calendarId, string $eventId): void
@@ -248,6 +276,50 @@ class GoogleCalendarService
             ]);
             throw new \RuntimeException(__('Google カレンダーの予定削除に失敗しました。'));
         }
+    }
+
+    /**
+     * ローカル ToDo に Google 予定をマージ（同一 google_event_id は重複除外）。
+     *
+     * @param  list<array<string, mixed>>  $localTodos
+     * @return list<array<string, mixed>>
+     */
+    public function mergeEventsIntoTodos(User $user, array $localTodos, string $timeMin, string $timeMax): array
+    {
+        if (! $this->connectionFor($user)) {
+            return $localTodos;
+        }
+
+        try {
+            $remote = $this->listEventsAsTodos($user, $timeMin, $timeMax);
+        } catch (\Throwable $e) {
+            Log::warning('Google Calendar mergeEventsIntoTodos failed', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $localTodos;
+        }
+
+        $known = [];
+        foreach ($localTodos as $todo) {
+            if (! empty($todo['googleEventId'])) {
+                $known[(string) $todo['googleEventId']] = true;
+            }
+        }
+
+        foreach ($remote as $event) {
+            $eid = (string) ($event['googleEventId'] ?? '');
+            if ($eid !== '' && isset($known[$eid])) {
+                continue;
+            }
+            $localTodos[] = $event;
+            if ($eid !== '') {
+                $known[$eid] = true;
+            }
+        }
+
+        return $localTodos;
     }
 
     /**
@@ -415,6 +487,7 @@ class GoogleCalendarService
                 'start_time' => $event['startTime'] ?? null,
                 'end_time' => $event['endTime'] ?? null,
                 'google_calendar_id' => $event['googleCalendarId'] ?? null,
+                'google_meet_link' => $event['googleMeetLink'] ?? null,
                 'google_synced_at' => now(),
                 'category' => 'task',
                 'importance' => 'medium',
@@ -540,16 +613,43 @@ class GoogleCalendarService
             'notifiedAt' => [],
             'googleEventId' => (string) $item['id'],
             'googleCalendarId' => $calendarId,
+            'googleMeetLink' => $this->extractMeetLink($item),
             'source' => 'google',
             'htmlLink' => isset($item['htmlLink']) ? (string) $item['htmlLink'] : null,
         ];
     }
 
     /**
+     * @param  array<string, mixed>  $item
+     */
+    private function extractMeetLink(array $item): ?string
+    {
+        if (! empty($item['hangoutLink']) && is_string($item['hangoutLink'])) {
+            return $item['hangoutLink'];
+        }
+
+        $entryPoints = $item['conferenceData']['entryPoints'] ?? null;
+        if (! is_array($entryPoints)) {
+            return null;
+        }
+
+        foreach ($entryPoints as $ep) {
+            if (! is_array($ep)) {
+                continue;
+            }
+            if (($ep['entryPointType'] ?? '') === 'video' && ! empty($ep['uri']) && is_string($ep['uri'])) {
+                return $ep['uri'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param  array<string, mixed>  $todo
      * @return array<string, mixed>
      */
-    private function todoToGoogleEventPayload(array $todo): array
+    private function todoToGoogleEventPayload(array $todo, bool $withMeet = false): array
     {
         $title = trim((string) ($todo['title'] ?? ''));
         $startDate = $todo['startDate'] ?? null;
@@ -581,6 +681,15 @@ class GoogleCalendarService
             $endExclusive = Carbon::parse($endDate, $tz)->addDay()->format('Y-m-d');
             $payload['start'] = ['date' => $startDate];
             $payload['end'] = ['date' => $endExclusive];
+        }
+
+        if ($withMeet) {
+            $payload['conferenceData'] = [
+                'createRequest' => [
+                    'requestId' => (string) Str::uuid(),
+                    'conferenceSolutionKey' => ['type' => 'hangoutsMeet'],
+                ],
+            ];
         }
 
         return $payload;

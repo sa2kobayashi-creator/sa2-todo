@@ -1768,7 +1768,7 @@ a.filter-clear-btn {
 .event-hover-tooltip {
   position: fixed;
   z-index: 2000;
-  pointer-events: auto;
+  pointer-events: none;
   background: #1f2937;
   color: #fff;
   padding: 8px 12px;
@@ -1777,6 +1777,18 @@ a.filter-clear-btn {
   line-height: 1.5;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
   max-width: min(280px, calc(100vw - 16px));
+}
+
+.event-hover-tooltip-copy,
+.event-hover-tooltip-meet {
+  pointer-events: auto;
+}
+
+.event-hover-tooltip-meet {
+  display: block;
+  margin-top: 6px;
+  color: #93c5fd;
+  text-decoration: underline;
 }
 
 .event-hover-tooltip-copy {

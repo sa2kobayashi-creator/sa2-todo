@@ -15,6 +15,19 @@
     <main class="page-main">
       @if($notice)<div class="banner notice">{{ $notice }}</div>@endif
       @if($error)<div class="banner error">{{ $error }}</div>@endif
+      @if(!empty($appContextIsWork))
+        <div class="banner notice">
+          {{ __('仕事モード: プライベートの ToDo は表示されません。') }}
+          @if(($displayMode ?? '') === 'calendar')
+            @if(empty($googleCalendarConnected))
+              <a href="/settings?section=integration#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
+            @else
+              {{ __('選択中の Google カレンダー予定も表示します。') }}
+              <a href="/settings?section=integration#google-calendar">{{ __('カレンダー選択') }}</a>
+            @endif
+          @endif
+        </div>
+      @endif
 
       <div class="panel">
         <h2>{{ __('ToDo を追加（複数行可）') }}</h2>

@@ -125,6 +125,7 @@
                         data-tip-title="{{ $todo['title'] }}"
                         data-tip-date="{{ $formatPeriodLabel($todo) }}"
                         data-tip-time="{{ $chipTimeLabel }}"
+                        @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
                       >
                         <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
                       </button>
@@ -298,6 +299,7 @@
             <input type="checkbox" name="completed" value="1" />
             {{ __('完了') }}
           </label>
+          <p class="hint" id="modal-meet-link" hidden></p>
         </form>
         <form method="post" id="todo-delete-form" class="modal-delete-form" onsubmit='return confirm(@json(__('この ToDo を削除しますか？')))'>
           @csrf
@@ -367,7 +369,11 @@
               @foreach($colorKeys as $key)
                 <button
                   type="button"
-                  class="note-color-dot note-compose-color-dot @class(['is-selected' => $key === 'default'])"
+                  @class([
+                    'note-color-dot',
+                    'note-compose-color-dot',
+                    'is-selected' => $key === 'default',
+                  ])
                   data-color="{{ $key }}"
                   style="--note-color: {{ $noteColors[$key]['bg'] }}; --note-border: {{ $noteColors[$key]['border'] }}"
                   title="{{ $noteColors[$key]['label'] }}"
@@ -411,11 +417,11 @@
     </div>
 
     <script>
-      const TODO_ITEMS = @json($todosForJs ?? []);
-      const NOTE_ITEMS = @json($notesForJs ?? []);
-      const NOTE_COLORS = @json($noteColors);
-      const RETURN_TO = @json($returnTo);
-      const CALENDAR_VIEW = @json($view);
+      const TODO_ITEMS = {!! \Illuminate\Support\Js::from($todosForJs ?? []) !!};
+      const NOTE_ITEMS = {!! \Illuminate\Support\Js::from($notesForJs ?? []) !!};
+      const NOTE_COLORS = {!! \Illuminate\Support\Js::from($noteColors) !!};
+      const RETURN_TO = {!! \Illuminate\Support\Js::from($returnTo) !!};
+      const CALENDAR_VIEW = {!! \Illuminate\Support\Js::from($view) !!};
 
       const timedScroll = document.querySelector('.cal-timed-scroll')
       if (timedScroll) {
@@ -446,7 +452,8 @@
       let editingTodoId = null
 
       function findTodo(id) {
-        return TODO_ITEMS.find((item) => item.id === Number(id))
+        const key = String(id)
+        return TODO_ITEMS.find((item) => String(item.id) === key)
       }
 
       function findNote(id) {
@@ -524,8 +531,8 @@
         return date >= start && date <= end
       }
 
-      const IMPORTANCE_LABELS = @json($importanceLabels);
-      const CATEGORY_LABELS = @json($categoryLabels);
+      const IMPORTANCE_LABELS = {!! \Illuminate\Support\Js::from($importanceLabels) !!};
+      const CATEGORY_LABELS = {!! \Illuminate\Support\Js::from($categoryLabels) !!};
 
       function timeToMinutes(value) {
         if (!value || typeof value !== 'string') return null
@@ -578,25 +585,49 @@
       }
 
       function fillTodoModalFields(todo) {
-        editForm.querySelector('[name=title]').value = todo.title || ''
-        editForm.querySelector('#modal-start-date').value = todo.startDate || ''
-        editForm.querySelector('#modal-end-date').value = todo.endDate || todo.startDate || ''
+        if (!editForm) return
+        const titleEl = editForm.querySelector('[name=title]')
+        if (titleEl) titleEl.value = todo.title || ''
+        const startDateEl = editForm.querySelector('#modal-start-date')
+        const endDateEl = editForm.querySelector('#modal-end-date')
+        if (startDateEl) startDateEl.value = todo.startDate || ''
+        if (endDateEl) endDateEl.value = todo.endDate || todo.startDate || ''
         const enableTimeRange = editForm.querySelector('#modal-enable-time-range')
         const timeRangePanel = editForm.querySelector('#modal-time-range-panel')
         const startTimeInput = editForm.querySelector('#modal-start-time')
         const endTimeInput = editForm.querySelector('#modal-end-time')
         const hasTime = Boolean(todo.startTime)
-        enableTimeRange.checked = hasTime
-        timeRangePanel.classList.toggle('date-panel-hidden', !hasTime)
-        startTimeInput.disabled = !hasTime
-        endTimeInput.disabled = !hasTime
-        startTimeInput.value = todo.startTime || ''
-        endTimeInput.value = todo.endTime || ''
-        editForm.querySelector('#modal-importance').value = todo.importance || 'medium'
-        editForm.querySelector('#modal-category').value = todo.category || 'task'
-        editForm.querySelector('[name=completed]').checked = !!todo.completed
+        if (enableTimeRange) enableTimeRange.checked = hasTime
+        timeRangePanel?.classList.toggle('date-panel-hidden', !hasTime)
+        if (startTimeInput) {
+          startTimeInput.disabled = !hasTime
+          startTimeInput.value = todo.startTime || ''
+        }
+        if (endTimeInput) {
+          endTimeInput.disabled = !hasTime
+          endTimeInput.value = todo.endTime || ''
+        }
+        const importanceEl = editForm.querySelector('#modal-importance')
+        const categoryEl = editForm.querySelector('#modal-category')
+        const completedEl = editForm.querySelector('[name=completed], [data-completed-input]')
+        if (importanceEl) importanceEl.value = todo.importance || 'medium'
+        if (categoryEl) categoryEl.value = todo.category || 'task'
+        if (completedEl) completedEl.checked = !!todo.completed
         const isSingle = !todo.startDate || !todo.endDate || todo.startDate === todo.endDate
         syncModalDateMode(isSingle ? 'single' : 'range')
+
+        const meetEl = document.getElementById('modal-meet-link')
+        if (meetEl) {
+          if (todo.googleMeetLink) {
+            meetEl.hidden = false
+            const label = @json(__('Google Meet'));
+            const url = escapeHtml(todo.googleMeetLink);
+            meetEl.innerHTML = `${label}: <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+          } else {
+            meetEl.hidden = true;
+            meetEl.textContent = '';
+          }
+        }
       }
 
       function setTodoModalMode(mode) {
@@ -622,16 +653,41 @@
 
       function openTodoModal(id) {
         const todo = findTodo(id)
-        if (!todo) return
+        if (!todo || !editForm) return
+        hideEventTooltip()
+        const isRemoteOnly = typeof todo.id === 'string' && String(todo.id).startsWith('gcal:')
         editingTodoId = todo.id
         dayModal.hidden = true
         noteModal.hidden = true
         noteDayModal.hidden = true
-        editForm.action = `/todos/${todo.id}/update`
-        deleteForm.action = `/todos/${todo.id}/delete`
-        fillTodoModalFields(todo)
-        setTodoModalMode('edit')
-        todoModal.hidden = false
+        const saveBtn = document.getElementById('todo-modal-save')
+        try {
+          if (isRemoteOnly) {
+            // 未取込の Google 予定: 編集不可。Meet / カレンダーリンクのみ
+            editForm.action = '#'
+            if (deleteForm) deleteForm.action = '#'
+            fillTodoModalFields(todo)
+            setTodoModalMode('edit')
+            if (todoModalTitle) todoModalTitle.textContent = @json(__('Google 予定（表示のみ）'));
+            if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = true;            if (saveBtn) saveBtn.hidden = true
+            if (todoModalCopyBtn) todoModalCopyBtn.hidden = true
+            Array.from(editForm.elements).forEach((el) => {
+              if (el.name === 'returnTo' || el.name === '_token') return
+              el.disabled = true
+            })
+          } else {
+            editForm.action = `/todos/${todo.id}/update`
+            if (deleteForm) deleteForm.action = `/todos/${todo.id}/delete`
+            Array.from(editForm.elements).forEach((el) => { el.disabled = false })
+            if (saveBtn) saveBtn.hidden = false
+            if (todoModalCopyBtn) todoModalCopyBtn.hidden = false
+            fillTodoModalFields(todo)
+            setTodoModalMode('edit')
+          }
+          todoModal.hidden = false
+        } catch (err) {
+          console.error('openTodoModal failed', err)
+        }
       }
 
       modalDateModeSingle?.addEventListener('change', () => {
@@ -782,7 +838,9 @@
 
       document.querySelectorAll('[data-todo-id]').forEach((el) => {
         el.addEventListener('click', (e) => {
-          if (el.dataset.dragging === '1') {
+          // 実際にドラッグ移動した場合だけクリックを無視（単純クリックは常に開く）
+          if (el.dataset.dragMoved === '1') {
+            el.dataset.dragMoved = '0'
             e.preventDefault()
             e.stopPropagation()
             return
@@ -815,8 +873,13 @@
           return
         }
         el.setAttribute('draggable', 'true')
+        let startX = 0
+        let startY = 0
         el.addEventListener('dragstart', (e) => {
+          startX = e.clientX
+          startY = e.clientY
           el.dataset.dragging = '1'
+          el.dataset.dragMoved = '0'
           e.dataTransfer.setData('application/json', JSON.stringify({
             type: 'todo',
             id: Number(el.dataset.todoId),
@@ -824,11 +887,21 @@
           e.dataTransfer.effectAllowed = 'move'
           el.classList.add('is-dragging')
         })
+        el.addEventListener('drag', (e) => {
+          if (e.clientX === 0 && e.clientY === 0) return
+          if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) {
+            el.dataset.dragMoved = '1'
+          }
+        })
         el.addEventListener('dragend', () => {
           el.classList.remove('is-dragging')
-          setTimeout(() => {
-            el.dataset.dragging = '0'
-          }, 0)
+          el.dataset.dragging = '0'
+          // drop 後のゴーストクリックだけ抑止。単純クリックは dragMoved=0 のまま
+          if (el.dataset.dragMoved === '1') {
+            setTimeout(() => {
+              el.dataset.dragMoved = '0'
+            }, 50)
+          }
         })
       }
 
@@ -892,6 +965,7 @@
         const lines = [el.dataset.tipTitle]
         if (el.dataset.tipDate) lines.push(el.dataset.tipDate)
         if (el.dataset.tipTime) lines.push(el.dataset.tipTime)
+        if (el.dataset.tipMeet) lines.push('Meet: ' + el.dataset.tipMeet)
         return lines.join('\n')
       }
 
@@ -958,6 +1032,9 @@
           `<span class="event-hover-tooltip-title">${escapeHtml(el.dataset.tipTitle)}</span>`,
           `<span class="event-hover-tooltip-date">${escapeHtml(el.dataset.tipDate || '')}</span>`,
           `<span class="event-hover-tooltip-time">${escapeHtml(el.dataset.tipTime || '—')}</span>`,
+          el.dataset.tipMeet
+            ? `<a class="event-hover-tooltip-meet" href="${escapeHtml(el.dataset.tipMeet)}" target="_blank" rel="noopener noreferrer">Google Meet</a>`
+            : '',
           `<button type="button" class="event-hover-tooltip-copy">${@json(__('クリップボードにコピー'))}</button>`
         ].join('')
         eventTooltip.hidden = false
@@ -969,10 +1046,19 @@
       eventTooltip?.addEventListener('mouseleave', scheduleHideEventTooltip)
       eventTooltip?.addEventListener('click', (e) => {
         const copyBtn = e.target.closest('.event-hover-tooltip-copy')
-        if (!copyBtn || !currentTooltipSource) return
-        e.preventDefault()
-        e.stopPropagation()
-        copyEventTooltipText(currentTooltipSource)
+        if (copyBtn && currentTooltipSource) {
+          e.preventDefault()
+          e.stopPropagation()
+          copyEventTooltipText(currentTooltipSource)
+          return
+        }
+        if (e.target.closest('a')) return
+        // ツールチップ本体クリックでも予定を開く（チップ上に被ってクリックが届かない対策）
+        if (currentTooltipSource?.dataset?.todoId) {
+          e.preventDefault()
+          e.stopPropagation()
+          openTodoModal(currentTooltipSource.dataset.todoId)
+        }
       })
 
       document.querySelectorAll('.event-chip[data-tip-title]').forEach((el) => {
@@ -1039,10 +1125,10 @@
         el.addEventListener('click', closeModals)
       })
 
-      const modalEnableTimeRange = editForm.querySelector('#modal-enable-time-range')
-      const modalTimeRangePanel = editForm.querySelector('#modal-time-range-panel')
-      const modalStartTime = editForm.querySelector('#modal-start-time')
-      const modalEndTime = editForm.querySelector('#modal-end-time')
+      const modalEnableTimeRange = editForm?.querySelector('#modal-enable-time-range')
+      const modalTimeRangePanel = editForm?.querySelector('#modal-time-range-panel')
+      const modalStartTime = editForm?.querySelector('#modal-start-time')
+      const modalEndTime = editForm?.querySelector('#modal-end-time')
 
       // 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す
       function defaultTimeRange() {

@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AppContext;
+use App\Services\AppContextService;
 use App\Services\CalendarService;
 use App\Services\DisplayService;
+use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
@@ -25,14 +28,18 @@ class TodoController extends Controller
         private DisplayService $display,
         private GroupService $groups,
         private TodoVoiceParseService $voiceParse,
+        private AppContextService $contexts,
+        private GoogleCalendarService $googleCalendar,
     ) {}
 
     public function index(Request $request)
     {
-        $userId = (int) $request->user()->id;
+        $user = $request->user();
+        $userId = (int) $user->id;
+        $context = $this->contexts->current($user, $request);
         $filters = $this->todos->parseFilters($request->query());
         $displayMode = ($request->query('display') === 'calendar') ? 'calendar' : 'list';
-        $pageResult = $this->todos->filterTodosPage($this->todos->listTodos($userId), $filters);
+        $pageResult = $this->todos->filterTodosPage($this->todos->listTodos($userId, $context), $filters);
         $editId = (int) $request->query('edit');
         $listQuery = $this->todos->buildTodosQuery($filters, [
             'display' => $displayMode === 'calendar' ? 'calendar' : null,
@@ -49,7 +56,15 @@ class TodoController extends Controller
             $neighbor = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1);
             $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($neighbor['year']));
 
-            $allTodos = $this->todos->listTodos($userId)->all();
+            $allTodos = $this->todos->listTodos($userId, $context)->all();
+            if ($context === AppContext::Work) {
+                $prev = $this->calendar->shiftMonth($calendarYear, $calendarMonth, -1);
+                $next = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1);
+                $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
+                $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
+                $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
+                $allTodos = $this->googleCalendar->mergeEventsIntoTodos($user, $allTodos, $timeMin, $timeMax);
+            }
             $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
             $grid = $this->calendar->buildMonthGrid($calendarYear, $calendarMonth, $allTodos, $holidayMap);
             $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
@@ -88,9 +103,11 @@ class TodoController extends Controller
                 'month',
                 sprintf('%04d-%02d-01', $calendarYear, $calendarMonth)
             ),
-            'approvedGroups' => $this->groups->listApprovedForUser($userId),
+            'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'voiceAiReady' => $this->voiceParse->isReady(),
             'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
+            'googleCalendarConnected' => $context === AppContext::Work
+                && $this->googleCalendar->connectionFor($user) !== null,
             ...$this->flashFromQuery($request),
         ]);
     }

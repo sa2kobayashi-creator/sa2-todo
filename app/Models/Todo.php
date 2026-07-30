@@ -24,6 +24,7 @@ class Todo extends Model
         'notified_at',
         'google_event_id',
         'google_calendar_id',
+        'google_meet_link',
         'google_synced_at',
     ];
 
@@ -71,6 +72,7 @@ class Todo extends Model
             'notifiedAt' => $this->notified_at ?? [],
             'googleEventId' => $this->google_event_id,
             'googleCalendarId' => $this->google_calendar_id,
+            'googleMeetLink' => $this->google_meet_link,
             'googleSyncedAt' => $this->google_synced_at?->toIso8601String(),
             'source' => $this->google_event_id ? 'google' : 'local',
         ];

@@ -14,7 +14,7 @@
 @endphp
 <div class="panel storage-settings" id="google-calendar">
   <h2>{{ __('Googleカレンダー') }}</h2>
-  <p class="hint">{{ __('sa2-plus のログインとは別に、ご自身の Google アカウントのカレンダーを連携します。仕事モードのダッシュボード／Todo と同期します。') }}</p>
+  <p class="hint">{{ __('sa2-plus のログインとは別に、ご自身の Google アカウントのカレンダーを連携します。仕事モードのダッシュボード／Todo と同期します。仕事 ToDo 作成時は Google Meet を自動付与します。') }}</p>
 
   @if(empty($gc['configured']))
     <p class="hint storage-test-result is-fail">

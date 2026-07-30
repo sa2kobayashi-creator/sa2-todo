@@ -523,11 +523,12 @@ class TodoService
         if (! $source) {
             return null;
         }
-        $copy = $source->replicate(['completed', 'notified_at', 'google_event_id', 'google_calendar_id', 'google_synced_at']);
+        $copy = $source->replicate(['completed', 'notified_at', 'google_event_id', 'google_calendar_id', 'google_meet_link', 'google_synced_at']);
         $copy->completed = false;
         $copy->notified_at = [];
         $copy->google_event_id = null;
         $copy->google_calendar_id = null;
+        $copy->google_meet_link = null;
         $copy->google_synced_at = null;
         $copy->save();
 
@@ -626,12 +627,16 @@ class TodoService
         try {
             $array = $todo->toArray();
             if ($todo->google_event_id) {
-                $this->googleCalendar->updateEventFromTodo($user, $array);
+                $updated = $this->googleCalendar->updateEventFromTodo($user, $array);
+                if (! empty($updated['meetLink'])) {
+                    $todo->google_meet_link = $updated['meetLink'];
+                }
             } else {
                 $created = $this->googleCalendar->createEventFromTodo($user, $array);
                 if ($created['id'] !== '') {
                     $todo->google_event_id = $created['id'];
                     $todo->google_calendar_id = $created['calendarId'] ?? null;
+                    $todo->google_meet_link = $created['meetLink'] ?? null;
                 }
             }
             $todo->google_synced_at = now();
@@ -762,8 +767,12 @@ class TodoService
     {
         $dateLabel = $this->formatPeriodLabel($todo);
         $timeLabel = $this->formatTimeRangeLabel($todo) ?: '—';
+        $lines = ["{$todo['title']}", $dateLabel, $timeLabel];
+        if (! empty($todo['googleMeetLink'])) {
+            $lines[] = 'Meet: '.$todo['googleMeetLink'];
+        }
 
-        return "{$todo['title']}\n{$dateLabel}\n{$timeLabel}";
+        return implode("\n", $lines);
     }
 
     public function getTodoRange(array $todo): ?array
