@@ -113,6 +113,7 @@
                 id="photos-archive-cold-btn"
                 title="{{ __('古い常用原本を Backblaze B2 へ最大200件移します（photos:archive-cold）') }}"
               >{{ __('B2へアーカイブ') }}</button>
+              <span class="hint" id="photos-archive-cold-status" aria-live="polite"></span>
             @endif
           </span>
         </div>
@@ -165,6 +166,94 @@
           @endif
         </p>
       </aside>
+
+      @if(!empty($storageStats['archiveEnabled']))
+      <script>
+        (function () {
+          const btn = document.getElementById('photos-archive-cold-btn')
+          const statusEl = document.getElementById('photos-archive-cold-status')
+          if (!btn) return
+
+          const i18n = {
+            confirm: @json(__('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？')),
+            running: @json(__('アーカイブ中…')),
+            done: @json(__('アーカイブが完了しました')),
+            fail: @json(__('アーカイブに失敗しました')),
+            timeout: @json(__('タイムアウトしました。しばらくしてから再度お試しください。')),
+            idle: btn.textContent || @json(__('B2へアーカイブ')),
+          }
+
+          function setStatus(text) {
+            if (statusEl) statusEl.textContent = text || ''
+          }
+
+          function csrfToken() {
+            const meta = document.querySelector('meta[name="csrf-token"]')
+            return (meta && meta.content) || ''
+          }
+
+          function xsrfToken() {
+            const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)
+            if (!match) return ''
+            try { return decodeURIComponent(match[1]) } catch (_) { return match[1] || '' }
+          }
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (btn.disabled) return
+            if (!window.confirm(i18n.confirm)) return
+
+            btn.disabled = true
+            btn.textContent = i18n.running
+            setStatus('')
+
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+            const timer = controller ? setTimeout(function () { controller.abort() }, 15 * 60 * 1000) : null
+            const headers = {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRF-TOKEN': csrfToken(),
+            }
+            const xsrf = xsrfToken()
+            if (xsrf) headers['X-XSRF-TOKEN'] = xsrf
+
+            const body = new FormData()
+            body.append('limit', '200')
+            body.append('_token', csrfToken())
+
+            fetch('/photos/archive-cold', {
+              method: 'POST',
+              headers: headers,
+              body: body,
+              credentials: 'same-origin',
+              signal: controller ? controller.signal : undefined,
+            }).then(function (res) {
+              return res.text().then(function (text) {
+                let data = null
+                try { data = text ? JSON.parse(text) : null } catch (_) {}
+                return { ok: res.ok, status: res.status, data: data }
+              })
+            }).then(function (res) {
+              const msg = (res.data && res.data.message) ? res.data.message : (res.ok ? i18n.done : i18n.fail)
+              setStatus(msg)
+              window.alert(msg)
+              if (res.ok || (res.data && Number(res.data.archived) > 0)) {
+                window.location.reload()
+              }
+            }).catch(function (err) {
+              const msg = (err && err.name === 'AbortError') ? i18n.timeout : i18n.fail
+              setStatus(msg)
+              window.alert(msg)
+            }).finally(function () {
+              if (timer) clearTimeout(timer)
+              btn.disabled = false
+              btn.textContent = i18n.idle
+            })
+          })
+        })()
+      </script>
+      @endif
 
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
@@ -3262,42 +3351,6 @@
             if (usageModal) usageModal.hidden = true
           })
         })
-
-        const archiveColdBtn = document.getElementById('photos-archive-cold-btn')
-        if (archiveColdBtn) {
-          archiveColdBtn.addEventListener('click', async () => {
-            if (archiveColdBtn.disabled) return
-            const ok = window.confirm(
-              @json(__('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。\nアップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？'))
-            )
-            if (!ok) return
-            const prev = archiveColdBtn.textContent
-            archiveColdBtn.disabled = true
-            archiveColdBtn.textContent = @json(__('アーカイブ中…'))
-            try {
-              const fd = new FormData()
-              fd.append('limit', '200')
-              fd.append('_token', readCsrfToken())
-              const res = await postUploadFormData('/photos/archive-cold', fd, {
-                timeoutMs: 15 * 60 * 1000,
-              })
-              const msg = res.data?.message || (res.ok
-                ? @json(__('アーカイブが完了しました'))
-                : @json(__('アーカイブに失敗しました')))
-              window.alert(msg)
-              if (res.ok || (res.data && Number(res.data.archived) > 0)) {
-                window.location.reload()
-              }
-            } catch (err) {
-              window.alert(err?.message === 'timeout'
-                ? @json(__('タイムアウトしました。しばらくしてから再度お試しください。'))
-                : @json(__('アーカイブに失敗しました')))
-            } finally {
-              archiveColdBtn.disabled = false
-              archiveColdBtn.textContent = prev
-            }
-          })
-        }
 
         const dupModal = document.getElementById('photos-dup-modal')
         const dupList = document.getElementById('photos-dup-list')
