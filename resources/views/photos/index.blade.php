@@ -107,11 +107,22 @@
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
             @if(!empty($storageStats['archiveEnabled']))
+              @php
+                $archiveCapacityMode = $storageStats['capacityMode'] ?? 'age_archive';
+                $hotQuotaLabel = $storageStats['formattedQuota'] ?? '10 GB';
+                if ($archiveCapacityMode === 'r2_cap') {
+                  $archiveBtnTitle = __('常用（R2）が約 :quota を超えないよう、古い原本を B2 へ最大200件移します', ['quota' => $hotQuotaLabel]);
+                  $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を最大200件 Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？', ['quota' => $hotQuotaLabel]);
+                } else {
+                  $archiveBtnTitle = __('古い常用原本を Backblaze B2 へ最大200件移します（photos:archive-cold）');
+                  $archiveConfirm = __('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？');
+                }
+              @endphp
               <button
                 type="button"
                 class="photos-secondary-btn photos-storage-usage-btn"
                 id="photos-archive-cold-btn"
-                title="{{ __('古い常用原本を Backblaze B2 へ最大200件移します（photos:archive-cold）') }}"
+                title="{{ $archiveBtnTitle }}"
               >{{ __('B2へアーカイブ') }}</button>
               <span class="hint" id="photos-archive-cold-status" aria-live="polite"></span>
             @endif
@@ -175,7 +186,7 @@
           if (!btn) return
 
           const i18n = {
-            confirm: @json(__('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？')),
+            confirm: @json($archiveConfirm),
             running: @json(__('アーカイブ中…')),
             done: @json(__('アーカイブが完了しました')),
             fail: @json(__('アーカイブに失敗しました')),
