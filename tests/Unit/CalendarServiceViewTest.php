@@ -17,7 +17,7 @@ class CalendarServiceViewTest extends TestCase
     {
         parent::setUp();
         $this->calendar = new CalendarService(
-            new TodoService(new HolidayService, new GroupService),
+            app(TodoService::class),
             new DisplayService
         );
     }

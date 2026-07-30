@@ -109,6 +109,11 @@ a {
   flex-shrink: 0;
 }
 
+.context-switcher .lang-switch-btn.is-active {
+  background: #0f766e;
+  color: #fff;
+}
+
 .lang-switch-form {
   margin: 0;
 }

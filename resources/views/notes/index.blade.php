@@ -77,7 +77,7 @@
                       @endforeach
                     </select>
                   </label>
-                  <label class="note-share-field">
+                  <label class="note-share-field" @if(!empty($appContextIsWork)) hidden @endif>
                     <span class="field-label">{{ __('共有先') }}</span>
                     <select name="groupId" id="composer-group-id" aria-label="{{ __('共有先') }}">
                       <option value="">{{ __('個人（自分のみ）') }}</option>

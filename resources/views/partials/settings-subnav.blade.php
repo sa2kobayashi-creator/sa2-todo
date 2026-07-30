@@ -8,7 +8,7 @@
     <a href="/settings?section=ai&tab=translation" @class(['active' => $navActive === 'settings' && $navSection === 'ai'])>{{ __('AI設定') }}</a>
     <a href="/settings?section=storage" @class(['active' => $navActive === 'settings' && $navSection === 'storage'])>{{ __('ストレージ設定') }}</a>
     <a href="/settings?section=enhance" @class(['active' => $navActive === 'settings' && $navSection === 'enhance'])>{{ __('API設定') }}</a>
-    <a href="/settings?section=integration" @class(['active' => $navActive === 'settings' && $navSection === 'integration'])>{{ __('LINE連携') }}</a>
+    <a href="/settings?section=integration" @class(['active' => $navActive === 'settings' && $navSection === 'integration'])>{{ __('外部連携') }}</a>
     <a href="/settings?section=notifications" @class(['active' => $navActive === 'settings' && $navSection === 'notifications'])>{{ __('通知設定') }}</a>
   @endif
   @if(!empty($canAdminUsers))

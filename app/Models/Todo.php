@@ -10,6 +10,7 @@ class Todo extends Model
     protected $fillable = [
         'user_id',
         'group_id',
+        'context',
         'title',
         'completed',
         'start_date',
@@ -21,6 +22,9 @@ class Todo extends Model
         'reminders',
         'notify_via',
         'notified_at',
+        'google_event_id',
+        'google_calendar_id',
+        'google_synced_at',
     ];
 
     protected function casts(): array
@@ -31,6 +35,7 @@ class Todo extends Model
             'end_date' => 'date:Y-m-d',
             'reminders' => 'array',
             'notified_at' => 'array',
+            'google_synced_at' => 'datetime',
         ];
     }
 
@@ -52,6 +57,7 @@ class Todo extends Model
             'userId' => $this->user_id,
             'groupId' => $this->group_id,
             'groupName' => $this->relationLoaded('group') ? $this->group?->name : null,
+            'context' => $this->context ?: 'personal',
             'title' => $this->title,
             'completed' => $this->completed,
             'startDate' => $this->start_date?->format('Y-m-d'),
@@ -63,6 +69,10 @@ class Todo extends Model
             'reminders' => $this->reminders ?? [],
             'notifyVia' => $this->notify_via,
             'notifiedAt' => $this->notified_at ?? [],
+            'googleEventId' => $this->google_event_id,
+            'googleCalendarId' => $this->google_calendar_id,
+            'googleSyncedAt' => $this->google_synced_at?->toIso8601String(),
+            'source' => $this->google_event_id ? 'google' : 'local',
         ];
     }
 }

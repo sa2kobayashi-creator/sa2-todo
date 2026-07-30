@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\AppContext;
 use App\Models\Note;
 use App\Models\NoteAttachment;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -51,6 +53,7 @@ class NoteService
 
     public function __construct(
         private GroupService $groups,
+        private AppContextService $contexts,
     ) {}
 
     public function resolveGroupIdForUser(int $userId, mixed $groupId): ?int
@@ -91,18 +94,30 @@ class NoteService
     }
 
     /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Note> */
-    public function visibleNotesQuery(int $userId)
+    public function visibleNotesQuery(int $userId, ?AppContext $context = null)
     {
+        $context ??= $this->contexts->current(User::find($userId));
+
+        if ($context === AppContext::Work) {
+            return Note::query()
+                ->with(['group', 'attachments'])
+                ->where('user_id', $userId)
+                ->whereNull('group_id')
+                ->where('context', AppContext::Work->value);
+        }
+
         $groupIds = $this->groups->approvedGroupIdsForUser($userId);
 
-        return Note::query()->with(['group', 'attachments'])->where(function ($q) use ($userId, $groupIds) {
-            $q->where(function ($personal) use ($userId) {
-                $personal->where('user_id', $userId)->whereNull('group_id');
+        return Note::query()->with(['group', 'attachments'])
+            ->where('context', AppContext::Personal->value)
+            ->where(function ($q) use ($userId, $groupIds) {
+                $q->where(function ($personal) use ($userId) {
+                    $personal->where('user_id', $userId)->whereNull('group_id');
+                });
+                if ($groupIds !== []) {
+                    $q->orWhereIn('group_id', $groupIds);
+                }
             });
-            if ($groupIds !== []) {
-                $q->orWhereIn('group_id', $groupIds);
-            }
-        });
     }
 
     /** @param array<string, mixed> $query */
@@ -246,7 +261,11 @@ class NoteService
         if ($userId <= 0) {
             throw new \InvalidArgumentException(__('ユーザーが無効です。'));
         }
-        $groupId = $this->resolveGroupIdForUser($userId, $input['groupId'] ?? null);
+        $context = AppContext::tryFromInput($input['context'] ?? $this->contexts->current(User::find($userId))->value);
+        $groupId = null;
+        if ($context === AppContext::Personal) {
+            $groupId = $this->resolveGroupIdForUser($userId, $input['groupId'] ?? null);
+        }
 
         $type = $this->normalizeType($input['type'] ?? 'text');
         $items = $this->parseChecklistItems($input['items'] ?? []);
@@ -258,6 +277,7 @@ class NoteService
         $note = Note::create([
             'user_id' => $userId,
             'group_id' => $groupId,
+            'context' => $context->value,
             'title' => trim((string) ($input['title'] ?? '')),
             'body' => $type === 'text' ? trim((string) ($input['body'] ?? '')) : '',
             'color' => $this->normalizeColor($input['color'] ?? 'default'),
@@ -304,7 +324,11 @@ class NoteService
             $note->registered_date = $this->normalizeRegisteredDate($patch['registeredDate']) ?? $note->registered_date;
         }
         if (array_key_exists('groupId', $patch) && (int) $note->user_id === $userId) {
-            $note->group_id = $this->resolveGroupIdForUser($userId, $patch['groupId']);
+            if (($note->context ?: 'personal') === AppContext::Work->value) {
+                $note->group_id = null;
+            } else {
+                $note->group_id = $this->resolveGroupIdForUser($userId, $patch['groupId']);
+            }
         }
 
         $requestedType = array_key_exists('type', $patch) ? $this->normalizeType($patch['type']) : null;
@@ -851,6 +875,7 @@ class NoteService
                 ->values()
                 ->all(),
             'registeredDate' => $note->registered_date?->format('Y-m-d'),
+            'context' => $note->context ?: 'personal',
             'createdAt' => $note->created_at?->toIso8601String(),
             'updatedAt' => $note->updated_at?->toIso8601String(),
         ];

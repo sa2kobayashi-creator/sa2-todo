@@ -2,6 +2,8 @@
 
 namespace Tests\Unit;
 
+use App\Services\AppContextService;
+use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\TodoService;
@@ -18,6 +20,8 @@ class TodoServiceTest extends TestCase
         $this->service = new TodoService(
             $this->createMock(HolidayService::class),
             $this->createMock(GroupService::class),
+            $this->createMock(AppContextService::class),
+            $this->createMock(GoogleCalendarService::class),
         );
     }
 

@@ -6,9 +6,11 @@ use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
@@ -44,6 +46,14 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
+
+Route::post('/app-context', [AppContextController::class, 'update'])
+    ->middleware(['auth'])
+    ->name('app-context.update');
+
+// Google Calendar OAuth callback（ログイン連携ではない。セッションのログインユーザーに紐付ける）
+Route::get('/auth/google/calendar/callback', [GoogleCalendarSettingsController::class, 'callback'])
+    ->middleware(['auth', ShareViewData::class]);
 
 Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
@@ -223,6 +233,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');
         Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+
+        Route::get('/settings/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
+        Route::post('/settings/google-calendar/disconnect', [GoogleCalendarSettingsController::class, 'disconnect']);
+        Route::post('/settings/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
+        Route::post('/settings/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
+        Route::post('/settings/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
+
         Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive']);
         Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])
             ->where('provider', 'stability|realesrgan|swinir');

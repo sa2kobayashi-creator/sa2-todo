@@ -39,6 +39,16 @@ return [
         'api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    /*
+    | Google Calendar OAuth（ログイン認証ではない。カレンダー連携専用）
+    | redirect 未設定時は APP_URL + /auth/google/calendar/callback
+    */
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
     'translation' => [
         'provider' => env('TRANSLATION_PROVIDER', 'deepl'),
         'api_key' => env('TRANSLATION_API_KEY'),

@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\AppContext;
 use App\Models\Todo;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class TodoService
 {
@@ -45,22 +48,32 @@ class TodoService
     public function __construct(
         private HolidayService $holidays,
         private GroupService $groups,
+        private AppContextService $contexts,
+        private GoogleCalendarService $googleCalendar,
     ) {}
 
     /** @return Collection<int, array<string, mixed>> */
-    public function listTodos(?int $userId = null): Collection
+    public function listTodos(?int $userId = null, ?AppContext $context = null): Collection
     {
         $query = Todo::query()->with('group')->orderBy('id');
         if ($userId !== null) {
-            $groupIds = $this->groups->approvedGroupIdsForUser($userId);
-            $query->where(function ($q) use ($userId, $groupIds) {
-                $q->where(function ($personal) use ($userId) {
-                    $personal->where('user_id', $userId)->whereNull('group_id');
-                });
-                if ($groupIds !== []) {
-                    $q->orWhereIn('group_id', $groupIds);
-                }
-            });
+            $context ??= $this->contexts->current(User::find($userId));
+            if ($context === AppContext::Work) {
+                $query->where('user_id', $userId)
+                    ->whereNull('group_id')
+                    ->where('context', AppContext::Work->value);
+            } else {
+                $groupIds = $this->groups->approvedGroupIdsForUser($userId);
+                $query->where('context', AppContext::Personal->value)
+                    ->where(function ($q) use ($userId, $groupIds) {
+                        $q->where(function ($personal) use ($userId) {
+                            $personal->where('user_id', $userId)->whereNull('group_id');
+                        });
+                        if ($groupIds !== []) {
+                            $q->orWhereIn('group_id', $groupIds);
+                        }
+                    });
+            }
         }
 
         return $query->get()->map(fn (Todo $t) => $t->toArray());
@@ -366,11 +379,16 @@ class TodoService
         if ($userId <= 0) {
             throw new \InvalidArgumentException(__('ユーザーが必要です。'));
         }
-        $groupId = array_key_exists('groupId', $options)
-            ? $this->resolveGroupIdForUser($userId, $options['groupId'])
-            : null;
+        $context = AppContext::tryFromInput($options['context'] ?? $this->contexts->current(User::find($userId))->value);
+        $groupId = null;
+        if ($context === AppContext::Personal && array_key_exists('groupId', $options)) {
+            $groupId = $this->resolveGroupIdForUser($userId, $options['groupId']);
+        }
 
         $period = $this->normalizePeriod($options['startDate'] ?? null, $options['endDate'] ?? null);
+        if ($context === AppContext::Work && empty($period['startDate'])) {
+            throw new \InvalidArgumentException(__('仕事 ToDo には期限日が必要です。'));
+        }
         $importance = $this->normalizeImportance($options['importance'] ?? null);
         $category = $this->normalizeCategory($options['category'] ?? null);
         $timeRange = $this->normalizeTimeRange($options['startTime'] ?? null, $options['endTime'] ?? null);
@@ -385,6 +403,7 @@ class TodoService
             ? $this->expandDatesByWeekdays($period['startDate'], $period['endDate'], $weekdays, $expansionOptions)
             : null;
         $added = [];
+        $user = User::find($userId);
 
         foreach ($titles as $title) {
             $scheduleDates = ($expandedDates && count($expandedDates) > 0) ? $expandedDates : [null];
@@ -392,6 +411,7 @@ class TodoService
                 $todo = Todo::create([
                     'user_id' => $userId,
                     'group_id' => $groupId,
+                    'context' => $context->value,
                     'title' => $title,
                     'completed' => false,
                     'start_date' => $date ?? $period['startDate'],
@@ -404,7 +424,11 @@ class TodoService
                     'notify_via' => $notifyVia,
                     'notified_at' => [],
                 ]);
-                $added[] = $todo->toArray();
+                $array = $todo->toArray();
+                if ($context === AppContext::Work && $user) {
+                    $array = $this->pushTodoToGoogle($user, $todo) ?? $array;
+                }
+                $added[] = $array;
             }
         }
 
@@ -459,12 +483,26 @@ class TodoService
         if (isset($patch['completed']) && is_bool($patch['completed'])) {
             $todo->completed = $patch['completed'];
         }
+        if ($todo->context === AppContext::Work->value) {
+            $todo->group_id = null;
+            if (! $todo->start_date) {
+                throw new \InvalidArgumentException(__('仕事 ToDo には期限日が必要です。'));
+            }
+        }
         if ($scheduleChanged) {
             $todo->notified_at = [];
         }
         $todo->save();
 
-        return $todo->toArray();
+        $array = $todo->toArray();
+        if ($todo->context === AppContext::Work->value) {
+            $user = User::find($todo->user_id);
+            if ($user) {
+                $array = $this->pushTodoToGoogle($user, $todo) ?? $array;
+            }
+        }
+
+        return $array;
     }
 
     public function toggleTodo(int $id): ?array
@@ -485,12 +523,23 @@ class TodoService
         if (! $source) {
             return null;
         }
-        $copy = $source->replicate(['completed', 'notified_at']);
+        $copy = $source->replicate(['completed', 'notified_at', 'google_event_id', 'google_calendar_id', 'google_synced_at']);
         $copy->completed = false;
         $copy->notified_at = [];
+        $copy->google_event_id = null;
+        $copy->google_calendar_id = null;
+        $copy->google_synced_at = null;
         $copy->save();
 
-        return $copy->toArray();
+        $array = $copy->toArray();
+        if ($copy->context === AppContext::Work->value) {
+            $user = User::find($copy->user_id);
+            if ($user) {
+                $array = $this->pushTodoToGoogle($user, $copy) ?? $array;
+            }
+        }
+
+        return $array;
     }
 
     /** 開始日を移動し、期間の長さは維持する。 */
@@ -542,7 +591,62 @@ class TodoService
 
     public function deleteTodo(int $id): bool
     {
-        return (bool) Todo::destroy($id);
+        $todo = Todo::find($id);
+        if (! $todo) {
+            return false;
+        }
+
+        if ($todo->google_event_id && $todo->google_calendar_id) {
+            $user = User::find($todo->user_id);
+            if ($user) {
+                try {
+                    $this->googleCalendar->deleteEvent($user, (string) $todo->google_calendar_id, (string) $todo->google_event_id);
+                } catch (\Throwable $e) {
+                    Log::warning('Google Calendar delete on todo remove failed', [
+                        'user_id' => $todo->user_id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        return (bool) $todo->delete();
+    }
+
+    /** @return array<string, mixed>|null */
+    private function pushTodoToGoogle(User $user, Todo $todo): ?array
+    {
+        if (! $this->googleCalendar->connectionFor($user)) {
+            return $todo->toArray();
+        }
+        if (! $todo->start_date) {
+            return $todo->toArray();
+        }
+
+        try {
+            $array = $todo->toArray();
+            if ($todo->google_event_id) {
+                $this->googleCalendar->updateEventFromTodo($user, $array);
+            } else {
+                $created = $this->googleCalendar->createEventFromTodo($user, $array);
+                if ($created['id'] !== '') {
+                    $todo->google_event_id = $created['id'];
+                    $todo->google_calendar_id = $created['calendarId'] ?? null;
+                }
+            }
+            $todo->google_synced_at = now();
+            $todo->save();
+
+            return $todo->fresh()?->toArray();
+        } catch (\Throwable $e) {
+            Log::warning('Google Calendar sync from todo failed', [
+                'user_id' => $user->id,
+                'todo_id' => $todo->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $todo->toArray();
+        }
     }
 
     /** @param list<int> $ids */

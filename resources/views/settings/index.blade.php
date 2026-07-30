@@ -432,6 +432,7 @@
       </div>
       @elseif(($section ?? '') === 'integration')
       <div class="panel"><h2>{{ __('LINE 連携') }}</h2><p class="hint">{{ __('次のフェーズで移植予定です。') }}</p></div>
+      @include('settings.partials.google-calendar')
       @elseif(($section ?? '') === 'storage')
         @include('settings.partials.storage')
       @elseif(($section ?? '') === 'enhance')

@@ -25,6 +25,7 @@ class SettingsController extends Controller
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
+        private \App\Services\GoogleCalendarService $googleCalendar,
     ) {}
 
     public function index(Request $request)
@@ -62,6 +63,9 @@ class SettingsController extends Controller
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
             'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
+            'googleCalendar' => $section === 'integration'
+                ? $this->googleCalendar->formState($request->user())
+                : null,
             ...$this->flashFromQuery($request),
         ]);
     }

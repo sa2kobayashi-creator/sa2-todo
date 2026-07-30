@@ -44,7 +44,7 @@
             </div>
             <div class="form-grid-row form-grid-row-inputs">
               <div class="form-grid-cell">
-                <input type="date" name="startDate" id="start-date" value="{{ $defaultStartDate }}" aria-label="{{ __('開始日') }}" />
+                <input type="date" name="startDate" id="start-date" value="{{ $defaultStartDate }}" aria-label="{{ __('開始日') }}" @if(!empty($appContextIsWork)) required @endif />
               </div>
               <div class="form-grid-cell" id="cell-end">
                 <input type="date" name="endDate" id="end-date" value="{{ $defaultEndDate }}" aria-label="{{ __('終了日') }}" />
@@ -122,6 +122,7 @@
               </div>
               <p class="hint inline-hint">{{ __('通知タイミングを選ぶ場合は、いずれか1つを選択してください。') }}</p>
             </fieldset>
+            @unless(!empty($appContextIsWork))
             <div class="form-grid-row form-grid-row-labels">
               <span class="field-label">{{ __('共有先') }}</span>
             </div>
@@ -135,6 +136,9 @@
                 </select>
               </div>
             </div>
+            @else
+            <p class="hint">{{ __('仕事モードではグループ共有は使えません。日付付き ToDo は Google カレンダーへ同期されます。') }}</p>
+            @endunless
           </div>
           <label class="split-option">
             <input type="checkbox" id="split-by-line" name="splitByLine" value="1" checked />
@@ -524,7 +528,7 @@
             <input type="time" name="endTime" id="todo-voice-end-time" />
           </label>
 
-          <label>
+          <label @if(!empty($appContextIsWork)) hidden @endif>
             {{ __('共有先') }}
             <select name="groupId" id="todo-voice-group-id">
               <option value="">{{ __('個人（自分のみ）') }}</option>

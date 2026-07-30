@@ -19,6 +19,7 @@ class User extends Authenticatable
         'password',
         'role',
         'menu_features',
+        'app_context',
         'reset_token',
         'reset_token_expires_at',
     ];
@@ -36,6 +37,11 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'menu_features' => 'array',
         ];
+    }
+
+    public function googleCalendarConnection()
+    {
+        return $this->hasOne(GoogleCalendarConnection::class);
     }
 
     public function roleEnum(): UserRole

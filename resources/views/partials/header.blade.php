@@ -40,7 +40,7 @@
               <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
               <a href="/settings?section=storage" class="{{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
               <a href="/settings?section=enhance" class="{{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
-              <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('LINE連携') }}</a>
+              <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
               <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
             @endif
             @if(!empty($canAdminUsers))
@@ -53,6 +53,22 @@
     </nav>
 
     <div class="nav-trailing">
+      @if(!empty($currentUser))
+        <div class="lang-switcher context-switcher" role="group" aria-label="{{ __('表示モード') }}">
+          <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form">
+            @csrf
+            <input type="hidden" name="context" value="personal" />
+            <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
+            <button type="submit" class="lang-switch-btn{{ ($appContext ?? 'personal') === 'personal' ? ' is-active' : '' }}" aria-pressed="{{ ($appContext ?? 'personal') === 'personal' ? 'true' : 'false' }}">{{ __('プライベート') }}</button>
+          </form>
+          <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form">
+            @csrf
+            <input type="hidden" name="context" value="work" />
+            <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
+            <button type="submit" class="lang-switch-btn{{ ($appContext ?? 'personal') === 'work' ? ' is-active' : '' }}" aria-pressed="{{ ($appContext ?? 'personal') === 'work' ? 'true' : 'false' }}">{{ __('仕事') }}</button>
+          </form>
+        </div>
+      @endif
       <div class="lang-switcher" role="group" aria-label="{{ __('言語') }}">
         <form method="post" action="{{ route('locale.update') }}" class="lang-switch-form">
           @csrf

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AppContext;
+use App\Services\AppContextService;
 use App\Services\CalendarService;
 use App\Services\DashboardAiUsageService;
 use App\Services\DisplayService;
+use App\Services\GoogleCalendarService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
@@ -24,6 +27,8 @@ class DashboardController extends Controller
         private DisplayService $display,
         private DashboardAiUsageService $aiUsage,
         private TravelService $travel,
+        private AppContextService $contexts,
+        private GoogleCalendarService $googleCalendar,
     ) {}
 
     public function index(Request $request)
@@ -51,9 +56,16 @@ class DashboardController extends Controller
             $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
         }
 
-        $userId = (int) $request->user()->id;
-        $allTodos = $this->todos->listTodos($userId)->all();
+        $user = $request->user();
+        $userId = (int) $user->id;
+        $context = $this->contexts->current($user, $request);
+        $allTodos = $this->todos->listTodos($userId, $context)->all();
         $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
+
+        if ($context === AppContext::Work) {
+            $allTodos = $this->mergeGoogleEvents($user, $allTodos, $view, $focusDate, $y, $m);
+        }
+
         $undated = array_values(array_filter(
             $allTodos,
             fn (array $todo) => empty($todo['startDate']) && empty($todo['endDate'])
@@ -101,7 +113,7 @@ class DashboardController extends Controller
             'yearView' => $yearView,
             'undated' => $undated,
             'returnTo' => $returnTo,
-            'monthAgenda' => $view === 'month' ? $this->listMonthAgenda($y, $m, $userId) : [],
+            'monthAgenda' => $view === 'month' ? $this->listMonthAgenda($y, $m, $userId, $allTodos, $activeNotes) : [],
             'truncateTitle' => fn ($title, $max = 24) => $this->display->truncateTitle((string) $title, $max),
             'limitTodosForCell' => fn ($todos, $limit = 4) => $this->display->limitTodosForCell($todos, $limit),
             'limitCellItems' => fn ($todos, $notes, $limit = 4) => $this->display->limitCellItems($todos, $notes, $limit),
@@ -114,9 +126,11 @@ class DashboardController extends Controller
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'aiUsage' => $this->aiUsage->summary($userId),
-            'travelSummary' => $request->user()->canAccess('travel')
+            'travelSummary' => $user->canAccess('travel')
                 ? $this->travel->dashboardSummary($userId)
                 : null,
+            'googleCalendarConnected' => $context === AppContext::Work
+                && $this->googleCalendar->connectionFor($user) !== null,
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -129,13 +143,13 @@ class DashboardController extends Controller
     }
 
     /** @return list<array<string, mixed>> */
-    private function listMonthAgenda(int $year, int $month, int $userId): array
+    private function listMonthAgenda(int $year, int $month, int $userId, array $allTodos, array $activeNotes): array
     {
         $monthStart = sprintf('%04d-%02d-01', $year, $month);
         $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year));
 
         $items = [];
-        foreach ($this->todos->listTodos($userId) as $todo) {
+        foreach ($allTodos as $todo) {
             $range = $this->todos->getTodoRange($todo);
             if (! $range || $range['start'] > $monthEnd || $range['end'] < $monthStart) {
                 continue;
@@ -147,10 +161,14 @@ class DashboardController extends Controller
                 'todo' => $todo,
             ];
         }
-        foreach ($this->notes->listNotesForMonth($userId, $year, $month) as $note) {
+        foreach ($activeNotes as $note) {
+            $d = $this->notes->getRegisteredDate($note);
+            if (! $d || $d < $monthStart || $d > $monthEnd) {
+                continue;
+            }
             $items[] = [
                 'kind' => 'note',
-                'sortDate' => $this->notes->getRegisteredDate($note),
+                'sortDate' => $d,
                 'sortTime' => '',
                 'note' => $note,
             ];
@@ -171,5 +189,61 @@ class DashboardController extends Controller
         });
 
         return $items;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $localTodos
+     * @return list<array<string, mixed>>
+     */
+    private function mergeGoogleEvents($user, array $localTodos, string $view, string $focusDate, int $year, int $month): array
+    {
+        if (! $this->googleCalendar->connectionFor($user)) {
+            return $localTodos;
+        }
+
+        try {
+            if ($view === 'day') {
+                $timeMin = $focusDate.' 00:00:00';
+                $timeMax = $focusDate.' 23:59:59';
+            } elseif ($view === 'week') {
+                $start = Carbon::parse($focusDate, config('app.timezone'))->startOfWeek(Carbon::SUNDAY);
+                $end = $start->copy()->addDays(6);
+                $timeMin = $start->format('Y-m-d').' 00:00:00';
+                $timeMax = $end->format('Y-m-d').' 23:59:59';
+            } elseif ($view === 'year') {
+                $timeMin = sprintf('%04d-01-01 00:00:00', $year);
+                $timeMax = sprintf('%04d-12-31 23:59:59', $year);
+            } else {
+                $prev = $this->calendar->shiftMonth($year, $month, -1);
+                $next = $this->calendar->shiftMonth($year, $month, 1);
+                $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
+                $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
+                $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
+            }
+
+            $remote = $this->googleCalendar->listEventsAsTodos($user, $timeMin, $timeMax);
+        } catch (\Throwable $e) {
+            return $localTodos;
+        }
+
+        $known = [];
+        foreach ($localTodos as $todo) {
+            if (! empty($todo['googleEventId'])) {
+                $known[(string) $todo['googleEventId']] = true;
+            }
+        }
+
+        foreach ($remote as $event) {
+            $eid = (string) ($event['googleEventId'] ?? '');
+            if ($eid !== '' && isset($known[$eid])) {
+                continue;
+            }
+            $localTodos[] = $event;
+            if ($eid !== '') {
+                $known[$eid] = true;
+            }
+        }
+
+        return $localTodos;
     }
 }

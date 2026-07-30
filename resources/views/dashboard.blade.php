@@ -15,6 +15,16 @@
     <main class="page-main">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
+      @if(!empty($appContextIsWork))
+        <div class="banner notice">
+          {{ __('仕事モード: プライベートの ToDo／メモは表示されません。') }}
+          @if(empty($googleCalendarConnected))
+            <a href="/settings?section=integration#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
+          @else
+            <a href="/settings?section=integration#google-calendar">{{ __('カレンダー選択・取込') }}</a>
+          @endif
+        </div>
+      @endif
 
       @include('dashboard.partials.ai-usage')
       @include('dashboard.partials.travel')
@@ -800,6 +810,10 @@
         || ''
 
       function setupDraggable(el) {
+        const todoId = el.getAttribute('data-todo-id')
+        if (todoId && !/^\d+$/.test(todoId)) {
+          return
+        }
         el.setAttribute('draggable', 'true')
         el.addEventListener('dragstart', (e) => {
           el.dataset.dragging = '1'

@@ -96,6 +96,7 @@ class ShareViewData
         ]);
 
         if ($user = $request->user()) {
+            $appContext = app(\App\Services\AppContextService::class)->current($user, $request);
             View::share([
                 'currentUser' => $user->toPublicArray(),
                 'isAdmin' => $user->isAdmin(),
@@ -107,6 +108,9 @@ class ShareViewData
                 'canVideo' => $user->canAccess('video'),
                 'canSettings' => $user->canAccess('settings'),
                 'canAdminUsers' => $user->canAccess('admin'),
+                'appContext' => $appContext->value,
+                'appContextIsWork' => $appContext === \App\Enums\AppContext::Work,
+                'appContextLabel' => $appContext->label(),
             ]);
         }
 

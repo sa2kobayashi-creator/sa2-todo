@@ -11,6 +11,7 @@ class Note extends Model
     protected $fillable = [
         'user_id',
         'group_id',
+        'context',
         'title',
         'body',
         'color',
