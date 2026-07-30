@@ -72,7 +72,7 @@
     </div>
 
     <div data-capacity-panel="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
-      <p class="hint">{{ __('毎日 3:30 とアップロード時に、R2 使用量が無料枠内へ収まるよう古い原本を B2 へ移します。') }}</p>
+      <p class="hint">{{ __('毎日 3:30 とアップロード時に、R2 使用量が無料枠内へ収まるよう古い原本を B2 へ移します。アップロード時の同期移動は最大1件（設定可）で、残りは cron が処理します。') }}</p>
     </div>
 
     <div data-capacity-panel="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>

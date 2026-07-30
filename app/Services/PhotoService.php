@@ -24,6 +24,12 @@ class PhotoService
         'video/mp4',
     ];
 
+    /** @var array<int, int> */
+    private array $usedBytesApproxCache = [];
+
+    /** @var bool|null */
+    private ?bool $paidOverageAllowedCache = null;
+
     public function __construct(
         private GroupService $groups,
         private FfmpegService $ffmpeg,
@@ -93,7 +99,10 @@ class PhotoService
      */
     public function userAllowsPaidOverageUploads(int $userId): bool
     {
-        if ($this->mediaConfig->allowsPaidOverageFromSettings()) {
+        if ($this->paidOverageAllowedCache === null) {
+            $this->paidOverageAllowedCache = $this->mediaConfig->allowsPaidOverageFromSettings();
+        }
+        if ($this->paidOverageAllowedCache) {
             return true;
         }
 
@@ -140,6 +149,10 @@ class PhotoService
 
     public function userUsedBytesApprox(int $userId): int
     {
+        if (array_key_exists($userId, $this->usedBytesApproxCache)) {
+            return $this->usedBytesApproxCache[$userId];
+        }
+
         $thumbExtra = (int) Photo::query()
             ->where('user_id', $userId)
             ->whereNotNull('thumb_path')
@@ -147,7 +160,15 @@ class PhotoService
 
         $bytes = (int) Photo::query()->where('user_id', $userId)->sum('size_bytes');
 
-        return $bytes + $thumbExtra;
+        return $this->usedBytesApproxCache[$userId] = $bytes + $thumbExtra;
+    }
+
+    private function bumpUsedBytesApproxCache(int $userId, int $deltaBytes): void
+    {
+        if (! array_key_exists($userId, $this->usedBytesApproxCache)) {
+            return;
+        }
+        $this->usedBytesApproxCache[$userId] = max(0, $this->usedBytesApproxCache[$userId] + $deltaBytes);
     }
 
     private function formatUsdPerGbMonth(float $price): string
@@ -904,7 +925,11 @@ class PhotoService
 
             $incomingBytes = max(0, (int) $file->getSize());
             $this->assertWithinFreeQuotaOrPaid($userId, $incomingBytes);
-            $archive->ensureHotWithinQuota($userId, $incomingBytes);
+            // 同期アーカイブは最小限（既定1件）。大量の R2→B2 移動は cron に任せ、保存体感を落とさない
+            $syncArchiveLimit = max(0, (int) config('photos.upload_sync_archive_limit', 1));
+            if ($syncArchiveLimit > 0) {
+                $archive->ensureHotWithinQuota($userId, $incomingBytes, $syncArchiveLimit);
+            }
             $target = $this->resolveUploadTarget($userId, $incomingBytes);
 
             $dir = 'photos/'.$userId.'/'.now()->format('Y/m');
@@ -961,6 +986,7 @@ class PhotoService
             }
 
             $nextOrder -= 10;
+            $this->bumpUsedBytesApproxCache($userId, (int) ($stored['sizeBytes'] ?? 0) + 80_000);
             $this->maybeSyncCloudinary($photo);
             $created[] = $this->photoToArray($photo->fresh() ?? $photo, $userId);
 

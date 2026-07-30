@@ -22,6 +22,12 @@ return [
         1024 * 1024 * 1024 * 1024
     ),
 
+    /**
+     * アップロード時に同期で行う R2→B2 アーカイブの最大件数。
+     * 大きいほど R2 を抑えやすいが保存が遅くなる。大量移動は cron（photos:archive-cold）へ。
+     */
+    'upload_sync_archive_limit' => (int) env('PHOTO_UPLOAD_SYNC_ARCHIVE_LIMIT', 1),
+
     /** ホット（R2 等）側のソフト上限目安（バイト）。長期保存へ移す閾値。既定 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 

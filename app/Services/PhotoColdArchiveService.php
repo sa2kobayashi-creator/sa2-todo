@@ -62,13 +62,10 @@ class PhotoColdArchiveService
         $hotDisk = (string) config('photos.disk', 'public');
         $coldDisk = 'backblaze';
         $archived = 0;
+        $hotUsed = $this->hotUsedBytes($userId);
+        $need = max(0, $extraBytes);
 
-        while ($archived < $limit) {
-            $hotUsed = $this->hotUsedBytes($userId);
-            if ($hotUsed + max(0, $extraBytes) <= $quota) {
-                break;
-            }
-
+        while ($archived < $limit && ($hotUsed + $need) > $quota) {
             $photo = Photo::query()
                 ->where('user_id', $userId)
                 ->where(function ($q) {
@@ -82,9 +79,13 @@ class PhotoColdArchiveService
                 break;
             }
 
+            $freed = max(0, (int) ($photo->size_bytes ?? 0));
+
             try {
                 if ($this->archiveOne($photo, $hotDisk, $coldDisk)) {
                     $archived++;
+                    // サムネは R2 に残るため、原本サイズ分だけ減る
+                    $hotUsed = max(0, $hotUsed - $freed);
                 } else {
                     break;
                 }
