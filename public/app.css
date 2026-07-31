@@ -9253,7 +9253,8 @@ body.map-page {
   background: #fff;
 }
 
-label.photos-camera-btn {
+label.photos-camera-btn,
+label.photos-files-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -9263,7 +9264,8 @@ label.photos-camera-btn {
   overflow: hidden;
 }
 
-label.photos-camera-btn input[type="file"] {
+label.photos-camera-btn input[type="file"],
+label.photos-files-btn input[type="file"] {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -9273,7 +9275,8 @@ label.photos-camera-btn input[type="file"] {
   font-size: 0;
 }
 
-label.photos-camera-btn span {
+label.photos-camera-btn span,
+label.photos-files-btn span {
   pointer-events: none;
 }
 

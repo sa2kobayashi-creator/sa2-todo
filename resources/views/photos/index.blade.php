@@ -37,15 +37,23 @@
         </div>
         <div class="photos-hero-actions">
           @if(empty($selectedAlbum) || !empty($canManageSelected))
-            <label class="photos-upload-btn" title="{{ __('端末の写真・動画を選んで追加') }}">
+            <label class="photos-upload-btn" title="{{ __('端末の写真・動画ライブラリから選ぶ') }}">
               <input
                 type="file"
                 name="photos[]"
                 id="photos-file-input"
-                accept="image/*,video/mp4,.heic,.heif,.mp4"
+                accept="image/*,video/*,video/mp4,.heic,.heif,.mp4"
                 multiple
               />
-              <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
+              <span class="photos-upload-btn-label">{{ __('写真から選ぶ') }}</span>
+            </label>
+            <label class="photos-secondary-btn photos-files-btn" title="{{ __('ファイルアプリ・このデバイス・他アプリから選ぶ') }}">
+              <input
+                type="file"
+                id="photos-files-input"
+                multiple
+              />
+              <span>{{ __('ファイルから選ぶ') }}</span>
             </label>
             <label class="photos-secondary-btn photos-camera-btn" title="{{ __('背面カメラで撮影して追加（写真）') }}">
               <input
@@ -60,7 +68,7 @@
               <input
                 type="file"
                 id="photos-camera-video-input"
-                accept="video/mp4,video/*"
+                accept="video/*"
                 capture="environment"
               />
               <span>{{ __('動画を撮る') }}</span>
@@ -447,7 +455,7 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「カメラで撮る」は背面カメラで撮影します。「フォルダを監視」は PC の Chrome 等で、DCIM や Camera フォルダを選ぶとサブフォルダも監視します（ページを開いている間のみ。スマホの常時同期はブラウザ制限で不可）。') }}</span>
+          <span>{{ __('「写真から選ぶ」はライブラリ、「ファイルから選ぶ」はこのデバイスや他アプリ、「カメラで撮る」は背面カメラです。「フォルダを監視」は PC の Chrome 等で、DCIM や Camera フォルダを選ぶとサブフォルダも監視します（ページを開いている間のみ。スマホの常時同期はブラウザ制限で不可）。') }}</span>
           <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
@@ -1485,6 +1493,7 @@
         const selectedAlbumId = @json($selectedAlbumId);
         const coverPhotoId = @json($selectedAlbum['coverPhotoId'] ?? null);
         const fileInput = document.getElementById('photos-file-input')
+        const filesBrowseInput = document.getElementById('photos-files-input')
         const form = document.getElementById('photos-upload-form')
         const formFiles = document.getElementById('photos-form-files')
         const formThumbs = document.getElementById('photos-form-thumbs')
@@ -2118,7 +2127,7 @@
 
             if (soft) {
               if (totalCreated > 0 || totalSkipped > 0 || failed.length || rejected.length) {
-                setUploadProgress(buildResultNotice() || @json(__('写真・動画を追加')))
+                setUploadProgress(buildResultNotice() || @json(__('写真から選ぶ')))
               }
               return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
             }
@@ -2156,9 +2165,9 @@
             activeUploadXhr = null
             if (!soft && pageJob) pageJob.end('upload')
             if (!soft) {
-              setUploadProgress(@json(__('写真・動画を追加')));
+              setUploadProgress(@json(__('写真から選ぶ')));
             } else if (!folderWatch.timer) {
-              setUploadProgress(@json(__('写真・動画を追加')));
+              setUploadProgress(@json(__('写真から選ぶ')));
             }
           }
         }
@@ -2283,7 +2292,7 @@
 
         async function startFolderWatch() {
           if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「カメラで撮る」か「写真・動画を追加」を使ってください。')))
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真から選ぶ」「ファイルから選ぶ」「カメラで撮る」を使ってください。')))
             return
           }
           try {
@@ -2328,6 +2337,7 @@
           if (pendingBar) pendingBar.hidden = true
           if (pendingCount) pendingCount.textContent = ''
           if (fileInput) fileInput.value = ''
+          if (filesBrowseInput) filesBrowseInput.value = ''
         }
 
         function showPendingFiles(fileList) {
@@ -2367,6 +2377,12 @@
           enqueueSelectedFiles(fileInput.files)
         })
 
+        filesBrowseInput?.addEventListener('change', () => {
+          if (!filesBrowseInput.files?.length) return
+          enqueueSelectedFiles(filesBrowseInput.files)
+          filesBrowseInput.value = ''
+        })
+
         cameraInput?.addEventListener('change', () => {
           if (!cameraInput.files?.length) return
           enqueueSelectedFiles(cameraInput.files, { fromCamera: true })
@@ -2388,7 +2404,7 @@
 
         pendingCancelBtn?.addEventListener('click', () => {
           clearPendingFiles()
-          setUploadProgress(@json(__('写真・動画を追加')))
+          setUploadProgress(@json(__('写真から選ぶ')))
         })
 
         if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {
@@ -2400,7 +2416,7 @@
           if (folderWatchBtn && typeof window.showDirectoryPicker === 'function') {
             folderWatchBtn.hidden = false
           }
-          setUploadProgress(@json(__('写真・動画を追加')))
+          setUploadProgress(@json(__('写真から選ぶ')))
         })
 
         ;['dragenter', 'dragover'].forEach((type) => {
