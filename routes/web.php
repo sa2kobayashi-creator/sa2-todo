@@ -98,7 +98,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/upload/complete', [PhotoController::class, 'uploadComplete']);
     Route::post('/photos/archive-cold', [PhotoController::class, 'archiveCold']);
     Route::post('/photos/albums', [PhotoController::class, 'storeAlbum']);
+    Route::post('/photos/albums/reveal-hidden', [PhotoController::class, 'toggleRevealHiddenAlbums']);
     Route::post('/photos/albums/{id}/update', [PhotoController::class, 'updateAlbum'])->whereNumber('id');
+    Route::post('/photos/albums/{id}/unlock', [PhotoController::class, 'unlockAlbum'])->whereNumber('id');
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');

@@ -13,10 +13,16 @@ class PhotoAlbum extends Model
         'user_id',
         'name',
         'description',
+        'password_hash',
+        'is_hidden',
         'visibility',
         'group_id',
         'cover_photo_id',
         'sort_order',
+    ];
+
+    protected $hidden = [
+        'password_hash',
     ];
 
     protected function casts(): array
@@ -24,8 +30,14 @@ class PhotoAlbum extends Model
         return [
             'sort_order' => 'integer',
             'cover_photo_id' => 'integer',
+            'is_hidden' => 'boolean',
             'visibility' => AlbumVisibility::class,
         ];
+    }
+
+    public function hasPassword(): bool
+    {
+        return is_string($this->password_hash) && $this->password_hash !== '';
     }
 
     public function user(): BelongsTo

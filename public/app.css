@@ -2497,13 +2497,24 @@ a.filter-clear-btn {
 }
 
 .modal-form textarea,
-.modal-form input[type="date"] {
+.modal-form input[type="date"],
+.modal-form input[type="text"],
+.modal-form input[type="password"],
+.modal-form input[type="email"],
+.modal-form input[type="number"] {
   width: 100%;
   padding: 10px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-family: inherit;
   font-size: 14px;
+  background: white;
+  box-sizing: border-box;
+  min-height: 42px;
+}
+
+.modal-form select {
+  min-height: 42px;
 }
 
 .modal-actions {
@@ -10029,6 +10040,48 @@ label.photos-camera-btn span {
 .photos-album-chip.is-active .photos-album-count {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
+}
+
+.photos-hidden-reveal-note {
+  margin: 8px 0 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--photos-accent, #0f766e);
+}
+
+.photos-album-lock {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  padding: 24px 12px;
+}
+
+.photos-album-lock-card {
+  width: min(100%, 420px);
+  padding: 24px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--photos-line, #e5e7eb);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 28px rgba(23, 27, 31, 0.08);
+}
+
+.photos-album-lock-card h2 {
+  margin: 0 0 8px;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.4rem;
+  color: var(--photos-ink, #171b1f);
+}
+
+.photos-album-lock-card > p {
+  margin: 0 0 16px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  color: var(--photos-muted, #6b7280);
+}
+
+.photos-cover-card.is-hidden-album {
+  outline: 1px dashed rgba(15, 118, 110, 0.45);
 }
 
 .photos-empty {

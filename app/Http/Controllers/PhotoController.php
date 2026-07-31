@@ -27,13 +27,24 @@ class PhotoController extends Controller
             $sort = 'taken_desc';
         }
         $year = $request->filled('year') ? (int) $request->query('year') : null;
-        $albums = $this->photos->listAlbums($userId);
-        $selectedAlbum = $albumId
-            ? collect($albums)->firstWhere('id', $albumId)
+        $revealHidden = (bool) session('photos_reveal_hidden_'.$userId, false);
+        $albums = $this->photos->listAlbums($userId, $revealHidden);
+        $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
+        $selectedAlbum = $selectedAlbumModel
+            ? $this->photos->albumToArray($selectedAlbumModel->loadCount('photos'), $userId)
             : null;
+
+        // 一覧に出ていない隠しアルバムへ直接アクセスした場合も配列に載せる
+        if ($selectedAlbum && ! collect($albums)->firstWhere('id', $albumId)) {
+            array_unshift($albums, $selectedAlbum);
+        }
+
+        $albumLocked = $selectedAlbumModel
+            && $this->photos->albumNeedsUnlock($selectedAlbumModel, $userId);
+
         // 年選択肢用にフィルタ前の一覧（同一アルバム範囲）
-        $allForYears = $this->photos->listPhotos($userId, $albumId, 'taken_desc', null);
-        $photoList = $this->photos->listPhotos($userId, $albumId, $sort, $year);
+        $allForYears = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, 'taken_desc', null);
+        $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year);
         $ownedAlbums = array_values(array_filter($albums, fn ($a) => ! empty($a['canManage'])));
         $queryBase = [];
         if ($albumId) {
@@ -57,6 +68,8 @@ class PhotoController extends Controller
             'photosYear' => $year,
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
+            'albumLocked' => $albumLocked,
+            'revealHiddenAlbums' => $revealHidden,
             'canManageSelected' => ! empty($selectedAlbum['canManage']),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'storageStats' => $this->photos->storageStats($userId),
@@ -89,7 +102,9 @@ class PhotoController extends Controller
                 (string) $request->input('name'),
                 $request->input('description'),
                 (string) $request->input('visibility', 'private'),
-                $request->input('group_id')
+                $request->input('group_id'),
+                $request->input('password'),
+                $request->boolean('is_hidden')
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -108,13 +123,56 @@ class PhotoController extends Controller
                 (string) $request->input('name'),
                 $request->input('description'),
                 (string) $request->input('visibility', 'private'),
-                $request->input('group_id')
+                $request->input('group_id'),
+                $request->input('password'),
+                $request->boolean('clear_password'),
+                $request->boolean('is_hidden')
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'アルバム名を更新しました');
+        return $this->redirectWithMessage($returnTo, 'アルバムを更新しました');
+    }
+
+    public function unlockAlbum(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos?album='.$id);
+        $ok = $this->photos->unlockAlbum(
+            (int) $request->user()->id,
+            $id,
+            (string) $request->input('password', '')
+        );
+        if (! $ok) {
+            return $this->redirectWithMessage($returnTo, __('パスワードが正しくありません。'), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('アルバムのロックを解除しました。'));
+    }
+
+    public function toggleRevealHiddenAlbums(Request $request)
+    {
+        $userId = (int) $request->user()->id;
+        $key = 'photos_reveal_hidden_'.$userId;
+        $next = ! (bool) session($key, false);
+        session([$key => $next]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'revealed' => $next,
+                'message' => $next
+                    ? __('隠しアルバムを表示しています。')
+                    : __('隠しアルバムを非表示にしました。'),
+            ]);
+        }
+
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+
+        return $this->redirectWithMessage(
+            $returnTo,
+            $next ? __('隠しアルバムを表示しています。') : __('隠しアルバムを非表示にしました。')
+        );
     }
 
     public function store(Request $request)

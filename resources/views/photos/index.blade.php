@@ -26,10 +26,19 @@
       <section class="photos-hero">
         <div class="photos-hero-copy">
           <p class="photos-kicker">{{ __('Album') }}</p>
-          <h1 class="photos-title">{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
+          <h1 class="photos-title" id="photos-title-tap" title="{{ __('隠しアルバムの表示切替: 7回タップ') }}">{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
+          @if(!empty($revealHiddenAlbums))
+            <p class="photos-hidden-reveal-note" id="photos-hidden-reveal-note">{{ __('隠しアルバムを表示中（タイトルを7回タップで非表示）') }}</p>
+          @endif
           <p class="photos-lead">
             @if($selectedAlbum)
               {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }} · {{ __('表紙を選んでアルバムらしく') }}
+              @if(!empty($selectedAlbum['hasPassword']))
+                · {{ __('鍵付き') }}
+              @endif
+              @if(!empty($selectedAlbum['isHidden']))
+                · {{ __('隠し') }}
+              @endif
             @else
               {{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}
             @endif
@@ -489,7 +498,7 @@
           @endphp
           <a
             href="/photos?{{ http_build_query($albumQuery) }}"
-            @class(['photos-cover-card', 'is-active' => $selectedAlbumId === $album['id']])
+            @class(['photos-cover-card', 'is-active' => $selectedAlbumId === $album['id'], 'is-hidden-album' => !empty($album['isHidden'])])
           >
             @if(!empty($album['coverUrl']))
               <img src="{{ $album['coverUrl'] }}" alt="" class="photos-cover-image" loading="lazy" />
@@ -501,11 +510,18 @@
             @endif
             <span class="photos-cover-shade"></span>
             <span class="photos-cover-text">
-              <strong>{{ $album['name'] }}</strong>
+              <strong>
+                @if(!empty($album['hasPassword']))🔒 @endif
+                @if(!empty($album['isHidden']))👁‍🗨 @endif
+                {{ $album['name'] }}
+              </strong>
               <span>
                 {{ __(':count枚', ['count' => $album['photoCount']]) }}
                 @if(!empty($album['visibilityLabel']))
                   · {{ $album['visibilityLabel'] }}
+                @endif
+                @if(!empty($album['isHidden']))
+                  · {{ __('隠し') }}
                 @endif
               </span>
             </span>
@@ -524,7 +540,25 @@
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
       </form>
 
-      @if(count($photos) === 0)
+      @if(!empty($albumLocked) && $selectedAlbum)
+        <div class="photos-album-lock" id="photos-album-lock">
+          <div class="photos-album-lock-card">
+            <h2>{{ __('このアルバムは鍵付きです') }}</h2>
+            <p>{{ __('パスワードを入力すると写真を表示できます。') }}</p>
+            <form method="post" action="/photos/albums/{{ $selectedAlbum['id'] }}/unlock" class="modal-form photos-album-lock-form">
+              @csrf
+              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+              <label>
+                {{ __('パスワード') }}
+                <input type="password" name="password" required minlength="4" autocomplete="current-password" />
+              </label>
+              <div class="modal-actions">
+                <button type="submit">{{ __('ロック解除') }}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      @elseif(count($photos) === 0)
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
@@ -1437,6 +1471,20 @@
               @endforeach
             </select>
           </label>
+          <label>
+            {{ __('パスワード（任意）') }}
+            <input type="password" name="password" id="photos-album-password" minlength="4" maxlength="72" placeholder="{{ __('4文字以上・空欄でなし') }}" autocomplete="new-password" />
+          </label>
+          <p class="hint" id="photos-album-password-hint">{{ __('設定すると、開くときにパスワードが必要です。') }}</p>
+          <label class="inline-check" id="photos-album-clear-password-wrap" hidden>
+            <input type="checkbox" name="clear_password" value="1" id="photos-album-clear-password" />
+            <span>{{ __('パスワードを解除する') }}</span>
+          </label>
+          <label class="inline-check">
+            <input type="checkbox" name="is_hidden" value="1" id="photos-album-hidden" />
+            <span>{{ __('隠しアルバム（一覧に出さない・本人のみ）') }}</span>
+          </label>
+          <p class="hint">{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
           <div class="modal-actions">
             <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
             <button type="submit" id="photos-album-submit">{{ __('作成') }}</button>
@@ -3770,16 +3818,24 @@
         const albumVisibility = document.getElementById('photos-album-visibility')
         const albumGroupWrap = document.getElementById('photos-album-group-wrap')
         const albumGroupId = document.getElementById('photos-album-group-id')
+        const albumPassword = document.getElementById('photos-album-password')
+        const albumPasswordHint = document.getElementById('photos-album-password-hint')
+        const albumClearPasswordWrap = document.getElementById('photos-album-clear-password-wrap')
+        const albumClearPassword = document.getElementById('photos-album-clear-password')
+        const albumHidden = document.getElementById('photos-album-hidden')
         const albumSubmit = document.getElementById('photos-album-submit')
         const selectedAlbum = @json($selectedAlbum);
+        const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
 
         function syncAlbumGroupVisibility() {
           if (!albumVisibility || !albumGroupWrap) return
-          const showGroup = albumVisibility.value === 'group'
+          const showGroup = albumVisibility.value === 'group' && !(albumHidden && albumHidden.checked)
           albumGroupWrap.hidden = !showGroup
           if (albumGroupId) albumGroupId.required = showGroup
+          if (albumVisibility) albumVisibility.disabled = !!(albumHidden && albumHidden.checked)
         }
         albumVisibility?.addEventListener('change', syncAlbumGroupVisibility)
+        albumHidden?.addEventListener('change', syncAlbumGroupVisibility)
 
         function openAlbumModal(mode) {
           if (!albumModal || !albumForm) return
@@ -3790,7 +3846,16 @@
             albumDescInput.value = selectedAlbum.description || ''
             if (albumVisibility) albumVisibility.value = selectedAlbum.visibility || 'private'
             if (albumGroupId) albumGroupId.value = selectedAlbum.groupId || ''
-            albumSubmit.textContent = @json(__('保存'));
+            if (albumPassword) albumPassword.value = ''
+            if (albumPasswordHint) {
+              albumPasswordHint.textContent = selectedAlbum.hasPassword
+                ? @json(__('新しいパスワードを入れると上書き。空欄のままなら変更しません。'))
+                : @json(__('設定すると、開くときにパスワードが必要です。'));
+            }
+            if (albumClearPasswordWrap) albumClearPasswordWrap.hidden = !selectedAlbum.hasPassword
+            if (albumClearPassword) albumClearPassword.checked = false
+            if (albumHidden) albumHidden.checked = !!selectedAlbum.isHidden
+            if (albumSubmit) albumSubmit.textContent = @json(__('保存'));
           } else {
             albumModalTitle.textContent = @json(__('アルバムを作成'));
             albumForm.action = '/photos/albums'
@@ -3798,11 +3863,16 @@
             albumDescInput.value = ''
             if (albumVisibility) albumVisibility.value = 'private'
             if (albumGroupId) albumGroupId.value = ''
-            albumSubmit.textContent = @json(__('作成'));
+            if (albumPassword) albumPassword.value = ''
+            if (albumPasswordHint) albumPasswordHint.textContent = @json(__('設定すると、開くときにパスワードが必要です。'));
+            if (albumClearPasswordWrap) albumClearPasswordWrap.hidden = true
+            if (albumClearPassword) albumClearPassword.checked = false
+            if (albumHidden) albumHidden.checked = false
+            if (albumSubmit) albumSubmit.textContent = @json(__('作成'));
           }
           syncAlbumGroupVisibility()
           albumModal.hidden = false
-          albumNameInput.focus()
+          albumNameInput?.focus()
         }
 
         document.getElementById('photos-album-open')?.addEventListener('click', () => openAlbumModal('create'))
@@ -3812,6 +3882,46 @@
             if (albumModal) albumModal.hidden = true
           })
         })
+
+        // 隠しアルバム表示切替: タイトルを7回タップ
+        ;(function setupHiddenAlbumReveal() {
+          const title = document.getElementById('photos-title-tap')
+          if (!title) return
+          let taps = 0
+          let timer = null
+          title.style.cursor = 'pointer'
+          title.addEventListener('click', async (e) => {
+            // アルバム選択中はタイトルがアルバム名なので、ルートの Photos 相当でも動作させる
+            e.preventDefault()
+            taps += 1
+            if (timer) clearTimeout(timer)
+            timer = setTimeout(() => { taps = 0 }, 1600)
+            if (taps < 7) return
+            taps = 0
+            const fd = new FormData()
+            fd.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '')
+            fd.append('returnTo', window.location.pathname + window.location.search)
+            try {
+              const res = await fetch('/photos/albums/reveal-hidden', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: fd,
+                credentials: 'same-origin',
+              })
+              const data = await res.json().catch(() => ({}))
+              window.alert(data.message || (revealHiddenAlbums
+                ? @json(__('隠しアルバムを切り替えました。'))
+                : @json(__('隠しアルバムを表示しています。'))));
+              window.location.reload()
+            } catch (_) {
+              window.alert(@json(__('隠しアルバムの切替に失敗しました。')));
+            }
+          })
+        })()
 
         if (usageOpenBtn && usageModal) {
           usageOpenBtn.addEventListener('click', () => {

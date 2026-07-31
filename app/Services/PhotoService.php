@@ -534,7 +534,7 @@ class PhotoService
     }
 
     /** @return list<array<string, mixed>> */
-    public function listAlbums(int $userId): array
+    public function listAlbums(int $userId, bool $includeHidden = false): array
     {
         $groupIds = $this->groups->approvedGroupIdsForUser($userId);
 
@@ -551,6 +551,15 @@ class PhotoService
                     });
                 }
             })
+            ->where(function ($q) use ($userId, $includeHidden) {
+                // 隠しアルバムは本人かつ明示的に表示ONのときだけ一覧に出す
+                $q->where('is_hidden', false);
+                if ($includeHidden) {
+                    $q->orWhere(function ($ownHidden) use ($userId) {
+                        $ownHidden->where('user_id', $userId)->where('is_hidden', true);
+                    });
+                }
+            })
             ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$userId])
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -564,6 +573,10 @@ class PhotoService
         if ((int) $album->user_id === $userId) {
             return true;
         }
+        // 隠しアルバムは所有者以外には見せない（公開範囲より優先）
+        if ($album->is_hidden) {
+            return false;
+        }
         $visibility = $album->visibilityEnum();
         if ($visibility === AlbumVisibility::Public) {
             return true;
@@ -573,6 +586,46 @@ class PhotoService
         }
 
         return false;
+    }
+
+    public function albumNeedsUnlock(PhotoAlbum $album, int $userId): bool
+    {
+        if (! $album->hasPassword()) {
+            return false;
+        }
+        if (! $this->canViewAlbum($userId, $album)) {
+            return false;
+        }
+
+        return ! $this->isAlbumUnlocked($userId, (int) $album->id);
+    }
+
+    public function isAlbumUnlocked(int $userId, int $albumId): bool
+    {
+        $key = 'photos_album_unlocks_'.$userId;
+        $ids = session($key, []);
+
+        return is_array($ids) && in_array($albumId, array_map('intval', $ids), true);
+    }
+
+    public function unlockAlbum(int $userId, int $albumId, string $password): bool
+    {
+        $album = PhotoAlbum::query()->find($albumId);
+        if (! $album || ! $this->canViewAlbum($userId, $album) || ! $album->hasPassword()) {
+            return false;
+        }
+        if (! \Illuminate\Support\Facades\Hash::check($password, (string) $album->password_hash)) {
+            return false;
+        }
+        $key = 'photos_album_unlocks_'.$userId;
+        $ids = session($key, []);
+        if (! is_array($ids)) {
+            $ids = [];
+        }
+        $ids[] = $albumId;
+        session([$key => array_values(array_unique(array_map('intval', $ids)))]);
+
+        return true;
     }
 
     public function canManageAlbum(int $userId, PhotoAlbum $album): bool
@@ -783,6 +836,8 @@ class PhotoService
         ?string $description = null,
         string $visibility = 'private',
         mixed $groupId = null,
+        ?string $password = null,
+        bool $isHidden = false,
     ): array {
         $name = trim($name);
         if ($name === '') {
@@ -791,11 +846,27 @@ class PhotoService
 
         [$visibilityEnum, $resolvedGroupId] = $this->normalizeAlbumVisibility($userId, $visibility, $groupId);
 
+        $passwordHash = null;
+        if ($password !== null && trim($password) !== '') {
+            if (mb_strlen($password) < 4) {
+                throw new \InvalidArgumentException(__('パスワードは4文字以上にしてください。'));
+            }
+            $passwordHash = \Illuminate\Support\Facades\Hash::make($password);
+        }
+
+        // 隠しアルバムは共有不可（本人専用）
+        if ($isHidden) {
+            $visibilityEnum = AlbumVisibility::Private;
+            $resolvedGroupId = null;
+        }
+
         $max = (int) PhotoAlbum::query()->where('user_id', $userId)->max('sort_order');
         $album = PhotoAlbum::create([
             'user_id' => $userId,
             'name' => mb_substr($name, 0, 120),
             'description' => $description !== null ? mb_substr(trim($description), 0, 500) : null,
+            'password_hash' => $passwordHash,
+            'is_hidden' => $isHidden,
             'visibility' => $visibilityEnum,
             'group_id' => $resolvedGroupId,
             'sort_order' => $max + 10,
@@ -811,6 +882,9 @@ class PhotoService
         ?string $description = null,
         ?string $visibility = null,
         mixed $groupId = null,
+        ?string $password = null,
+        bool $clearPassword = false,
+        ?bool $isHidden = null,
     ): array {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
         if (! $album) {
@@ -827,10 +901,24 @@ class PhotoService
         if ($album->description === '') {
             $album->description = null;
         }
-        if ($visibility !== null) {
+        if ($isHidden !== null) {
+            $album->is_hidden = $isHidden;
+        }
+        if ($album->is_hidden) {
+            $album->visibility = AlbumVisibility::Private;
+            $album->group_id = null;
+        } elseif ($visibility !== null) {
             [$visibilityEnum, $resolvedGroupId] = $this->normalizeAlbumVisibility($userId, $visibility, $groupId);
             $album->visibility = $visibilityEnum;
             $album->group_id = $resolvedGroupId;
+        }
+        if ($clearPassword) {
+            $album->password_hash = null;
+        } elseif ($password !== null && trim($password) !== '') {
+            if (mb_strlen($password) < 4) {
+                throw new \InvalidArgumentException(__('パスワードは4文字以上にしてください。'));
+            }
+            $album->password_hash = \Illuminate\Support\Facades\Hash::make($password);
         }
         $album->save();
 
@@ -2670,6 +2758,11 @@ class PhotoService
             'ownerName' => $album->relationLoaded('user') ? $album->user?->display_name : null,
             'isOwner' => $isOwner,
             'canManage' => $isOwner,
+            'hasPassword' => $album->hasPassword(),
+            'isHidden' => (bool) $album->is_hidden,
+            'isUnlocked' => $viewerUserId !== null && (
+                ! $album->hasPassword() || $this->isAlbumUnlocked($viewerUserId, (int) $album->id)
+            ),
             'coverPhotoId' => $album->cover_photo_id,
             'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
             'coverUrl' => $coverArr
