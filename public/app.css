@@ -9178,9 +9178,59 @@ body.map-page {
 }
 
 .photos-upload-btn {
+  position: relative;
   background: var(--photos-ink);
   color: #fff;
   box-shadow: 0 10px 24px rgba(23, 27, 31, 0.18);
+  overflow: hidden;
+  margin: 0;
+}
+
+.photos-upload-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.photos-upload-btn-label {
+  pointer-events: none;
+}
+
+.photos-pending-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--photos-line);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 20px rgba(23, 27, 31, 0.08);
+}
+
+.photos-pending-bar[hidden] {
+  display: none !important;
+}
+
+.photos-pending-count {
+  flex: 1 1 140px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--photos-ink);
+}
+
+.photos-pending-bar .photos-upload-btn,
+.photos-pending-bar .photos-secondary-btn {
+  position: static;
+  overflow: visible;
+  flex: 0 0 auto;
 }
 
 .photos-upload-btn:hover {

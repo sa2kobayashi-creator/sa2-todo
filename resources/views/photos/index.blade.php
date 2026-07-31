@@ -37,14 +37,13 @@
         </div>
         <div class="photos-hero-actions">
           @if(empty($selectedAlbum) || !empty($canManageSelected))
-            <label class="photos-upload-btn">
+            <label class="photos-upload-btn" title="{{ __('端末の写真・動画を選んで追加') }}">
               <input
                 type="file"
                 name="photos[]"
                 id="photos-file-input"
-                accept="image/*,video/mp4,.heic,.heif,.mp4,.json,application/json"
+                accept="image/*,video/mp4,.heic,.heif,.mp4"
                 multiple
-                hidden
               />
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
             </label>
@@ -89,6 +88,11 @@
             </form>
           @endif
         </div>
+        <div class="photos-pending-bar" id="photos-pending-bar" hidden>
+          <span class="photos-pending-count" id="photos-pending-count"></span>
+          <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('この内容を追加') }}</button>
+          <button type="button" class="photos-secondary-btn" id="photos-pending-cancel">{{ __('やめる') }}</button>
+        </div>
       </section>
 
       <aside class="photos-storage" aria-label="保存容量">
@@ -111,11 +115,16 @@
                 $archiveCapacityMode = $storageStats['capacityMode'] ?? 'age_archive';
                 $hotQuotaLabel = $storageStats['formattedQuota'] ?? '10 GB';
                 if ($archiveCapacityMode === 'r2_cap') {
-                  $archiveBtnTitle = __('常用（R2）が約 :quota を超えないよう、古い原本を B2 へ最大200件移します', ['quota' => $hotQuotaLabel]);
-                  $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を最大200件 Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？', ['quota' => $hotQuotaLabel]);
+                  $archiveBtnTitle = __('常用（R2）が約 :quota を超えないよう、古い原本を B2 へ分割移動します', ['quota' => $hotQuotaLabel]);
+                  $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を Backblaze B2 へ分割して移します（1回あたり最大 :batch 件）。完了まで数分かかることがあります。ページを離れる前に確認が出ます。実行しますか？', [
+                    'quota' => $hotQuotaLabel,
+                    'batch' => (string) ((int) config('photos.archive_cold_batch_size', 40)),
+                  ]);
                 } else {
-                  $archiveBtnTitle = __('古い常用原本を Backblaze B2 へ最大200件移します（photos:archive-cold）');
-                  $archiveConfirm = __('常用（R2）の古い原本を、最大200件まで Backblaze B2 へ移します。アップロードとは別に実行され、完了まで数十秒〜数分かかることがあります。実行しますか？');
+                  $archiveBtnTitle = __('古い常用原本を Backblaze B2 へ分割移動します（photos:archive-cold）');
+                  $archiveConfirm = __('常用（R2）の古い原本を Backblaze B2 へ分割して移します（1回あたり最大 :batch 件）。完了まで数分かかることがあります。ページを離れる前に確認が出ます。実行しますか？', [
+                    'batch' => (string) ((int) config('photos.archive_cold_batch_size', 40)),
+                  ]);
                 }
               @endphp
               <button
@@ -178,20 +187,115 @@
         </p>
       </aside>
 
+      <script>
+        window.PhotosPageJob = (function () {
+          let kind = null
+          let abortFn = null
+          let allowUnload = false
+          const i18n = {
+            leaveUpload: @json(__('取り込み処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ')),
+            leaveArchive: @json(__('B2へのアーカイブ処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ')),
+          }
+
+          function message() {
+            if (kind === 'upload') return i18n.leaveUpload
+            if (kind === 'archive') return i18n.leaveArchive
+            return @json(__('処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ'))
+          }
+
+          function isBusy() {
+            return !!kind
+          }
+
+          function getKind() {
+            return kind
+          }
+
+          function start(nextKind, nextAbort) {
+            kind = nextKind
+            abortFn = typeof nextAbort === 'function' ? nextAbort : null
+            allowUnload = false
+          }
+
+          function end(expectedKind) {
+            if (expectedKind && kind !== expectedKind) return
+            kind = null
+            abortFn = null
+          }
+
+          function requestLeave() {
+            if (!isBusy() || allowUnload) return true
+            if (!window.confirm(message())) return false
+            allowUnload = true
+            try { if (abortFn) abortFn() } catch (_) {}
+            kind = null
+            abortFn = null
+            setTimeout(function () { allowUnload = false }, 3000)
+            return true
+          }
+
+          window.addEventListener('beforeunload', function (e) {
+            if (!isBusy() || allowUnload) return
+            e.preventDefault()
+            e.returnValue = ''
+          })
+
+          document.addEventListener('click', function (e) {
+            if (!isBusy()) return
+            const a = e.target.closest('a[href]')
+            if (!a) return
+            const href = a.getAttribute('href') || ''
+            if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) return
+            if (a.target === '_blank' || a.hasAttribute('download')) return
+            e.preventDefault()
+            e.stopPropagation()
+            if (requestLeave()) {
+              window.location.assign(a.href)
+            }
+          }, true)
+
+          document.addEventListener('submit', function (e) {
+            if (!isBusy()) return
+            const form = e.target
+            if (!form || form.id === 'photos-upload-form') return
+            e.preventDefault()
+            e.stopPropagation()
+            if (requestLeave()) {
+              allowUnload = true
+              form.submit()
+            }
+          }, true)
+
+          return { isBusy: isBusy, getKind: getKind, start: start, end: end, requestLeave: requestLeave }
+        })()
+      </script>
+
       @if(!empty($storageStats['archiveEnabled']))
+      @php
+        $archiveBatchSize = (int) config('photos.archive_cold_batch_size', 40);
+        $archiveTimeoutSec = (int) config('photos.archive_cold_request_timeout_seconds', 900);
+        $archiveMaxBatches = (int) config('photos.archive_cold_max_batches', 50);
+      @endphp
       <script>
         (function () {
           const btn = document.getElementById('photos-archive-cold-btn')
           const statusEl = document.getElementById('photos-archive-cold-status')
           if (!btn) return
 
+          const batchSize = {{ $archiveBatchSize }}
+          const timeoutMs = {{ $archiveTimeoutSec }} * 1000
+          const maxBatches = {{ $archiveMaxBatches }}
+          const job = window.PhotosPageJob
+
           const i18n = {
             confirm: @json($archiveConfirm),
             running: @json(__('アーカイブ中…')),
             done: @json(__('アーカイブが完了しました')),
             fail: @json(__('アーカイブに失敗しました')),
-            timeout: @json(__('タイムアウトしました。しばらくしてから再度お試しください。')),
+            timeout: @json(__('タイムアウトしました。PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS を延ばすか、しばらくして再実行してください。')),
+            cancelled: @json(__('アーカイブを中断しました')),
             idle: btn.textContent || @json(__('B2へアーカイブ')),
+            batch: @json(__('アーカイブ中… :done件移動（バッチ :batch/:max）')),
           }
 
           function setStatus(text) {
@@ -209,18 +313,35 @@
             try { return decodeURIComponent(match[1]) } catch (_) { return match[1] || '' }
           }
 
+          function formatBatchStatus(done, batch, max) {
+            return i18n.batch
+              .replace(':done', String(done))
+              .replace(':batch', String(batch))
+              .replace(':max', String(max))
+          }
+
           btn.addEventListener('click', function (e) {
             e.preventDefault()
             e.stopPropagation()
             if (btn.disabled) return
+            if (job && job.isBusy()) {
+              if (job.getKind() === 'archive') return
+              if (!job.requestLeave()) return
+            }
             if (!window.confirm(i18n.confirm)) return
+
+            let cancelled = false
+            let controller = null
+            const abortCurrent = function () {
+              cancelled = true
+              try { if (controller) controller.abort() } catch (_) {}
+            }
 
             btn.disabled = true
             btn.textContent = i18n.running
             setStatus('')
+            if (job) job.start('archive', abortCurrent)
 
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
-            const timer = controller ? setTimeout(function () { controller.abort() }, 15 * 60 * 1000) : null
             const headers = {
               'Accept': 'application/json',
               'X-Requested-With': 'XMLHttpRequest',
@@ -229,35 +350,92 @@
             const xsrf = xsrfToken()
             if (xsrf) headers['X-XSRF-TOKEN'] = xsrf
 
-            const body = new FormData()
-            body.append('limit', '200')
-            body.append('_token', csrfToken())
+            ;(async function () {
+              let totalArchived = 0
+              let totalSkipped = 0
+              let totalErrors = 0
+              let lastMessage = i18n.done
+              let ok = true
 
-            fetch('/photos/archive-cold', {
-              method: 'POST',
-              headers: headers,
-              body: body,
-              credentials: 'same-origin',
-              signal: controller ? controller.signal : undefined,
-            }).then(function (res) {
-              return res.text().then(function (text) {
-                let data = null
-                try { data = text ? JSON.parse(text) : null } catch (_) {}
-                return { ok: res.ok, status: res.status, data: data }
-              })
-            }).then(function (res) {
-              const msg = (res.data && res.data.message) ? res.data.message : (res.ok ? i18n.done : i18n.fail)
-              setStatus(msg)
-              window.alert(msg)
-              if (res.ok || (res.data && Number(res.data.archived) > 0)) {
+              try {
+                for (let batch = 1; batch <= maxBatches; batch++) {
+                  if (cancelled) break
+                  controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+                  const timer = controller ? setTimeout(function () { controller.abort() }, timeoutMs) : null
+                  const body = new FormData()
+                  body.append('limit', String(batchSize))
+                  body.append('_token', csrfToken())
+
+                  btn.textContent = formatBatchStatus(totalArchived, batch, maxBatches)
+                  setStatus(formatBatchStatus(totalArchived, batch, maxBatches))
+
+                  let res
+                  try {
+                    const response = await fetch('/photos/archive-cold', {
+                      method: 'POST',
+                      headers: headers,
+                      body: body,
+                      credentials: 'same-origin',
+                      signal: controller ? controller.signal : undefined,
+                    })
+                    const text = await response.text()
+                    let data = null
+                    try { data = text ? JSON.parse(text) : null } catch (_) {}
+                    res = { ok: response.ok, status: response.status, data: data }
+                  } catch (err) {
+                    if (cancelled || (err && err.name === 'AbortError')) {
+                      lastMessage = cancelled ? i18n.cancelled : i18n.timeout
+                      ok = false
+                      break
+                    }
+                    throw err
+                  } finally {
+                    if (timer) clearTimeout(timer)
+                    controller = null
+                  }
+
+                  const archived = Number(res.data && res.data.archived) || 0
+                  const skipped = Number(res.data && res.data.skipped) || 0
+                  const errors = Number(res.data && res.data.errors) || 0
+                  totalArchived += archived
+                  totalSkipped += skipped
+                  totalErrors += errors
+                  lastMessage = (res.data && res.data.message)
+                    ? res.data.message
+                    : (res.ok ? i18n.done : i18n.fail)
+                  if (!res.ok && archived === 0) {
+                    ok = false
+                    break
+                  }
+                  const hasMore = !!(res.data && res.data.has_more)
+                  if (!hasMore) {
+                    ok = res.ok && totalErrors === 0
+                    lastMessage = @json(__('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件'))
+                      .replace(':archived', String(totalArchived))
+                      .replace(':skipped', String(totalSkipped))
+                      .replace(':errors', String(totalErrors))
+                    break
+                  }
+                  if (batch === maxBatches) {
+                    lastMessage = @json(__('上限バッチに達しました（移動 :archived 件）。必要なら再度「B2へアーカイブ」を実行してください。'))
+                      .replace(':archived', String(totalArchived))
+                    ok = true
+                  }
+                }
+              } catch (_) {
+                ok = false
+                lastMessage = i18n.fail
+              }
+
+              setStatus(lastMessage)
+              if (cancelled) return
+              window.alert(lastMessage)
+              if (ok || totalArchived > 0) {
+                if (job) job.end('archive')
                 window.location.reload()
               }
-            }).catch(function (err) {
-              const msg = (err && err.name === 'AbortError') ? i18n.timeout : i18n.fail
-              setStatus(msg)
-              window.alert(msg)
-            }).finally(function () {
-              if (timer) clearTimeout(timer)
+            })().finally(function () {
+              if (job) job.end('archive')
               btn.disabled = false
               btn.textContent = i18n.idle
             })
@@ -333,7 +511,7 @@
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
             <p class="photos-empty-text">{{ __('写真または MP4 動画を追加できます。') }}<br />{{ __('ドラッグ＆ドロップ、またはボタンから。') }}</p>
-            <label class="photos-upload-btn photos-upload-btn-large">
+            <label class="photos-upload-btn photos-upload-btn-large" id="photos-empty-upload">
               <span class="photos-upload-btn-label">{{ __('最初の一枚を入れる') }}</span>
             </label>
           </div>
@@ -1331,11 +1509,19 @@
         const folderWatchStop = document.getElementById('photos-folder-watch-stop')
         const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
+        const pendingBar = document.getElementById('photos-pending-bar')
+        const pendingCount = document.getElementById('photos-pending-count')
+        const pendingAddBtn = document.getElementById('photos-pending-add')
+        const pendingCancelBtn = document.getElementById('photos-pending-cancel')
+        let pendingFiles = null
         const photosSortSelect = document.getElementById('photos-sort-select')
         const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
         let deferredPrompt = null
         let uploading = false
+        let uploadCancelRequested = false
+        let activeUploadXhr = null
+        const pageJob = window.PhotosPageJob
         let folderWatch = {
           handle: null,
           timer: null,
@@ -1430,6 +1616,7 @@
         }
 
         function applyPhotosListQuery(patch = {}) {
+          if (pageJob?.isBusy() && !pageJob.requestLeave()) return
           const url = new URL(window.location.href)
           const next = {
             album: url.searchParams.get('album') || '',
@@ -1556,6 +1743,7 @@
         function postUploadFormData(url, fd, { onProgress, timeoutMs = 15 * 60 * 1000 } = {}) {
           return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest()
+            activeUploadXhr = xhr
             xhr.open('POST', url)
             xhr.setRequestHeader('Accept', 'application/json')
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
@@ -1567,7 +1755,11 @@
               if (!e.lengthComputable || typeof onProgress !== 'function') return
               onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)))
             }
+            const clearActive = () => {
+              if (activeUploadXhr === xhr) activeUploadXhr = null
+            }
             xhr.onload = () => {
+              clearActive()
               let data = null
               try { data = JSON.parse(xhr.responseText || '') } catch (_) {}
               resolve({
@@ -1576,8 +1768,9 @@
                 data,
               })
             }
-            xhr.onerror = () => reject(new Error('network'))
-            xhr.ontimeout = () => reject(new Error('timeout'))
+            xhr.onerror = () => { clearActive(); reject(new Error('network')) }
+            xhr.ontimeout = () => { clearActive(); reject(new Error('timeout')) }
+            xhr.onabort = () => { clearActive(); reject(new Error('aborted')) }
             xhr.send(fd)
           })
         }
@@ -1738,11 +1931,41 @@
             if (!soft) window.alert(uploadsBlockedMessage)
             return { created: 0, skipped: 0, failed: fileList.length }
           }
+          if (!soft && pageJob?.isBusy()) {
+            if (pageJob.getKind() === 'upload') return { created: 0, skipped: 0, failed: 0 }
+            if (!pageJob.requestLeave()) return { created: 0, skipped: 0, failed: 0 }
+          }
           uploading = true
+          uploadCancelRequested = false
+          if (!soft && pageJob) {
+            pageJob.start('upload', () => {
+              uploadCancelRequested = true
+              try { activeUploadXhr?.abort() } catch (_) {}
+            })
+          }
           const list = Array.from(fileList)
-          const mediaList = list.filter((f) => isMediaFile(f) && (
-            !f.type.startsWith('video/') || f.type === 'video/mp4' || /\.mp4$/i.test(f.name || '')
-          ))
+          const rejected = []
+          const mediaList = []
+          let jsonCompanionCount = 0
+          for (const file of list) {
+            const displayName = file.name || 'file'
+            if (/\.json$/i.test(displayName) && !isMediaFile(file)) {
+              // Takeout の付属 JSON は日付取得用。取り込み対象外として件数に出さない
+              jsonCompanionCount += 1
+              continue
+            }
+            if (!isMediaFile(file)) {
+              rejected.push(`${displayName}: 対象外の形式`)
+              continue
+            }
+            const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(displayName)
+            const isMp4 = file.type === 'video/mp4' || /\.mp4$/i.test(displayName)
+            if (isVideo && !isMp4) {
+              rejected.push(`${displayName}: 動画はMP4のみ対応`)
+              continue
+            }
+            mediaList.push(file)
+          }
           const takeoutMap = await buildTakeoutTakenAtMap(list)
           const totalSelected = mediaList.length
           const returnTo = form.querySelector('input[name="returnTo"]')?.value || '/photos'
@@ -1751,10 +1974,17 @@
           let totalCreated = 0
           let totalSkipped = 0
           const failed = []
+          const duplicateNames = []
 
           const videoMax = Number(uploadLimits.videoMaxBytes) || (800 * 1024 * 1024)
           try {
-            setUploadProgress(`重複チェック中… 0/${totalSelected}`)
+            if (totalSelected === 0 && rejected.length === 0 && list.length > 0) {
+              setUploadProgress(@json(__('取り込み対象の写真・動画がありません')))
+            } else if (totalSelected === 0) {
+              setUploadProgress(@json(__('対象ファイルを確認中…')))
+            } else {
+              setUploadProgress(`重複チェック中… 0/${totalSelected}`)
+            }
             const hashed = []
             for (let i = 0; i < mediaList.length; i++) {
               const file = mediaList[i]
@@ -1784,6 +2014,7 @@
               if (!allowDuplicates && item.hash) {
                 if (existing.has(item.hash) || seenInBatch.has(item.hash)) {
                   totalSkipped += 1
+                  duplicateNames.push(item.displayName)
                   continue
                 }
                 seenInBatch.add(item.hash)
@@ -1797,6 +2028,7 @@
             }
 
             for (let i = 0; i < queue.length; i++) {
+              if (uploadCancelRequested) break
               const { file, displayName, hash } = queue[i]
               const fileLabel = `${i + 1}/${queue.length}`
 
@@ -1813,6 +2045,7 @@
                 let result = { count: 0, skipped: 0 }
                 let lastErr = null
                 for (let attempt = 1; attempt <= 2; attempt++) {
+                  if (uploadCancelRequested) break
                   try {
                     result = shouldUseChunkedUpload(file)
                       ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash })
@@ -1821,17 +2054,23 @@
                     break
                   } catch (err) {
                     lastErr = err
+                    if (err?.message === 'aborted' || uploadCancelRequested) break
                     if (attempt < 2) {
                       setUploadProgress(`再試行… ${fileLabel}`)
                       await sleep(1000)
                     }
                   }
                 }
+                if (uploadCancelRequested || lastErr?.message === 'aborted') break
                 if (lastErr) throw lastErr
                 totalCreated += result.count
-                totalSkipped += result.skipped
+                if (result.skipped > 0) {
+                  totalSkipped += result.skipped
+                  duplicateNames.push(`${displayName}（サーバー側）`)
+                }
                 setUploadProgress(`完了… 追加${totalCreated} / スキップ${totalSkipped}`)
               } catch (err) {
+                if (err?.message === 'aborted' || uploadCancelRequested) break
                 const reason = err?.message === 'timeout'
                   ? 'タイムアウト'
                   : (err?.message === 'network' ? '通信エラー' : (err?.message || '失敗'))
@@ -1841,44 +2080,81 @@
               }
             }
 
+            const formatDetailBlock = (title, rows, limit = 8) => {
+              if (!rows.length) return ''
+              const shown = rows.slice(0, limit)
+              const more = rows.length > limit ? `\n…他 ${rows.length - limit}件` : ''
+              return `\n\n${title}:\n- ${shown.join('\n- ')}${more}`
+            }
+
+            const buildResultNotice = () => {
+              const parts = []
+              if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
+              if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
+              if (rejected.length > 0) parts.push(`対象外 ${rejected.length}件`)
+              if (failed.length > 0) parts.push(`失敗 ${failed.length}件`)
+              if (parts.length) return parts.join(' · ')
+              if (list.length === 0) return 'ファイルが選択されていません'
+              if (jsonCompanionCount > 0 && mediaList.length === 0) {
+                return '写真・動画がありません（メタデータJSONのみ）'
+              }
+              return '追加できるファイルがありませんでした'
+            }
+
+            const showResultAlert = (notice) => {
+              let body = notice
+              body += formatDetailBlock('重複（既に登録済み）', duplicateNames)
+              body += formatDetailBlock('対象外', rejected)
+              body += formatDetailBlock('失敗', failed)
+              if (!totalCreated && !totalSkipped && !rejected.length && !failed.length) {
+                if (jsonCompanionCount > 0) {
+                  body += '\n\n選択されたのは付属のメタデータJSONのみです。写真・動画ファイルを選んでください。'
+                } else {
+                  body += '\n\n対応形式: 画像（JPEG/PNG/WebP/GIF/HEIC 等）と動画（MP4）'
+                }
+              }
+              window.alert(body)
+            }
+
             if (soft) {
-              if (totalCreated > 0 || totalSkipped > 0 || failed.length) {
-                const parts = []
-                if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
-                if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
-                if (failed.length) parts.push(`失敗 ${failed.length}件`)
-                setUploadProgress(parts.join(' · ') || @json(__('写真・動画を追加')))
+              if (totalCreated > 0 || totalSkipped > 0 || failed.length || rejected.length) {
+                setUploadProgress(buildResultNotice() || @json(__('写真・動画を追加')))
               }
               return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
             }
 
-            const url = new URL(returnTo, window.location.origin)
-            const parts = []
-            if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
-            if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
-            if (failed.length) parts.push(`失敗 ${failed.length}件`)
+            if (uploadCancelRequested) {
+              return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
+            }
 
-            if (totalCreated > 0 || totalSkipped > 0) {
-              const notice = parts.join(' · ') || '処理が完了しました'
-              if (failed.length) {
-                window.alert(`${notice}\n\n失敗したファイル:\n- ${failed.slice(0, 8).join('\n- ')}${failed.length > 8 ? `\n…他 ${failed.length - 8}件` : ''}`)
-              }
+            const url = new URL(returnTo, window.location.origin)
+            const notice = buildResultNotice()
+            const hasDetails = totalSkipped > 0 || rejected.length > 0 || failed.length > 0 || totalCreated === 0
+
+            if (hasDetails) {
+              showResultAlert(notice)
+            }
+
+            if (totalCreated > 0 || totalSkipped > 0 || rejected.length > 0) {
               url.searchParams.set('notice', notice)
             } else if (failed.length) {
-              window.alert(`追加できませんでした:\n- ${failed.slice(0, 8).join('\n- ')}`)
               url.searchParams.set('error', failed[0])
             } else {
-              url.searchParams.set('notice', '追加する新規ファイルはありませんでした')
+              url.searchParams.set('notice', notice)
             }
+            if (pageJob) pageJob.end('upload')
             window.location.assign(url.pathname + url.search + url.hash)
             return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
           } catch (_) {
-            if (!soft) {
+            if (!soft && !uploadCancelRequested) {
               window.alert(@json(__('ファイルの処理に失敗しました。別の形式で試してください。')));
             }
             return { created: totalCreated, skipped: totalSkipped, failed: failed.length + 1 }
           } finally {
             uploading = false
+            uploadCancelRequested = false
+            activeUploadXhr = null
+            if (!soft && pageJob) pageJob.end('upload')
             if (!soft) {
               setUploadProgress(@json(__('写真・動画を追加')));
             } else if (!folderWatch.timer) {
@@ -2033,31 +2309,86 @@
           }
         }
 
-        document.querySelectorAll('.photos-upload-btn').forEach((btn) => {
-          btn.addEventListener('click', (e) => {
-            if (e.target === fileInput) return
-            e.preventDefault()
-            triggerUpload()
-          })
+        document.getElementById('photos-empty-upload')?.addEventListener('click', (e) => {
+          e.preventDefault()
+          triggerUpload()
         })
 
-        // カメラは label + input のネイティブ動作を使い、ギャラリー優先を避ける
+        function prefersUploadConfirm() {
+          try {
+            return window.matchMedia('(pointer: coarse)').matches
+              || window.matchMedia('(max-width: 820px)').matches
+          } catch (_) {
+            return true
+          }
+        }
+
+        function clearPendingFiles() {
+          pendingFiles = null
+          if (pendingBar) pendingBar.hidden = true
+          if (pendingCount) pendingCount.textContent = ''
+          if (fileInput) fileInput.value = ''
+        }
+
+        function showPendingFiles(fileList) {
+          const files = Array.from(fileList || [])
+          if (!files.length) {
+            clearPendingFiles()
+            return
+          }
+          pendingFiles = files
+          if (pendingCount) {
+            const names = files.slice(0, 3).map((f) => f.name || 'file')
+            const more = files.length > 3 ? ` …他${files.length - 3}件` : ''
+            pendingCount.textContent = @json(__(':count件選択中')).replace(':count', String(files.length))
+              + (names.length ? `（${names.join('、')}${more}）` : '')
+          }
+          if (pendingBar) {
+            pendingBar.hidden = false
+            try { pendingBar.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch (_) {}
+          }
+        }
+
+        function enqueueSelectedFiles(fileList, { fromCamera = false } = {}) {
+          const files = Array.from(fileList || [])
+          if (!files.length) return
+          // カメラ撮影は1件確定なので即送信。ギャラリー複数選択は確認ボタンを出す
+          if (fromCamera || !prefersUploadConfirm()) {
+            clearPendingFiles()
+            void submitFiles(files)
+            return
+          }
+          showPendingFiles(files)
+          if (fileInput) fileInput.value = ''
+        }
+
         fileInput?.addEventListener('change', () => {
           if (!fileInput.files?.length) return
-          submitFiles(fileInput.files)
-          fileInput.value = ''
+          enqueueSelectedFiles(fileInput.files)
         })
 
         cameraInput?.addEventListener('change', () => {
           if (!cameraInput.files?.length) return
-          submitFiles(cameraInput.files)
+          enqueueSelectedFiles(cameraInput.files, { fromCamera: true })
           cameraInput.value = ''
         })
 
         cameraVideoInput?.addEventListener('change', () => {
           if (!cameraVideoInput.files?.length) return
-          submitFiles(cameraVideoInput.files)
+          enqueueSelectedFiles(cameraVideoInput.files, { fromCamera: true })
           cameraVideoInput.value = ''
+        })
+
+        pendingAddBtn?.addEventListener('click', () => {
+          const files = pendingFiles
+          if (!files?.length || uploading) return
+          clearPendingFiles()
+          void submitFiles(files)
+        })
+
+        pendingCancelBtn?.addEventListener('click', () => {
+          clearPendingFiles()
+          setUploadProgress(@json(__('写真・動画を追加')))
         })
 
         if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {

@@ -28,6 +28,21 @@ return [
      */
     'upload_sync_archive_limit' => (int) env('PHOTO_UPLOAD_SYNC_ARCHIVE_LIMIT', 0),
 
+    /**
+     * Photos「B2へアーカイブ」1リクエストあたりの処理件数。
+     * クライアントは完了までこの件数ずつ繰り返す（プロキシ/PHPタイムアウト回避）。
+     */
+    'archive_cold_batch_size' => max(1, min(200, (int) env('PHOTO_ARCHIVE_COLD_BATCH_SIZE', 40))),
+
+    /**
+     * 「B2へアーカイブ」1リクエストのタイムアウト（秒）。PHP set_time_limit とブラウザ側に反映。
+     * リバースプロキシのタイムアウトより短くすること。
+     */
+    'archive_cold_request_timeout_seconds' => max(60, (int) env('PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS', 900)),
+
+    /** 「B2へアーカイブ」手動実行の最大バッチ回数（総件数 ≒ batch_size × max_batches） */
+    'archive_cold_max_batches' => max(1, min(200, (int) env('PHOTO_ARCHIVE_COLD_MAX_BATCHES', 50))),
+
     /** ホット（R2 等）側のソフト上限目安（バイト）。長期保存へ移す閾値。既定 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),
 

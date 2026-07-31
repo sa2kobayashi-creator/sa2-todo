@@ -385,11 +385,13 @@ class PhotoController extends Controller
      */
     public function archiveCold(Request $request)
     {
+        $timeoutSec = max(60, (int) config('photos.archive_cold_request_timeout_seconds', 900));
         if (function_exists('set_time_limit')) {
-            @set_time_limit(600);
+            @set_time_limit($timeoutSec);
         }
 
-        $limit = max(1, min(500, (int) $request->input('limit', 200)));
+        $batchDefault = max(1, (int) config('photos.archive_cold_batch_size', 40));
+        $limit = max(1, min(500, (int) $request->input('limit', $batchDefault)));
         $archive = app(\App\Services\PhotoColdArchiveService::class);
 
         try {
@@ -409,6 +411,7 @@ class PhotoController extends Controller
         $skipped = (int) ($stats['skipped'] ?? 0);
         $errors = (int) ($stats['errors'] ?? 0);
         $mode = $this->mediaStorage->capacityMode();
+        $hasMore = $archived >= $limit && $errors === 0;
 
         $message = __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件（mode=:mode, limit=:limit）', [
             'archived' => $archived,
@@ -426,6 +429,7 @@ class PhotoController extends Controller
             'errors' => $errors,
             'mode' => $mode,
             'limit' => $limit,
+            'has_more' => $hasMore,
             'storageStats' => $this->photos->storageStats((int) $request->user()->id),
         ], $errors > 0 ? 422 : 200);
     }
