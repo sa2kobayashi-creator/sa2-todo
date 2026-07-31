@@ -10018,6 +10018,22 @@ label.photos-files-btn span {
   color: var(--photos-muted);
 }
 
+.photos-empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(100%, 320px);
+  margin: 0 auto;
+}
+
+.photos-empty-actions .photos-upload-btn,
+.photos-empty-actions .photos-secondary-btn {
+  position: static;
+  overflow: visible;
+  width: 100%;
+}
+
 .photos-masonry {
   column-count: var(--photos-cols, 4);
   column-gap: 14px;
@@ -10958,7 +10974,15 @@ label.photos-files-btn span {
 @media (max-width: 560px) {
   #photos-gallery:not([data-cols]) .photos-masonry { column-count: 2; column-gap: 10px; }
   .photos-tile { margin-bottom: 10px; border-radius: 14px; }
-  .photos-hero-actions { width: 100%; }
+  .photos-hero-actions {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    width: 100%;
+    padding: 8px 0 10px;
+    background: linear-gradient(180deg, rgba(247, 245, 240, 0.96), rgba(247, 245, 240, 0.88));
+    backdrop-filter: blur(8px);
+  }
   .photos-upload-btn,
   .photos-secondary-btn { flex: 1 1 auto; }
   .photos-cols-control {

@@ -37,6 +37,15 @@
         </div>
         <div class="photos-hero-actions">
           @if(empty($selectedAlbum) || !empty($canManageSelected))
+            <label class="photos-secondary-btn photos-files-btn" title="{{ __('ダウンロードフォルダ・このデバイス・他アプリから選ぶ') }}">
+              <input
+                type="file"
+                id="photos-files-input"
+                accept="*/*"
+                multiple
+              />
+              <span>{{ __('ファイル・このデバイス') }}</span>
+            </label>
             <label class="photos-upload-btn" title="{{ __('端末の写真・動画ライブラリから選ぶ') }}">
               <input
                 type="file"
@@ -45,15 +54,7 @@
                 accept="image/*,video/*,video/mp4,.heic,.heif,.mp4"
                 multiple
               />
-              <span class="photos-upload-btn-label">{{ __('写真から選ぶ') }}</span>
-            </label>
-            <label class="photos-secondary-btn photos-files-btn" title="{{ __('ファイルアプリ・このデバイス・他アプリから選ぶ') }}">
-              <input
-                type="file"
-                id="photos-files-input"
-                multiple
-              />
-              <span>{{ __('ファイルから選ぶ') }}</span>
+              <span class="photos-upload-btn-label">{{ __('写真ライブラリ') }}</span>
             </label>
             <label class="photos-secondary-btn photos-camera-btn" title="{{ __('背面カメラで撮影して追加（写真）') }}">
               <input
@@ -455,7 +456,7 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「写真から選ぶ」はライブラリ、「ファイルから選ぶ」はこのデバイスや他アプリ、「カメラで撮る」は背面カメラです。「フォルダを監視」は PC の Chrome 等で、DCIM や Camera フォルダを選ぶとサブフォルダも監視します（ページを開いている間のみ。スマホの常時同期はブラウザ制限で不可）。') }}</span>
+          <span>{{ __('「ファイル・このデバイス」はダウンロードや他アプリ、「写真ライブラリ」は端末のギャラリー、「カメラで撮る」は背面カメラです。ライブラリが空に見えるときはファイル側を使ってください。「フォルダを監視」は PC の Chrome 等向けです。') }}</span>
           <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
@@ -518,10 +519,22 @@
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
-            <p class="photos-empty-text">{{ __('写真または MP4 動画を追加できます。') }}<br />{{ __('ドラッグ＆ドロップ、またはボタンから。') }}</p>
-            <label class="photos-upload-btn photos-upload-btn-large" id="photos-empty-upload">
-              <span class="photos-upload-btn-label">{{ __('最初の一枚を入れる') }}</span>
-            </label>
+            <p class="photos-empty-text">
+              {{ __('このアプリにまだ保存されていません。') }}<br />
+              {{ __('スマホでは「ファイル・このデバイス」から選ぶと、ダウンロードや他アプリの写真も選べます。') }}<br />
+              {{ __('「写真ライブラリ」が空に見える場合も、こちらを試してください。') }}
+            </p>
+            <div class="photos-empty-actions">
+              <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-files">
+                {{ __('ファイル・このデバイスから追加') }}
+              </button>
+              <button type="button" class="photos-secondary-btn" id="photos-empty-gallery">
+                {{ __('写真ライブラリから') }}
+              </button>
+              <button type="button" class="photos-secondary-btn" id="photos-empty-camera">
+                {{ __('カメラで撮る') }}
+              </button>
+            </div>
           </div>
         </div>
       @else
@@ -2127,7 +2140,7 @@
 
             if (soft) {
               if (totalCreated > 0 || totalSkipped > 0 || failed.length || rejected.length) {
-                setUploadProgress(buildResultNotice() || @json(__('写真から選ぶ')))
+                setUploadProgress(buildResultNotice() || @json(__('写真ライブラリ')))
               }
               return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
             }
@@ -2165,15 +2178,40 @@
             activeUploadXhr = null
             if (!soft && pageJob) pageJob.end('upload')
             if (!soft) {
-              setUploadProgress(@json(__('写真から選ぶ')));
+              setUploadProgress(@json(__('写真ライブラリ')));
             } else if (!folderWatch.timer) {
-              setUploadProgress(@json(__('写真から選ぶ')));
+              setUploadProgress(@json(__('写真ライブラリ')));
             }
           }
         }
 
         function triggerUpload() {
-          fileInput?.click()
+          if (filesBrowseInput) {
+            triggerFilesBrowse()
+            return
+          }
+          triggerGalleryBrowse()
+        }
+
+        function triggerFilesBrowse() {
+          if (!filesBrowseInput) {
+            fileInput?.click()
+            return
+          }
+          filesBrowseInput.value = ''
+          filesBrowseInput.click()
+        }
+
+        function triggerGalleryBrowse() {
+          if (!fileInput) return
+          fileInput.value = ''
+          fileInput.click()
+        }
+
+        function triggerCameraCapture() {
+          if (!cameraInput) return
+          cameraInput.value = ''
+          cameraInput.click()
         }
 
         function isMediaFile(file) {
@@ -2292,7 +2330,7 @@
 
         async function startFolderWatch() {
           if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真から選ぶ」「ファイルから選ぶ」「カメラで撮る」を使ってください。')))
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「ファイル・このデバイス」か「写真ライブラリ」「カメラで撮る」を使ってください。')))
             return
           }
           try {
@@ -2318,9 +2356,17 @@
           }
         }
 
-        document.getElementById('photos-empty-upload')?.addEventListener('click', (e) => {
+        document.getElementById('photos-empty-files')?.addEventListener('click', (e) => {
           e.preventDefault()
-          triggerUpload()
+          triggerFilesBrowse()
+        })
+        document.getElementById('photos-empty-gallery')?.addEventListener('click', (e) => {
+          e.preventDefault()
+          triggerGalleryBrowse()
+        })
+        document.getElementById('photos-empty-camera')?.addEventListener('click', (e) => {
+          e.preventDefault()
+          triggerCameraCapture()
         })
 
         function prefersUploadConfirm() {
@@ -2404,7 +2450,7 @@
 
         pendingCancelBtn?.addEventListener('click', () => {
           clearPendingFiles()
-          setUploadProgress(@json(__('写真から選ぶ')))
+          setUploadProgress(@json(__('写真ライブラリ')))
         })
 
         if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {
@@ -2416,7 +2462,7 @@
           if (folderWatchBtn && typeof window.showDirectoryPicker === 'function') {
             folderWatchBtn.hidden = false
           }
-          setUploadProgress(@json(__('写真から選ぶ')))
+          setUploadProgress(@json(__('写真ライブラリ')))
         })
 
         ;['dragenter', 'dragover'].forEach((type) => {
