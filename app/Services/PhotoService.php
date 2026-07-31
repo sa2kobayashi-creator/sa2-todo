@@ -251,8 +251,8 @@ class PhotoService
         $freeMarkPercent = round(($combinedQuota / $displayCapacity) * 100, 2);
         $capacityMode = $this->mediaConfig->capacityMode();
 
-        // 見込課金: 合計無料枠超過分を主単価で概算（2A）。将来 2B では請求エンジンへ接続。
-        $combinedOverageUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $r2Price);
+        // 見込課金: プロバイダごとの無料枠超過を表示（カード合計＝超過課金見込）。
+        // 製品無料枠合計 20GB はアップロード可否判定用。カードは R2 10GB / B2 10GB の内訳単価で見込む。
         $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
         $b2StorageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
         $overflowPrice = $this->mediaConfig->overflowPricePerGbMonthUsd();
@@ -262,12 +262,7 @@ class PhotoService
         // モード3: 合計が無料枠合計を超えた分を「次の保存先」単価で見込む
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW && $usedApprox > $combinedQuota) {
             $overflowUsd = $this->estimateOverageUsd($usedApprox, $combinedQuota, $overflowPrice);
-            $combinedOverageUsd = $overflowUsd;
             $r2OverageUsd = 0.0;
-            $b2StorageUsd = 0.0;
-        } else {
-            // 合計超過見込を優先表示（内訳の単純合算より製品仕様に合わせる）
-            $r2OverageUsd = $combinedOverageUsd;
             $b2StorageUsd = 0.0;
         }
 
