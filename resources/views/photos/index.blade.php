@@ -40,6 +40,14 @@
             <button type="button" class="photos-upload-btn" id="photos-add-open" title="{{ __('写真・動画を追加（複数可）') }}">
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
             </button>
+            {{-- accept なし: Android のファイル画面（このデバイス / Pictures / Messenger・LINE 等）を開く --}}
+            <input
+              type="file"
+              id="photos-files-input"
+              class="photos-file-input-hidden"
+              multiple
+            />
+            {{-- ギャラリー用（フォトピッカー）。空表示になる端末があるためサブ扱い --}}
             <input
               type="file"
               id="photos-file-input"
@@ -96,8 +104,9 @@
         <button type="button" class="photos-add-sheet-backdrop" id="photos-add-sheet-backdrop" aria-label="{{ __('閉じる') }}"></button>
         <div class="photos-add-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="photos-add-sheet-title">
           <h2 id="photos-add-sheet-title">{{ __('写真・動画を追加') }}</h2>
-          <p class="photos-add-sheet-hint">{{ __('複数選ぶときはチェックを付けてから「追加」を押してください。1枚ずつしか選べない場合は「さらに選ぶ」でまとめられます。') }}</p>
-          <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('端末から選ぶ（複数可）') }}</button>
+          <p class="photos-add-sheet-hint">{{ __('Messenger や LINE の写真は「フォルダから探す」→ このデバイス → Pictures → Messenger / Line を開いてください。ギャラリーが空でもフォルダ側にあります。') }}</p>
+          <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-files">{{ __('フォルダから探す（推奨）') }}</button>
+          <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('ギャラリーから選ぶ') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-video">{{ __('動画を撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-cancel">{{ __('キャンセル') }}</button>
@@ -456,7 +465,7 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「写真・動画を追加」から端末の写真を選べます（複数可）。カメラ撮影も同じメニューから。フォルダ監視は PC の Chrome 等向けです。') }}</span>
+          <span>{{ __('「写真・動画を追加」→「フォルダから探す」で Pictures / Messenger / LINE などから選べます。ギャラリーが空でもフォルダ側に写真があることがあります。') }}</span>
           <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
@@ -520,7 +529,8 @@
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
             <p class="photos-empty-text">
-              {{ __('このアプリにまだ保存されていません。下のボタンから追加できます（複数選択可）。') }}
+              {{ __('このアプリにまだ保存されていません。') }}<br />
+              {{ __('Messenger / LINE などは「フォルダから探す」→ Pictures から選んでください。') }}
             </p>
             <div class="photos-empty-actions">
               <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-add">
@@ -1498,6 +1508,7 @@
         const selectedAlbumId = @json($selectedAlbumId);
         const coverPhotoId = @json($selectedAlbum['coverPhotoId'] ?? null);
         const fileInput = document.getElementById('photos-file-input')
+        const filesBrowseInput = document.getElementById('photos-files-input')
         const form = document.getElementById('photos-upload-form')
         const formFiles = document.getElementById('photos-form-files')
         const formThumbs = document.getElementById('photos-form-thumbs')
@@ -1531,6 +1542,7 @@
         const pendingMoreBtn = document.getElementById('photos-pending-more')
         const pendingCancelBtn = document.getElementById('photos-pending-cancel')
         let pendingFiles = null
+        let lastPickMode = 'files'
         const photosSortSelect = document.getElementById('photos-sort-select')
         const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
@@ -2182,7 +2194,7 @@
 
         function openAddSheet() {
           if (!addSheet) {
-            triggerGalleryBrowse()
+            triggerFilesBrowse()
             return
           }
           addSheet.hidden = false
@@ -2196,8 +2208,18 @@
           openAddSheet()
         }
 
+        function triggerFilesBrowse() {
+          const input = filesBrowseInput || fileInput
+          if (!input) return
+          lastPickMode = 'files'
+          closeAddSheet()
+          input.value = ''
+          input.click()
+        }
+
         function triggerGalleryBrowse() {
           if (!fileInput) return
+          lastPickMode = 'gallery'
           closeAddSheet()
           fileInput.value = ''
           fileInput.click()
@@ -2215,6 +2237,14 @@
           closeAddSheet()
           cameraVideoInput.value = ''
           cameraVideoInput.click()
+        }
+
+        function triggerLastPickBrowse() {
+          if (lastPickMode === 'gallery') {
+            triggerGalleryBrowse()
+            return
+          }
+          triggerFilesBrowse()
         }
 
         function filePickKey(file) {
@@ -2371,6 +2401,7 @@
           e.preventDefault()
           openAddSheet()
         })
+        document.getElementById('photos-add-sheet-files')?.addEventListener('click', () => triggerFilesBrowse())
         document.getElementById('photos-add-sheet-pick')?.addEventListener('click', () => triggerGalleryBrowse())
         document.getElementById('photos-add-sheet-camera')?.addEventListener('click', () => triggerCameraCapture())
         document.getElementById('photos-add-sheet-video')?.addEventListener('click', () => triggerVideoCapture())
@@ -2391,6 +2422,7 @@
           if (pendingBar) pendingBar.hidden = true
           if (pendingCount) pendingCount.textContent = ''
           if (fileInput) fileInput.value = ''
+          if (filesBrowseInput) filesBrowseInput.value = ''
         }
 
         function renderPendingBar() {
@@ -2446,11 +2478,18 @@
           }
           showPendingFiles(files, { append: true })
           if (fileInput) fileInput.value = ''
+          if (filesBrowseInput) filesBrowseInput.value = ''
         }
 
         fileInput?.addEventListener('change', () => {
           if (!fileInput.files?.length) return
           const copied = Array.from(fileInput.files)
+          enqueueSelectedFiles(copied)
+        })
+
+        filesBrowseInput?.addEventListener('change', () => {
+          if (!filesBrowseInput.files?.length) return
+          const copied = Array.from(filesBrowseInput.files)
           enqueueSelectedFiles(copied)
         })
 
@@ -2474,7 +2513,7 @@
         })
 
         pendingMoreBtn?.addEventListener('click', () => {
-          triggerGalleryBrowse()
+          triggerLastPickBrowse()
         })
 
         pendingCancelBtn?.addEventListener('click', () => {
