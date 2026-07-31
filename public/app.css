@@ -9182,21 +9182,25 @@ body.map-page {
   background: var(--photos-ink);
   color: #fff;
   box-shadow: 0 10px 24px rgba(23, 27, 31, 0.18);
-  overflow: hidden;
   margin: 0;
-}
-
-.photos-upload-btn input[type="file"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font-size: 0;
+  border: 0;
 }
 
 .photos-upload-btn-label {
+  pointer-events: none;
+}
+
+.photos-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -9233,6 +9237,62 @@ body.map-page {
   flex: 0 0 auto;
 }
 
+.photos-add-sheet[hidden] {
+  display: none !important;
+}
+
+.photos-add-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.photos-add-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(12, 16, 20, 0.45);
+  cursor: pointer;
+}
+
+.photos-add-sheet-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  margin: 0;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -12px 40px rgba(23, 27, 31, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.photos-add-sheet-panel h2 {
+  margin: 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.35rem;
+  color: var(--photos-ink);
+}
+
+.photos-add-sheet-hint {
+  margin: 0 0 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--photos-muted);
+}
+
+.photos-add-sheet-action {
+  width: 100%;
+}
+
 .photos-upload-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(23, 27, 31, 0.22);
@@ -9253,8 +9313,7 @@ body.map-page {
   background: #fff;
 }
 
-label.photos-camera-btn,
-label.photos-files-btn {
+label.photos-camera-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -9264,8 +9323,7 @@ label.photos-files-btn {
   overflow: hidden;
 }
 
-label.photos-camera-btn input[type="file"],
-label.photos-files-btn input[type="file"] {
+label.photos-camera-btn input[type="file"] {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -9275,8 +9333,7 @@ label.photos-files-btn input[type="file"] {
   font-size: 0;
 }
 
-label.photos-camera-btn span,
-label.photos-files-btn span {
+label.photos-camera-btn span {
   pointer-events: none;
 }
 

@@ -37,43 +37,30 @@
         </div>
         <div class="photos-hero-actions">
           @if(empty($selectedAlbum) || !empty($canManageSelected))
-            <label class="photos-secondary-btn photos-files-btn" title="{{ __('ダウンロードフォルダ・このデバイス・他アプリから選ぶ') }}">
-              <input
-                type="file"
-                id="photos-files-input"
-                accept="*/*"
-                multiple
-              />
-              <span>{{ __('ファイル・このデバイス') }}</span>
-            </label>
-            <label class="photos-upload-btn" title="{{ __('端末の写真・動画ライブラリから選ぶ') }}">
-              <input
-                type="file"
-                name="photos[]"
-                id="photos-file-input"
-                accept="image/*,video/*,video/mp4,.heic,.heif,.mp4"
-                multiple
-              />
-              <span class="photos-upload-btn-label">{{ __('写真ライブラリ') }}</span>
-            </label>
-            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('背面カメラで撮影して追加（写真）') }}">
-              <input
-                type="file"
-                id="photos-camera-input"
-                accept="image/*"
-                capture="environment"
-              />
-              <span>{{ __('カメラで撮る') }}</span>
-            </label>
-            <label class="photos-secondary-btn photos-camera-btn" title="{{ __('カメラで動画撮影（MP4）') }}">
-              <input
-                type="file"
-                id="photos-camera-video-input"
-                accept="video/*"
-                capture="environment"
-              />
-              <span>{{ __('動画を撮る') }}</span>
-            </label>
+            <button type="button" class="photos-upload-btn" id="photos-add-open" title="{{ __('写真・動画を追加（複数可）') }}">
+              <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
+            </button>
+            <input
+              type="file"
+              id="photos-file-input"
+              class="photos-file-input-hidden"
+              accept="image/*,video/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,.heic,.heif,.mp4"
+              multiple
+            />
+            <input
+              type="file"
+              id="photos-camera-input"
+              class="photos-file-input-hidden"
+              accept="image/*"
+              capture="environment"
+            />
+            <input
+              type="file"
+              id="photos-camera-video-input"
+              class="photos-file-input-hidden"
+              accept="video/*"
+              capture="environment"
+            />
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
@@ -99,10 +86,23 @@
         </div>
         <div class="photos-pending-bar" id="photos-pending-bar" hidden>
           <span class="photos-pending-count" id="photos-pending-count"></span>
-          <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('この内容を追加') }}</button>
+          <button type="button" class="photos-secondary-btn" id="photos-pending-more">{{ __('さらに選ぶ') }}</button>
+          <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('まとめて追加') }}</button>
           <button type="button" class="photos-secondary-btn" id="photos-pending-cancel">{{ __('やめる') }}</button>
         </div>
       </section>
+
+      <div class="photos-add-sheet" id="photos-add-sheet" hidden>
+        <button type="button" class="photos-add-sheet-backdrop" id="photos-add-sheet-backdrop" aria-label="{{ __('閉じる') }}"></button>
+        <div class="photos-add-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="photos-add-sheet-title">
+          <h2 id="photos-add-sheet-title">{{ __('写真・動画を追加') }}</h2>
+          <p class="photos-add-sheet-hint">{{ __('複数選ぶときはチェックを付けてから「追加」を押してください。1枚ずつしか選べない場合は「さらに選ぶ」でまとめられます。') }}</p>
+          <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('端末から選ぶ（複数可）') }}</button>
+          <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
+          <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-video">{{ __('動画を撮る') }}</button>
+          <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-cancel">{{ __('キャンセル') }}</button>
+        </div>
+      </div>
 
       <aside class="photos-storage" aria-label="保存容量">
         <div class="photos-storage-head">
@@ -456,7 +456,7 @@
       <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
         <div class="photos-sync-tip-copy">
           <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「ファイル・このデバイス」はダウンロードや他アプリ、「写真ライブラリ」は端末のギャラリー、「カメラで撮る」は背面カメラです。ライブラリが空に見えるときはファイル側を使ってください。「フォルダを監視」は PC の Chrome 等向けです。') }}</span>
+          <span>{{ __('「写真・動画を追加」から端末の写真を選べます（複数可）。カメラ撮影も同じメニューから。フォルダ監視は PC の Chrome 等向けです。') }}</span>
           <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
         </div>
         <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
@@ -520,19 +520,11 @@
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
             <p class="photos-empty-text">
-              {{ __('このアプリにまだ保存されていません。') }}<br />
-              {{ __('スマホでは「ファイル・このデバイス」から選ぶと、ダウンロードや他アプリの写真も選べます。') }}<br />
-              {{ __('「写真ライブラリ」が空に見える場合も、こちらを試してください。') }}
+              {{ __('このアプリにまだ保存されていません。下のボタンから追加できます（複数選択可）。') }}
             </p>
             <div class="photos-empty-actions">
-              <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-files">
-                {{ __('ファイル・このデバイスから追加') }}
-              </button>
-              <button type="button" class="photos-secondary-btn" id="photos-empty-gallery">
-                {{ __('写真ライブラリから') }}
-              </button>
-              <button type="button" class="photos-secondary-btn" id="photos-empty-camera">
-                {{ __('カメラで撮る') }}
+              <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-add">
+                {{ __('写真・動画を追加') }}
               </button>
             </div>
           </div>
@@ -1506,7 +1498,6 @@
         const selectedAlbumId = @json($selectedAlbumId);
         const coverPhotoId = @json($selectedAlbum['coverPhotoId'] ?? null);
         const fileInput = document.getElementById('photos-file-input')
-        const filesBrowseInput = document.getElementById('photos-files-input')
         const form = document.getElementById('photos-upload-form')
         const formFiles = document.getElementById('photos-form-files')
         const formThumbs = document.getElementById('photos-form-thumbs')
@@ -1531,9 +1522,13 @@
         const folderWatchStop = document.getElementById('photos-folder-watch-stop')
         const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
+          || document.querySelector('#photos-add-open .photos-upload-btn-label')
+        const addOpenBtn = document.getElementById('photos-add-open')
+        const addSheet = document.getElementById('photos-add-sheet')
         const pendingBar = document.getElementById('photos-pending-bar')
         const pendingCount = document.getElementById('photos-pending-count')
         const pendingAddBtn = document.getElementById('photos-pending-add')
+        const pendingMoreBtn = document.getElementById('photos-pending-more')
         const pendingCancelBtn = document.getElementById('photos-pending-cancel')
         let pendingFiles = null
         const photosSortSelect = document.getElementById('photos-sort-select')
@@ -2140,7 +2135,7 @@
 
             if (soft) {
               if (totalCreated > 0 || totalSkipped > 0 || failed.length || rejected.length) {
-                setUploadProgress(buildResultNotice() || @json(__('写真ライブラリ')))
+                setUploadProgress(buildResultNotice() || @json(__('写真・動画を追加')))
               }
               return { created: totalCreated, skipped: totalSkipped, failed: failed.length }
             }
@@ -2178,40 +2173,52 @@
             activeUploadXhr = null
             if (!soft && pageJob) pageJob.end('upload')
             if (!soft) {
-              setUploadProgress(@json(__('写真ライブラリ')));
+              setUploadProgress(@json(__('写真・動画を追加')));
             } else if (!folderWatch.timer) {
-              setUploadProgress(@json(__('写真ライブラリ')));
+              setUploadProgress(@json(__('写真・動画を追加')));
             }
           }
         }
 
-        function triggerUpload() {
-          if (filesBrowseInput) {
-            triggerFilesBrowse()
+        function openAddSheet() {
+          if (!addSheet) {
+            triggerGalleryBrowse()
             return
           }
-          triggerGalleryBrowse()
+          addSheet.hidden = false
         }
 
-        function triggerFilesBrowse() {
-          if (!filesBrowseInput) {
-            fileInput?.click()
-            return
-          }
-          filesBrowseInput.value = ''
-          filesBrowseInput.click()
+        function closeAddSheet() {
+          if (addSheet) addSheet.hidden = true
+        }
+
+        function triggerUpload() {
+          openAddSheet()
         }
 
         function triggerGalleryBrowse() {
           if (!fileInput) return
+          closeAddSheet()
           fileInput.value = ''
           fileInput.click()
         }
 
         function triggerCameraCapture() {
           if (!cameraInput) return
+          closeAddSheet()
           cameraInput.value = ''
           cameraInput.click()
+        }
+
+        function triggerVideoCapture() {
+          if (!cameraVideoInput) return
+          closeAddSheet()
+          cameraVideoInput.value = ''
+          cameraVideoInput.click()
+        }
+
+        function filePickKey(file) {
+          return `${file?.name || ''}|${file?.size || 0}|${file?.lastModified || 0}`
         }
 
         function isMediaFile(file) {
@@ -2330,7 +2337,7 @@
 
         async function startFolderWatch() {
           if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「ファイル・このデバイス」か「写真ライブラリ」「カメラで撮る」を使ってください。')))
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」を使ってください。')))
             return
           }
           try {
@@ -2356,18 +2363,19 @@
           }
         }
 
-        document.getElementById('photos-empty-files')?.addEventListener('click', (e) => {
+        document.getElementById('photos-empty-add')?.addEventListener('click', (e) => {
           e.preventDefault()
-          triggerFilesBrowse()
+          openAddSheet()
         })
-        document.getElementById('photos-empty-gallery')?.addEventListener('click', (e) => {
+        addOpenBtn?.addEventListener('click', (e) => {
           e.preventDefault()
-          triggerGalleryBrowse()
+          openAddSheet()
         })
-        document.getElementById('photos-empty-camera')?.addEventListener('click', (e) => {
-          e.preventDefault()
-          triggerCameraCapture()
-        })
+        document.getElementById('photos-add-sheet-pick')?.addEventListener('click', () => triggerGalleryBrowse())
+        document.getElementById('photos-add-sheet-camera')?.addEventListener('click', () => triggerCameraCapture())
+        document.getElementById('photos-add-sheet-video')?.addEventListener('click', () => triggerVideoCapture())
+        document.getElementById('photos-add-sheet-cancel')?.addEventListener('click', () => closeAddSheet())
+        document.getElementById('photos-add-sheet-backdrop')?.addEventListener('click', () => closeAddSheet())
 
         function prefersUploadConfirm() {
           try {
@@ -2383,16 +2391,14 @@
           if (pendingBar) pendingBar.hidden = true
           if (pendingCount) pendingCount.textContent = ''
           if (fileInput) fileInput.value = ''
-          if (filesBrowseInput) filesBrowseInput.value = ''
         }
 
-        function showPendingFiles(fileList) {
-          const files = Array.from(fileList || [])
+        function renderPendingBar() {
+          const files = pendingFiles || []
           if (!files.length) {
             clearPendingFiles()
             return
           }
-          pendingFiles = files
           if (pendingCount) {
             const names = files.slice(0, 3).map((f) => f.name || 'file')
             const more = files.length > 3 ? ` …他${files.length - 3}件` : ''
@@ -2405,39 +2411,58 @@
           }
         }
 
+        function showPendingFiles(fileList, { append = false } = {}) {
+          const incoming = Array.from(fileList || [])
+          if (!incoming.length) {
+            if (!append) clearPendingFiles()
+            return
+          }
+          if (append && Array.isArray(pendingFiles) && pendingFiles.length) {
+            const seen = new Set(pendingFiles.map(filePickKey))
+            for (const file of incoming) {
+              const key = filePickKey(file)
+              if (seen.has(key)) continue
+              seen.add(key)
+              pendingFiles.push(file)
+            }
+          } else {
+            pendingFiles = incoming
+          }
+          renderPendingBar()
+        }
+
         function enqueueSelectedFiles(fileList, { fromCamera = false } = {}) {
           const files = Array.from(fileList || [])
           if (!files.length) return
-          // カメラ撮影は1件確定なので即送信。ギャラリー複数選択は確認ボタンを出す
-          if (fromCamera || !prefersUploadConfirm()) {
+          if (fromCamera) {
             clearPendingFiles()
             void submitFiles(files)
             return
           }
-          showPendingFiles(files)
+          if (!prefersUploadConfirm() && !(pendingFiles && pendingFiles.length)) {
+            clearPendingFiles()
+            void submitFiles(files)
+            return
+          }
+          showPendingFiles(files, { append: true })
           if (fileInput) fileInput.value = ''
         }
 
         fileInput?.addEventListener('change', () => {
           if (!fileInput.files?.length) return
-          enqueueSelectedFiles(fileInput.files)
-        })
-
-        filesBrowseInput?.addEventListener('change', () => {
-          if (!filesBrowseInput.files?.length) return
-          enqueueSelectedFiles(filesBrowseInput.files)
-          filesBrowseInput.value = ''
+          const copied = Array.from(fileInput.files)
+          enqueueSelectedFiles(copied)
         })
 
         cameraInput?.addEventListener('change', () => {
           if (!cameraInput.files?.length) return
-          enqueueSelectedFiles(cameraInput.files, { fromCamera: true })
+          enqueueSelectedFiles(Array.from(cameraInput.files), { fromCamera: true })
           cameraInput.value = ''
         })
 
         cameraVideoInput?.addEventListener('change', () => {
           if (!cameraVideoInput.files?.length) return
-          enqueueSelectedFiles(cameraVideoInput.files, { fromCamera: true })
+          enqueueSelectedFiles(Array.from(cameraVideoInput.files), { fromCamera: true })
           cameraVideoInput.value = ''
         })
 
@@ -2448,9 +2473,13 @@
           void submitFiles(files)
         })
 
+        pendingMoreBtn?.addEventListener('click', () => {
+          triggerGalleryBrowse()
+        })
+
         pendingCancelBtn?.addEventListener('click', () => {
           clearPendingFiles()
-          setUploadProgress(@json(__('写真ライブラリ')))
+          setUploadProgress(@json(__('写真・動画を追加')))
         })
 
         if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {
@@ -2462,7 +2491,7 @@
           if (folderWatchBtn && typeof window.showDirectoryPicker === 'function') {
             folderWatchBtn.hidden = false
           }
-          setUploadProgress(@json(__('写真ライブラリ')))
+          setUploadProgress(@json(__('写真・動画を追加')))
         })
 
         ;['dragenter', 'dragover'].forEach((type) => {
