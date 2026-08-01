@@ -9,11 +9,17 @@
     $dashReturn = $returnTo ?? '/dashboard';
   @endphp
   <section class="dash-travel" aria-label="{{ __('Travel期限') }}">
+    <details class="app-accordion" data-accordion-key="dash-travel">
+    <summary class="app-accordion-summary">
+      <h2 class="dash-travel-title">{{ __('Travel') }}</h2>
+      @if($unread + $unreadPromo > 0)
+        <span class="dash-travel-alert-count">{{ __('未読 :n', ['n' => $unread + $unreadPromo]) }}</span>
+      @endif
+      <span class="app-accordion-caret" aria-hidden="true">▾</span>
+    </summary>
+    <div class="app-accordion-body">
     <div class="dash-travel-head">
-      <div>
-        <h2 class="dash-travel-title">{{ __('Travel') }}</h2>
-        <p class="dash-travel-lead">{{ __('RP・Annual Report の期限と、セール／プロモ監視アラートです。') }}</p>
-      </div>
+      <p class="dash-travel-lead">{{ __('RP・Annual Report の期限と、セール／プロモ監視アラートです。') }}</p>
       <a class="button-link secondary" href="/travel">{{ __('Travelへ') }}</a>
     </div>
 
@@ -99,5 +105,7 @@
         </ul>
       @endif
     </div>
+    </div>
+    </details>
   </section>
 @endif

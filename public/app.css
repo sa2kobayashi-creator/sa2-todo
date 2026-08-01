@@ -1259,6 +1259,66 @@ a.filter-clear-btn {
   font-size: 14px;
 }
 
+/* display 指定が hidden 属性に勝ってしまうため打ち消す */
+.inline-check[hidden] {
+  display: none;
+}
+
+/* 折りたたみの共通パーツ。details/summary なので JS が無くても開閉できる */
+.app-accordion {
+  margin: 0;
+}
+
+.app-accordion-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.app-accordion-summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-accordion-summary::marker {
+  content: '';
+}
+
+.app-accordion-summary > h2,
+.app-accordion-summary > h3 {
+  margin: 0;
+}
+
+.app-accordion-summary:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.app-accordion-caret {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  color: #6b7280;
+  transition: transform 0.2s ease;
+}
+
+.app-accordion[open] .app-accordion-caret {
+  transform: rotate(180deg);
+}
+
+.app-accordion-note {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.app-accordion-body {
+  margin-top: 14px;
+}
+
 .preview {
   margin-top: 12px;
   padding: 12px;
@@ -9615,6 +9675,25 @@ label.photos-camera-btn span {
   justify-content: flex-end;
 }
 
+.photos-storage-summary {
+  font-size: 13px;
+  color: var(--photos-muted);
+}
+
+.photos-storage-summary strong {
+  color: var(--photos-ink);
+}
+
+.photos-storage-summary-total {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-accordion-body > .photos-storage-head {
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
 .photos-storage-usage-btn {
   padding: 4px 10px;
   font-size: 12px;
@@ -10171,6 +10250,11 @@ label.photos-camera-btn span {
   font-size: 12px;
   font-weight: 600;
   color: var(--photos-accent, #0f766e);
+}
+
+.is-fading-out {
+  opacity: 0;
+  transition: opacity 0.35s ease;
 }
 
 .photos-album-lock {

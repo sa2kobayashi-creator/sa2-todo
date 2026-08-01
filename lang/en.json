@@ -1687,5 +1687,7 @@
     "グループを作成しました。": "The group has been created.",
     "ここから作成したグループは承認済みで登録され、すぐに共有先として使えます。": "Groups created here are registered as approved and can be shared with right away.",
     "管理者が作成したグループは承認済みで登録され、すぐに共有先として使えます。": "Groups created by an administrator are registered as approved and can be shared with right away.",
-    "管理者がパスワードを設定することはできません。ご本人にログイン画面の「パスワードをお忘れですか？」から再設定していただいてください。": "Administrators cannot set a password. Ask the user to reset it themselves via \"Forgot your password?\" on the login screen."
+    "管理者がパスワードを設定することはできません。ご本人にログイン画面の「パスワードをお忘れですか？」から再設定していただいてください。": "Administrators cannot set a password. Ask the user to reset it themselves via \"Forgot your password?\" on the login screen.",
+    "設定中のパスワードを削除して、鍵なしに戻す": "Remove the current password and unlock this album",
+    "未読 :n": "Unread :n"
 }

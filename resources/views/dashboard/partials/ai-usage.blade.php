@@ -1,6 +1,11 @@
 <section class="dash-ai-usage" aria-label="{{ __('AI使用状況') }}">
-  <div class="dash-ai-usage-head">
+  <details class="app-accordion" data-accordion-key="dash-ai-usage">
+  <summary class="app-accordion-summary">
     <h2 class="dash-ai-usage-title">{{ __('AI使用料・翻訳使用料') }}</h2>
+    <span class="app-accordion-caret" aria-hidden="true">▾</span>
+  </summary>
+  <div class="app-accordion-body">
+  <div class="dash-ai-usage-head">
     <p class="dash-ai-usage-lead">{{ __('無料枠の残りと、見込まれる使用料の目安です。詳細は設定画面で確認・更新できます。') }}</p>
   </div>
 
@@ -70,4 +75,6 @@
       </article>
     @endforeach
   </div>
+  </div>
+  </details>
 </section>

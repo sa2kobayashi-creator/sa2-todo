@@ -144,19 +144,24 @@
         </div>
       </div>
 
-      <aside class="photos-storage" aria-label="保存容量">
-        <div class="photos-storage-head">
+      <aside class="photos-storage" aria-label="{{ __('保存容量') }}">
+        <details class="app-accordion" data-accordion-key="photos-storage">
+        <summary class="app-accordion-summary photos-storage-summary">
           <strong>{{ __('保存容量') }}</strong>
+          <span class="photos-storage-summary-total">
+            {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
+            / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
+            {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+            · {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
+            @if(!empty($storageStats['overFreeTier']))
+              <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+            @endif
+          </span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+        <div class="photos-storage-head">
           <span class="photos-storage-head-actions">
-            <span>
-              {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
-              / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
-              {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
-              · {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
-              @if(!empty($storageStats['overFreeTier']))
-                <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-              @endif
-            </span>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
             @if(!empty($storageStats['archiveEnabled']))
@@ -234,6 +239,8 @@
             {{ __('超過見込単価') }} {{ $storageStats['overagePriceLabel'] }}。
           @endif
         </p>
+        </div>
+        </details>
       </aside>
 
       <script>
@@ -1498,13 +1505,13 @@
           <p class="hint" id="photos-album-password-hint">{{ __('設定すると、開くときにパスワードが必要です。') }}</p>
           <label class="inline-check" id="photos-album-clear-password-wrap" hidden>
             <input type="checkbox" name="clear_password" value="1" id="photos-album-clear-password" />
-            <span>{{ __('パスワードを解除する') }}</span>
+            <span>{{ __('設定中のパスワードを削除して、鍵なしに戻す') }}</span>
           </label>
           <label class="inline-check">
             <input type="checkbox" name="is_hidden" value="1" id="photos-album-hidden" />
             <span>{{ __('隠しアルバム（一覧に出さない・本人のみ）') }}</span>
           </label>
-          <p class="hint">{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
+          <p class="hint" id="photos-album-hidden-hint" hidden>{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
           <div class="modal-actions">
             <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
             <button type="submit" id="photos-album-submit">{{ __('作成') }}</button>
@@ -3872,9 +3879,33 @@
         const albumClearPasswordWrap = document.getElementById('photos-album-clear-password-wrap')
         const albumClearPassword = document.getElementById('photos-album-clear-password')
         const albumHidden = document.getElementById('photos-album-hidden')
+        const albumHiddenHint = document.getElementById('photos-album-hidden-hint')
         const albumSubmit = document.getElementById('photos-album-submit')
         const selectedAlbum = @json($selectedAlbum);
         const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
+
+        /** 補足文は読めるだけ出して、あとは画面から引っ込める */
+        const AUTO_HIDE_MS = 10000
+        function showBriefly(el, timerKey) {
+          if (!el) return
+          if (el.dataset[timerKey]) clearTimeout(Number(el.dataset[timerKey]))
+          el.hidden = false
+          el.classList.remove('is-fading-out')
+          el.dataset[timerKey] = String(setTimeout(() => {
+            el.classList.add('is-fading-out')
+            el.dataset[timerKey] = String(setTimeout(() => {
+              el.hidden = true
+              el.classList.remove('is-fading-out')
+            }, 400))
+          }, AUTO_HIDE_MS))
+        }
+
+        function hideNow(el, timerKey) {
+          if (!el) return
+          if (el.dataset[timerKey]) clearTimeout(Number(el.dataset[timerKey]))
+          el.hidden = true
+          el.classList.remove('is-fading-out')
+        }
 
         function syncAlbumGroupVisibility() {
           if (!albumVisibility || !albumGroupWrap) return
@@ -3884,7 +3915,11 @@
           if (albumVisibility) albumVisibility.disabled = !!(albumHidden && albumHidden.checked)
         }
         albumVisibility?.addEventListener('change', syncAlbumGroupVisibility)
-        albumHidden?.addEventListener('change', syncAlbumGroupVisibility)
+        albumHidden?.addEventListener('change', () => {
+          syncAlbumGroupVisibility()
+          if (albumHidden.checked) showBriefly(albumHiddenHint, 'hintTimer')
+          else hideNow(albumHiddenHint, 'hintTimer')
+        })
 
         function openAlbumModal(mode) {
           if (!albumModal || !albumForm) return
@@ -3905,6 +3940,7 @@
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = !!selectedAlbum.isHidden
             if (albumSubmit) albumSubmit.textContent = @json(__('保存'));
+            hideNow(albumHiddenHint, 'hintTimer')
           } else {
             albumModalTitle.textContent = @json(__('アルバムを作成'));
             albumForm.action = '/photos/albums'
@@ -3918,6 +3954,7 @@
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = false
             if (albumSubmit) albumSubmit.textContent = @json(__('作成'));
+            hideNow(albumHiddenHint, 'hintTimer')
           }
           syncAlbumGroupVisibility()
           albumModal.hidden = false
@@ -3931,6 +3968,9 @@
             if (albumModal) albumModal.hidden = true
           })
         })
+
+        // 表示中の告知は覗き見されないよう、しばらくしたら自分から消える
+        showBriefly(document.getElementById('photos-hidden-reveal-note'), 'noteTimer')
 
         // 隠しアルバム表示切替: タイトルを7回タップ
         ;(function setupHiddenAlbumReveal() {
@@ -4970,5 +5010,6 @@
         @endif
       })()
     </script>
+    @include('partials.accordion-state')
   </body>
 </html>

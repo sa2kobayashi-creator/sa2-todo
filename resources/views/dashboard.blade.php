@@ -1180,5 +1180,6 @@
         })
       })
     </script>
+    @include('partials.accordion-state')
   </body>
 </html>

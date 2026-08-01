@@ -30,7 +30,12 @@
       @endif
 
       <div class="panel">
-        <h2>{{ __('ToDo を追加（複数行可）') }}</h2>
+        <details class="app-accordion" data-accordion-key="todos-add">
+        <summary class="app-accordion-summary">
+          <h2>{{ __('ToDo を追加（複数行可）') }}</h2>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
         <p class="hint">{{ __('改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }}@if(!empty($canSettings)) {{ __('定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}@endif</p>
         <form class="add" method="post" action="/todos" id="add-form">
           @csrf
@@ -172,6 +177,8 @@
           'voiceAiProvider' => $voiceAiProvider ?? null,
           'placeholder' => __('例: 明日買い物に行く、重要'),
         ])
+        </div>
+        </details>
       </div>
 
       <div class="panel" id="todo-list-panel">
@@ -1094,5 +1101,6 @@
         })
       })
     </script>
+    @include('partials.accordion-state')
   </body>
 </html>
