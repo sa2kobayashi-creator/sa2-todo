@@ -372,9 +372,29 @@
 
       @if(!empty($storageStats['archiveEnabled']))
       @php
-        $archiveBatchSize = (int) config('photos.archive_cold_batch_size', 40);
-        $archiveTimeoutSec = (int) config('photos.archive_cold_request_timeout_seconds', 900);
-        $archiveMaxBatches = (int) config('photos.archive_cold_max_batches', 50);
+        $archiveBatchSize = (int) config('photos.archive_cold_batch_size', 8);
+        $archiveTimeoutSec = (int) config('photos.archive_cold_request_timeout_seconds', 180);
+        $archiveMaxBatches = (int) config('photos.archive_cold_max_batches', 200);
+        // Blade の @json(__('…')) は括弧の解釈で壊れやすいので、先に変数へ載せる
+        $archiveI18n = [
+            'confirm' => $archiveConfirm ?? __('B2へアーカイブを実行しますか？'),
+            'running' => __('アーカイブ中…'),
+            'done' => __('アーカイブが完了しました'),
+            'fail' => __('アーカイブに失敗しました'),
+            'timeout' => __('サーバーまたは通信がタイムアウトしました。大きな動画がある場合は再実行してください（続きから移動します）。'),
+            'network' => __('通信エラーで中断しました。回線を確認して再実行してください。'),
+            'http' => __('サーバーエラー（HTTP :status）。:detail'),
+            'cancelled' => __('アーカイブを中断しました'),
+            'idle' => __('B2へアーカイブ'),
+            'batch' => __('アーカイブ中… :done件移動（バッチ :batch/:max）'),
+            'progressKeep' => __('途中まで移動しました（:archived 件）。再実行で続きから進めます。'),
+            'sessionExpired' => __('セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。'),
+            'proxyTimeout' => __('サーバーまたはプロキシがタイムアウトしました（HTTP :status）。大きな動画は時間がかかるため、再実行で続きから移動します。'),
+            'doneSummary' => __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件'),
+            'lastError' => __('最後のエラー: :err'),
+            'photoId' => __('写真ID :id'),
+            'batchLimit' => __('上限バッチに達しました（移動 :archived 件）。必要なら再度「B2へアーカイブ」を実行してください。'),
+        ];
       @endphp
       <script>
         (function () {
@@ -386,20 +406,8 @@
           const timeoutMs = {{ $archiveTimeoutSec }} * 1000
           const maxBatches = {{ $archiveMaxBatches }}
           const job = window.PhotosPageJob
-
-          const i18n = {
-            confirm: @json($archiveConfirm),
-            running: @json(__('アーカイブ中…')),
-            done: @json(__('アーカイブが完了しました')),
-            fail: @json(__('アーカイブに失敗しました')),
-            timeout: @json(__('サーバーまたは通信がタイムアウトしました。大きな動画がある場合は再実行してください（続きから移動します）。')),
-            network: @json(__('通信エラーで中断しました。回線を確認して再実行してください。')),
-            http: @json(__('サーバーエラー（HTTP :status）。:detail')),
-            cancelled: @json(__('アーカイブを中断しました')),
-            idle: btn.textContent || @json(__('B2へアーカイブ')),
-            batch: @json(__('アーカイブ中… :done件移動（バッチ :batch/:max）')),
-            progressKeep: @json(__('途中まで移動しました（:archived 件）。再実行で続きから進めます。')),
-          }
+          const i18n = @json($archiveI18n);
+          if (btn.textContent) i18n.idle = btn.textContent
 
           function setStatus(text) {
             if (statusEl) statusEl.textContent = text || ''
@@ -463,10 +471,9 @@
               function explainHttpFailure(status, data, text) {
                 const serverMsg = (data && (data.message || data.last_error)) || ''
                 if (serverMsg) return serverMsg
-                if (status === 419) return @json(__('セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。'))
+                if (status === 419) return i18n.sessionExpired
                 if (status === 502 || status === 504) {
-                  return @json(__('サーバーまたはプロキシがタイムアウトしました（HTTP :status）。大きな動画は時間がかかるため、再実行で続きから移動します。'))
-                    .replace(':status', String(status))
+                  return i18n.proxyTimeout.replace(':status', String(status))
                 }
                 const snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 160)
                 return i18n.http
@@ -540,21 +547,20 @@
                   const hasMore = !!(res.data && res.data.has_more)
                   if (!hasMore) {
                     ok = totalErrors === 0
-                    lastMessage = @json(__('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件'))
+                    lastMessage = i18n.doneSummary
                       .replace(':archived', String(totalArchived))
                       .replace(':skipped', String(totalSkipped))
                       .replace(':errors', String(totalErrors))
                     if (res.data && res.data.last_error) {
-                      lastMessage += '\n' + @json(__('最後のエラー: :err')).replace(':err', String(res.data.last_error))
+                      lastMessage += '\n' + i18n.lastError.replace(':err', String(res.data.last_error))
                       if (res.data.last_error_photo_id) {
-                        lastMessage += ' (' + @json(__('写真ID :id')).replace(':id', String(res.data.last_error_photo_id)) + ')'
+                        lastMessage += ' (' + i18n.photoId.replace(':id', String(res.data.last_error_photo_id)) + ')'
                       }
                     }
                     break
                   }
                   if (batch === maxBatches) {
-                    lastMessage = @json(__('上限バッチに達しました（移動 :archived 件）。必要なら再度「B2へアーカイブ」を実行してください。'))
-                      .replace(':archived', String(totalArchived))
+                    lastMessage = i18n.batchLimit.replace(':archived', String(totalArchived))
                     ok = true
                   }
                 }

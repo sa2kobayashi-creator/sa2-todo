@@ -199,6 +199,20 @@ class PhotoColdArchiveTest extends TestCase
         $this->assertTrue($stats['hasMore']);
     }
 
+    public function test_the_photos_page_ships_a_working_archive_button_script(): void
+    {
+        $this->useR2CapMode();
+        $user = $this->makeUser('btn@example.com');
+
+        $html = $this->actingAs($user)->get('/photos')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="photos-archive-cold-btn"', $html);
+        // Blade が @json の改行を潰して return "..."if になるとボタンが死ぬので、その形が無いこと
+        $this->assertDoesNotMatchRegularExpression('/return\s+"[^"]*"\s*if\s*\(/', $html);
+        $this->assertStringContainsString("getElementById('photos-archive-cold-btn')", $html);
+        $this->assertStringContainsString('addEventListener(\'click\'', $html);
+    }
+
     public function test_endpoint_returns_last_error_details_when_write_fails(): void
     {
         $this->useR2CapMode();
