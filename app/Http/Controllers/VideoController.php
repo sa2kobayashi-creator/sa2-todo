@@ -99,7 +99,7 @@ class VideoController extends Controller
             static fn (array $item): bool => ($item['mediaKind'] ?? '') === 'video'
         ));
         if ($videos === []) {
-            return $this->redirectWithMessage($returnTo, __('動画ファイル（MP4）を選択してください。'), 'error');
+            return $this->redirectWithMessage($returnTo, __('動画ファイル（MP4 / MOV）を選択してください。'), 'error');
         }
 
         $count = count($videos);

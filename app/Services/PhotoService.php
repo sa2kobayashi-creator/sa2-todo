@@ -22,6 +22,23 @@ class PhotoService
 
     public const ALLOWED_VIDEO_MIMES = [
         'video/mp4',
+        'video/quicktime',
+    ];
+
+    /** 端末によっては MIME が application/octet-stream で届くので拡張子でも受ける */
+    public const ALLOWED_VIDEO_EXTENSIONS = [
+        'mp4',
+        'mov',
+    ];
+
+    public const ALLOWED_IMAGE_EXTENSIONS = [
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+        'gif',
+        'heic',
+        'heif',
     ];
 
     /** @var array<int, int> */
@@ -53,13 +70,15 @@ class PhotoService
     {
         $mime = strtolower((string) $mime);
         $extension = strtolower((string) $extension);
-        if ($extension === 'mp4') {
+        if (in_array($extension, self::ALLOWED_VIDEO_EXTENSIONS, true)) {
             return true;
         }
 
         return in_array($mime, self::ALLOWED_VIDEO_MIMES, true)
             || str_starts_with($mime, 'video/mp4')
-            || $mime === 'application/mp4';
+            || str_starts_with($mime, 'video/quicktime')
+            || $mime === 'application/mp4'
+            || $mime === 'application/quicktime';
     }
 
     public function isVideoUpload(UploadedFile $file): bool
@@ -1838,16 +1857,16 @@ class PhotoService
             );
         }
 
-        $okImageExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true);
-        $okVideoExt = $ext === 'mp4';
+        $okImageExt = in_array($ext, self::ALLOWED_IMAGE_EXTENSIONS, true);
+        $okVideoExt = in_array($ext, self::ALLOWED_VIDEO_EXTENSIONS, true);
         $okMime = in_array($mime, self::ALLOWED_MIMES, true) || in_array($mime, self::ALLOWED_VIDEO_MIMES, true);
 
         if (! $okMime && ! ($isVideo ? $okVideoExt : $okImageExt)) {
-            // 一部環境では MP4 が application/octet-stream になる
+            // 一部環境では動画が application/octet-stream になる
             if ($okVideoExt || $okImageExt) {
                 return;
             }
-            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 です');
+            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 / MOV です');
         }
     }
 
@@ -1869,7 +1888,7 @@ class PhotoService
     }
 
     /**
-     * MP4 を保存し、クライアント生成サムネがあればそれを使う（なければ仮サムネ）。
+     * MP4 / MOV を保存し、クライアント生成サムネがあればそれを使う（なければ仮サムネ）。
      *
      * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
      */
@@ -1882,14 +1901,15 @@ class PhotoService
 
         $writeDisk = Storage::disk($diskName ?: $this->diskName());
         $basename = str_replace('.', '', uniqid('vid_', true));
-        $filename = $basename.'.mp4';
+        [$extension, $mime] = $this->videoFormatFor($file);
+        $filename = $basename.'.'.$extension;
         $dir = trim($dir, '/');
 
         try {
             $path = $writeDisk->putFileAs($dir, $file, $filename, [
                 'visibility' => $this->objectVisibility($diskName),
-                'ContentType' => 'video/mp4',
-                'mimetype' => 'video/mp4',
+                'ContentType' => $mime,
+                'mimetype' => $mime,
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -1913,11 +1933,28 @@ class PhotoService
         return [
             'path' => $path,
             'thumbPath' => $thumbPath,
-            'mime' => 'video/mp4',
+            'mime' => $mime,
             'sizeBytes' => (int) $file->getSize(),
             'width' => $width,
             'height' => $height,
         ];
+    }
+
+    /**
+     * 保存する拡張子と MIME。判別できないものは MP4 として扱う。
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function videoFormatFor(UploadedFile $file): array
+    {
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $mime = strtolower((string) $file->getMimeType());
+
+        if ($ext === 'mov' || str_starts_with($mime, 'video/quicktime')) {
+            return ['mov', 'video/quicktime'];
+        }
+
+        return ['mp4', 'video/mp4'];
     }
 
     private function storeUploadedVideoThumb(?UploadedFile $thumbFile, string $thumbPath, int &$width, int &$height): ?string

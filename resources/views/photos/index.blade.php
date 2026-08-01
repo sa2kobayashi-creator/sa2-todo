@@ -61,7 +61,7 @@
               type="file"
               id="photos-file-input"
               class="photos-file-input-hidden"
-              accept="image/*,video/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,.heic,.heif,.mp4"
+              accept="image/*,video/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,.heic,.heif,.mp4,.mov"
               multiple
             />
             <input
@@ -217,7 +217,7 @@
           </div>
         @endif
         <p class="photos-storage-note">
-          {{ __('画像は解像度そのまま保存。動画は MP4（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
+          {{ __('画像は解像度そのまま保存。動画は MP4・MOV（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
           {{ __('ユーザーごとの無料枠は合計') }} {{ $storageStats['formattedCombinedQuota'] }}{{ __('です（超過分は見込表示。有料課金は今後対応予定）。') }}
           @if(!empty($storageStats['pipelineEnabled']))
             {{ __('構成:') }}
@@ -562,7 +562,7 @@
         @csrf
         <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
         <input type="hidden" name="album_id" id="photos-form-album-id" value="{{ $selectedAlbumId }}" />
-        <input type="file" name="photos[]" id="photos-form-files" accept="image/*,video/mp4,.heic,.heif,.mp4" multiple hidden />
+        <input type="file" name="photos[]" id="photos-form-files" accept="image/*,video/mp4,video/quicktime,.heic,.heif,.mp4,.mov" multiple hidden />
         <input type="file" name="video_thumbs[]" id="photos-form-thumbs" accept="image/jpeg" multiple hidden />
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
       </form>
@@ -1740,8 +1740,17 @@
         photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
 
+        const SUPPORTED_VIDEO_EXT = /\.(mp4|mov)$/i
+        const SUPPORTED_VIDEO_MIME = /^(video\/(mp4|quicktime)|application\/mp4)$/i
+
         function isVideoFile(file) {
-          return !!file && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name || ''))
+          return !!file && (file.type.startsWith('video/') || SUPPORTED_VIDEO_EXT.test(file.name || ''))
+        }
+
+        /** 保存できる動画か。MIME が空だったり octet-stream になる端末があるので拡張子も見る */
+        function isSupportedVideoFile(file) {
+          if (!file) return false
+          return SUPPORTED_VIDEO_MIME.test(file.type || '') || SUPPORTED_VIDEO_EXT.test(file.name || '')
         }
 
         async function captureVideoThumb(file, timeoutMs = 2500) {
@@ -2065,9 +2074,8 @@
               continue
             }
             const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(displayName)
-            const isMp4 = file.type === 'video/mp4' || /\.mp4$/i.test(displayName)
-            if (isVideo && !isMp4) {
-              rejected.push(`${displayName}: 動画はMP4のみ対応`)
+            if (isVideo && !isSupportedVideoFile(file)) {
+              rejected.push(`${displayName}: 動画はMP4・MOVのみ対応`)
               continue
             }
             mediaList.push(file)
@@ -2216,7 +2224,7 @@
                 if (jsonCompanionCount > 0) {
                   body += '\n\n選択されたのは付属のメタデータJSONのみです。写真・動画ファイルを選んでください。'
                 } else {
-                  body += '\n\n対応形式: 画像（JPEG/PNG/WebP/GIF/HEIC 等）と動画（MP4）'
+                  body += '\n\n対応形式: 画像（JPEG/PNG/WebP/GIF/HEIC 等）と動画（MP4 / MOV）'
                 }
               }
               window.alert(body)
@@ -2407,7 +2415,7 @@
                 continue
               }
               if (!isMediaFile(file)) continue
-              if (file.type.startsWith('video/') && file.type !== 'video/mp4' && !/\.mp4$/i.test(file.name || '')) {
+              if (file.type.startsWith('video/') && !isSupportedVideoFile(file)) {
                 continue
               }
               mediaCandidates.push(file)
@@ -3221,7 +3229,8 @@
           const blob = await res.blob()
           const mime = blob.type || photo.mime || (photo.mediaKind === 'video' ? 'video/mp4' : 'image/jpeg')
           let ext = 'jpg'
-          if (mime.includes('mp4') || mime.includes('video')) ext = 'mp4'
+          if (mime.includes('quicktime')) ext = 'mov'
+          else if (mime.includes('mp4') || mime.includes('video')) ext = 'mp4'
           else if (mime.includes('png')) ext = 'png'
           else if (mime.includes('webp')) ext = 'webp'
           else if (mime.includes('gif')) ext = 'gif'

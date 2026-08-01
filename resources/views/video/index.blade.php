@@ -18,15 +18,15 @@
       <section class="panel media-player-hero">
         <div>
           <h1 class="media-player-title">{{ __('動画') }}</h1>
-          <p class="hint">{{ __('YouTube検索・リンク貼り付け・MP4アップロードで再生できます。') }}</p>
+          <p class="hint">{{ __('YouTube検索・リンク貼り付け・動画アップロード（MP4 / MOV）で再生できます。') }}</p>
         </div>
         <div class="media-video-add-actions">
           <form method="post" action="/video" enctype="multipart/form-data" class="media-upload-form">
             @csrf
             <input type="hidden" name="returnTo" value="/video" />
             <label class="button-link media-upload-btn">
-              <input type="file" name="videos[]" accept="video/mp4,.mp4" multiple required hidden />
-              <span>{{ __('MP4を追加') }}</span>
+              <input type="file" name="videos[]" accept="video/mp4,video/quicktime,.mp4,.mov" multiple required hidden />
+              <span>{{ __('動画を追加') }}</span>
             </label>
             <p class="hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '800 MB']) }}</p>
           </form>
@@ -146,7 +146,7 @@
             </form>
           </div>
         @else
-          <p class="hint">{{ __('マイリストにはアップロードしたMP4も表示されます。') }}</p>
+          <p class="hint">{{ __('マイリストにはアップロードした動画も表示されます。') }}</p>
         @endif
 
         <h3 class="media-list-subtitle">{{ $currentLibrary['name'] ?? __('マイリスト') }}</h3>
