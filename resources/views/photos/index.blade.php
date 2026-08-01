@@ -78,6 +78,15 @@
               accept="video/*"
               capture="environment"
             />
+            {{-- フォルダ選択。webkitRelativePath でフォルダ構成が分かるので、そこからアルバムを割り出す --}}
+            <input
+              type="file"
+              id="photos-folder-input"
+              class="photos-file-input-hidden"
+              webkitdirectory
+              directory
+              multiple
+            />
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
@@ -137,10 +146,27 @@
             </label>
           @endif
           <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-files">{{ __('フォルダから探す（推奨）') }}</button>
+          <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-folders">{{ __('フォルダごとアルバムにする') }}</button>
+          <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('親フォルダを選ぶと、その直下のフォルダ1つが1アルバムになります。複数のフォルダをこの画面にドラッグ＆ドロップしても同じです。') }}</p>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('ギャラリーから選ぶ') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-video">{{ __('動画を撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-cancel">{{ __('キャンセル') }}</button>
+        </div>
+      </div>
+
+      {{-- フォルダ取り込みは一度に何個もアルバムを作るので、走らせる前に必ず内容を見せる --}}
+      <div class="photos-folder-import" id="photos-folder-import" hidden>
+        <button type="button" class="photos-add-sheet-backdrop" id="photos-folder-import-backdrop" aria-label="{{ __('閉じる') }}"></button>
+        <div class="photos-folder-import-panel" role="dialog" aria-modal="true" aria-labelledby="photos-folder-import-title">
+          <h2 id="photos-folder-import-title">{{ __('フォルダごとアルバムにする') }}</h2>
+          <p class="photos-folder-import-hint">{{ __('フォルダ名がそのままアルバム名になります。同じ名前のアルバムが既にあるときは、末尾に連番を付けた別のアルバムを作ります。') }}</p>
+          <ul class="photos-folder-import-list" id="photos-folder-import-list"></ul>
+          <p class="photos-folder-import-total" id="photos-folder-import-total"></p>
+          <div class="photos-folder-import-actions">
+            <button type="button" class="photos-upload-btn" id="photos-folder-import-run">{{ __('取り込む') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-folder-import-cancel">{{ __('やめる') }}</button>
+          </div>
         </div>
       </div>
 
@@ -1685,6 +1711,8 @@
         let deferredPrompt = null
         let uploading = false
         let uploadCancelRequested = false
+        // フォルダ取り込み中はフォルダ単位で進捗を出すので、1フォルダ終わるたびの初期化を抑える
+        let folderImportRunning = false
         let activeUploadXhr = null
         const pageJob = window.PhotosPageJob
         let folderWatch = {
@@ -2141,7 +2169,9 @@
           }
           const takeoutMap = await buildTakeoutTakenAtMap(list)
           const totalSelected = mediaList.length
-          const albumId = currentUploadAlbumId()
+          const albumId = options.albumId !== undefined
+            ? String(options.albumId || '')
+            : currentUploadAlbumId()
           const returnTo = uploadReturnTo(albumId)
           const allowDuplicates = allowDuplicatesChecked()
           let totalCreated = 0
@@ -2330,7 +2360,7 @@
             if (!soft && pageJob) pageJob.end('upload')
             if (!soft) {
               setUploadProgress(@json(__('写真・動画を追加')));
-            } else if (!folderWatch.timer) {
+            } else if (!folderWatch.timer && !folderImportRunning) {
               setUploadProgress(@json(__('写真・動画を追加')));
             }
           }
@@ -2564,6 +2594,329 @@
           }
         }
 
+        /* ===== フォルダごとアルバム取り込み ===== */
+
+        const folderImportSheet = document.getElementById('photos-folder-import')
+        const folderImportList = document.getElementById('photos-folder-import-list')
+        const folderImportTotal = document.getElementById('photos-folder-import-total')
+        const folderImportRun = document.getElementById('photos-folder-import-run')
+        const folderPickBtn = document.getElementById('photos-add-sheet-folders')
+        const folderInput = document.getElementById('photos-folder-input')
+        let folderImportGroups = []
+        let folderImportCancelled = false
+
+        function keepForImport(file) {
+          if (!file) return false
+          if (/\.json$/i.test(file.name || '')) return true
+          if (!isMediaFile(file)) return false
+          return !(file.type.startsWith('video/') && !isSupportedVideoFile(file))
+        }
+
+        function countMedia(files) {
+          let images = 0
+          let videos = 0
+          for (const file of files) {
+            if (!isMediaFile(file)) continue
+            if (isVideoFile(file)) videos += 1
+            else images += 1
+          }
+          return { images, videos, total: images + videos }
+        }
+
+        /** ドロップ版。readEntries は一度に全部返さないので空になるまで読む */
+        function readAllEntries(reader) {
+          return new Promise((resolve) => {
+            const all = []
+            const step = () => {
+              reader.readEntries((entries) => {
+                if (!entries.length) {
+                  resolve(all)
+                  return
+                }
+                all.push(...entries)
+                step()
+              }, () => resolve(all))
+            }
+            step()
+          })
+        }
+
+        function fileFromEntry(entry) {
+          return new Promise((resolve) => {
+            try { entry.file(resolve, () => resolve(null)) } catch (_) { resolve(null) }
+          })
+        }
+
+        async function filesUnderDirEntry(dirEntry, depth = 0, maxDepth = 6) {
+          const files = []
+          const entries = await readAllEntries(dirEntry.createReader())
+          for (const entry of entries) {
+            if (entry.isDirectory) {
+              if (depth >= maxDepth) continue
+              try {
+                files.push(...await filesUnderDirEntry(entry, depth + 1, maxDepth))
+              } catch (_) {}
+              continue
+            }
+            const file = await fileFromEntry(entry)
+            if (file && keepForImport(file)) files.push(file)
+          }
+          return files
+        }
+
+        /**
+         * フォルダ選択の結果はサブフォルダも含めた平らな一覧で届く。
+         * webkitRelativePath が「選んだフォルダ/子フォルダ/…/ファイル」なので、子フォルダ名でアルバムに束ねる。
+         */
+        function foldersFromPickedFiles(fileList) {
+          const grouped = new Map()
+          const loose = []
+          let rootName = ''
+          for (const file of Array.from(fileList || [])) {
+            if (!keepForImport(file)) continue
+            const parts = String(file.webkitRelativePath || file.name || '').split('/')
+            if (!rootName && parts.length > 1) rootName = parts[0]
+            if (parts.length > 2) {
+              const key = parts[1]
+              if (!grouped.has(key)) grouped.set(key, [])
+              grouped.get(key).push(file)
+            } else {
+              loose.push(file)
+            }
+          }
+
+          const groups = [...grouped.entries()]
+            .filter(([, files]) => countMedia(files).total > 0)
+            .map(([name, files]) => ({ name, files }))
+
+          // 直下にフォルダがなければ、選んだフォルダ自体を1つのアルバムにする
+          if (!groups.length && countMedia(loose).total > 0) {
+            return { groups: [{ name: rootName || 'folder', files: loose }], loose: [] }
+          }
+          return { groups, loose }
+        }
+
+        function pickParentFolder() {
+          if (uploading || !folderInput) return
+          folderInput.value = ''
+          folderInput.click()
+        }
+
+        async function handleDroppedItems(items) {
+          const dirEntries = []
+          const looseEntries = []
+          for (const entry of items) {
+            if (!entry) continue
+            if (entry.isDirectory) dirEntries.push(entry)
+            else if (entry.isFile) looseEntries.push(entry)
+          }
+          if (!dirEntries.length) return false
+
+          setUploadProgress(@json(__('フォルダを読み込み中…')));
+          const groups = []
+          for (const dir of dirEntries) {
+            try {
+              const files = await filesUnderDirEntry(dir, 1)
+              if (countMedia(files).total > 0) groups.push({ name: dir.name, files })
+            } catch (_) {}
+          }
+          const loose = []
+          for (const entry of looseEntries) {
+            const file = await fileFromEntry(entry)
+            if (file && keepForImport(file)) loose.push(file)
+          }
+          openFolderImport(groups, loose)
+          return true
+        }
+
+        function openFolderImport(groups, looseFiles = []) {
+          const rows = groups.map((group) => ({ ...group, include: true }))
+          if (countMedia(looseFiles).total > 0) {
+            rows.push({ name: '', files: looseFiles, include: true, isLoose: true })
+          }
+          if (!rows.length) {
+            setUploadProgress(@json(__('写真・動画を追加')));
+            window.alert(@json(__('取り込める写真・動画がフォルダに見つかりませんでした。')));
+            return
+          }
+          folderImportGroups = rows
+          renderFolderImport()
+          if (folderImportSheet) folderImportSheet.hidden = false
+        }
+
+        function closeFolderImport() {
+          if (folderImportSheet) folderImportSheet.hidden = true
+          folderImportGroups = []
+          if (folderImportList) folderImportList.innerHTML = ''
+        }
+
+        function renderFolderImport() {
+          if (!folderImportList) return
+          folderImportList.innerHTML = ''
+          folderImportGroups.forEach((group, index) => {
+            const counts = countMedia(group.files)
+            const row = document.createElement('li')
+            row.className = 'photos-folder-import-row'
+
+            const check = document.createElement('input')
+            check.type = 'checkbox'
+            check.checked = group.include
+            check.className = 'photos-folder-import-check'
+            check.setAttribute('aria-label', @json(__('このフォルダを取り込む')));
+            check.addEventListener('change', () => {
+              group.include = check.checked
+              row.classList.toggle('is-off', !check.checked)
+              updateFolderImportTotal()
+            })
+            row.appendChild(check)
+
+            if (group.isLoose) {
+              const label = document.createElement('span')
+              label.className = 'photos-folder-import-loose'
+              label.textContent = @json(__('フォルダに入っていないファイル（追加先アルバムへ）'));
+              row.appendChild(label)
+            } else {
+              const name = document.createElement('input')
+              name.type = 'text'
+              name.className = 'photos-folder-import-name'
+              name.value = group.name
+              name.maxLength = 120
+              name.setAttribute('aria-label', @json(__('アルバム名')));
+              name.addEventListener('input', () => {
+                group.name = name.value
+                folderImportRun && (folderImportRun.disabled = !hasImportableFolder())
+              })
+              row.appendChild(name)
+            }
+
+            const count = document.createElement('span')
+            count.className = 'photos-folder-import-count'
+            count.textContent = @json(__('写真 :images · 動画 :videos'))
+              .replace(':images', String(counts.images))
+              .replace(':videos', String(counts.videos))
+            row.appendChild(count)
+
+            folderImportList.appendChild(row)
+          })
+          updateFolderImportTotal()
+        }
+
+        function hasImportableFolder() {
+          return folderImportGroups.some((g) => g.include && (g.isLoose || g.name.trim() !== ''))
+        }
+
+        function updateFolderImportTotal() {
+          const chosen = folderImportGroups.filter((g) => g.include)
+          const files = chosen.flatMap((g) => g.files)
+          const counts = countMedia(files)
+          const albums = chosen.filter((g) => !g.isLoose).length
+          if (folderImportTotal) {
+            folderImportTotal.textContent = @json(__('アルバム :albums 個 / 写真 :images · 動画 :videos'))
+              .replace(':albums', String(albums))
+              .replace(':images', String(counts.images))
+              .replace(':videos', String(counts.videos))
+          }
+          if (folderImportRun) folderImportRun.disabled = !chosen.length || !hasImportableFolder()
+        }
+
+        async function createFolderAlbum(name) {
+          const fd = new FormData()
+          fd.append('folder_name', name)
+          const res = await postUploadFormDataWithRetry('/photos/albums/for-folder', fd, {
+            timeoutMs: 60 * 1000,
+          }, 2)
+          const id = res.data?.album?.id
+          if (!id) throw new Error(@json(__('アルバムを作成できませんでした')));
+          return String(id)
+        }
+
+        async function runFolderImport() {
+          const groups = folderImportGroups.filter((g) => g.include && (g.isLoose || g.name.trim() !== ''))
+          if (!groups.length || uploading) return
+          if (pageJob?.isBusy() && !pageJob.requestLeave()) return
+
+          closeFolderImport()
+          folderImportCancelled = false
+          if (pageJob) {
+            pageJob.start('upload', () => {
+              folderImportCancelled = true
+              uploadCancelRequested = true
+              try { activeUploadXhr?.abort() } catch (_) {}
+            })
+          }
+
+          let created = 0
+          let skipped = 0
+          let failed = 0
+          const albumErrors = []
+          folderImportRunning = true
+          try {
+            for (let i = 0; i < groups.length; i++) {
+              if (folderImportCancelled) break
+              const group = groups[i]
+              const label = group.isLoose ? @json(__('フォルダ外')) : group.name.trim()
+              setUploadProgress(
+                @json(__('フォルダ :index/:total: :name'))
+                  .replace(':index', String(i + 1))
+                  .replace(':total', String(groups.length))
+                  .replace(':name', label)
+              )
+
+              let albumId = currentUploadAlbumId()
+              if (!group.isLoose) {
+                try {
+                  albumId = await createFolderAlbum(group.name.trim())
+                } catch (err) {
+                  albumErrors.push(`${label}: ${err?.message || 'error'}`)
+                  failed += countMedia(group.files).total
+                  continue
+                }
+              }
+
+              const result = await submitFiles(group.files, { soft: true, albumId })
+              created += result.created
+              skipped += result.skipped
+              failed += result.failed
+            }
+          } finally {
+            folderImportRunning = false
+          }
+
+          const parts = []
+          if (created > 0) parts.push(@json(__(':count件追加')).replace(':count', String(created)));
+          if (skipped > 0) parts.push(@json(__('重複スキップ :count件')).replace(':count', String(skipped)));
+          if (failed > 0) parts.push(@json(__('失敗 :count件')).replace(':count', String(failed)));
+          const notice = parts.join(' · ') || @json(__('追加できるファイルがありませんでした'));
+          if (albumErrors.length) {
+            window.alert(`${notice}\n\n${albumErrors.join('\n')}`)
+          }
+          if (pageJob) pageJob.end('upload')
+          if (folderImportCancelled && created === 0) {
+            setUploadProgress(notice)
+            return
+          }
+          window.location.assign(`/photos?notice=${encodeURIComponent(notice)}`)
+        }
+
+        folderPickBtn?.addEventListener('click', () => pickParentFolder())
+        folderInput?.addEventListener('change', () => {
+          const picked = Array.from(folderInput.files || [])
+          folderInput.value = ''
+          if (!picked.length) return
+          closeAddSheet()
+          const { groups, loose } = foldersFromPickedFiles(picked)
+          openFolderImport(groups, loose)
+        })
+        folderImportRun?.addEventListener('click', () => { void runFolderImport() })
+        document.getElementById('photos-folder-import-cancel')?.addEventListener('click', () => {
+          closeFolderImport()
+          setUploadProgress(@json(__('写真・動画を追加')));
+        })
+        document.getElementById('photos-folder-import-backdrop')?.addEventListener('click', () => {
+          closeFolderImport()
+          setUploadProgress(@json(__('写真・動画を追加')));
+        })
+
         document.getElementById('photos-empty-add')?.addEventListener('click', (e) => {
           e.preventDefault()
           openAddSheet()
@@ -2704,22 +3057,42 @@
           setUploadProgress(@json(__('写真・動画を追加')))
         })
 
+        function isFileDrag(e) {
+          const types = e.dataTransfer?.types
+          return types ? Array.from(types).includes('Files') : false
+        }
+
+        /** webkitGetAsEntry は drop の同期処理中しか使えないので、先に entry を取り切る */
+        function entriesFromDataTransfer(dt) {
+          const entries = []
+          for (const item of Array.from(dt?.items || [])) {
+            if (item.kind !== 'file') continue
+            const entry = typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null
+            if (entry) entries.push(entry)
+          }
+          return entries
+        }
+
         ;['dragenter', 'dragover'].forEach((type) => {
-          emptyZone?.addEventListener(type, (e) => {
+          document.addEventListener(type, (e) => {
+            if (!isFileDrag(e)) return
             e.preventDefault()
-            emptyZone.classList.add('is-dragover')
+            emptyZone?.classList.add('is-dragover')
           })
         })
         ;['dragleave', 'drop'].forEach((type) => {
-          emptyZone?.addEventListener(type, (e) => {
-            e.preventDefault()
-            emptyZone.classList.remove('is-dragover')
-          })
+          document.addEventListener(type, () => emptyZone?.classList.remove('is-dragover'))
         })
-        emptyZone?.addEventListener('drop', (e) => {
-          const files = e.dataTransfer?.files
-          if (!files?.length) return
-          submitFiles(files)
+        document.addEventListener('drop', (e) => {
+          if (!isFileDrag(e)) return
+          e.preventDefault()
+          const entries = entriesFromDataTransfer(e.dataTransfer)
+          const files = Array.from(e.dataTransfer?.files || [])
+          if (entries.some((entry) => entry.isDirectory)) {
+            void handleDroppedItems(entries)
+            return
+          }
+          if (files.length) void submitFiles(files)
         })
 
         function stopLightboxVideo() {

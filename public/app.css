@@ -9487,6 +9487,144 @@ body.map-page {
   width: 100%;
 }
 
+.photos-add-sheet-note {
+  margin: -4px 0 4px;
+}
+
+/* フォルダ取り込みの確認 */
+.photos-folder-import[hidden] {
+  display: none !important;
+}
+
+.photos-folder-import {
+  position: fixed;
+  inset: 0;
+  z-index: 1310;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.photos-folder-import-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 560px);
+  max-height: 100%;
+  padding: 20px 18px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(23, 27, 31, 0.24);
+}
+
+.photos-folder-import-panel h2 {
+  margin: 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.35rem;
+  color: var(--photos-ink);
+}
+
+.photos-folder-import-hint,
+.photos-folder-import-total {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--photos-muted);
+}
+
+.photos-folder-import-total {
+  font-weight: 600;
+  color: var(--photos-ink);
+}
+
+.photos-folder-import-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--photos-line);
+  border-radius: 14px;
+}
+
+.photos-folder-import-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--photos-line);
+}
+
+.photos-folder-import-row:last-child {
+  border-bottom: 0;
+}
+
+.photos-folder-import-row.is-off {
+  opacity: 0.45;
+}
+
+.photos-folder-import-check {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.photos-folder-import-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--photos-line);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  color: var(--photos-ink);
+}
+
+.photos-folder-import-loose {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--photos-muted);
+}
+
+.photos-folder-import-count {
+  flex: 0 0 auto;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  color: var(--photos-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.photos-folder-import-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.photos-folder-import-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 560px) {
+  .photos-folder-import-row {
+    flex-wrap: wrap;
+  }
+  .photos-folder-import-count {
+    width: 100%;
+    padding-left: 28px;
+  }
+}
+
 .photos-upload-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(23, 27, 31, 0.22);

@@ -116,6 +116,23 @@ class PhotoController extends Controller
         return $this->redirectWithMessage('/photos?album='.$album['id'], 'アルバムを作成しました');
     }
 
+    public function storeFolderAlbum(Request $request)
+    {
+        try {
+            $album = $this->photos->createAlbumForFolder(
+                (int) $request->user()->id,
+                (string) $request->input('folder_name')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'album' => ['id' => $album['id'], 'name' => $album['name']],
+        ]);
+    }
+
     public function updateAlbum(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos?album='.$id);

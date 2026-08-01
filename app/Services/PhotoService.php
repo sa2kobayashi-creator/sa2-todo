@@ -942,6 +942,44 @@ class PhotoService
         return $this->albumToArray($album->load(['group', 'user'])->loadCount('photos'), $userId);
     }
 
+    /**
+     * フォルダ取り込み用のアルバムを作る。
+     * 同じフォルダを二度取り込んでも前回分と混ざらないよう、名前が衝突したら連番を足す。
+     */
+    public function createAlbumForFolder(int $userId, string $folderName): array
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', str_replace(['/', '\\'], ' ', $folderName)) ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('フォルダ名が空です');
+        }
+
+        return $this->createAlbum($userId, $this->uniqueAlbumName($userId, mb_substr($name, 0, 120)));
+    }
+
+    private function uniqueAlbumName(int $userId, string $name): string
+    {
+        $taken = PhotoAlbum::query()
+            ->where('user_id', $userId)
+            ->pluck('name')
+            ->map(fn ($existing) => mb_strtolower(trim((string) $existing)))
+            ->all();
+
+        if (! in_array(mb_strtolower($name), $taken, true)) {
+            return $name;
+        }
+
+        // 120 文字上限があるので、連番の分だけ本体を削ってから足す
+        for ($i = 2; $i < 1000; $i++) {
+            $suffix = ' ('.$i.')';
+            $candidate = mb_substr($name, 0, 120 - mb_strlen($suffix)).$suffix;
+            if (! in_array(mb_strtolower($candidate), $taken, true)) {
+                return $candidate;
+            }
+        }
+
+        return mb_substr($name, 0, 108).' ('.now()->format('YmdHis').')';
+    }
+
     public function updateAlbum(
         int $userId,
         int $albumId,
