@@ -848,6 +848,8 @@
     ":year年": ":year",
     "年へ移動": "Jump to year",
     ":year年へ": "Go to :year",
+    "1列減らす": "One fewer column",
+    "1列増やす": "One more column",
     "先頭へ戻る": "Back to top",
     "TOP": "TOP",
     "動画を撮る": "Record video",

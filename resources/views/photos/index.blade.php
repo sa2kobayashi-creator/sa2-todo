@@ -661,9 +661,16 @@
             </label>
           @endif
           <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
-            <span class="photos-cols-icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
-            </span>
+            <button
+              type="button"
+              class="photos-cols-icon photos-cols-step"
+              id="photos-cols-less"
+              data-cols-step="-1"
+              aria-label="{{ __('1列減らす') }}"
+              title="{{ __('1列減らす') }}"
+            >
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
+            </button>
             <input
               type="range"
               id="photos-cols-slider"
@@ -674,8 +681,15 @@
               value="4"
               aria-label="{{ __('1行の枚数') }}"
             />
-            <span class="photos-cols-icon is-dense" aria-hidden="true">
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+            <button
+              type="button"
+              class="photos-cols-icon is-dense photos-cols-step"
+              id="photos-cols-more"
+              data-cols-step="1"
+              aria-label="{{ __('1列増やす') }}"
+              title="{{ __('1列増やす') }}"
+            >
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <rect x="1.5" y="1.5" width="5" height="5" rx="1"/>
                 <rect x="7.5" y="1.5" width="5" height="5" rx="1"/>
                 <rect x="13.5" y="1.5" width="5" height="5" rx="1"/>
@@ -686,7 +700,7 @@
                 <rect x="7.5" y="13.5" width="5" height="5" rx="1"/>
                 <rect x="13.5" y="13.5" width="5" height="5" rx="1"/>
               </svg>
-            </span>
+            </button>
             <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">4</span>
           </div>
           <div class="photos-select-actions" id="photos-select-actions" hidden>
@@ -2972,6 +2986,7 @@
         const colsControl = document.getElementById('photos-cols-control')
         const colsSlider = document.getElementById('photos-cols-slider')
         const colsValue = document.getElementById('photos-cols-value')
+        const colsStepButtons = Array.from(document.querySelectorAll('[data-cols-step]'))
         const PHOTOS_MODE_KEY = 'photos-view-mode'
         const PHOTOS_COLS_KEY = 'photos-grid-cols'
         const PHOTOS_KIND_KEY = 'photos-media-kind'
@@ -3111,6 +3126,10 @@
             const fill = ((cols - 1) / 6) * 100
             colsControl.style.setProperty('--cols-fill', `${fill}%`)
           }
+          colsStepButtons.forEach((btn) => {
+            const step = Number(btn.dataset.colsStep) || 0
+            btn.disabled = clampCols(cols + step) === cols
+          })
           if (persist) {
             try { localStorage.setItem(PHOTOS_COLS_KEY, String(cols)) } catch (_) {}
           }
@@ -3150,6 +3169,12 @@
           btn.addEventListener('click', () => setPhotosMediaKind(btn.dataset.photosKind))
         })
         colsSlider?.addEventListener('input', () => setPhotosCols(colsSlider.value))
+        colsStepButtons.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const current = clampCols(colsSlider?.value || gallery?.dataset.cols || PHOTOS_COLS_DEFAULT)
+            setPhotosCols(current + (Number(btn.dataset.colsStep) || 0))
+          })
+        })
         document.getElementById('photos-select-all')?.addEventListener('click', () => {
           photoTileWraps().forEach((wrap) => {
             if (wrap.hidden || wrap.classList.contains('is-page-hidden')) return

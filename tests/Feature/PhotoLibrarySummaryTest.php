@@ -96,6 +96,21 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertDontSee('id="photos-year-dock-select"', false);
     }
 
+    public function test_the_column_control_offers_step_buttons_at_both_ends(): void
+    {
+        $user = $this->makeUser('cols@example.com');
+        $this->makePhoto($user, 'a.jpg', 'image/jpeg', '2026-07-27 09:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('data-cols-step="-1"', false)
+            ->assertSee('data-cols-step="1"', false)
+            ->assertSee('1列減らす')
+            ->assertSee('1列増やす')
+            ->assertSee('min="1"', false)
+            ->assertSee('max="7"', false);
+    }
+
     public function test_a_single_year_library_does_not_show_the_jump_control(): void
     {
         $user = $this->makeUser('oneyear@example.com');

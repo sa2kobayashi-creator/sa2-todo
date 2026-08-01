@@ -10859,6 +10859,30 @@ label.photos-camera-btn span {
   color: var(--photos-accent);
 }
 
+/* 両端のアイコンは 1 列ずつの増減ボタン。見た目はアイコンのまま押せるようにする */
+.photos-cols-step {
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.photos-cols-step:hover:not(:disabled) {
+  background: rgba(47, 111, 126, 0.12);
+  color: var(--photos-accent);
+}
+
+.photos-cols-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .photos-cols-slider {
   -webkit-appearance: none;
   appearance: none;
