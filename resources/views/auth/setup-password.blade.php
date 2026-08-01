@@ -4,9 +4,8 @@
     <meta charset="UTF-8" />
     @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('ログイン') }} - {{ config('app.name') }}</title>
+    <title>{{ __('パスワードの設定') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="auth-body">
@@ -17,28 +16,28 @@
         <span>{{ config('app.name') }}</span>
       </a>
       <div class="auth-card panel">
-        <h1>{{ __('ログイン') }}</h1>
+        <h1>{{ __('パスワードの設定') }}</h1>
         @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
         @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
-        @if(session('notice'))<div class="banner notice">{{ session('notice') }}</div>@endif
-        @if(session('error'))<div class="banner error">{{ session('error') }}</div>@endif
         @include('partials.form-errors')
-        <form method="post" action="/login" class="auth-form">
+        <p class="hint">{{ __('初回ログインありがとうございます。:emailのパスワードを設定してください。', ['email' => $user->email]) }}</p>
+        <form method="post" action="/password/setup" class="auth-form">
           @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <label>
-            {{ __('メールアドレス') }}
-            <input type="email" name="email" value="{{ old('email', $email ?? '') }}" required autocomplete="username" />
+            {{ __('新しいパスワード') }}
+            <input type="password" name="password" required minlength="8" autocomplete="new-password" autofocus />
           </label>
           <label>
-            {{ __('パスワード') }}
-            <input type="password" name="password" required autocomplete="current-password" />
+            {{ __('新しいパスワード（確認）') }}
+            <input type="password" name="password_confirmation" required minlength="8" autocomplete="new-password" />
           </label>
-          <button type="submit" class="auth-submit">{{ __('ログイン') }}</button>
+          <button type="submit" class="auth-submit">{{ __('この内容で設定する') }}</button>
         </form>
         <div class="auth-links">
-          <a href="/register">{{ __('会員登録') }}</a>
-          <a href="/password/forgot">{{ __('パスワードをお忘れですか？') }}</a>
+          <form method="post" action="/logout">
+            @csrf
+            <button type="submit" class="auth-link-button">{{ __('ログアウト') }}</button>
+          </form>
         </div>
       </div>
     </main>

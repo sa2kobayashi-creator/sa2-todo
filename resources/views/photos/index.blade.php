@@ -103,6 +103,17 @@
         </div>
         <div class="photos-pending-bar" id="photos-pending-bar" hidden>
           <span class="photos-pending-count" id="photos-pending-count"></span>
+          @if(!empty($ownedAlbums))
+            <label class="photos-upload-album">
+              <span>{{ __('追加先') }}</span>
+              <select id="photos-pending-album" data-upload-album>
+                <option value="">{{ __('標準（アルバムなし）') }}</option>
+                @foreach($ownedAlbums as $album)
+                  <option value="{{ $album['id'] }}" @selected($selectedAlbumId === $album['id'])>{{ $album['name'] }}</option>
+                @endforeach
+              </select>
+            </label>
+          @endif
           <button type="button" class="photos-secondary-btn" id="photos-pending-more">{{ __('さらに選ぶ') }}</button>
           <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('まとめて追加') }}</button>
           <button type="button" class="photos-secondary-btn" id="photos-pending-cancel">{{ __('やめる') }}</button>
@@ -114,6 +125,17 @@
         <div class="photos-add-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="photos-add-sheet-title">
           <h2 id="photos-add-sheet-title">{{ __('写真・動画を追加') }}</h2>
           <p class="photos-add-sheet-hint">{{ __('Messenger や LINE の写真は「フォルダから探す」→ このデバイス → Pictures → Messenger / Line を開いてください。ギャラリーが空でもフォルダ側にあります。') }}</p>
+          @if(!empty($ownedAlbums))
+            <label class="photos-upload-album photos-add-sheet-album">
+              <span>{{ __('追加先アルバム') }}</span>
+              <select id="photos-add-sheet-album" data-upload-album>
+                <option value="">{{ __('標準（アルバムなし）') }}</option>
+                @foreach($ownedAlbums as $album)
+                  <option value="{{ $album['id'] }}" @selected($selectedAlbumId === $album['id'])>{{ $album['name'] }}</option>
+                @endforeach
+              </select>
+            </label>
+          @endif
           <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-files">{{ __('フォルダから探す（推奨）') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('ギャラリーから選ぶ') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
@@ -532,9 +554,7 @@
       <form method="post" action="/photos" enctype="multipart/form-data" id="photos-upload-form" class="photos-upload-form">
         @csrf
         <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-        @if($selectedAlbumId)
-          <input type="hidden" name="album_id" value="{{ $selectedAlbumId }}" />
-        @endif
+        <input type="hidden" name="album_id" id="photos-form-album-id" value="{{ $selectedAlbumId }}" />
         <input type="file" name="photos[]" id="photos-form-files" accept="image/*,video/mp4,.heic,.heif,.mp4" multiple hidden />
         <input type="file" name="video_thumbs[]" id="photos-form-thumbs" accept="image/jpeg" multiple hidden />
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
@@ -1589,6 +1609,8 @@
         const pendingAddBtn = document.getElementById('photos-pending-add')
         const pendingMoreBtn = document.getElementById('photos-pending-more')
         const pendingCancelBtn = document.getElementById('photos-pending-cancel')
+        const uploadAlbumSelects = Array.from(document.querySelectorAll('[data-upload-album]'))
+        const uploadAlbumField = document.getElementById('photos-form-album-id')
         let pendingFiles = null
         let lastPickMode = 'files'
         const photosSortSelect = document.getElementById('photos-sort-select')
@@ -2045,8 +2067,8 @@
           }
           const takeoutMap = await buildTakeoutTakenAtMap(list)
           const totalSelected = mediaList.length
-          const returnTo = form.querySelector('input[name="returnTo"]')?.value || '/photos'
-          const albumId = form.querySelector('input[name="album_id"]')?.value || ''
+          const albumId = currentUploadAlbumId()
+          const returnTo = uploadReturnTo(albumId)
           const allowDuplicates = allowDuplicatesChecked()
           let totalCreated = 0
           let totalSkipped = 0
@@ -2238,6 +2260,33 @@
               setUploadProgress(@json(__('写真・動画を追加')));
             }
           }
+        }
+
+        /** 追加先アルバム。空文字なら標準（アルバムなし）。 */
+        function currentUploadAlbumId() {
+          if (uploadAlbumSelects.length) return uploadAlbumSelects[0].value || ''
+          return uploadAlbumField?.value || ''
+        }
+
+        function syncUploadAlbumId(value) {
+          const next = value || ''
+          uploadAlbumSelects.forEach((select) => {
+            if (select.value !== next) select.value = next
+          })
+          if (uploadAlbumField) uploadAlbumField.value = next
+        }
+
+        uploadAlbumSelects.forEach((select) => {
+          select.addEventListener('change', () => syncUploadAlbumId(select.value))
+        })
+        syncUploadAlbumId(currentUploadAlbumId())
+
+        /** 追加した先が今見ている場所と違うときは、そのアルバムを開き直す */
+        function uploadReturnTo(albumId) {
+          const base = form?.querySelector('input[name="returnTo"]')?.value || '/photos'
+          const target = String(albumId || '')
+          if (target === String(selectedAlbumId || '')) return base
+          return target ? `/photos?album=${encodeURIComponent(target)}` : '/photos'
         }
 
         function openAddSheet() {

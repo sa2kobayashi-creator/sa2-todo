@@ -21,8 +21,8 @@ enum UserRole: string
     {
         return match ($this) {
             self::Admin => 'すべてのメニューを表示・編集できます。',
-            self::Standard => '設定以外の基本メニュー。追加メニューはユーザー／グループ設定で調整できます。',
-            self::Light => 'ダッシュボード、Todo、メモ、Photos、マイページが基本。追加メニューはユーザー／グループ設定で付与できます。',
+            self::Standard => '設定以外の基本メニュー。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
+            self::Light => 'ダッシュボード、Todo、メモ、Photos、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
         };
     }
 
@@ -41,6 +41,7 @@ enum UserRole: string
                 'map',
                 'music',
                 'video',
+                'groups',
                 'settings',
                 'admin',
                 'mypage',
@@ -56,6 +57,7 @@ enum UserRole: string
                 'map',
                 'music',
                 'video',
+                'groups',
                 'mypage',
             ],
             self::Light => [

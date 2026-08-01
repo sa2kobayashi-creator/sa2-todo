@@ -4,9 +4,8 @@
     <meta charset="UTF-8" />
     @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('ログイン') }} - {{ config('app.name') }}</title>
+    <title>{{ __('パスワードをお忘れですか？') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="auth-body">
@@ -17,28 +16,22 @@
         <span>{{ config('app.name') }}</span>
       </a>
       <div class="auth-card panel">
-        <h1>{{ __('ログイン') }}</h1>
+        <h1>{{ __('パスワードの再設定') }}</h1>
         @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
         @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
-        @if(session('notice'))<div class="banner notice">{{ session('notice') }}</div>@endif
-        @if(session('error'))<div class="banner error">{{ session('error') }}</div>@endif
         @include('partials.form-errors')
-        <form method="post" action="/login" class="auth-form">
+        <p class="hint">{{ __('登録済みのメールアドレスを入力してください。6桁の確認コードをお送りします。') }}</p>
+        <form method="post" action="/password/forgot" class="auth-form">
           @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <label>
             {{ __('メールアドレス') }}
             <input type="email" name="email" value="{{ old('email', $email ?? '') }}" required autocomplete="username" />
           </label>
-          <label>
-            {{ __('パスワード') }}
-            <input type="password" name="password" required autocomplete="current-password" />
-          </label>
-          <button type="submit" class="auth-submit">{{ __('ログイン') }}</button>
+          <button type="submit" class="auth-submit">{{ __('確認コードを送信') }}</button>
         </form>
         <div class="auth-links">
-          <a href="/register">{{ __('会員登録') }}</a>
-          <a href="/password/forgot">{{ __('パスワードをお忘れですか？') }}</a>
+          <a href="/login">{{ __('ログインへ') }}</a>
+          <a href="/password/reset">{{ __('コードを持っている') }}</a>
         </div>
       </div>
     </main>

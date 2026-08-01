@@ -98,7 +98,9 @@
               <span class="role-badge {{ $currentUser['role'] }}">{{ $currentUser['roleLabel'] }}</span>
             </div>
             <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
-            <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
+            @if(!empty($canGroups))
+              <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
+            @endif
             <form method="post" action="/logout" class="logout-form">
               @csrf
               <button type="submit" role="menuitem">{{ __('ログアウト') }}</button>

@@ -15,8 +15,13 @@
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
       <div class="panel">
-        <h2>{{ __('グループを申請') }}</h2>
-        <p class="hint">{{ __('作成したグループは管理者の承認後に共有先として利用できます。') }}</p>
+        <h2>{{ !empty($isAdmin) ? __('グループを作成') : __('グループを申請') }}</h2>
+        <p class="hint">
+          {{ !empty($isAdmin)
+            ? __('管理者が作成したグループは承認済みで登録され、すぐに共有先として使えます。')
+            : __('作成したグループは管理者の承認後に共有先として利用できます。') }}
+        </p>
+        @include('partials.form-errors')
         <form method="post" action="/groups" class="stack-form">
           @csrf
           <label>{{ __('グループ名') }}
@@ -25,7 +30,7 @@
           <label>{{ __('説明（任意）') }}
             <input type="text" name="description" value="{{ old('description') }}" maxlength="500" />
           </label>
-          <button type="submit">{{ __('申請する') }}</button>
+          <button type="submit">{{ !empty($isAdmin) ? __('作成する') : __('申請する') }}</button>
         </form>
       </div>
 

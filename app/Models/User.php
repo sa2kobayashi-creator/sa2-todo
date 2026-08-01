@@ -20,20 +20,33 @@ class User extends Authenticatable
         'role',
         'menu_features',
         'app_context',
+        'must_change_password',
         'reset_token',
         'reset_token_expires_at',
+        'reset_attempts',
+        'reset_last_sent_at',
+        'pending_email',
+        'pending_email_token',
+        'pending_email_expires_at',
+        'pending_email_attempts',
+        'pending_email_sent_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
         'reset_token',
+        'pending_email_token',
     ];
 
     protected function casts(): array
     {
         return [
             'reset_token_expires_at' => 'datetime',
+            'reset_last_sent_at' => 'datetime',
+            'pending_email_expires_at' => 'datetime',
+            'pending_email_sent_at' => 'datetime',
+            'must_change_password' => 'boolean',
             'role' => UserRole::class,
             'menu_features' => 'array',
         ];
@@ -124,6 +137,7 @@ class User extends Authenticatable
         return [
             'id' => $this->id,
             'email' => $this->email,
+            'pendingEmail' => $this->pending_email,
             'displayName' => $this->display_name,
             'role' => $role->value,
             'roleLabel' => __($role->label()),

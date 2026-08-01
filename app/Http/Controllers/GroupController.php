@@ -35,6 +35,8 @@ class GroupController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:500'],
@@ -42,15 +44,19 @@ class GroupController extends Controller
 
         try {
             $this->groups->create(
-                (int) $request->user()->id,
+                (int) $user->id,
                 $data['name'],
-                $data['description'] ?? null
+                $data['description'] ?? null,
+                // 管理者は自分で承認する立場なので、申請を挟まない
+                $user->isAdmin() ? (int) $user->id : null
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage('/groups', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/groups', __('グループを申請しました。管理者の承認後に利用できます。'));
+        return $this->redirectWithMessage('/groups', $user->isAdmin()
+            ? __('グループを作成しました。')
+            : __('グループを申請しました。管理者の承認後に利用できます。'));
     }
 
     public function addMember(Request $request, int $id)

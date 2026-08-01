@@ -22,6 +22,32 @@
       </div>
 
       <div class="panel">
+        <h2>{{ __('グループを追加') }}</h2>
+        <p class="hint">{{ __('ここから作成したグループは承認済みで登録され、すぐに共有先として使えます。') }}</p>
+        @include('partials.form-errors')
+        <form method="post" action="/admin/groups" class="stack-form">
+          @csrf
+          <label>{{ __('グループ名') }}
+            <input type="text" name="name" value="{{ old('name') }}" required maxlength="120" />
+          </label>
+          <label>{{ __('説明（任意）') }}
+            <input type="text" name="description" value="{{ old('description') }}" maxlength="500" />
+          </label>
+          <label>{{ __('オーナー') }}
+            <select name="owner_user_id">
+              <option value="">{{ __('自分（管理者）') }}</option>
+              @foreach($users as $user)
+                <option value="{{ $user['id'] }}" @selected((string) old('owner_user_id') === (string) $user['id'])>
+                  {{ $user['displayName'] }} ({{ $user['email'] }})
+                </option>
+              @endforeach
+            </select>
+          </label>
+          <button type="submit">{{ __('グループを作成') }}</button>
+        </form>
+      </div>
+
+      <div class="panel">
         <h2>{{ __('グループ一覧') }} ({{ count($groups) }})</h2>
         @forelse($groups as $group)
           <div class="admin-user-card">

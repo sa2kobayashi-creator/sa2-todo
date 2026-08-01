@@ -111,20 +111,6 @@ class UserController extends Controller
         return $this->redirectWithMessage("/admin/users/{$id}", __('ユーザー情報を更新しました。'));
     }
 
-    public function updatePassword(Request $request, int $id)
-    {
-        $user = User::query()->findOrFail($id);
-
-        $data = $request->validate([
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
-
-        $user->password = Hash::make($data['password']);
-        $user->save();
-
-        return $this->redirectWithMessage("/admin/users/{$id}/edit", __('パスワードを更新しました。'));
-    }
-
     public function destroy(Request $request, int $id)
     {
         $user = User::query()->findOrFail($id);

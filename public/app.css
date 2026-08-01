@@ -610,6 +610,77 @@ a {
 .banner.warn { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
 .banner.info { background: #eef4ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
 
+.form-errors-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.form-errors-list li {
+  margin-top: 2px;
+}
+
+.field-error {
+  margin: -6px 0 0;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.mypage-group-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.mypage-group-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mypage-group-name {
+  font-weight: 600;
+}
+
+.group-status-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.group-status-badge.approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.group-status-badge.pending {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.group-status-badge.rejected {
+  background: #fdecea;
+  color: #b42318;
+}
+
+.auth-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px;
+  letter-spacing: 8px;
+  text-align: center;
+}
+
+.mypage-email-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .panel {
   background: white;
   border: 1px solid #e5e7eb;
@@ -8311,6 +8382,20 @@ body.map-page {
   text-decoration: underline;
 }
 
+.auth-link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1a73e8;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth-link-button:hover {
+  text-decoration: underline;
+}
+
 .stack-form {
   display: grid;
   gap: 14px;
@@ -8366,8 +8451,7 @@ body.map-page {
   margin-bottom: 12px;
 }
 
-.admin-user-form,
-.admin-user-password-form {
+.admin-user-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
@@ -8375,8 +8459,7 @@ body.map-page {
   margin-bottom: 10px;
 }
 
-.admin-user-form label,
-.admin-user-password-form label {
+.admin-user-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -8385,8 +8468,7 @@ body.map-page {
 }
 
 .admin-user-form input,
-.admin-user-form select,
-.admin-user-password-form input {
+.admin-user-form select {
   padding: 8px 10px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
@@ -8588,8 +8670,7 @@ body.map-page {
     margin-top: 8px;
   }
 
-  .admin-user-form,
-  .admin-user-password-form {
+  .admin-user-form {
     grid-template-columns: 1fr;
   }
 
@@ -9283,6 +9364,39 @@ body.map-page {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.photos-upload-album {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--photos-muted);
+}
+
+.photos-upload-album select {
+  max-width: 220px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--photos-line);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  color: var(--photos-ink);
+}
+
+.photos-add-sheet-album {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.photos-add-sheet-album select {
+  max-width: none;
+  min-height: 44px;
 }
 
 .photos-add-sheet-panel h2 {

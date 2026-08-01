@@ -5,9 +5,12 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\PasswordSetupController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
@@ -38,11 +41,26 @@ Route::get('/', function () {
 
 Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
+// フォームを開いたまま放置したときの 419 を避けるため、CSRF トークンを取り直せるようにする
+Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]));
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
     Route::get('/register', [RegisterController::class, 'show']);
     Route::post('/register', [RegisterController::class, 'register']);
+});
+
+// パスワード再設定はログイン前（パスワード忘れ）とログイン後（マイページ）で同じ導線を使う
+Route::get('/password/forgot', [PasswordResetController::class, 'showForgot']);
+Route::post('/password/forgot', [PasswordResetController::class, 'sendCode']);
+Route::get('/password/reset', [PasswordResetController::class, 'showReset']);
+Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+
+Route::middleware('auth')->group(function () {
+    Route::get('/password/setup', [PasswordSetupController::class, 'show']);
+    Route::post('/password/setup', [PasswordSetupController::class, 'store']);
+    Route::post('/mypage/password/request-code', [PasswordResetController::class, 'requestForCurrentUser']);
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
@@ -135,14 +153,23 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/video/libraries/{id}/delete', [VideoController::class, 'destroyLibrary'])->whereNumber('id');
     });
 
-    Route::get('/groups', [GroupController::class, 'index']);
-    Route::post('/groups', [GroupController::class, 'store']);
-    Route::post('/groups/{id}/members', [GroupController::class, 'addMember'])->whereNumber('id');
-    Route::post('/groups/{id}/members/remove', [GroupController::class, 'removeMember'])->whereNumber('id');
-    Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
+    // グループはスタンダード以上。ライトは一覧も作成もできない
+    Route::middleware(EnsureFeature::class.':groups')->group(function () {
+        Route::get('/groups', [GroupController::class, 'index']);
+        Route::post('/groups', [GroupController::class, 'store']);
+        Route::post('/groups/{id}/members', [GroupController::class, 'addMember'])->whereNumber('id');
+        Route::post('/groups/{id}/members/remove', [GroupController::class, 'removeMember'])->whereNumber('id');
+        Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
+    });
 
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
+
+    // メールアドレス変更は新しい宛先に届いたコードを確認してから反映する
+    Route::get('/mypage/email/verify', [EmailChangeController::class, 'showVerify']);
+    Route::post('/mypage/email/verify', [EmailChangeController::class, 'verify']);
+    Route::post('/mypage/email/resend', [EmailChangeController::class, 'resend']);
+    Route::post('/mypage/email/cancel', [EmailChangeController::class, 'cancel']);
 
     Route::middleware(EnsureFeature::class.':finance')->group(function () {
         Route::get('/finance', [FinanceController::class, 'index']);
@@ -255,10 +282,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/admin/users/{id}', [AdminUserController::class, 'show'])->whereNumber('id');
         Route::get('/admin/users/{id}/edit', [AdminUserController::class, 'edit'])->whereNumber('id');
         Route::post('/admin/users/{id}/update', [AdminUserController::class, 'update'])->whereNumber('id');
-        Route::post('/admin/users/{id}/password', [AdminUserController::class, 'updatePassword'])->whereNumber('id');
         Route::post('/admin/users/{id}/delete', [AdminUserController::class, 'destroy'])->whereNumber('id');
 
         Route::get('/admin/groups', [AdminGroupController::class, 'index']);
+        Route::post('/admin/groups', [AdminGroupController::class, 'store']);
         Route::post('/admin/groups/{id}/approve', [AdminGroupController::class, 'approve'])->whereNumber('id');
         Route::post('/admin/groups/{id}/reject', [AdminGroupController::class, 'reject'])->whereNumber('id');
         Route::post('/admin/groups/{id}/menus', [AdminGroupController::class, 'updateMenus'])->whereNumber('id');

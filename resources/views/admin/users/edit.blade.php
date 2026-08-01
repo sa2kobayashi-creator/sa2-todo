@@ -63,17 +63,8 @@
       </div>
 
       <div class="panel">
-        <h2>{{ __('パスワード変更') }}</h2>
-        <form method="post" action="/admin/users/{{ $user['id'] }}/password" class="admin-user-password-form">
-          @csrf
-          <label>{{ __('新しいパスワード') }}
-            <input type="password" name="password" required minlength="8" />
-          </label>
-          <label>{{ __('パスワード（確認）') }}
-            <input type="password" name="password_confirmation" required minlength="8" />
-          </label>
-          <button type="submit" class="secondary">{{ __('パスワードを変更') }}</button>
-        </form>
+        <h2>{{ __('パスワード') }}</h2>
+        <p class="hint">{{ __('管理者がパスワードを設定することはできません。ご本人にログイン画面の「パスワードをお忘れですか？」から再設定していただいてください。') }}</p>
       </div>
     </main>
     <script>

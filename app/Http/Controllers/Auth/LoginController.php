@@ -42,6 +42,10 @@ class LoginController extends Controller
         Auth::login($user, true);
         $request->session()->regenerate();
 
+        if ($user->must_change_password) {
+            return redirect('/password/setup');
+        }
+
         return redirect($this->safeReturnTo($request->input('returnTo'), '/dashboard'));
     }
 

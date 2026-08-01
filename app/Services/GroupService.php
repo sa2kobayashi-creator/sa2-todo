@@ -90,22 +90,38 @@ class GroupService
         return $group->load(['owner', 'menuFeatures'])->loadCount('members')->toPublicArray();
     }
 
-    /** @return array<string, mixed> */
-    public function create(int $ownerUserId, string $name, ?string $description = null): array
-    {
+    /**
+     * グループを作る。$approvedByUserId を渡すと申請を挟まずに承認済みで作成する（管理者用）。
+     *
+     * @return array<string, mixed>
+     */
+    public function create(
+        int $ownerUserId,
+        string $name,
+        ?string $description = null,
+        ?int $approvedByUserId = null,
+    ): array {
         $name = trim($name);
         if ($name === '') {
             throw new \InvalidArgumentException(__('グループ名を入力してください。'));
         }
 
-        return DB::transaction(function () use ($ownerUserId, $name, $description) {
+        if (! User::query()->whereKey($ownerUserId)->exists()) {
+            throw new \InvalidArgumentException(__('ユーザーが見つかりません。'));
+        }
+
+        return DB::transaction(function () use ($ownerUserId, $name, $description, $approvedByUserId) {
+            $approved = $approvedByUserId !== null;
+
             $group = Group::create([
                 'name' => mb_substr($name, 0, 120),
                 'description' => $description !== null && trim($description) !== ''
                     ? mb_substr(trim($description), 0, 500)
                     : null,
                 'owner_user_id' => $ownerUserId,
-                'status' => GroupStatus::Pending,
+                'status' => $approved ? GroupStatus::Approved : GroupStatus::Pending,
+                'reviewed_by' => $approvedByUserId,
+                'reviewed_at' => $approved ? now() : null,
             ]);
 
             GroupMember::create([
