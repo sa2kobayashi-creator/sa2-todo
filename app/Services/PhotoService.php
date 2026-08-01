@@ -23,12 +23,21 @@ class PhotoService
     public const ALLOWED_VIDEO_MIMES = [
         'video/mp4',
         'video/quicktime',
+        'video/x-msvideo',
+        'video/avi',
+        'video/msvideo',
     ];
 
     /** 端末によっては MIME が application/octet-stream で届くので拡張子でも受ける */
     public const ALLOWED_VIDEO_EXTENSIONS = [
         'mp4',
         'mov',
+        'avi',
+    ];
+
+    /** ブラウザが再生できない形式。保存はするがダウンロードして見てもらう */
+    public const UNPLAYABLE_VIDEO_EXTENSIONS = [
+        'avi',
     ];
 
     public const ALLOWED_IMAGE_EXTENSIONS = [
@@ -82,6 +91,9 @@ class PhotoService
         return in_array($mime, self::ALLOWED_VIDEO_MIMES, true)
             || str_starts_with($mime, 'video/mp4')
             || str_starts_with($mime, 'video/quicktime')
+            || str_starts_with($mime, 'video/x-msvideo')
+            || str_starts_with($mime, 'video/avi')
+            || str_starts_with($mime, 'video/msvideo')
             || $mime === 'application/mp4'
             || $mime === 'application/quicktime';
     }
@@ -1952,7 +1964,7 @@ class PhotoService
             if ($okVideoExt || $okImageExt) {
                 return;
             }
-            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 / MOV です');
+            throw new \InvalidArgumentException('対応形式は JPEG / PNG / WebP / GIF / HEIC / MP4 / MOV / AVI です');
         }
     }
 
@@ -1974,7 +1986,7 @@ class PhotoService
     }
 
     /**
-     * MP4 / MOV を保存し、クライアント生成サムネがあればそれを使う（なければ仮サムネ）。
+     * MP4 / MOV / AVI を保存し、クライアント生成サムネがあればそれを使う（なければ仮サムネ）。
      *
      * @return array{path: string, thumbPath: ?string, mime: string, sizeBytes: int, width: ?int, height: ?int}|null
      */
@@ -2038,6 +2050,10 @@ class PhotoService
 
         if ($ext === 'mov' || str_starts_with($mime, 'video/quicktime')) {
             return ['mov', 'video/quicktime'];
+        }
+
+        if ($ext === 'avi' || preg_match('#^video/(x-msvideo|avi|msvideo)#', $mime) === 1) {
+            return ['avi', 'video/x-msvideo'];
         }
 
         return ['mp4', 'video/mp4'];

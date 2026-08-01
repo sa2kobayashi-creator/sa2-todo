@@ -61,7 +61,7 @@
               type="file"
               id="photos-file-input"
               class="photos-file-input-hidden"
-              accept="image/*,video/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,.heic,.heif,.mp4,.mov"
+              accept="image/*,video/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/x-msvideo,.heic,.heif,.mp4,.mov,.avi"
               multiple
             />
             <input
@@ -260,7 +260,8 @@
           </div>
         @endif
         <p class="photos-storage-note">
-          {{ __('画像は解像度そのまま保存。動画は MP4・MOV（最大 :size）に対応。', ['size' => $videoLimitLabel ?? '1 GB']) }}
+          {{ __('画像は解像度そのまま保存。動画は MP4・MOV・AVI（最大 :size）に対応。', ['size' => $videoLimitLabel ?? '1 GB']) }}
+          {{ __('AVI はブラウザで再生できないため、保存とダウンロード用です。') }}
           {{ __('ユーザーごとの無料枠は合計') }} {{ $storageStats['formattedCombinedQuota'] }}{{ __('です（超過分は見込表示。有料課金は今後対応予定）。') }}
           @if(!empty($storageStats['pipelineEnabled']))
             {{ __('構成:') }}
@@ -853,6 +854,11 @@
         <div class="photos-lightbox-media" id="photos-lightbox-media">
           <img src="" alt="" id="photos-lightbox-image" />
           <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
+          {{-- AVI などブラウザが解けない形式は再生できない。原本は無傷なので落として見てもらう --}}
+          <p class="photos-lightbox-unplayable" id="photos-lightbox-unplayable" hidden>
+            {{ __('この形式はブラウザで再生できません。原本はそのまま保存されています。') }}
+            <a href="#" id="photos-lightbox-unplayable-link" download>{{ __('ダウンロードして再生') }}</a>
+          </p>
         </div>
         <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">
           <svg class="photos-lightbox-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
@@ -1677,6 +1683,8 @@
         const lightbox = document.getElementById('photos-lightbox')
         const lightboxImage = document.getElementById('photos-lightbox-image')
         const lightboxVideo = document.getElementById('photos-lightbox-video')
+        const lightboxUnplayable = document.getElementById('photos-lightbox-unplayable')
+        const lightboxUnplayableLink = document.getElementById('photos-lightbox-unplayable-link')
         const lightboxCaption = document.getElementById('photos-lightbox-caption')
         const lightboxDate = document.getElementById('photos-lightbox-date')
         const deleteForm = document.getElementById('photos-delete-form')
@@ -1827,8 +1835,8 @@
         photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
 
-        const SUPPORTED_VIDEO_EXT = /\.(mp4|mov)$/i
-        const SUPPORTED_VIDEO_MIME = /^(video\/(mp4|quicktime)|application\/mp4)$/i
+        const SUPPORTED_VIDEO_EXT = /\.(mp4|mov|avi)$/i
+        const SUPPORTED_VIDEO_MIME = /^(video\/(mp4|quicktime|x-msvideo|avi|msvideo)|application\/mp4)$/i
 
         function isVideoFile(file) {
           return !!file && (file.type.startsWith('video/') || SUPPORTED_VIDEO_EXT.test(file.name || ''))
@@ -2160,9 +2168,9 @@
               rejected.push(`${displayName}: 対象外の形式`)
               continue
             }
-            const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(displayName)
+            const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv|m4v)$/i.test(displayName)
             if (isVideo && !isSupportedVideoFile(file)) {
-              rejected.push(`${displayName}: 動画はMP4・MOVのみ対応`)
+              rejected.push(`${displayName}: 動画はMP4・MOV・AVIのみ対応`)
               continue
             }
             mediaList.push(file)
@@ -2457,7 +2465,7 @@
             file.type.startsWith('image/') ||
             file.type === 'video/mp4' ||
             file.type.startsWith('video/') ||
-            /\.(heic|heif|mp4|mov|jpeg|jpg|png|webp|gif)$/i.test(file.name || '')
+            /\.(heic|heif|mp4|mov|avi|jpeg|jpg|png|webp|gif)$/i.test(file.name || '')
           )
         }
 
@@ -3096,12 +3104,21 @@
         })
 
         function stopLightboxVideo() {
+          if (lightboxUnplayable) lightboxUnplayable.hidden = true
           if (!lightboxVideo) return
           lightboxVideo.pause()
           lightboxVideo.removeAttribute('src')
           lightboxVideo.load()
           lightboxVideo.hidden = true
         }
+
+        lightboxVideo?.addEventListener('error', () => {
+          const src = lightboxVideo.getAttribute('src')
+          if (lightboxVideo.hidden || !src) return
+          lightboxVideo.hidden = true
+          if (lightboxUnplayableLink) lightboxUnplayableLink.href = src
+          if (lightboxUnplayable) lightboxUnplayable.hidden = false
+        })
 
         let photosOverlayKind = null
         let photosOverlayIgnorePop = false

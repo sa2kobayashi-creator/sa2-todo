@@ -69,13 +69,54 @@ class VideoUploadFormatTest extends TestCase
         $this->assertFalse($service->isVideoMime('image/jpeg', 'jpg'));
     }
 
-    public function test_unsupported_video_container_is_refused(): void
+    public function test_avi_upload_keeps_its_own_container(): void
     {
         $this->useFakeDisk();
         $user = $this->makeUser('avi-upload@example.com');
 
         $this->actingAs($user)->post('/photos', [
             'photos' => [UploadedFile::fake()->create('clip.avi', 64, 'video/x-msvideo')],
+        ])->assertRedirect();
+
+        $photo = Photo::query()->where('user_id', $user->id)->firstOrFail();
+        $this->assertSame('video/x-msvideo', $photo->mime);
+        $this->assertStringEndsWith('.avi', $photo->path);
+    }
+
+    public function test_avi_without_a_usable_mime_is_still_recognised_as_video(): void
+    {
+        $service = app(PhotoService::class);
+
+        $this->assertTrue($service->isVideoMime('application/octet-stream', 'avi'));
+        $this->assertTrue($service->isVideoMime('video/x-msvideo', null));
+        $this->assertTrue($service->isVideoMime('video/avi', null));
+    }
+
+    public function test_an_avi_counts_as_a_video_in_the_storage_summary(): void
+    {
+        $user = $this->makeUser('avi-count@example.com');
+        Photo::create([
+            'user_id' => $user->id,
+            'path' => "photos/{$user->id}/clip.avi",
+            'mime' => 'video/x-msvideo',
+            'size_bytes' => 2048,
+            'storage_tier' => 'hot',
+            'taken_at' => '2026-07-30 10:00:00',
+        ]);
+
+        $stats = app(PhotoService::class)->storageStats((int) $user->id);
+
+        $this->assertSame(1, $stats['videoCount']);
+        $this->assertSame(0, $stats['imageCount']);
+    }
+
+    public function test_a_container_we_cannot_store_is_still_refused(): void
+    {
+        $this->useFakeDisk();
+        $user = $this->makeUser('mkv-upload@example.com');
+
+        $this->actingAs($user)->post('/photos', [
+            'photos' => [UploadedFile::fake()->create('clip.mkv', 64, 'video/x-matroska')],
         ])->assertRedirect();
 
         $this->assertSame(0, Photo::query()->where('user_id', $user->id)->count());
@@ -87,7 +128,10 @@ class VideoUploadFormatTest extends TestCase
 
         $this->actingAs($user)->get('/photos')
             ->assertOk()
-            ->assertSee('MP4・MOV（最大 1 GB）');
+            ->assertSee('MP4・MOV・AVI（最大 1 GB）')
+            // 再生できない形式だと分かるようにしておく
+            ->assertSee('AVI はブラウザで再生できないため、保存とダウンロード用です。')
+            ->assertSee('id="photos-lightbox-unplayable"', false);
     }
 
     public function test_video_up_to_one_gigabyte_is_accepted(): void
