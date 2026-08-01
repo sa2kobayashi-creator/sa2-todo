@@ -494,6 +494,7 @@ class PhotoService
             'b2EstimatedBillLabel' => $this->formatUsdMonth($b2OverageUsd).__('/月'),
             'estimatedTotalBillLabel' => $this->formatUsdMonth($r2OverageUsd + $b2OverageUsd + ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW ? $overflowUsd : 0)).__('/月'),
             'capacityMode' => $capacityMode,
+            'archiveAfterDays' => $this->mediaConfig->archiveAfterDays(),
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
             'cloudinaryEditor' => $cloudinaryEditor,

@@ -470,7 +470,7 @@ class PhotoController extends Controller
         $skipped = (int) ($stats['skipped'] ?? 0);
         $errors = (int) ($stats['errors'] ?? 0);
         $mode = $this->mediaStorage->capacityMode();
-        $hasMore = $archived >= $limit && $errors === 0;
+        $hasMore = (bool) ($stats['hasMore'] ?? false);
 
         $message = __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件（mode=:mode, limit=:limit）', [
             'archived' => $archived,
@@ -479,6 +479,10 @@ class PhotoController extends Controller
             'mode' => $mode,
             'limit' => $limit,
         ]);
+
+        if ($archived === 0) {
+            $message .= ' '.$this->archiveIdleReason((string) ($stats['reason'] ?? ''));
+        }
 
         return response()->json([
             'ok' => $errors === 0,
@@ -489,8 +493,25 @@ class PhotoController extends Controller
             'mode' => $mode,
             'limit' => $limit,
             'has_more' => $hasMore,
+            'reason' => (string) ($stats['reason'] ?? ''),
             'storageStats' => $this->photos->storageStats((int) $request->user()->id),
         ], $errors > 0 ? 422 : 200);
+    }
+
+    /**
+     * 1件も移らなかったとき、設定の問題なのか対象が無いだけなのかを画面で分かるようにする。
+     */
+    private function archiveIdleReason(string $reason): string
+    {
+        return match ($reason) {
+            \App\Services\PhotoColdArchiveService::REASON_DISABLED => __('B2連携が無効です。設定 → ストレージで Backblaze と長期保存を有効にしてください。'),
+            \App\Services\PhotoColdArchiveService::REASON_WITHIN_QUOTA => __('常用ストレージは上限内のため、移動対象はありません。'),
+            \App\Services\PhotoColdArchiveService::REASON_NO_DUE_PHOTOS => __('アーカイブ対象（:days 日より古い写真）がありません。R2 を上限まで減らすには、設定 → ストレージで容量モードを「R2上限」に変更してください。', [
+                'days' => $this->mediaStorage->archiveAfterDays(),
+            ]),
+            \App\Services\PhotoColdArchiveService::REASON_ALL_BLOCKED => __('残りの原本は移動できませんでした（元ファイルが見つからない、または B2 への書き込みに失敗）。ログを確認してください。'),
+            default => '',
+        };
     }
 
     public function editImage(Request $request, int $id)

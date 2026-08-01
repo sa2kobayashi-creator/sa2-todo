@@ -8,19 +8,29 @@ use Illuminate\Support\Facades\Storage;
 
 class PhotoColdArchiveService
 {
+    /** 1件も移せなかったときに、その理由を呼び出し側へ伝えるためのキー */
+    public const REASON_DISABLED = 'disabled';
+
+    public const REASON_WITHIN_QUOTA = 'within_quota';
+
+    public const REASON_NO_DUE_PHOTOS = 'no_due_photos';
+
+    public const REASON_ALL_BLOCKED = 'all_blocked';
+
+    /** B2 障害時に全件ぶんリトライして待たせないための連続失敗上限 */
+    private const MAX_CONSECUTIVE_ERRORS = 3;
+
     public function __construct(private MediaStorageConfigService $mediaConfig) {}
 
     /**
      * 古いホット写真を Backblaze へ移す。
      *
-     * @return array{archived: int, skipped: int, errors: int}
+     * @return array{archived: int, skipped: int, errors: int, hasMore: bool, reason: string}
      */
     public function archiveDuePhotos(int $limit = 40): array
     {
-        $stats = ['archived' => 0, 'skipped' => 0, 'errors' => 0];
-
         if (! $this->mediaConfig->pipelineArchivesToBackblaze() || ! $this->mediaConfig->backblazeEnabled()) {
-            return $stats;
+            return $this->stats(reason: self::REASON_DISABLED);
         }
 
         $this->mediaConfig->applyRuntimeDisks();
@@ -33,7 +43,7 @@ class PhotoColdArchiveService
         if ($mode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
             $days = $this->mediaConfig->archiveAfterDays();
             if ($days <= 0) {
-                return $stats;
+                return $this->stats(reason: self::REASON_NO_DUE_PHOTOS);
             }
 
             return $this->archiveByAge($days, $limit);
@@ -41,6 +51,18 @@ class PhotoColdArchiveService
 
         // age_archive（現行）
         return $this->archiveByAge($this->mediaConfig->archiveAfterDays(), $limit);
+    }
+
+    /** @return array{archived: int, skipped: int, errors: int, hasMore: bool, reason: string} */
+    private function stats(int $archived = 0, int $skipped = 0, int $errors = 0, bool $hasMore = false, string $reason = ''): array
+    {
+        return [
+            'archived' => $archived,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'hasMore' => $hasMore,
+            'reason' => $reason,
+        ];
     }
 
     /**
@@ -64,6 +86,9 @@ class PhotoColdArchiveService
         $archived = 0;
         $hotUsed = $this->hotUsedBytes($userId);
         $need = max(0, $extraBytes);
+        // 移せなかった1件で打ち切らないよう、同じレコードは再試行しない
+        $blockedIds = [];
+        $consecutiveErrors = 0;
 
         while ($archived < $limit && ($hotUsed + $need) > $quota) {
             $photo = Photo::query()
@@ -71,6 +96,7 @@ class PhotoColdArchiveService
                 ->where(function ($q) {
                     $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
                 })
+                ->when($blockedIds !== [], fn ($q) => $q->whereNotIn('id', $blockedIds))
                 ->orderByRaw('COALESCE(taken_at, created_at) ASC')
                 ->orderBy('id')
                 ->first();
@@ -84,18 +110,24 @@ class PhotoColdArchiveService
             try {
                 if ($this->archiveOne($photo, $hotDisk, $coldDisk)) {
                     $archived++;
+                    $consecutiveErrors = 0;
                     // サムネは R2 に残るため、原本サイズ分だけ減る
                     $hotUsed = max(0, $hotUsed - $freed);
                 } else {
-                    break;
+                    $blockedIds[] = (int) $photo->id;
                 }
             } catch (\Throwable $e) {
+                $blockedIds[] = (int) $photo->id;
+                $consecutiveErrors++;
                 report($e);
                 Log::warning('photo cold archive (r2 cap) failed', [
                     'photo_id' => $photo->id,
                     'message' => $e->getMessage(),
                 ]);
-                break;
+                // B2 側が落ちている等、全件失敗しそうなときはアップロードを待たせない
+                if ($consecutiveErrors >= self::MAX_CONSECUTIVE_ERRORS) {
+                    break;
+                }
             }
         }
 
@@ -103,11 +135,14 @@ class PhotoColdArchiveService
     }
 
     /**
-     * @return array{archived: int, skipped: int, errors: int}
+     * @return array{archived: int, skipped: int, errors: int, hasMore: bool, reason: string}
      */
     private function archiveToEnforceR2Cap(int $limit): array
     {
-        $stats = ['archived' => 0, 'skipped' => 0, 'errors' => 0];
+        $archived = 0;
+        $skipped = 0;
+        $errors = 0;
+        $overQuotaSeen = false;
         $quota = max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
         $hotDisk = (string) config('photos.disk', 'public');
         $coldDisk = 'backblaze';
@@ -120,54 +155,88 @@ class PhotoColdArchiveService
             ->pluck('user_id');
 
         foreach ($userIds as $userId) {
-            if ($stats['archived'] >= $limit) {
-                break;
-            }
-            $remaining = $limit - $stats['archived'];
-            while ($remaining > 0) {
-                $hotUsed = $this->hotUsedBytes((int) $userId);
-                if ($hotUsed <= $quota) {
+            // 移せなかった1件で全体が止まらないよう、同じレコードはこのリクエスト内で再試行しない
+            $blockedIds = [];
+            $consecutiveErrors = 0;
+
+            while (true) {
+                if ($this->hotUsedBytes((int) $userId) <= $quota) {
                     break;
                 }
+                $overQuotaSeen = true;
+
+                if ($archived >= $limit) {
+                    // 打ち切り。まだ超過しているので続きがある
+                    return $this->stats($archived, $skipped, $errors, true);
+                }
+
                 $photo = Photo::query()
                     ->where('user_id', $userId)
                     ->where(function ($q) {
                         $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
                     })
+                    ->when($blockedIds !== [], fn ($q) => $q->whereNotIn('id', $blockedIds))
                     ->orderByRaw('COALESCE(taken_at, created_at) ASC')
                     ->orderBy('id')
                     ->first();
+
                 if (! $photo) {
-                    $stats['skipped']++;
+                    // 超過しているが、これ以上動かせる原本が無い
                     break;
                 }
+
                 try {
                     if ($this->archiveOne($photo, $hotDisk, $coldDisk)) {
-                        $stats['archived']++;
-                        $remaining--;
+                        $archived++;
+                        $consecutiveErrors = 0;
                     } else {
-                        $stats['skipped']++;
-                        break;
+                        $skipped++;
+                        $blockedIds[] = (int) $photo->id;
+                        Log::warning('photo cold archive skipped (source missing)', [
+                            'photo_id' => $photo->id,
+                            'path' => $photo->path,
+                        ]);
                     }
                 } catch (\Throwable $e) {
-                    $stats['errors']++;
+                    $errors++;
+                    $blockedIds[] = (int) $photo->id;
+                    $consecutiveErrors++;
                     report($e);
-                    break;
+                    Log::warning('photo cold archive (r2 cap) failed', [
+                        'photo_id' => $photo->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                    // B2 側の障害・認証エラーなら全件失敗するので早めに諦める
+                    if ($consecutiveErrors >= self::MAX_CONSECUTIVE_ERRORS) {
+                        break 2;
+                    }
                 }
             }
         }
 
-        return $stats;
+        if ($archived === 0) {
+            return $this->stats(
+                $archived,
+                $skipped,
+                $errors,
+                false,
+                $overQuotaSeen ? self::REASON_ALL_BLOCKED : self::REASON_WITHIN_QUOTA
+            );
+        }
+
+        return $this->stats($archived, $skipped, $errors);
     }
 
     /**
-     * @return array{archived: int, skipped: int, errors: int}
+     * @return array{archived: int, skipped: int, errors: int, hasMore: bool, reason: string}
      */
     private function archiveByAge(int $days, int $limit): array
     {
-        $stats = ['archived' => 0, 'skipped' => 0, 'errors' => 0];
+        $archived = 0;
+        $skipped = 0;
+        $errors = 0;
         if ($days < 0) {
-            return $stats;
+            return $this->stats(reason: self::REASON_NO_DUE_PHOTOS);
         }
 
         $cutoff = now()->subDays($days);
@@ -189,15 +258,23 @@ class PhotoColdArchiveService
             ->limit(max(1, $limit))
             ->get();
 
+        if ($photos->isEmpty()) {
+            return $this->stats(reason: self::REASON_NO_DUE_PHOTOS);
+        }
+
         foreach ($photos as $photo) {
             try {
                 if ($this->archiveOne($photo, $hotDisk, $coldDisk)) {
-                    $stats['archived']++;
+                    $archived++;
                 } else {
-                    $stats['skipped']++;
+                    $skipped++;
+                    Log::warning('photo cold archive skipped (source missing)', [
+                        'photo_id' => $photo->id,
+                        'path' => $photo->path,
+                    ]);
                 }
             } catch (\Throwable $e) {
-                $stats['errors']++;
+                $errors++;
                 report($e);
                 Log::warning('photo cold archive failed', [
                     'photo_id' => $photo->id,
@@ -206,7 +283,16 @@ class PhotoColdArchiveService
             }
         }
 
-        return $stats;
+        // 移せなかった写真は次のバッチでも同じ結果になるので、進捗があるときだけ続ける
+        $hasMore = $archived > 0 && $photos->count() >= max(1, $limit);
+
+        return $this->stats(
+            $archived,
+            $skipped,
+            $errors,
+            $hasMore,
+            $archived === 0 ? self::REASON_ALL_BLOCKED : ''
+        );
     }
 
     /**

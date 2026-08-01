@@ -160,14 +160,16 @@
           <span class="app-accordion-caret" aria-hidden="true">▾</span>
         </summary>
         <div class="app-accordion-body">
+        @php
+          $archiveCapacityMode = $storageStats['capacityMode'] ?? 'age_archive';
+          $hotQuotaLabel = $storageStats['formattedQuota'] ?? '10 GB';
+        @endphp
         <div class="photos-storage-head">
           <span class="photos-storage-head-actions">
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-usage-open">{{ __('使用状況') }}</button>
             <button type="button" class="photos-secondary-btn photos-storage-usage-btn" id="photos-sim-open">{{ __('料金シミュレーション') }}</button>
             @if(!empty($storageStats['archiveEnabled']))
               @php
-                $archiveCapacityMode = $storageStats['capacityMode'] ?? 'age_archive';
-                $hotQuotaLabel = $storageStats['formattedQuota'] ?? '10 GB';
                 if ($archiveCapacityMode === 'r2_cap') {
                   $archiveBtnTitle = __('常用（R2）が約 :quota を超えないよう、古い原本を B2 へ分割移動します', ['quota' => $hotQuotaLabel]);
                   $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を Backblaze B2 へ分割して移します（1回あたり最大 :batch 件）。完了まで数分かかることがあります。ページを離れる前に確認が出ます。実行しますか？', [
@@ -191,6 +193,18 @@
             @endif
           </span>
         </div>
+        @if(!empty($storageStats['archiveEnabled']))
+          <p class="photos-storage-note photos-archive-mode-note">
+            @if($archiveCapacityMode === 'r2_cap')
+              {{ __('アーカイブ方式: 常用（R2）が :quota 以下になるまで古い原本を移します。', ['quota' => $hotQuotaLabel]) }}
+            @else
+              {{ __('アーカイブ方式: :days 日より古い原本だけを移します。常用（R2）が :quota を超えていても、日数条件を満たさない写真は移動しません。R2 を :quota 以下まで減らしたい場合は、設定 → ストレージで容量モードを「R2は無料枠までしか使わない」に変更してください。', [
+                'days' => (string) ($storageStats['archiveAfterDays'] ?? 365),
+                'quota' => $hotQuotaLabel,
+              ]) }}
+            @endif
+          </p>
+        @endif
         <div class="photos-storage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) min(100, $storageStats['percent']) }}" aria-label="{{ __('表示容量に対する使用量') }}">
           <span class="photos-storage-bar-fill{{ ($storageStats['percent'] >= 90 || !empty($storageStats['overFreeTier'])) ? ' is-warn' : '' }}" style="width: {{ min(100, max(0, (float) $storageStats['percent'])) }}%"></span>
           @if(isset($storageStats['freeMarkPercent']))

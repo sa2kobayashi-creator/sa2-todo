@@ -10032,6 +10032,12 @@ label.photos-camera-btn span {
   color: var(--photos-muted);
 }
 
+/* 「B2へアーカイブ」が何を対象にするかは誤解しやすいので、ボタンの近くで明示する */
+.photos-archive-mode-note {
+  margin: 6px 0 0;
+  line-height: 1.6;
+}
+
 .photos-album-covers {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
