@@ -246,7 +246,10 @@ class VideoController extends Controller
         if ($bytes < 1024 * 1024) {
             return rtrim(rtrim(number_format($bytes / 1024, 1, '.', ''), '0'), '.').' KB';
         }
+        if ($bytes < 1024 * 1024 * 1024) {
+            return rtrim(rtrim(number_format($bytes / (1024 * 1024), 1, '.', ''), '0'), '.').' MB';
+        }
 
-        return rtrim(rtrim(number_format($bytes / (1024 * 1024), 1, '.', ''), '0'), '.').' MB';
+        return rtrim(rtrim(number_format($bytes / (1024 * 1024 * 1024), 1, '.', ''), '0'), '.').' GB';
     }
 }

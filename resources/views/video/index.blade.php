@@ -28,7 +28,7 @@
               <input type="file" name="videos[]" accept="video/mp4,video/quicktime,.mp4,.mov" multiple required hidden />
               <span>{{ __('動画を追加') }}</span>
             </label>
-            <p class="hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '800 MB']) }}</p>
+            <p class="hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '1 GB']) }}</p>
           </form>
         </div>
       </section>

@@ -63,7 +63,12 @@ class PhotoService
 
     public function maxVideoUploadBytes(): int
     {
-        return max(1, (int) config('photos.max_video_upload_bytes', 800 * 1024 * 1024));
+        return max(1, (int) config('photos.max_video_upload_bytes', 1024 * 1024 * 1024));
+    }
+
+    public function maxVideoUploadLabel(): string
+    {
+        return $this->formatBytes($this->maxVideoUploadBytes());
     }
 
     public function isVideoMime(?string $mime, ?string $extension = null): bool

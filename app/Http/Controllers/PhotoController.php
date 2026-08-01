@@ -80,6 +80,7 @@ class PhotoController extends Controller
                 'videoMaxBytes' => $this->photos->maxVideoUploadBytes(),
                 'chunkBytes' => 8 * 1024 * 1024,
             ],
+            'videoLimitLabel' => $this->photos->maxVideoUploadLabel(),
             'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
             'stabilityEnhanceReady' => $this->enhanceButtonReady(),
             ...$this->flashFromQuery($request),

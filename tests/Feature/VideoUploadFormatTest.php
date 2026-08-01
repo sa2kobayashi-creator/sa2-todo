@@ -81,12 +81,39 @@ class VideoUploadFormatTest extends TestCase
         $this->assertSame(0, Photo::query()->where('user_id', $user->id)->count());
     }
 
-    public function test_photos_page_states_that_mov_is_supported(): void
+    public function test_photos_page_states_the_supported_formats_and_size_limit(): void
     {
         $user = $this->makeUser('mov-copy@example.com');
 
         $this->actingAs($user)->get('/photos')
             ->assertOk()
-            ->assertSee('MP4・MOV');
+            ->assertSee('MP4・MOV（最大 1 GB）');
+    }
+
+    public function test_video_up_to_one_gigabyte_is_accepted(): void
+    {
+        $this->useFakeDisk();
+        $user = $this->makeUser('big-video@example.com');
+
+        $this->assertSame(1073741824, app(PhotoService::class)->maxVideoUploadBytes());
+
+        $this->actingAs($user)->post('/photos', [
+            'photos' => [UploadedFile::fake()->create('big.mov', 900 * 1024, 'video/quicktime')],
+        ])->assertRedirect();
+
+        $this->assertSame(1, Photo::query()->where('user_id', $user->id)->count());
+    }
+
+    public function test_video_over_the_limit_is_refused(): void
+    {
+        $this->useFakeDisk();
+        config(['photos.max_video_upload_bytes' => 1024 * 1024]);
+        $user = $this->makeUser('too-big-video@example.com');
+
+        $this->actingAs($user)->post('/photos', [
+            'photos' => [UploadedFile::fake()->create('huge.mp4', 4 * 1024, 'video/mp4')],
+        ])->assertRedirect();
+
+        $this->assertSame(0, Photo::query()->where('user_id', $user->id)->count());
     }
 }

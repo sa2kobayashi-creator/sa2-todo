@@ -217,7 +217,7 @@
           </div>
         @endif
         <p class="photos-storage-note">
-          {{ __('画像は解像度そのまま保存。動画は MP4・MOV（最大') }} {{ number_format((int) config('photos.max_video_upload_bytes') / 1048576) }}MB）{{ __('に対応。') }}
+          {{ __('画像は解像度そのまま保存。動画は MP4・MOV（最大 :size）に対応。', ['size' => $videoLimitLabel ?? '1 GB']) }}
           {{ __('ユーザーごとの無料枠は合計') }} {{ $storageStats['formattedCombinedQuota'] }}{{ __('です（超過分は見込表示。有料課金は今後対応予定）。') }}
           @if(!empty($storageStats['pipelineEnabled']))
             {{ __('構成:') }}
@@ -1831,7 +1831,7 @@
           $photosUploadLimits = $uploadLimits ?? [
               'postMaxBytes' => 134217728,
               'uploadMaxBytes' => 134217728,
-              'videoMaxBytes' => 838860800,
+              'videoMaxBytes' => 1073741824,
               'chunkBytes' => 8388608,
           ];
         @endphp
@@ -2090,7 +2090,7 @@
           const failed = []
           const duplicateNames = []
 
-          const videoMax = Number(uploadLimits.videoMaxBytes) || (800 * 1024 * 1024)
+          const videoMax = Number(uploadLimits.videoMaxBytes) || (1024 * 1024 * 1024)
           try {
             if (totalSelected === 0 && rejected.length === 0 && list.length > 0) {
               setUploadProgress(@json(__('取り込み対象の写真・動画がありません')))
