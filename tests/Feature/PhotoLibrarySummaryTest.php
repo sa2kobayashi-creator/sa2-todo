@@ -71,6 +71,31 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertSee('data-year="2024"', false);
     }
 
+    public function test_the_floating_dock_carries_the_year_picker_and_a_top_button(): void
+    {
+        $user = $this->makeUser('dock@example.com');
+        $this->makePhoto($user, 'y2024.jpg', 'image/jpeg', '2024-03-02 09:00:00');
+        $this->makePhoto($user, 'y2026.jpg', 'image/jpeg', '2026-07-27 09:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('id="photos-year-dock"', false)
+            ->assertSee('id="photos-year-dock-select"', false)
+            ->assertSee('id="photos-year-dock-top"', false)
+            ->assertSee('先頭へ戻る');
+    }
+
+    public function test_the_dock_keeps_the_top_button_when_there_is_only_one_year(): void
+    {
+        $user = $this->makeUser('dock-one@example.com');
+        $this->makePhoto($user, 'one.jpg', 'image/jpeg', '2026-07-27 09:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('id="photos-year-dock-top"', false)
+            ->assertDontSee('id="photos-year-dock-select"', false);
+    }
+
     public function test_a_single_year_library_does_not_show_the_jump_control(): void
     {
         $user = $this->makeUser('oneyear@example.com');

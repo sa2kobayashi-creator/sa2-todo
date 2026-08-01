@@ -848,6 +848,8 @@
     ":year年": ":year",
     "年へ移動": "Jump to year",
     ":year年へ": "Go to :year",
+    "先頭へ戻る": "Back to top",
+    "TOP": "TOP",
     "動画を撮る": "Record video",
     "背面カメラで撮影して追加（写真）": "Capture with rear camera (photo)",
     "カメラで動画撮影（MP4）": "Record video with camera (MP4)",

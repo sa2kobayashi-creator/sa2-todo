@@ -10038,6 +10038,87 @@ label.photos-camera-btn span {
   line-height: 1.6;
 }
 
+/* 年を送ったあとツールバーまで戻らずに済むよう、スクロール中は手元に出しておく */
+.photos-year-dock {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(20, 24, 28, 0.86);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(8, 12, 16, 0.35);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.photos-year-dock[hidden] {
+  display: none !important;
+}
+
+.photos-year-dock.is-hiding {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.photos-year-dock-field {
+  display: flex;
+}
+
+.photos-year-dock select {
+  appearance: none;
+  min-height: 38px;
+  padding: 0 30px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  background-image: linear-gradient(45deg, transparent 50%, #fff 50%), linear-gradient(135deg, #fff 50%, transparent 50%);
+  background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photos-year-dock select option {
+  color: #11151a;
+}
+
+.photos-year-dock-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #11151a;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.photos-year-dock-top:hover {
+  background: #e8eef5;
+}
+
+@media (max-width: 768px) {
+  /* モバイルは下部ナビが居るので、その上に重ねる */
+  .photos-year-dock {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+  }
+}
+
 .photos-album-covers {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

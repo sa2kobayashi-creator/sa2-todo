@@ -780,6 +780,23 @@
             </section>
           @endforeach
         </div>
+
+        <div class="photos-year-dock is-hiding" id="photos-year-dock" aria-label="{{ __('年へ移動') }}" hidden>
+          @if(count($photoJumpYears ?? []) > 1)
+            <label class="photos-year-dock-field">
+              <span class="visually-hidden">{{ __('年へ移動') }}</span>
+              <select id="photos-year-dock-select" aria-label="{{ __('年へ移動') }}">
+                @foreach($photoJumpYears as $jumpYear)
+                  <option value="{{ $jumpYear }}">{{ __(':year年', ['year' => $jumpYear]) }}</option>
+                @endforeach
+              </select>
+            </label>
+          @endif
+          <button type="button" class="photos-year-dock-top" id="photos-year-dock-top" title="{{ __('先頭へ戻る') }}">
+            <span aria-hidden="true">↑</span>
+            <span>{{ __('TOP') }}</span>
+          </button>
+        </div>
       @endif
     </main>
 
@@ -2969,6 +2986,9 @@
         const pagerStatus = document.getElementById('photos-pager-status')
         let photosPage = 1
         let photosMediaKind = 'all'
+        // 年ドックの位置表。表示件数や列数が変わると測り直しが要る
+        let yearAnchors = []
+        let yearAnchorsDirty = true
 
         function photoChecks() {
           return Array.from(document.querySelectorAll('.photo-check'))
@@ -3072,6 +3092,7 @@
           if (scroll && pagingOn && gallery) {
             gallery.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }
+          yearAnchorsDirty = true
         }
         function setPhotosCols(value, { persist = true } = {}) {
           const cols = clampCols(value)
@@ -3093,6 +3114,7 @@
           if (persist) {
             try { localStorage.setItem(PHOTOS_COLS_KEY, String(cols)) } catch (_) {}
           }
+          yearAnchorsDirty = true
         }
         function updatePhotosBulkUi() {
           const mode = currentPhotosMode()
@@ -3171,6 +3193,88 @@
           // 行き先を選び直せるよう、ラベルは「年へ移動」に戻す
           yearJumpSelect.value = ''
         })
+
+        /* 年を送ったあとツールバーまで戻るのは遠いので、スクロール中は手元にも出す */
+        const yearDock = document.getElementById('photos-year-dock')
+        const yearDockSelect = document.getElementById('photos-year-dock-select')
+        const yearDockTop = document.getElementById('photos-year-dock-top')
+        const YEAR_DOCK_SHOW_AT = 320
+        let yearDockFrame = 0
+        let yearDockHideTimer = 0
+
+        /** 年が切り替わる位置だけ拾っておき、スクロールのたびに全グループを測らずに済ませる */
+        function rebuildYearAnchors() {
+          yearAnchors = []
+          yearAnchorsDirty = false
+          if (!gallery) return
+          let previous = null
+          gallery.querySelectorAll('.photos-day-group').forEach((group) => {
+            const year = group.dataset.year || ''
+            if (group.hidden || !/^\d{4}$/.test(year) || year === previous) return
+            yearAnchors.push({ year, top: group.getBoundingClientRect().top + window.scrollY })
+            previous = year
+          })
+        }
+
+        function yearInView() {
+          if (yearAnchorsDirty) rebuildYearAnchors()
+          if (!yearAnchors.length) return ''
+          const line = window.scrollY + 140
+          let current = yearAnchors[0].year
+          for (const anchor of yearAnchors) {
+            if (anchor.top > line) break
+            current = anchor.year
+          }
+          return current
+        }
+
+        function setYearDockVisible(show) {
+          if (!yearDock) return
+          if (show) {
+            if (!yearDock.hidden && !yearDockHideTimer) return
+            if (yearDockHideTimer) {
+              clearTimeout(yearDockHideTimer)
+              yearDockHideTimer = 0
+            }
+            yearDock.hidden = false
+            requestAnimationFrame(() => yearDock.classList.remove('is-hiding'))
+            return
+          }
+          if (yearDock.hidden || yearDockHideTimer) return
+          yearDock.classList.add('is-hiding')
+          yearDockHideTimer = setTimeout(() => {
+            yearDock.hidden = true
+            yearDockHideTimer = 0
+          }, 200)
+        }
+
+        function refreshYearDock() {
+          yearDockFrame = 0
+          if (!yearDock) return
+          const show = window.scrollY > YEAR_DOCK_SHOW_AT
+          setYearDockVisible(show)
+          if (!show) return
+          const year = yearInView()
+          if (yearDockSelect && year && yearDockSelect.value !== year) {
+            yearDockSelect.value = year
+          }
+        }
+
+        function queueYearDockRefresh() {
+          if (yearDockFrame) return
+          yearDockFrame = requestAnimationFrame(refreshYearDock)
+        }
+
+        yearDockSelect?.addEventListener('change', () => jumpToYear(yearDockSelect.value))
+        yearDockTop?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }))
+        window.addEventListener('scroll', queueYearDockRefresh, { passive: true })
+        window.addEventListener('resize', () => {
+          yearAnchorsDirty = true
+          queueYearDockRefresh()
+        })
+        // 画像が届くたびに高さが変わるので、位置表は測り直す
+        gallery?.addEventListener('load', () => { yearAnchorsDirty = true }, true)
+
         try {
           const savedCols = localStorage.getItem(PHOTOS_COLS_KEY)
           setPhotosCols(savedCols || PHOTOS_COLS_DEFAULT, { persist: false })
@@ -3190,6 +3294,7 @@
           setPhotosMediaKind('all', { persist: false })
         }
         setPhotosPage(1)
+        queueYearDockRefresh()
         photoChecks().forEach((cb) => cb.addEventListener('change', updatePhotosBulkUi))
 
         function submitPhotosBulk(url, extra = {}) {
