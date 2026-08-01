@@ -57,13 +57,15 @@ class PhotoController extends Controller
             $queryBase['year'] = $year;
         }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
+        $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);
 
         return view('photos.index', [
             'albums' => $albums,
             'ownedAlbums' => $ownedAlbums,
             'photos' => $photoList,
-            'photoGroups' => $this->photos->groupPhotosForDisplay($photoList, $sort),
+            'photoGroups' => $photoGroups,
             'photoYears' => $this->photos->photoYearOptions($allForYears),
+            'photoJumpYears' => $this->photos->groupYearOptions($photoGroups),
             'photosSort' => $sort,
             'photosYear' => $year,
             'selectedAlbumId' => $albumId,

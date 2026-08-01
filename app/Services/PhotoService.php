@@ -91,6 +91,25 @@ class PhotoService
         return $this->isVideoMime($file->getMimeType(), $file->getClientOriginalExtension());
     }
 
+    /**
+     * 端末によっては MIME が octet-stream で保存されているので、拡張子でも数える。
+     * isVideoMime() の判定を SQL に写したもの。
+     */
+    private function videoCountForUser(int $userId): int
+    {
+        return (int) Photo::query()
+            ->where('user_id', $userId)
+            ->where(function ($q) {
+                foreach (self::ALLOWED_VIDEO_MIMES as $mime) {
+                    $q->orWhere('mime', 'like', $mime.'%');
+                }
+                foreach (self::ALLOWED_VIDEO_EXTENSIONS as $ext) {
+                    $q->orWhere('path', 'like', '%.'.$ext);
+                }
+            })
+            ->count();
+    }
+
     public function userQuotaBytes(): int
     {
         return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
@@ -249,6 +268,8 @@ class PhotoService
         $hotUsedApprox = $hotUsed + $thumbExtra;
         $usedApprox = $hotUsedApprox + $coldUsed + $overflowUsed;
         $photoCount = $hotCount + $coldCount + $overflowCount;
+        $videoCount = $this->videoCountForUser($userId);
+        $imageCount = max(0, $photoCount - $videoCount);
 
         $quota = $this->userQuotaBytes();
         $b2Quota = $this->b2QuotaBytes();
@@ -467,6 +488,8 @@ class PhotoService
             'percent' => $percent,
             'freeMarkPercent' => min(100, $freeMarkPercent),
             'photoCount' => $photoCount,
+            'imageCount' => $imageCount,
+            'videoCount' => $videoCount,
             'remainingBytes' => max(0, $combinedQuota - $barUsed),
             'formattedUsed' => $this->formatBytes($barUsed),
             'formattedQuota' => $this->formatBytes($quota),
@@ -722,6 +745,25 @@ class PhotoService
         rsort($list);
 
         return $list;
+    }
+
+    /**
+     * いま並んでいるグループに含まれる年。年ジャンプの行き先なので表示順のまま返す。
+     *
+     * @param  list<array{date?: string, label?: string, photos?: list<array<string, mixed>>}>  $groups
+     * @return list<int>
+     */
+    public function groupYearOptions(array $groups): array
+    {
+        $years = [];
+        foreach ($groups as $group) {
+            $year = substr((string) ($group['date'] ?? ''), 0, 4);
+            if (preg_match('/^\d{4}$/', $year)) {
+                $years[(int) $year] = true;
+            }
+        }
+
+        return array_keys($years);
     }
 
     /**

@@ -151,7 +151,10 @@
           <span class="photos-storage-summary-total">
             {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
             / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
-            {{ __('（:count枚）', ['count' => $storageStats['photoCount']]) }}
+            {{ __('（写真 :images枚 · 動画 :videos本）', [
+              'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
+              'videos' => $storageStats['videoCount'] ?? 0,
+            ]) }}
             · {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
             @if(!empty($storageStats['overFreeTier']))
               <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
@@ -646,6 +649,17 @@
               @endforeach
             </select>
           </label>
+          @if(count($photoJumpYears ?? []) > 1)
+            <label class="photos-toolbar-select">
+              <span class="visually-hidden">{{ __('年へ移動') }}</span>
+              <select id="photos-year-jump" aria-label="{{ __('年へ移動') }}">
+                <option value="">{{ __('年へ移動') }}</option>
+                @foreach($photoJumpYears as $jumpYear)
+                  <option value="{{ $jumpYear }}">{{ __(':year年へ', ['year' => $jumpYear]) }}</option>
+                @endforeach
+              </select>
+            </label>
+          @endif
           <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
             <span class="photos-cols-icon" aria-hidden="true">
               <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
@@ -705,7 +719,7 @@
         <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="4" style="--photos-cols: 4">
           @php $flatIndex = 0; @endphp
           @foreach($photoGroups as $group)
-            <section class="photos-day-group">
+            <section class="photos-day-group" data-year="{{ substr((string) ($group['date'] ?? ''), 0, 4) }}">
               <header class="photos-day-header">
                 <h2 class="photos-day-label">{{ $group['label'] }}</h2>
                 <span class="photos-day-count">{{ __(':count枚', ['count' => count($group['photos'])]) }}</span>
@@ -3128,6 +3142,35 @@
         })
         pagerPrev?.addEventListener('click', () => setPhotosPage(photosPage - 1, { scroll: true }))
         pagerNext?.addEventListener('click', () => setPhotosPage(photosPage + 1, { scroll: true }))
+
+        /**
+         * 年フィルタ（再読み込み）とは別に、いま並んでいる一覧の中をその年まで送る。
+         * 一覧モードはページ送りされているので、先に該当ページへ切り替える。
+         */
+        function jumpToYear(year) {
+          if (!gallery || !/^\d{4}$/.test(String(year || ''))) return
+          const target = Array.from(gallery.querySelectorAll('.photos-day-group'))
+            .filter((group) => group.dataset.year === String(year))
+            .map((group) => ({
+              group,
+              wrap: Array.from(group.querySelectorAll('.photos-tile-wrap')).find(wrapMatchesMediaKind),
+            }))
+            .find((entry) => !!entry.wrap)
+          if (!target) return
+
+          if (currentPhotosMode() === 'list') {
+            const index = photoTileWraps().filter(wrapMatchesMediaKind).indexOf(target.wrap)
+            if (index >= 0) setPhotosPage(Math.floor(index / PHOTOS_PAGE_SIZE) + 1)
+          }
+          target.group.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+
+        const yearJumpSelect = document.getElementById('photos-year-jump')
+        yearJumpSelect?.addEventListener('change', () => {
+          jumpToYear(yearJumpSelect.value)
+          // 行き先を選び直せるよう、ラベルは「年へ移動」に戻す
+          yearJumpSelect.value = ''
+        })
         try {
           const savedCols = localStorage.getItem(PHOTOS_COLS_KEY)
           setPhotosCols(savedCols || PHOTOS_COLS_DEFAULT, { persist: false })
