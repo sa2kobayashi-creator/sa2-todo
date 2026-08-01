@@ -392,10 +392,13 @@
             running: @json(__('アーカイブ中…')),
             done: @json(__('アーカイブが完了しました')),
             fail: @json(__('アーカイブに失敗しました')),
-            timeout: @json(__('タイムアウトしました。PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS を延ばすか、しばらくして再実行してください。')),
+            timeout: @json(__('サーバーまたは通信がタイムアウトしました。大きな動画がある場合は再実行してください（続きから移動します）。')),
+            network: @json(__('通信エラーで中断しました。回線を確認して再実行してください。')),
+            http: @json(__('サーバーエラー（HTTP :status）。:detail')),
             cancelled: @json(__('アーカイブを中断しました')),
             idle: btn.textContent || @json(__('B2へアーカイブ')),
             batch: @json(__('アーカイブ中… :done件移動（バッチ :batch/:max）')),
+            progressKeep: @json(__('途中まで移動しました（:archived 件）。再実行で続きから進めます。')),
           }
 
           function setStatus(text) {
@@ -457,6 +460,20 @@
               let lastMessage = i18n.done
               let ok = true
 
+              function explainHttpFailure(status, data, text) {
+                const serverMsg = (data && (data.message || data.last_error)) || ''
+                if (serverMsg) return serverMsg
+                if (status === 419) return @json(__('セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。'))
+                if (status === 502 || status === 504) {
+                  return @json(__('サーバーまたはプロキシがタイムアウトしました（HTTP :status）。大きな動画は時間がかかるため、再実行で続きから移動します。'))
+                    .replace(':status', String(status))
+                }
+                const snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 160)
+                return i18n.http
+                  .replace(':status', String(status || '?'))
+                  .replace(':detail', snippet || i18n.fail)
+              }
+
               try {
                 for (let batch = 1; batch <= maxBatches; batch++) {
                   if (cancelled) break
@@ -481,14 +498,22 @@
                     const text = await response.text()
                     let data = null
                     try { data = text ? JSON.parse(text) : null } catch (_) {}
-                    res = { ok: response.ok, status: response.status, data: data }
+                    res = { ok: response.ok, status: response.status, data: data, text: text }
                   } catch (err) {
                     if (cancelled || (err && err.name === 'AbortError')) {
                       lastMessage = cancelled ? i18n.cancelled : i18n.timeout
+                      if (!cancelled && totalArchived > 0) {
+                        lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
+                      }
                       ok = false
                       break
                     }
-                    throw err
+                    lastMessage = i18n.network + (err && err.message ? ` (${err.message})` : '')
+                    if (totalArchived > 0) {
+                      lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
+                    }
+                    ok = false
+                    break
                   } finally {
                     if (timer) clearTimeout(timer)
                     controller = null
@@ -502,18 +527,29 @@
                   totalErrors += errors
                   lastMessage = (res.data && res.data.message)
                     ? res.data.message
-                    : (res.ok ? i18n.done : i18n.fail)
+                    : (res.ok ? i18n.done : explainHttpFailure(res.status, res.data, res.text))
+
+                  // 進捗ゼロの失敗だけ止める。一部移動できていれば次バッチへ
                   if (!res.ok && archived === 0) {
                     ok = false
+                    if (totalArchived > 0) {
+                      lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
+                    }
                     break
                   }
                   const hasMore = !!(res.data && res.data.has_more)
                   if (!hasMore) {
-                    ok = res.ok && totalErrors === 0
+                    ok = totalErrors === 0
                     lastMessage = @json(__('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件'))
                       .replace(':archived', String(totalArchived))
                       .replace(':skipped', String(totalSkipped))
                       .replace(':errors', String(totalErrors))
+                    if (res.data && res.data.last_error) {
+                      lastMessage += '\n' + @json(__('最後のエラー: :err')).replace(':err', String(res.data.last_error))
+                      if (res.data.last_error_photo_id) {
+                        lastMessage += ' (' + @json(__('写真ID :id')).replace(':id', String(res.data.last_error_photo_id)) + ')'
+                      }
+                    }
                     break
                   }
                   if (batch === maxBatches) {
@@ -522,9 +558,12 @@
                     ok = true
                   }
                 }
-              } catch (_) {
+              } catch (err) {
                 ok = false
-                lastMessage = i18n.fail
+                lastMessage = i18n.fail + (err && err.message ? `: ${err.message}` : '')
+                if (totalArchived > 0) {
+                  lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
+                }
               }
 
               setStatus(lastMessage)

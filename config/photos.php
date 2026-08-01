@@ -31,17 +31,29 @@ return [
     /**
      * Photos「B2へアーカイブ」1リクエストあたりの処理件数。
      * クライアントは完了までこの件数ずつ繰り返す（プロキシ/PHPタイムアウト回避）。
+     * 共有ホストでは大きすぎると切断されるので既定は小さめ。
      */
-    'archive_cold_batch_size' => max(1, min(200, (int) env('PHOTO_ARCHIVE_COLD_BATCH_SIZE', 40))),
+    'archive_cold_batch_size' => max(1, min(200, (int) env('PHOTO_ARCHIVE_COLD_BATCH_SIZE', 8))),
 
     /**
-     * 「B2へアーカイブ」1リクエストのタイムアウト（秒）。PHP set_time_limit とブラウザ側に反映。
-     * リバースプロキシのタイムアウトより短くすること。
+     * 「B2へアーカイブ」1リクエストのソフト期限（秒）。
+     * プロキシ切断前に JSON を返して続きを次バッチへ回す。
      */
-    'archive_cold_request_timeout_seconds' => max(60, (int) env('PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS', 900)),
+    'archive_cold_batch_seconds' => max(15, min(300, (int) env('PHOTO_ARCHIVE_COLD_BATCH_SECONDS', 45))),
+
+    /**
+     * このサイズ以上の原本は1リクエスト1本だけ移す（大きな動画向け）。
+     */
+    'archive_cold_large_file_bytes' => max(1, (int) env('PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES', 80 * 1024 * 1024)),
+
+    /**
+     * 「B2へアーカイブ」1リクエストのクライアント待機上限（秒）。
+     * PHP set_time_limit とブラウザ AbortController に反映。ソフト期限より長くする。
+     */
+    'archive_cold_request_timeout_seconds' => max(60, (int) env('PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS', 180)),
 
     /** 「B2へアーカイブ」手動実行の最大バッチ回数（総件数 ≒ batch_size × max_batches） */
-    'archive_cold_max_batches' => max(1, min(200, (int) env('PHOTO_ARCHIVE_COLD_MAX_BATCHES', 50))),
+    'archive_cold_max_batches' => max(1, min(500, (int) env('PHOTO_ARCHIVE_COLD_MAX_BATCHES', 200))),
 
     /** ホット（R2 等）側のソフト上限目安（バイト）。長期保存へ移す閾値。既定 10GB */
     'user_quota_bytes' => (int) env('PHOTO_USER_QUOTA_BYTES', 10 * 1024 * 1024 * 1024),

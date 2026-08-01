@@ -69,12 +69,12 @@
 
     <div data-capacity-panel="age_archive" @if($capacityMode !== 'age_archive') hidden @endif>
       <p class="hint">{{ __('毎日 3:30 に自動実行します。手動実行: php artisan photos:archive-cold') }}</p>
-      <p class="hint">{{ __('Photosの「B2へアーカイブ」は分割実行します。タイムアウト調整: PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS（既定900秒）・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_MAX_BATCHES') }}</p>
+      <p class="hint">{{ __('Photosの「B2へアーカイブ」は分割実行します。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS（既定45秒）・PHOTO_ARCHIVE_COLD_BATCH_SIZE（既定8）・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES・PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS・PHOTO_ARCHIVE_COLD_MAX_BATCHES') }}</p>
     </div>
 
     <div data-capacity-panel="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
       <p class="hint">{{ __('毎日 3:30 に古い原本を B2 へ移します。アップロード中の同期移動は既定オフ（保存速度優先）。必要なら PHOTO_UPLOAD_SYNC_ARCHIVE_LIMIT で調整できます。') }}</p>
-      <p class="hint">{{ __('Photosの「B2へアーカイブ」は分割実行します。タイムアウト調整: PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS（既定900秒）・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_MAX_BATCHES') }}</p>
+      <p class="hint">{{ __('Photosの「B2へアーカイブ」は分割実行します。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS（既定45秒）・PHOTO_ARCHIVE_COLD_BATCH_SIZE（既定8）・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES・PHOTO_ARCHIVE_COLD_TIMEOUT_SECONDS・PHOTO_ARCHIVE_COLD_MAX_BATCHES') }}</p>
     </div>
 
     <div data-capacity-panel="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>

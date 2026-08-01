@@ -463,12 +463,16 @@ class PhotoController extends Controller
      */
     public function archiveCold(Request $request)
     {
-        $timeoutSec = max(60, (int) config('photos.archive_cold_request_timeout_seconds', 900));
+        $timeoutSec = max(60, (int) config('photos.archive_cold_request_timeout_seconds', 180));
         if (function_exists('set_time_limit')) {
             @set_time_limit($timeoutSec);
         }
+        // 共有ホストでも長めの転送が途中で切れにくいようメモリも引き上げる
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
 
-        $batchDefault = max(1, (int) config('photos.archive_cold_batch_size', 40));
+        $batchDefault = max(1, (int) config('photos.archive_cold_batch_size', 8));
         $limit = max(1, min(500, (int) $request->input('limit', $batchDefault)));
         $archive = app(\App\Services\PhotoColdArchiveService::class);
 
@@ -476,20 +480,32 @@ class PhotoController extends Controller
             $stats = $archive->archiveDuePhotos($limit);
         } catch (\Throwable $e) {
             report($e);
+            $err = mb_substr(trim($e->getMessage()), 0, 240);
 
             return response()->json([
                 'ok' => false,
                 'message' => __('アーカイブに失敗しました: :err', [
-                    'err' => mb_substr($e->getMessage(), 0, 180),
+                    'err' => $err !== '' ? $err : class_basename($e),
                 ]),
+                'archived' => 0,
+                'skipped' => 0,
+                'errors' => 1,
+                'has_more' => false,
+                'reason' => 'exception',
+                'last_error' => $err !== '' ? $err : class_basename($e),
+                'last_error_photo_id' => null,
             ], 500);
         }
 
         $archived = (int) ($stats['archived'] ?? 0);
         $skipped = (int) ($stats['skipped'] ?? 0);
         $errors = (int) ($stats['errors'] ?? 0);
+        $bytesMoved = (int) ($stats['bytesMoved'] ?? 0);
         $mode = $this->mediaStorage->capacityMode();
         $hasMore = (bool) ($stats['hasMore'] ?? false);
+        $reason = (string) ($stats['reason'] ?? '');
+        $lastError = (string) ($stats['lastError'] ?? '');
+        $lastErrorPhotoId = $stats['lastErrorPhotoId'] ?? null;
 
         $message = __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件（mode=:mode, limit=:limit）', [
             'archived' => $archived,
@@ -498,23 +514,58 @@ class PhotoController extends Controller
             'mode' => $mode,
             'limit' => $limit,
         ]);
-
-        if ($archived === 0) {
-            $message .= ' '.$this->archiveIdleReason((string) ($stats['reason'] ?? ''));
+        if ($bytesMoved > 0) {
+            $message .= ' '.__('転送量 約 :size', [
+                'size' => $this->formatArchiveBytes($bytesMoved),
+            ]);
         }
 
+        if ($archived === 0) {
+            $message .= ' '.$this->archiveIdleReason($reason);
+        } elseif (in_array($reason, [
+            \App\Services\PhotoColdArchiveService::REASON_TIME_BUDGET,
+            \App\Services\PhotoColdArchiveService::REASON_LARGE_FILE,
+        ], true)) {
+            $message .= ' '.$this->archiveIdleReason($reason);
+        }
+
+        if ($lastError !== '') {
+            $detail = $lastErrorPhotoId
+                ? __('最後のエラー（写真ID :id）: :err', ['id' => $lastErrorPhotoId, 'err' => $lastError])
+                : __('最後のエラー: :err', ['err' => $lastError]);
+            $message .= ' '.$detail;
+        }
+
+        // 進捗があれば 200 で返し、クライアントが次バッチへ進めるようにする
+        $hardFail = $archived === 0 && $errors > 0 && ! $hasMore;
+
         return response()->json([
-            'ok' => $errors === 0,
-            'message' => $message,
+            'ok' => ! $hardFail && $errors === 0,
+            'message' => trim($message),
             'archived' => $archived,
             'skipped' => $skipped,
             'errors' => $errors,
+            'bytes_moved' => $bytesMoved,
             'mode' => $mode,
             'limit' => $limit,
             'has_more' => $hasMore,
-            'reason' => (string) ($stats['reason'] ?? ''),
+            'reason' => $reason,
+            'last_error' => $lastError,
+            'last_error_photo_id' => $lastErrorPhotoId,
             'storageStats' => $this->photos->storageStats((int) $request->user()->id),
-        ], $errors > 0 ? 422 : 200);
+        ], $hardFail ? 422 : 200);
+    }
+
+    private function formatArchiveBytes(int $bytes): string
+    {
+        if ($bytes < 1024 * 1024) {
+            return round($bytes / 1024, 1).' KB';
+        }
+        if ($bytes < 1024 * 1024 * 1024) {
+            return round($bytes / (1024 * 1024), 1).' MB';
+        }
+
+        return round($bytes / (1024 * 1024 * 1024), 2).' GB';
     }
 
     /**
@@ -529,6 +580,8 @@ class PhotoController extends Controller
                 'days' => $this->mediaStorage->archiveAfterDays(),
             ]),
             \App\Services\PhotoColdArchiveService::REASON_ALL_BLOCKED => __('残りの原本は移動できませんでした（元ファイルが見つからない、または B2 への書き込みに失敗）。ログを確認してください。'),
+            \App\Services\PhotoColdArchiveService::REASON_TIME_BUDGET => __('時間予算に達したため一旦区切りました。続けて実行すれば続きから移動します。'),
+            \App\Services\PhotoColdArchiveService::REASON_LARGE_FILE => __('大きな動画を単独で移すため一旦区切りました。続けて実行すれば続きから移動します。'),
             default => '',
         };
     }
