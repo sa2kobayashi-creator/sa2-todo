@@ -115,6 +115,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/upload/chunk', [PhotoController::class, 'uploadChunk']);
     Route::post('/photos/upload/complete', [PhotoController::class, 'uploadComplete']);
     Route::post('/photos/archive-cold', [PhotoController::class, 'archiveCold']);
+    Route::post('/photos/archive-cold/start', [PhotoController::class, 'archiveColdStart']);
+    Route::get('/photos/archive-cold/status', [PhotoController::class, 'archiveColdStatus']);
+    Route::post('/photos/archive-cold/cancel', [PhotoController::class, 'archiveColdCancel']);
     Route::post('/photos/albums', [PhotoController::class, 'storeAlbum']);
     Route::post('/photos/albums/for-folder', [PhotoController::class, 'storeFolderAlbum']);
     Route::post('/photos/albums/reveal-hidden', [PhotoController::class, 'toggleRevealHiddenAlbums']);

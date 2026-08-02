@@ -459,7 +459,70 @@ class PhotoController extends Controller
     }
 
     /**
-     * R2 の古い原本を Backblaze B2 へ移す（photos:archive-cold 相当）。
+     * B2アーカイブをバックグラウンドで開始する。
+     * ブラウザを閉じても cron（毎分）と afterResponse で続きが進む。
+     */
+    public function archiveColdStart(Request $request)
+    {
+        $timeoutSec = max(60, (int) config('photos.archive_cold_request_timeout_seconds', 180));
+        if (function_exists('set_time_limit')) {
+            @set_time_limit($timeoutSec);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '512M');
+        }
+
+        $runs = app(\App\Services\PhotoColdArchiveRunService::class);
+        $state = $runs->start((int) $request->user()->id);
+
+        // レスポンス後も時間予算内で続けて進め、ユーザーは他画面へ行ける
+        if (($state['status'] ?? '') === \App\Services\PhotoColdArchiveRunService::STATUS_RUNNING) {
+            $budget = max(15, min(50, (int) config('photos.archive_cold_batch_seconds', 45)));
+            dispatch(function () use ($budget) {
+                app(\App\Services\PhotoColdArchiveRunService::class)->continueAfterResponse($budget);
+            })->afterResponse();
+        }
+
+        return response()->json($this->archiveRunPayload($state, (int) $request->user()->id));
+    }
+
+    /** バックグラウンドアーカイブの進捗 */
+    public function archiveColdStatus(Request $request)
+    {
+        $runs = app(\App\Services\PhotoColdArchiveRunService::class);
+
+        return response()->json($this->archiveRunPayload($runs->current(), (int) $request->user()->id));
+    }
+
+    /** バックグラウンドアーカイブの中止依頼 */
+    public function archiveColdCancel(Request $request)
+    {
+        $runs = app(\App\Services\PhotoColdArchiveRunService::class);
+        $state = $runs->requestCancel();
+
+        return response()->json($this->archiveRunPayload($state, (int) $request->user()->id));
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     * @return array<string, mixed>
+     */
+    private function archiveRunPayload(array $state, int $userId): array
+    {
+        $running = ($state['status'] ?? '') === \App\Services\PhotoColdArchiveRunService::STATUS_RUNNING;
+
+        return [
+            'ok' => true,
+            'run' => $state,
+            'running' => $running,
+            'storageStats' => $running
+                ? null
+                : $this->photos->storageStats($userId),
+        ];
+    }
+
+    /**
+     * R2 の古い原本を Backblaze B2 へ移す（1バッチ・互換用）。
      */
     public function archiveCold(Request $request)
     {

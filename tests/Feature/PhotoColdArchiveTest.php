@@ -6,8 +6,10 @@ use App\Enums\UserRole;
 use App\Models\Photo;
 use App\Models\User;
 use App\Services\MediaStorageConfigService;
+use App\Services\PhotoColdArchiveRunService;
 use App\Services\PhotoColdArchiveService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -31,6 +33,7 @@ class PhotoColdArchiveTest extends TestCase
         ]);
         Storage::fake('public');
         Storage::fake('backblaze');
+        Cache::flush();
     }
 
     /** R2上限モードで動くよう、設定サービスだけ差し替える */
@@ -199,7 +202,7 @@ class PhotoColdArchiveTest extends TestCase
         $this->assertTrue($stats['hasMore']);
     }
 
-    public function test_the_photos_page_ships_a_working_archive_button_script(): void
+    public function test_the_photos_page_ships_a_background_archive_button_script(): void
     {
         $this->useR2CapMode();
         $user = $this->makeUser('btn@example.com');
@@ -207,10 +210,76 @@ class PhotoColdArchiveTest extends TestCase
         $html = $this->actingAs($user)->get('/photos')->assertOk()->getContent();
 
         $this->assertStringContainsString('id="photos-archive-cold-btn"', $html);
-        // Blade が @json の改行を潰して return "..."if になるとボタンが死ぬので、その形が無いこと
+        $this->assertStringContainsString('id="photos-archive-cold-cancel"', $html);
         $this->assertDoesNotMatchRegularExpression('/return\s+"[^"]*"\s*if\s*\(/', $html);
-        $this->assertStringContainsString("getElementById('photos-archive-cold-btn')", $html);
-        $this->assertStringContainsString('addEventListener(\'click\'', $html);
+        $this->assertStringContainsString('/photos/archive-cold/start', $html);
+        $this->assertStringContainsString('/photos/archive-cold/status', $html);
+        // バックグラウンドなので離脱ブロック用の archive job は開始しない
+        $this->assertStringNotContainsString("job.start('archive'", $html);
+    }
+
+    public function test_background_archive_start_and_status_track_progress(): void
+    {
+        $this->useR2CapMode();
+        $user = $this->makeUser('bg@example.com');
+
+        for ($i = 1; $i <= 8; $i++) {
+            $this->makePhoto($user, $i);
+        }
+
+        $start = $this->actingAs($user)->post('/photos/archive-cold/start');
+        $start->assertOk();
+        $this->assertTrue($start->json('running') || $start->json('run.status') === 'completed');
+        $this->assertGreaterThan(0, (int) $start->json('run.archived'));
+
+        $status = $this->actingAs($user)->getJson('/photos/archive-cold/status');
+        $status->assertOk();
+        $this->assertContains($status->json('run.status'), [
+            PhotoColdArchiveRunService::STATUS_RUNNING,
+            PhotoColdArchiveRunService::STATUS_COMPLETED,
+        ]);
+
+        // 残りがあれば tick で完了まで進められる
+        $runs = app(PhotoColdArchiveRunService::class);
+        $guard = 0;
+        while ($runs->isRunning() && $guard++ < 20) {
+            $runs->tick(2);
+        }
+
+        $this->assertFalse($runs->isRunning());
+        $this->assertSame(PhotoColdArchiveRunService::STATUS_COMPLETED, $runs->current()['status']);
+        $this->assertLessThanOrEqual(
+            10 * self::GB,
+            (int) Photo::where('user_id', $user->id)->where('storage_tier', 'hot')->sum('size_bytes')
+        );
+    }
+
+    public function test_background_archive_can_be_cancelled(): void
+    {
+        $this->useR2CapMode();
+        $user = $this->makeUser('cancel@example.com');
+        for ($i = 1; $i <= 8; $i++) {
+            $this->makePhoto($user, $i);
+        }
+
+        $runs = app(PhotoColdArchiveRunService::class);
+        // 1件だけ進めて running を残す
+        config(['photos.archive_cold_batch_size' => 1]);
+        $this->actingAs($user)->post('/photos/archive-cold/start')->assertOk();
+
+        if (! $runs->isRunning()) {
+            // 1バッチで上限内に収まった場合は中止対象が無いのでスキップ相当
+            $this->assertContains($runs->current()['status'], [
+                PhotoColdArchiveRunService::STATUS_COMPLETED,
+                PhotoColdArchiveRunService::STATUS_CANCELLED,
+            ]);
+
+            return;
+        }
+
+        $this->actingAs($user)->post('/photos/archive-cold/cancel')->assertOk();
+        $runs->tick(1);
+        $this->assertSame(PhotoColdArchiveRunService::STATUS_CANCELLED, $runs->current()['status']);
     }
 
     public function test_endpoint_returns_last_error_details_when_write_fails(): void

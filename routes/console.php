@@ -3,6 +3,8 @@
 use App\Console\Commands\ArchivePhotosToBackblaze;
 use App\Console\Commands\CheckTravelAlerts;
 use App\Console\Commands\FetchTravelPromos;
+use App\Console\Commands\TickPhotoColdArchive;
+use App\Services\PhotoColdArchiveRunService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -14,6 +16,12 @@ Artisan::command('inspire', function () {
 Schedule::command(ArchivePhotosToBackblaze::class)
     ->dailyAt('03:30')
     ->withoutOverlapping();
+
+// Photos の「B2へアーカイブ」をバックグラウンドで進める（実行中のときだけ）
+Schedule::command(TickPhotoColdArchive::class)
+    ->everyMinute()
+    ->when(fn () => app(PhotoColdArchiveRunService::class)->isRunning())
+    ->withoutOverlapping(5);
 
 Schedule::command(CheckTravelAlerts::class)
     ->dailyAt('08:00')

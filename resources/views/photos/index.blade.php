@@ -201,15 +201,12 @@
               @php
                 if ($archiveCapacityMode === 'r2_cap') {
                   $archiveBtnTitle = __('常用（R2）が約 :quota を超えないよう、古い原本を B2 へ分割移動します', ['quota' => $hotQuotaLabel]);
-                  $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を Backblaze B2 へ分割して移します（1回あたり最大 :batch 件）。完了まで数分かかることがあります。ページを離れる前に確認が出ます。実行しますか？', [
+                  $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を Backblaze B2 へバックグラウンドで移します。他の画面へ移っても処理は続きます。実行しますか？', [
                     'quota' => $hotQuotaLabel,
-                    'batch' => (string) ((int) config('photos.archive_cold_batch_size', 40)),
                   ]);
                 } else {
                   $archiveBtnTitle = __('古い常用原本を Backblaze B2 へ分割移動します（photos:archive-cold）');
-                  $archiveConfirm = __('常用（R2）の古い原本を Backblaze B2 へ分割して移します（1回あたり最大 :batch 件）。完了まで数分かかることがあります。ページを離れる前に確認が出ます。実行しますか？', [
-                    'batch' => (string) ((int) config('photos.archive_cold_batch_size', 40)),
-                  ]);
+                  $archiveConfirm = __('常用（R2）の古い原本を Backblaze B2 へバックグラウンドで移します。他の画面へ移っても処理は続きます。実行しますか？');
                 }
               @endphp
               <button
@@ -218,6 +215,12 @@
                 id="photos-archive-cold-btn"
                 title="{{ $archiveBtnTitle }}"
               >{{ __('B2へアーカイブ') }}</button>
+              <button
+                type="button"
+                class="photos-secondary-btn photos-storage-usage-btn"
+                id="photos-archive-cold-cancel"
+                hidden
+              >{{ __('アーカイブ中止') }}</button>
               <span class="hint" id="photos-archive-cold-status" aria-live="polite"></span>
             @endif
           </span>
@@ -372,42 +375,29 @@
 
       @if(!empty($storageStats['archiveEnabled']))
       @php
-        $archiveBatchSize = (int) config('photos.archive_cold_batch_size', 8);
-        $archiveTimeoutSec = (int) config('photos.archive_cold_request_timeout_seconds', 180);
-        $archiveMaxBatches = (int) config('photos.archive_cold_max_batches', 200);
         // Blade の @json(__('…')) は括弧の解釈で壊れやすいので、先に変数へ載せる
         $archiveI18n = [
             'confirm' => $archiveConfirm ?? __('B2へアーカイブを実行しますか？'),
             'running' => __('アーカイブ中…'),
-            'done' => __('アーカイブが完了しました'),
-            'fail' => __('アーカイブに失敗しました'),
-            'timeout' => __('サーバーまたは通信がタイムアウトしました。大きな動画がある場合は再実行してください（続きから移動します）。'),
-            'network' => __('通信エラーで中断しました。回線を確認して再実行してください。'),
-            'http' => __('サーバーエラー（HTTP :status）。:detail'),
-            'cancelled' => __('アーカイブを中断しました'),
             'idle' => __('B2へアーカイブ'),
-            'batch' => __('アーカイブ中… :done件移動（バッチ :batch/:max）'),
-            'progressKeep' => __('途中まで移動しました（:archived 件）。再実行で続きから進めます。'),
+            'fail' => __('アーカイブに失敗しました'),
+            'network' => __('通信エラーで状態を取得できませんでした。ページを再読み込みしてください。'),
             'sessionExpired' => __('セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。'),
-            'proxyTimeout' => __('サーバーまたはプロキシがタイムアウトしました（HTTP :status）。大きな動画は時間がかかるため、再実行で続きから移動します。'),
-            'doneSummary' => __('アーカイブ完了: 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件'),
-            'lastError' => __('最後のエラー: :err'),
-            'photoId' => __('写真ID :id'),
-            'batchLimit' => __('上限バッチに達しました（移動 :archived 件）。必要なら再度「B2へアーカイブ」を実行してください。'),
+            'backgroundHint' => __('バックグラウンドで移動中です。他の画面へ移っても大丈夫です。'),
         ];
       @endphp
       <script>
         (function () {
           const btn = document.getElementById('photos-archive-cold-btn')
+          const cancelBtn = document.getElementById('photos-archive-cold-cancel')
           const statusEl = document.getElementById('photos-archive-cold-status')
           if (!btn) return
 
-          const batchSize = {{ $archiveBatchSize }}
-          const timeoutMs = {{ $archiveTimeoutSec }} * 1000
-          const maxBatches = {{ $archiveMaxBatches }}
-          const job = window.PhotosPageJob
           const i18n = @json($archiveI18n);
           if (btn.textContent) i18n.idle = btn.textContent
+          const NOTIFIED_KEY = 'photosArchiveNotifiedRun'
+          let pollTimer = 0
+          let starting = false
 
           function setStatus(text) {
             if (statusEl) statusEl.textContent = text || ''
@@ -424,35 +414,7 @@
             try { return decodeURIComponent(match[1]) } catch (_) { return match[1] || '' }
           }
 
-          function formatBatchStatus(done, batch, max) {
-            return i18n.batch
-              .replace(':done', String(done))
-              .replace(':batch', String(batch))
-              .replace(':max', String(max))
-          }
-
-          btn.addEventListener('click', function (e) {
-            e.preventDefault()
-            e.stopPropagation()
-            if (btn.disabled) return
-            if (job && job.isBusy()) {
-              if (job.getKind() === 'archive') return
-              if (!job.requestLeave()) return
-            }
-            if (!window.confirm(i18n.confirm)) return
-
-            let cancelled = false
-            let controller = null
-            const abortCurrent = function () {
-              cancelled = true
-              try { if (controller) controller.abort() } catch (_) {}
-            }
-
-            btn.disabled = true
-            btn.textContent = i18n.running
-            setStatus('')
-            if (job) job.start('archive', abortCurrent)
-
+          function authHeaders() {
             const headers = {
               'Accept': 'application/json',
               'X-Requested-With': 'XMLHttpRequest',
@@ -460,131 +422,165 @@
             }
             const xsrf = xsrfToken()
             if (xsrf) headers['X-XSRF-TOKEN'] = xsrf
+            return headers
+          }
 
-            ;(async function () {
-              let totalArchived = 0
-              let totalSkipped = 0
-              let totalErrors = 0
-              let lastMessage = i18n.done
-              let ok = true
+          function applyRunningUi(run) {
+            btn.disabled = true
+            btn.textContent = i18n.running
+            if (cancelBtn) cancelBtn.hidden = false
+            const msg = (run && run.message) ? run.message : i18n.running
+            setStatus(msg + ' · ' + i18n.backgroundHint)
+          }
 
-              function explainHttpFailure(status, data, text) {
-                const serverMsg = (data && (data.message || data.last_error)) || ''
-                if (serverMsg) return serverMsg
-                if (status === 419) return i18n.sessionExpired
-                if (status === 502 || status === 504) {
-                  return i18n.proxyTimeout.replace(':status', String(status))
-                }
-                const snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 160)
-                return i18n.http
-                  .replace(':status', String(status || '?'))
-                  .replace(':detail', snippet || i18n.fail)
-              }
+          function applyIdleUi() {
+            btn.disabled = false
+            btn.textContent = i18n.idle
+            if (cancelBtn) cancelBtn.hidden = true
+          }
 
-              try {
-                for (let batch = 1; batch <= maxBatches; batch++) {
-                  if (cancelled) break
-                  controller = typeof AbortController !== 'undefined' ? new AbortController() : null
-                  const timer = controller ? setTimeout(function () { controller.abort() }, timeoutMs) : null
-                  const body = new FormData()
-                  body.append('limit', String(batchSize))
-                  body.append('_token', csrfToken())
+          function stopPolling() {
+            if (pollTimer) {
+              clearInterval(pollTimer)
+              pollTimer = 0
+            }
+          }
 
-                  btn.textContent = formatBatchStatus(totalArchived, batch, maxBatches)
-                  setStatus(formatBatchStatus(totalArchived, batch, maxBatches))
+          function notifiedRunId() {
+            try { return sessionStorage.getItem(NOTIFIED_KEY) || '' } catch (_) { return '' }
+          }
 
-                  let res
-                  try {
-                    const response = await fetch('/photos/archive-cold', {
-                      method: 'POST',
-                      headers: headers,
-                      body: body,
-                      credentials: 'same-origin',
-                      signal: controller ? controller.signal : undefined,
-                    })
-                    const text = await response.text()
-                    let data = null
-                    try { data = text ? JSON.parse(text) : null } catch (_) {}
-                    res = { ok: response.ok, status: response.status, data: data, text: text }
-                  } catch (err) {
-                    if (cancelled || (err && err.name === 'AbortError')) {
-                      lastMessage = cancelled ? i18n.cancelled : i18n.timeout
-                      if (!cancelled && totalArchived > 0) {
-                        lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
-                      }
-                      ok = false
-                      break
-                    }
-                    lastMessage = i18n.network + (err && err.message ? ` (${err.message})` : '')
-                    if (totalArchived > 0) {
-                      lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
-                    }
-                    ok = false
-                    break
-                  } finally {
-                    if (timer) clearTimeout(timer)
-                    controller = null
-                  }
+          function markNotified(runId) {
+            try { sessionStorage.setItem(NOTIFIED_KEY, runId || '') } catch (_) {}
+          }
 
-                  const archived = Number(res.data && res.data.archived) || 0
-                  const skipped = Number(res.data && res.data.skipped) || 0
-                  const errors = Number(res.data && res.data.errors) || 0
-                  totalArchived += archived
-                  totalSkipped += skipped
-                  totalErrors += errors
-                  lastMessage = (res.data && res.data.message)
-                    ? res.data.message
-                    : (res.ok ? i18n.done : explainHttpFailure(res.status, res.data, res.text))
+          async function fetchJson(url, options) {
+            const response = await fetch(url, Object.assign({
+              credentials: 'same-origin',
+              headers: authHeaders(),
+            }, options || {}))
+            const text = await response.text()
+            let data = null
+            try { data = text ? JSON.parse(text) : null } catch (_) {}
+            return { ok: response.ok, status: response.status, data: data, text: text }
+          }
 
-                  // 進捗ゼロの失敗だけ止める。一部移動できていれば次バッチへ
-                  if (!res.ok && archived === 0) {
-                    ok = false
-                    if (totalArchived > 0) {
-                      lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
-                    }
-                    break
-                  }
-                  const hasMore = !!(res.data && res.data.has_more)
-                  if (!hasMore) {
-                    ok = totalErrors === 0
-                    lastMessage = i18n.doneSummary
-                      .replace(':archived', String(totalArchived))
-                      .replace(':skipped', String(totalSkipped))
-                      .replace(':errors', String(totalErrors))
-                    if (res.data && res.data.last_error) {
-                      lastMessage += '\n' + i18n.lastError.replace(':err', String(res.data.last_error))
-                      if (res.data.last_error_photo_id) {
-                        lastMessage += ' (' + i18n.photoId.replace(':id', String(res.data.last_error_photo_id)) + ')'
-                      }
-                    }
-                    break
-                  }
-                  if (batch === maxBatches) {
-                    lastMessage = i18n.batchLimit.replace(':archived', String(totalArchived))
-                    ok = true
-                  }
-                }
-              } catch (err) {
-                ok = false
-                lastMessage = i18n.fail + (err && err.message ? `: ${err.message}` : '')
-                if (totalArchived > 0) {
-                  lastMessage += '\n' + i18n.progressKeep.replace(':archived', String(totalArchived))
-                }
-              }
+          function handleTerminal(run) {
+            const status = run && run.status
+            const message = (run && run.message) || i18n.fail
+            setStatus(message)
+            applyIdleUi()
+            stopPolling()
 
-              setStatus(lastMessage)
-              if (cancelled) return
-              window.alert(lastMessage)
-              if (ok || totalArchived > 0) {
-                if (job) job.end('archive')
+            const runId = (run && run.run_id) || ''
+            if (runId && notifiedRunId() === runId) return
+            if (runId) markNotified(runId)
+
+            if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+              window.alert(message)
+              if (status === 'completed' || (run && Number(run.archived) > 0)) {
                 window.location.reload()
               }
-            })().finally(function () {
-              if (job) job.end('archive')
-              btn.disabled = false
-              btn.textContent = i18n.idle
-            })
+            }
+          }
+
+          function startPolling() {
+            if (pollTimer) return
+            pollTimer = setInterval(function () { void pollOnce() }, 3000)
+          }
+
+          function applyStatus(payload) {
+            const run = (payload && payload.run) || {}
+            const status = run.status || 'idle'
+            if (status === 'running') {
+              applyRunningUi(run)
+              startPolling()
+              return
+            }
+            if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+              handleTerminal(run)
+              return
+            }
+            applyIdleUi()
+            stopPolling()
+            if (run.message) setStatus(run.message)
+          }
+
+          async function pollOnce() {
+            try {
+              const res = await fetchJson('/photos/archive-cold/status')
+              if (res.status === 419) {
+                setStatus(i18n.sessionExpired)
+                return
+              }
+              if (!res.ok || !res.data) {
+                setStatus(i18n.network)
+                return
+              }
+              applyStatus(res.data)
+            } catch (_) {
+              setStatus(i18n.network)
+            }
+          }
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (btn.disabled || starting) return
+            if (!window.confirm(i18n.confirm)) return
+
+            starting = true
+            applyRunningUi(null)
+            // 離脱ブロックはしない（バックグラウンド実行）
+            void (async function () {
+              try {
+                const body = new FormData()
+                body.append('_token', csrfToken())
+                const res = await fetchJson('/photos/archive-cold/start', {
+                  method: 'POST',
+                  body: body,
+                })
+                if (res.status === 419) {
+                  applyIdleUi()
+                  setStatus(i18n.sessionExpired)
+                  window.alert(i18n.sessionExpired)
+                  return
+                }
+                if (!res.ok || !res.data) {
+                  applyIdleUi()
+                  setStatus(i18n.fail)
+                  window.alert(i18n.fail)
+                  return
+                }
+                applyStatus(res.data)
+              } catch (_) {
+                applyIdleUi()
+                setStatus(i18n.network)
+                window.alert(i18n.network)
+              } finally {
+                starting = false
+              }
+            })()
           })
+
+          cancelBtn?.addEventListener('click', function (e) {
+            e.preventDefault()
+            e.stopPropagation()
+            void (async function () {
+              try {
+                const body = new FormData()
+                body.append('_token', csrfToken())
+                const res = await fetchJson('/photos/archive-cold/cancel', {
+                  method: 'POST',
+                  body: body,
+                })
+                if (res.ok && res.data) applyStatus(res.data)
+              } catch (_) {}
+            })()
+          })
+
+          // ページを開いたときに実行中／直近の完了を復元
+          void pollOnce()
         })()
       </script>
       @endif
