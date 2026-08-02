@@ -58,7 +58,7 @@
       </select>
     </label>
     <p class="hint" data-capacity-hint="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
-      {{ __('R2（ホット）が約10GBを超えないよう、古い原本を自動で B2 へ移します。一覧用サムネは R2 に残します。') }}
+      {{ __('R2（ホット）が約10GBを超えないよう運用します。枠内は R2 へ保存し、超えそうな新規原本は最初から B2 へ直書きします。一覧用サムネは常に R2 に残します。既存の超過分は「B2へアーカイブ」や毎日 3:30 の自動移動で減らします。') }}
     </p>
     <p class="hint" data-capacity-hint="age_archive" @if($capacityMode !== 'age_archive') hidden @endif>
       {{ __('登録日（なければ作成日）から指定日数を過ぎた原本を B2 へ移します。R2 が10GBを超えても、日数条件を満たすまで移動しません。') }}
@@ -73,7 +73,7 @@
     </div>
 
     <div data-capacity-panel="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
-      <p class="hint">{{ __('毎日 3:30 に古い原本を B2 へ移します。アップロード中の同期移動は既定オフ（保存速度優先）。必要なら PHOTO_UPLOAD_SYNC_ARCHIVE_LIMIT で調整できます。') }}</p>
+      <p class="hint">{{ __('新規: R2 枠を超えそうなら原本だけ B2 直書き（サムネは R2）。既存超過分: 毎日 3:30 と Photos の「B2へアーカイブ」で古い原本を移します。アップロード中の同期移動は既定で最小（PHOTO_UPLOAD_SYNC_ARCHIVE_LIMIT）。') }}</p>
       <p class="hint">{{ __('Photosの「B2へアーカイブ」はバックグラウンド実行です（他画面へ移っても継続）。毎分の tick と毎日 3:30 の自動実行があります。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES') }}</p>
     </div>
 

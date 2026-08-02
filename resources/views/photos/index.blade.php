@@ -228,7 +228,7 @@
         @if(!empty($storageStats['archiveEnabled']))
           <p class="photos-storage-note photos-archive-mode-note">
             @if($archiveCapacityMode === 'r2_cap')
-              {{ __('アーカイブ方式: 常用（R2）が :quota 以下になるまで古い原本を移します。', ['quota' => $hotQuotaLabel]) }}
+              {{ __('アーカイブ方式: 常用（R2）が :quota 以下になるよう、超過しそうな新規原本は B2 直書き（サムネは R2）。既存分は古い原本を B2 へ移します。', ['quota' => $hotQuotaLabel]) }}
             @else
               {{ __('アーカイブ方式: :days 日より古い原本だけを移します。常用（R2）が :quota を超えていても、日数条件を満たさない写真は移動しません。R2 を :quota 以下まで減らしたい場合は、設定 → ストレージで容量モードを「R2は無料枠までしか使わない」に変更してください。', [
                 'days' => (string) ($storageStats['archiveAfterDays'] ?? 365),

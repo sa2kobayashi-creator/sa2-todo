@@ -1159,6 +1159,10 @@ class PhotoService
                 );
             }
 
+            if (($target['tier'] ?? '') === 'cold' && ($target['disk'] ?? '') === 'backblaze') {
+                $this->mediaConfig->recordB2Usage(0, 0, 1);
+            }
+
             try {
                 $photo = Photo::create([
                     'user_id' => $userId,
@@ -1181,7 +1185,7 @@ class PhotoService
                     'cold_path' => in_array($target['tier'], ['cold', 'overflow'], true) ? $stored['path'] : null,
                 ]);
             } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                // 並行アップロード時の競合
+                // 並行アップロード時の競合（原本とサムネが別ディスクの場合あり）
                 $this->deleteStoragePaths(array_values(array_filter([
                     $stored['path'] ?? null,
                     $stored['thumbPath'] ?? null,
@@ -1794,6 +1798,11 @@ class PhotoService
     {
         $primary = $this->diskName();
         $mode = $this->mediaConfig->capacityMode();
+
+        if ($mode === MediaStorageConfigService::CAPACITY_MODE_R2_CAP) {
+            return $this->resolveR2CapUploadTarget($userId, $incomingBytes, $primary);
+        }
+
         if ($mode !== MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
             return ['disk' => $primary, 'tier' => 'hot'];
         }
@@ -1829,6 +1838,42 @@ class PhotoService
 
         // サーバーローカルは primary と別ディスクになるため overflow ティアで保持
         return ['disk' => 'public', 'tier' => 'overflow'];
+    }
+
+    /**
+     * モード1: R2（常用）が無料枠を超えそうなら原本を B2 直書き。サムネは常に主ディスク。
+     *
+     * @return array{disk: string, tier: string}
+     */
+    private function resolveR2CapUploadTarget(int $userId, int $incomingBytes, string $primary): array
+    {
+        $quota = $this->userQuotaBytes();
+        $hotUsed = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->where(function ($q) {
+                $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
+            })
+            ->sum('size_bytes');
+        // 使用状況表示と同じく「ホット原本 + 全サムネ概算」、新規サムネ分も見込む
+        $thumbExtra = (int) Photo::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('thumb_path')
+            ->count() * 80_000;
+        $projectedHot = $hotUsed + $thumbExtra + max(0, $incomingBytes) + 80_000;
+
+        if ($projectedHot <= $quota) {
+            return ['disk' => $primary, 'tier' => 'hot'];
+        }
+
+        if (
+            $this->mediaConfig->backblazeEnabled()
+            && $this->mediaConfig->pipelineArchivesToBackblaze()
+        ) {
+            return ['disk' => 'backblaze', 'tier' => 'cold'];
+        }
+
+        // B2 未設定時は従来どおり主ディスク（後追いアーカイブに任せる）
+        return ['disk' => $primary, 'tier' => 'hot'];
     }
 
     /** @param list<string> $paths */
@@ -2202,12 +2247,8 @@ class PhotoService
                 if ($thumbTmp !== false) {
                     imagejpeg($thumb, $thumbTmp, $quality);
                     try {
-                        $thumbDisk = Storage::disk($diskName ?: $this->diskName());
-                        $thumbDisk->put($thumbRel, (string) file_get_contents($thumbTmp), [
-                            'visibility' => $this->objectVisibility($diskName),
-                            'ContentType' => 'image/jpeg',
-                            'mimetype' => 'image/jpeg',
-                        ]);
+                        // 原本が B2 でも、一覧サムネは常に主ディスク（R2）へ
+                        $this->putFileContents($thumbRel, (string) file_get_contents($thumbTmp), 'image/jpeg');
                         $thumbPath = $thumbRel;
                     } finally {
                         @unlink($thumbTmp);
