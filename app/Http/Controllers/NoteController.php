@@ -81,25 +81,39 @@ class NoteController extends Controller
             'archived' => $filters['archived'],
             'q' => $filters['q'],
             'category' => $filters['category'],
+            'status' => $filters['status'],
             'date' => $filters['date'] ?: null,
             'year' => $filters['date'] ? null : $filters['year'],
             'month' => $filters['date'] ? null : $filters['month'],
             'page' => $filters['page'],
         ]);
         $pageNotes = $pageResult['items'];
+        $pinnedNotes = array_values(array_filter($pageNotes, fn ($n) => ! empty($n['pinned'])));
+        $otherNotes = array_values(array_filter($pageNotes, fn ($n) => empty($n['pinned'])));
+        $pinnedNoteGroups = $this->notes->groupNotesByMonth($pinnedNotes);
+        $otherNoteGroups = $this->notes->groupNotesByMonth($otherNotes);
+        $jumpMonths = $this->notes->noteJumpMonthOptions(array_merge($pinnedNotes, $otherNotes));
         $returnTo = $this->notes->buildNotesQuery($filters, [
             'page' => $pageResult['page'],
             'note' => $highlightId > 0 ? $highlightId : null,
         ]);
+        $periodValue = (! empty($filters['year']) && ! empty($filters['month']))
+            ? sprintf('%04d-%02d', $filters['year'], $filters['month'])
+            : '';
 
         return view('notes.index', [
-            'pinnedNotes' => array_values(array_filter($pageNotes, fn ($n) => ! empty($n['pinned']))),
-            'otherNotes' => array_values(array_filter($pageNotes, fn ($n) => empty($n['pinned']))),
+            'pinnedNotes' => $pinnedNotes,
+            'pinnedNoteGroups' => $pinnedNoteGroups,
+            'otherNotes' => $otherNotes,
+            'otherNoteGroups' => $otherNoteGroups,
+            'noteJumpMonths' => $jumpMonths,
+            'notePeriodOptions' => $this->notes->notePeriodOptions($userId, $filters['archived']),
             'showArchived' => $filters['archived'],
             'searchQuery' => $filters['q'],
             'filterCategory' => $filters['category'],
+            'filterStatus' => $filters['status'] ?? 'all',
             'filterDate' => $filters['date'] ?? '',
-            'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
+            'periodValue' => $periodValue,
             'filters' => $filters,
             'pagination' => $pageResult,
             'highlightId' => $highlightId > 0 ? $highlightId : null,
@@ -235,6 +249,20 @@ class NoteController extends Controller
         $this->notes->togglePin((int) $request->user()->id, $id);
 
         return redirect($returnTo);
+    }
+
+    public function complete(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
+        $note = $this->notes->toggleComplete((int) $request->user()->id, $id);
+        if (! $note) {
+            return $this->redirectWithMessage($returnTo, __('メモが見つかりません'), 'error');
+        }
+
+        return $this->redirectWithMessage(
+            $returnTo,
+            ! empty($note['completed']) ? __('メモを完了にしました') : __('メモを未完了に戻しました')
+        );
     }
 
     public function reorder(Request $request)

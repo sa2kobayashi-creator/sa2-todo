@@ -129,6 +129,9 @@ class NoteService
         $q = is_string($query['q'] ?? null) ? trim($query['q']) : '';
         $date = is_string($query['date'] ?? null) ? $this->normalizeRegisteredDate(trim($query['date'])) : null;
         $category = $this->normalizeCategoryFilter($query['category'] ?? null);
+        $status = in_array($query['status'] ?? 'all', ['all', 'pending', 'done'], true)
+            ? (string) ($query['status'] ?? 'all')
+            : 'all';
 
         return [
             'year' => $period['year'],
@@ -138,6 +141,7 @@ class NoteService
             'q' => $q,
             'date' => $date,
             'category' => $category,
+            'status' => $status,
         ];
     }
 
@@ -154,9 +158,12 @@ class NoteService
         if (! empty($filters['category'])) {
             $params['category'] = $filters['category'];
         }
+        if (($filters['status'] ?? 'all') !== 'all') {
+            $params['status'] = $filters['status'];
+        }
         if (! empty($filters['date'])) {
             $params['date'] = $filters['date'];
-        } else {
+        } elseif (! empty($filters['year']) && ! empty($filters['month'])) {
             $params['period'] = sprintf('%04d-%02d', $filters['year'], $filters['month']);
         }
         if (($extra['page'] ?? 0) > 1) {
@@ -189,9 +196,16 @@ class NoteService
         $archived = ($options['archived'] ?? false) === true;
         $q = strtolower(trim((string) ($options['q'] ?? '')));
         $date = $this->normalizeRegisteredDate($options['date'] ?? null);
-        $year = isset($options['year']) ? (int) $options['year'] : null;
-        $month = isset($options['month']) ? (int) $options['month'] : null;
+        $year = isset($options['year']) && $options['year'] !== null && $options['year'] !== ''
+            ? (int) $options['year']
+            : null;
+        $month = isset($options['month']) && $options['month'] !== null && $options['month'] !== ''
+            ? (int) $options['month']
+            : null;
         $category = $this->normalizeCategoryFilter($options['category'] ?? null);
+        $status = in_array($options['status'] ?? 'all', ['all', 'pending', 'done'], true)
+            ? (string) ($options['status'] ?? 'all')
+            : 'all';
 
         $notes = $this->visibleNotesQuery($userId)->get()->map(fn (Note $n) => $this->toArray($n));
         $list = $notes->filter(fn ($note) => ($note['archived'] ?? false) === $archived)->values()->all();
@@ -199,7 +213,14 @@ class NoteService
         if ($date) {
             $list = array_values(array_filter($list, fn ($note) => $this->getRegisteredDate($note) === $date));
         } elseif ($year && $month >= 1 && $month <= 12) {
-            $list = $this->filterNotesByMonth($list, $year, $month);
+            // 表示月を絞っても、未完了メモは月をまたいで残す
+            $list = $this->filterNotesByMonthKeepingPending($list, $year, $month);
+        }
+
+        if ($status === 'pending') {
+            $list = array_values(array_filter($list, fn ($note) => empty($note['completed'])));
+        } elseif ($status === 'done') {
+            $list = array_values(array_filter($list, fn ($note) => ! empty($note['completed'])));
         }
 
         if ($category !== '') {
@@ -284,6 +305,7 @@ class NoteService
             'pinned' => $pinned,
             'sort_order' => $this->nextFrontSortOrder($userId, $pinned, false),
             'archived' => false,
+            'completed' => false,
             'type' => $type,
             'category' => $this->normalizeCategory($input['category'] ?? null),
             'items' => $type === 'checklist' ? $items : [],
@@ -436,6 +458,114 @@ class NoteService
         $note->load(['group', 'attachments']);
 
         return $this->toArray($note);
+    }
+
+    public function toggleComplete(int $userId, int $id): ?array
+    {
+        $note = $this->findAccessibleNote($userId, $id);
+        if (! $note) {
+            return null;
+        }
+        $note->completed = ! $note->completed;
+        $note->save();
+        $note->load(['group', 'attachments']);
+
+        return $this->toArray($note);
+    }
+
+    /**
+     * 表示月セレクト用の YYYY-MM 一覧（新しい月が先）。
+     *
+     * @return list<string>
+     */
+    public function notePeriodOptions(int $userId, bool $archived = false): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $periods = [];
+        foreach ($this->visibleNotesQuery($userId)->where('archived', $archived)->get() as $note) {
+            $date = $this->getRegisteredDate($this->toArray($note));
+            if (preg_match('/^\d{4}-\d{2}/', $date, $m)) {
+                $periods[$m[0]] = true;
+            }
+        }
+        $list = array_keys($periods);
+        rsort($list, SORT_STRING);
+
+        return $list;
+    }
+
+    /**
+     * 年月ジャンプ用（表示中メモから）。
+     *
+     * @param  list<array<string, mixed>>  $notes
+     * @return list<array{period: string, year: string, month: int, label: string}>
+     */
+    public function noteJumpMonthOptions(array $notes): array
+    {
+        $seen = [];
+        $options = [];
+        foreach ($notes as $note) {
+            $date = $this->getRegisteredDate($note);
+            if (! preg_match('/^(\d{4})-(\d{2})/', $date, $m)) {
+                continue;
+            }
+            $period = $m[1].'-'.$m[2];
+            if (isset($seen[$period])) {
+                continue;
+            }
+            $seen[$period] = true;
+            $month = (int) $m[2];
+            $options[] = [
+                'period' => $period,
+                'year' => $m[1],
+                'month' => $month,
+                'label' => __(':year年:month月', ['year' => $m[1], 'month' => $month]),
+            ];
+        }
+
+        return $options;
+    }
+
+    /**
+     * 登録日の年月でグループ化（表示順を保つ）。
+     *
+     * @param  list<array<string, mixed>>  $notes
+     * @return list<array{period: string, year: string, month: int, label: string, notes: list<array<string, mixed>>}>
+     */
+    public function groupNotesByMonth(array $notes): array
+    {
+        $groups = [];
+        $order = [];
+        foreach ($notes as $note) {
+            $date = $this->getRegisteredDate($note);
+            if (! preg_match('/^(\d{4})-(\d{2})/', $date, $m)) {
+                $period = 'unknown';
+                $year = '';
+                $month = 0;
+                $label = __('日付なし');
+            } else {
+                $period = $m[1].'-'.$m[2];
+                $year = $m[1];
+                $month = (int) $m[2];
+                $label = __(':year年:month月', ['year' => $year, 'month' => $month]);
+            }
+            if (! isset($groups[$period])) {
+                $groups[$period] = [
+                    'period' => $period,
+                    'year' => $year,
+                    'month' => $month,
+                    'label' => $label,
+                    'notes' => [],
+                ];
+                $order[] = $period;
+            }
+            $groups[$period]['notes'][] = $note;
+        }
+
+        return array_map(fn ($period) => $groups[$period], $order);
     }
 
     public function deleteNote(int $userId, int $id): bool
@@ -867,6 +997,7 @@ class NoteService
             'pinned' => $note->pinned,
             'sortOrder' => (int) $note->sort_order,
             'archived' => $note->archived,
+            'completed' => (bool) $note->completed,
             'type' => $note->type,
             'category' => $this->normalizeCategory($note->category ?? null),
             'items' => $note->items ?? [],
@@ -971,6 +1102,11 @@ class NoteService
             if (($a['pinned'] ?? false) !== ($b['pinned'] ?? false)) {
                 return ($a['pinned'] ?? false) ? -1 : 1;
             }
+            $aDone = ! empty($a['completed']) ? 1 : 0;
+            $bDone = ! empty($b['completed']) ? 1 : 0;
+            if ($aDone !== $bDone) {
+                return $aDone <=> $bDone;
+            }
             $orderCmp = ((int) ($a['sortOrder'] ?? 0)) <=> ((int) ($b['sortOrder'] ?? 0));
             if ($orderCmp !== 0) {
                 return $orderCmp;
@@ -993,6 +1129,22 @@ class NoteService
         $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, Carbon::create($year, $month, 1)->daysInMonth);
 
         return array_values(array_filter($list, function ($note) use ($monthStart, $monthEnd) {
+            $date = $this->getRegisteredDate($note);
+
+            return $date >= $monthStart && $date <= $monthEnd;
+        }));
+    }
+
+    /** @param list<array<string, mixed>> $list @return list<array<string, mixed>> */
+    private function filterNotesByMonthKeepingPending(array $list, int $year, int $month): array
+    {
+        $monthStart = sprintf('%04d-%02d-01', $year, $month);
+        $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, Carbon::create($year, $month, 1)->daysInMonth);
+
+        return array_values(array_filter($list, function ($note) use ($monthStart, $monthEnd) {
+            if (empty($note['completed'])) {
+                return true;
+            }
             $date = $this->getRegisteredDate($note);
 
             return $date >= $monthStart && $date <= $monthEnd;
@@ -1034,11 +1186,12 @@ class NoteService
         return $items;
     }
 
+    /** @return array{year: ?int, month: ?int} */
     private function parsePeriod(mixed $value): array
     {
-        $now = Carbon::now(config('app.timezone', 'Asia/Tokyo'));
-        $year = (int) $now->format('Y');
-        $month = (int) $now->format('n');
+        if ($value === null || $value === '' || $value === 'all') {
+            return ['year' => null, 'month' => null];
+        }
         if (is_string($value) && preg_match('/^\d{4}-\d{2}$/', $value)) {
             [$y, $m] = array_map('intval', explode('-', $value));
             if ($y >= 1970 && $m >= 1 && $m <= 12) {
@@ -1046,7 +1199,7 @@ class NoteService
             }
         }
 
-        return ['year' => $year, 'month' => $month];
+        return ['year' => null, 'month' => null];
     }
 
     private function normalizeRegisteredDate(?string $value): ?string

@@ -18,7 +18,12 @@
   ];
 @endphp
 <article
-  class="note-card {{ $colorClass }}@if(!empty($highlightId) && $highlightId === $note['id']) is-highlighted @endif"
+  @class([
+    'note-card',
+    $colorClass,
+    'is-completed' => ! empty($note['completed']),
+    'is-highlighted' => ! empty($highlightId) && $highlightId === $note['id'],
+  ])
   id="note-{{ $note['id'] }}"
   style="--note-bg: {{ $palette['bg'] }}; --note-border: {{ $palette['border'] }}"
   data-note-id="{{ $note['id'] }}"
@@ -78,6 +83,16 @@
     @endif
     <div class="note-card-actions">
       @if(empty($showArchived))
+        <form method="post" action="/notes/{{ $note['id'] }}/complete" class="note-inline-form">
+          @csrf
+          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+          <button
+            type="submit"
+            class="note-icon-btn note-complete-btn{{ !empty($note['completed']) ? ' is-done' : '' }}"
+            title="{{ !empty($note['completed']) ? __('未完了に戻す') : __('完了にする') }}"
+            aria-label="{{ !empty($note['completed']) ? __('未完了に戻す') : __('完了にする') }}"
+          >{{ !empty($note['completed']) ? '☑' : '☐' }}</button>
+        </form>
         <form method="post" action="/notes/{{ $note['id'] }}/pin" class="note-inline-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />

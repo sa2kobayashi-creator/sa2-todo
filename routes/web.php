@@ -103,6 +103,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/update', [NoteController::class, 'update'])->whereNumber('id');
     Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
+    Route::post('/notes/{id}/complete', [NoteController::class, 'complete'])->whereNumber('id');
     Route::post('/notes/{id}/archive', [NoteController::class, 'archive'])->whereNumber('id');
     Route::post('/notes/{id}/reschedule', [NoteController::class, 'reschedule'])->whereNumber('id');
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
