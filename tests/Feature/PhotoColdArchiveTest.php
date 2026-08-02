@@ -277,9 +277,40 @@ class PhotoColdArchiveTest extends TestCase
             return;
         }
 
-        $this->actingAs($user)->post('/photos/archive-cold/cancel')->assertOk();
-        $runs->tick(1);
-        $this->assertSame(PhotoColdArchiveRunService::STATUS_CANCELLED, $runs->current()['status']);
+        $cancel = $this->actingAs($user)->post('/photos/archive-cold/cancel');
+        $cancel->assertOk();
+        // 中止は cancel 時点で確定する（次 tick 待ちにしない）
+        $this->assertSame(PhotoColdArchiveRunService::STATUS_CANCELLED, $cancel->json('run.status'));
+
+        // 表示が残り続けないよう dismiss で idle に戻せる
+        $dismiss = $this->actingAs($user)->getJson('/photos/archive-cold/status?dismiss=1');
+        $dismiss->assertOk();
+        $this->assertSame(PhotoColdArchiveRunService::STATUS_IDLE, $dismiss->json('run.status'));
+        $this->assertSame('', (string) $dismiss->json('run.message'));
+    }
+
+    public function test_status_poll_advances_running_archive(): void
+    {
+        $this->useR2CapMode();
+        $user = $this->makeUser('polltick@example.com');
+        for ($i = 1; $i <= 8; $i++) {
+            $this->makePhoto($user, $i);
+        }
+
+        config(['photos.archive_cold_batch_size' => 1]);
+        $this->actingAs($user)->post('/photos/archive-cold/start')->assertOk();
+        $runs = app(PhotoColdArchiveRunService::class);
+        if (! $runs->isRunning()) {
+            $this->assertSame(PhotoColdArchiveRunService::STATUS_COMPLETED, $runs->current()['status']);
+
+            return;
+        }
+
+        $before = (int) $runs->current()['archived'];
+        $status = $this->actingAs($user)->getJson('/photos/archive-cold/status');
+        $status->assertOk();
+        $this->assertNotNull($status->json('storageStats'));
+        $this->assertGreaterThanOrEqual($before, (int) $status->json('run.archived'));
     }
 
     public function test_endpoint_returns_last_error_details_when_write_fails(): void

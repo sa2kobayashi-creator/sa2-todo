@@ -235,8 +235,10 @@ class PhotoColdArchiveService
 
                 if ($this->pastDeadline($deadline)) {
                     $stopReason = self::REASON_TIME_BUDGET;
+                    // 1件も移せていない時間切れは「続きあり」扱いにすると進捗ゼロのまま回り続ける
+                    $continue = $archived > 0;
 
-                    return $this->stats($archived, $skipped, $errors, true, $stopReason, $lastError, $lastErrorPhotoId, $bytesMoved);
+                    return $this->stats($archived, $skipped, $errors, $continue, $stopReason, $lastError, $lastErrorPhotoId, $bytesMoved);
                 }
 
                 $photo = Photo::query()

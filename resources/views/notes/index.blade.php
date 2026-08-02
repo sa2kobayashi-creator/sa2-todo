@@ -7,8 +7,8 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('メモ') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
-    <script src="{{ asset('voice-entry.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ @filemtime(public_path('app.css')) ?: time() }}" />
+    <script src="{{ asset('voice-entry.js') }}?v={{ @filemtime(public_path('voice-entry.js')) ?: time() }}" defer></script>
   </head>
   <body class="notes-page">
     @include('partials.header', ['active' => 'notes'])
@@ -272,37 +272,39 @@
         </nav>
       @endif
 
-      @if(!$showArchived)
-        <button
-          type="button"
-          class="notes-attach-fab"
-          id="notes-attach-fab"
-          title="{{ __('添付ファイルを追加') }}"
-          aria-label="{{ __('添付ファイルを追加') }}"
-        >
-          <span aria-hidden="true">📎</span>
-        </button>
-      @endif
-
-      @if(count($pinnedNotes) > 0 || count($otherNotes) > 0)
-        <div class="notes-year-dock is-hiding" id="notes-year-dock" aria-label="{{ __('年月へ移動') }}" hidden>
-          @if(count($noteJumpMonths ?? []) > 1)
-            <label class="notes-year-dock-field">
-              <span class="visually-hidden">{{ __('年月へ移動') }}</span>
-              <select id="notes-year-dock-select" aria-label="{{ __('年月へ移動') }}">
-                @foreach($noteJumpMonths as $jumpMonth)
-                  <option value="{{ $jumpMonth['period'] }}">{{ $jumpMonth['label'] }}</option>
-                @endforeach
-              </select>
-            </label>
-          @endif
-          <button type="button" class="notes-year-dock-top" id="notes-year-dock-top" title="{{ __('先頭へ戻る') }}">
-            <span aria-hidden="true">↑</span>
-            <span>{{ __('TOP') }}</span>
-          </button>
-        </div>
-      @endif
     </main>
+
+    {{-- main の外に置き、position:fixed が確実にビューポート基準になるようにする --}}
+    @if(!$showArchived)
+      <button
+        type="button"
+        class="notes-attach-fab"
+        id="notes-attach-fab"
+        title="{{ __('添付ファイルを追加') }}"
+        aria-label="{{ __('添付ファイルを追加') }}"
+      >
+        <span aria-hidden="true">📎</span>
+      </button>
+    @endif
+
+    @if(count($pinnedNotes) > 0 || count($otherNotes) > 0)
+      <div class="notes-year-dock is-hiding" id="notes-year-dock" aria-label="{{ __('年月へ移動') }}" hidden>
+        @if(count($noteJumpMonths ?? []) > 1)
+          <label class="notes-year-dock-field">
+            <span class="visually-hidden">{{ __('年月へ移動') }}</span>
+            <select id="notes-year-dock-select" aria-label="{{ __('年月へ移動') }}">
+              @foreach($noteJumpMonths as $jumpMonth)
+                <option value="{{ $jumpMonth['period'] }}">{{ $jumpMonth['label'] }}</option>
+              @endforeach
+            </select>
+          </label>
+        @endif
+        <button type="button" class="notes-year-dock-top" id="notes-year-dock-top" title="{{ __('先頭へ戻る') }}">
+          <span aria-hidden="true">↑</span>
+          <span>{{ __('TOP') }}</span>
+        </button>
+      </div>
+    @endif
 
     <div class="modal modal-centered" id="note-voice-confirm-modal" hidden>
       <div class="modal-backdrop" data-close-note-voice-modal></div>

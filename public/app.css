@@ -3701,6 +3701,16 @@ button.link.danger,
   margin-bottom: 12px;
 }
 
+.notes-top-actions > .button-link,
+.notes-top-actions > a.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
 .notes-filter-form {
   display: flex;
   align-items: center;
@@ -3719,23 +3729,30 @@ button.link.danger,
 .notes-status-filter,
 .notes-category-filter,
 .notes-jump-filter {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
   color: #3c4043;
   margin: 0;
+  min-height: 38px;
 }
 
 .notes-period-label select,
 .notes-status-filter select,
 .notes-category-filter select,
-.notes-jump-filter select {
-  padding: 8px 10px;
+.notes-jump-filter select,
+.notes-search-label input[type="search"] {
+  box-sizing: border-box;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 12px;
   border: 1px solid #dadce0;
   border-radius: 8px;
   background: #fff;
   font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .notes-period-label select:disabled {
@@ -3768,37 +3785,42 @@ button.link.danger,
   color: #188038;
 }
 
-.notes-attach-fab {
+/* グローバル button スタイルより後から上書きし、ビューポート右下に固定 */
+body.notes-page .notes-attach-fab {
   position: fixed;
   right: max(20px, env(safe-area-inset-right, 0px));
   bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  z-index: 61;
+  z-index: 120;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 52px;
   height: 52px;
+  margin: 0;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: #1a73e8;
   color: #fff;
   font-size: 22px;
+  line-height: 1;
   box-shadow: 0 10px 28px rgba(26, 115, 232, 0.35);
   cursor: pointer;
 }
 
-.notes-attach-fab:hover {
+body.notes-page .notes-attach-fab:hover {
   background: #1765cc;
 }
 
-.notes-year-dock {
+body.notes-page .notes-year-dock {
   position: fixed;
   right: max(20px, env(safe-area-inset-right, 0px));
   bottom: max(24px, env(safe-area-inset-bottom, 0px));
-  z-index: 60;
+  z-index: 120;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
   padding: 8px;
   border-radius: 999px;
   background: rgba(20, 24, 28, 0.86);
@@ -3807,22 +3829,28 @@ button.link.danger,
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.notes-year-dock[hidden] {
+body.notes-page .notes-year-dock[hidden] {
   display: none !important;
 }
 
-.notes-year-dock.is-hiding {
+body.notes-page .notes-year-dock.is-hiding {
   opacity: 0;
   transform: translateY(8px);
+  pointer-events: none;
 }
 
-.notes-year-dock-field {
+body.notes-page .notes-year-dock-field {
   display: flex;
+  margin: 0;
 }
 
-.notes-year-dock select {
+body.notes-page .notes-year-dock select {
   appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
   min-height: 38px;
+  height: 38px;
+  margin: 0;
   padding: 0 30px 0 14px;
   border: 0;
   border-radius: 999px;
@@ -3835,18 +3863,23 @@ button.link.danger,
   font-family: 'Outfit', sans-serif;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
 }
 
-.notes-year-dock select option {
+body.notes-page .notes-year-dock select option {
   color: #11151a;
 }
 
-.notes-year-dock-top {
+body.notes-page .notes-year-dock-top {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  box-sizing: border-box;
   min-height: 38px;
+  height: 38px;
+  margin: 0;
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
@@ -3856,42 +3889,40 @@ button.link.danger,
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  line-height: 1;
   cursor: pointer;
 }
 
-.notes-year-dock-top:hover {
+body.notes-page .notes-year-dock-top:hover {
   background: #e8eef5;
 }
 
 @media (max-width: 768px) {
-  .notes-attach-fab {
+  body.notes-page .notes-attach-fab {
     right: 12px;
     bottom: calc(136px + env(safe-area-inset-bottom, 0px));
     width: 48px;
     height: 48px;
   }
 
-  .notes-year-dock {
+  body.notes-page .notes-year-dock {
     bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     right: 12px;
   }
 }
 
 .notes-search-label {
+  display: inline-flex;
+  align-items: center;
   margin: 0;
   flex: 1 1 220px;
   min-width: 160px;
   max-width: 320px;
+  min-height: 38px;
 }
 
 .notes-search-label input[type="search"] {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  background: #fff;
-  font: inherit;
-  font-size: 14px;
 }
 
 .notes-category-filter select {

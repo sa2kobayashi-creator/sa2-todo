@@ -486,12 +486,26 @@ class PhotoController extends Controller
         return response()->json($this->archiveRunPayload($state, (int) $request->user()->id));
     }
 
-    /** バックグラウンドアーカイブの進捗 */
+    /** バックグラウンドアーカイブの進捗（実行中ならここで1バッチ進める） */
     public function archiveColdStatus(Request $request)
     {
         $runs = app(\App\Services\PhotoColdArchiveRunService::class);
+        $userId = (int) $request->user()->id;
 
-        return response()->json($this->archiveRunPayload($runs->current(), (int) $request->user()->id));
+        if ($request->boolean('dismiss')) {
+            return response()->json($this->archiveRunPayload($runs->dismissTerminal(), $userId));
+        }
+
+        $state = $runs->current();
+        // cron が無い共有ホストでも、Photos を開いている間はポーリングで進める
+        if (($state['status'] ?? '') === \App\Services\PhotoColdArchiveRunService::STATUS_RUNNING) {
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(max(60, (int) config('photos.archive_cold_request_timeout_seconds', 180)));
+            }
+            $state = $runs->tick();
+        }
+
+        return response()->json($this->archiveRunPayload($state, $userId));
     }
 
     /** バックグラウンドアーカイブの中止依頼 */
@@ -515,9 +529,8 @@ class PhotoController extends Controller
             'ok' => true,
             'run' => $state,
             'running' => $running,
-            'storageStats' => $running
-                ? null
-                : $this->photos->storageStats($userId),
+            // 実行中も使用量を返し、画面上の R2 数字が動いていることを見える化する
+            'storageStats' => $this->photos->storageStats($userId),
         ];
     }
 

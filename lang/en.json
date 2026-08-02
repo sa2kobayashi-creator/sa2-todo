@@ -213,6 +213,8 @@
     "アーカイブを中止しました。": "Archive cancelled.",
     "アーカイブ中… 移動 :archived 件 · スキップ :skipped 件 · エラー :errors 件": "Archiving… moved :archived · skipped :skipped · errors :errors",
     "バックグラウンドで移動中です。他の画面へ移っても大丈夫です。": "Moving in the background. You can switch to other screens.",
+    "このページを開いている間も移動を続けます。": "Transfer continues while this page is open.",
+    "数回試しましたが移動できませんでした。ログと B2 設定を確認してください。": "Could not move files after several attempts. Check the log and B2 settings.",
     "通信エラーで状態を取得できませんでした。ページを再読み込みしてください。": "Could not fetch status (network error). Please reload the page.",
     "Photosの「B2へアーカイブ」はバックグラウンド実行です（他画面へ移っても継続）。毎分の tick と毎日 3:30 の自動実行があります。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES": "Photos “Archive to B2” runs in the background (keeps going if you leave the page). A per-minute tick and a daily 3:30 job advance it. Tune: PHOTO_ARCHIVE_COLD_BATCH_SECONDS, PHOTO_ARCHIVE_COLD_BATCH_SIZE, PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES.",
     "0 にすると日数アーカイブは行わず、容量ベースの振り分けのみです。モード2では日数経過で B2 へ移します。": "0 disables age-based archive (capacity routing only). Mode 2 moves to B2 by age.",

@@ -96,7 +96,7 @@ class PhotoColdArchiveRunService
     }
 
     /**
-     * 実行中なら中止を依頼する（次の tick で止まる）。
+     * 実行中なら中止を依頼し、可能ならこの場で停止する。
      *
      * @return array<string, mixed>
      */
@@ -112,11 +112,30 @@ class PhotoColdArchiveRunService
         $state['updated_at'] = now()->toIso8601String();
         $this->save($state);
 
-        return $state;
+        // 次の cron を待たず、すぐ cancelled に倒す（ロック中なら次の tick で確定）
+        return $this->tick();
     }
 
     /**
-     * 1ソフトバッチ分だけ進める。cron / afterResponse から呼ばれる。
+     * 完了／失敗／中止の表示を消して idle に戻す（メッセージが残り続けるのを防ぐ）。
+     *
+     * @return array<string, mixed>
+     */
+    public function dismissTerminal(): array
+    {
+        $state = $this->current();
+        if (! in_array($state['status'], [self::STATUS_COMPLETED, self::STATUS_FAILED, self::STATUS_CANCELLED], true)) {
+            return $state;
+        }
+
+        $idle = $this->idleState();
+        Cache::forget(self::CACHE_KEY);
+
+        return $idle;
+    }
+
+    /**
+     * 1ソフトバッチ分だけ進める。cron / afterResponse / status ポーリングから呼ばれる。
      *
      * @return array<string, mixed>
      */
@@ -139,20 +158,52 @@ class PhotoColdArchiveRunService
 
             $batchLimit = max(1, $limit ?? (int) config('photos.archive_cold_batch_size', 8));
             $stats = $this->archive->archiveDuePhotos($batchLimit);
+            $batchArchived = (int) ($stats['archived'] ?? 0);
+            $batchBytes = (int) ($stats['bytesMoved'] ?? 0);
 
-            $state['archived'] += (int) ($stats['archived'] ?? 0);
+            $state['archived'] += $batchArchived;
             $state['skipped'] += (int) ($stats['skipped'] ?? 0);
             $state['errors'] += (int) ($stats['errors'] ?? 0);
-            $state['bytes_moved'] += (int) ($stats['bytesMoved'] ?? 0);
+            $state['bytes_moved'] += $batchBytes;
             $state['reason'] = (string) ($stats['reason'] ?? '');
             $state['last_error'] = (string) ($stats['lastError'] ?? $state['last_error']);
             $state['last_error_photo_id'] = $stats['lastErrorPhotoId'] ?? $state['last_error_photo_id'];
             $state['updated_at'] = now()->toIso8601String();
             $state['message'] = $this->progressMessage($state);
 
+            // 進捗ゼロのまま hasMore が立つと永遠に「実行中」になるので打ち切る
+            if ($batchArchived === 0 && $batchBytes === 0) {
+                $state['empty_ticks'] = (int) ($state['empty_ticks'] ?? 0) + 1;
+            } else {
+                $state['empty_ticks'] = 0;
+            }
+
             $hasMore = (bool) ($stats['hasMore'] ?? false);
+            if ($hasMore && (int) $state['empty_ticks'] >= 5) {
+                return $this->finish(
+                    $state,
+                    self::STATUS_FAILED,
+                    $this->failedMessage(array_merge($state, [
+                        'last_error' => $state['last_error'] !== ''
+                            ? $state['last_error']
+                            : __('数回試しましたが移動できませんでした。ログと B2 設定を確認してください。'),
+                    ]))
+                );
+            }
+
             if (! $hasMore) {
-                if ($state['archived'] === 0 && $state['errors'] > 0) {
+                $noopReasons = [
+                    PhotoColdArchiveService::REASON_WITHIN_QUOTA,
+                    PhotoColdArchiveService::REASON_NO_DUE_PHOTOS,
+                    '',
+                ];
+                if (
+                    $state['archived'] === 0
+                    && (
+                        $state['errors'] > 0
+                        || ! in_array($state['reason'], $noopReasons, true)
+                    )
+                ) {
                     return $this->finish(
                         $state,
                         self::STATUS_FAILED,
@@ -308,6 +359,7 @@ class PhotoColdArchiveRunService
             'finished_at' => null,
             'cancel_requested' => false,
             'run_id' => '',
+            'empty_ticks' => 0,
         ]);
     }
 
@@ -333,6 +385,7 @@ class PhotoColdArchiveRunService
             'finished_at' => $state['finished_at'] ?? null,
             'cancel_requested' => (bool) ($state['cancel_requested'] ?? false),
             'run_id' => (string) ($state['run_id'] ?? ''),
+            'empty_ticks' => (int) ($state['empty_ticks'] ?? 0),
         ];
     }
 }

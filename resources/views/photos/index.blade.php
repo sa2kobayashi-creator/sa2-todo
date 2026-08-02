@@ -252,14 +252,14 @@
           </p>
         @endif
         @if(!empty($storageStats['archiveEnabled']) || ($storageStats['coldCount'] ?? 0) > 0)
-          <div class="photos-storage-sub">
+          <div class="photos-storage-sub" id="photos-storage-sub">
             {{ __('常用') }} ({{ $storageStats['primaryLabel'] }}):
-            {{ $storageStats['formattedHotUsed'] }} / {{ $storageStats['formattedQuota'] }}
-            {{ __('（:count枚）', ['count' => $storageStats['hotCount']]) }}
+            <span id="photos-storage-hot-used">{{ $storageStats['formattedHotUsed'] }}</span> / {{ $storageStats['formattedQuota'] }}
+            <span id="photos-storage-hot-count">{{ __('（:count枚）', ['count' => $storageStats['hotCount']]) }}</span>
             ·
             {{ __('長期保存') }} (Backblaze B2):
-            {{ $storageStats['formattedColdUsed'] }} / {{ $storageStats['formattedB2Quota'] }}
-            {{ __('（:count枚）', ['count' => $storageStats['coldCount']]) }}
+            <span id="photos-storage-cold-used">{{ $storageStats['formattedColdUsed'] }}</span> / {{ $storageStats['formattedB2Quota'] }}
+            <span id="photos-storage-cold-count">{{ __('（:count枚）', ['count' => $storageStats['coldCount']]) }}</span>
           </div>
         @endif
         <p class="photos-storage-note">
@@ -383,7 +383,8 @@
             'fail' => __('アーカイブに失敗しました'),
             'network' => __('通信エラーで状態を取得できませんでした。ページを再読み込みしてください。'),
             'sessionExpired' => __('セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。'),
-            'backgroundHint' => __('バックグラウンドで移動中です。他の画面へ移っても大丈夫です。'),
+            'backgroundHint' => __('このページを開いている間も移動を続けます。'),
+            'countLabel' => __('（:count枚）'),
         ];
       @endphp
       <script>
@@ -398,6 +399,7 @@
           const NOTIFIED_KEY = 'photosArchiveNotifiedRun'
           let pollTimer = 0
           let starting = false
+          let polling = false
 
           function setStatus(text) {
             if (statusEl) statusEl.textContent = text || ''
@@ -454,6 +456,22 @@
             try { sessionStorage.setItem(NOTIFIED_KEY, runId || '') } catch (_) {}
           }
 
+          function applyStorageStats(stats) {
+            if (!stats) return
+            const hotUsed = document.getElementById('photos-storage-hot-used')
+            const hotCount = document.getElementById('photos-storage-hot-count')
+            const coldUsed = document.getElementById('photos-storage-cold-used')
+            const coldCount = document.getElementById('photos-storage-cold-count')
+            if (hotUsed && stats.formattedHotUsed) hotUsed.textContent = stats.formattedHotUsed
+            if (coldUsed && stats.formattedColdUsed) coldUsed.textContent = stats.formattedColdUsed
+            if (hotCount && typeof stats.hotCount !== 'undefined') {
+              hotCount.textContent = i18n.countLabel.replace(':count', String(stats.hotCount))
+            }
+            if (coldCount && typeof stats.coldCount !== 'undefined') {
+              coldCount.textContent = i18n.countLabel.replace(':count', String(stats.coldCount))
+            }
+          }
+
           async function fetchJson(url, options) {
             const response = await fetch(url, Object.assign({
               credentials: 'same-origin',
@@ -465,22 +483,37 @@
             return { ok: response.ok, status: response.status, data: data, text: text }
           }
 
+          async function dismissTerminal() {
+            try {
+              await fetchJson('/photos/archive-cold/status?dismiss=1')
+            } catch (_) {}
+          }
+
           function handleTerminal(run) {
             const status = run && run.status
             const message = (run && run.message) || i18n.fail
-            setStatus(message)
             applyIdleUi()
             stopPolling()
 
             const runId = (run && run.run_id) || ''
-            if (runId && notifiedRunId() === runId) return
+            if (runId && notifiedRunId() === runId) {
+              // リロード後に同じ中止／完了メッセージが残り続けないよう消す
+              setStatus('')
+              void dismissTerminal()
+              return
+            }
             if (runId) markNotified(runId)
+            setStatus(message)
 
             if (status === 'completed' || status === 'failed' || status === 'cancelled') {
               window.alert(message)
-              if (status === 'completed' || (run && Number(run.archived) > 0)) {
-                window.location.reload()
-              }
+              void dismissTerminal().then(function () {
+                if (status === 'completed' || (run && Number(run.archived) > 0)) {
+                  window.location.reload()
+                } else {
+                  setStatus('')
+                }
+              })
             }
           }
 
@@ -492,6 +525,7 @@
           function applyStatus(payload) {
             const run = (payload && payload.run) || {}
             const status = run.status || 'idle'
+            applyStorageStats(payload && payload.storageStats)
             if (status === 'running') {
               applyRunningUi(run)
               startPolling()
@@ -503,10 +537,13 @@
             }
             applyIdleUi()
             stopPolling()
-            if (run.message) setStatus(run.message)
+            // idle に戻ったあとに古い「中止しました」を出さない
+            setStatus('')
           }
 
           async function pollOnce() {
+            if (polling) return
+            polling = true
             try {
               const res = await fetchJson('/photos/archive-cold/status')
               if (res.status === 419) {
@@ -520,6 +557,8 @@
               applyStatus(res.data)
             } catch (_) {
               setStatus(i18n.network)
+            } finally {
+              polling = false
             }
           }
 
