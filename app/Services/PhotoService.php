@@ -7,6 +7,7 @@ use App\Jobs\SyncPhotoToCloudinary;
 use App\Models\Photo;
 use App\Models\PhotoAlbum;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class PhotoService
@@ -254,6 +255,22 @@ class PhotoService
 
     public function storageStats(int $userId): array
     {
+        return Cache::remember(
+            'photos:storage_stats:'.$userId,
+            now()->addSeconds(45),
+            fn () => $this->computeStorageStats($userId)
+        );
+    }
+
+    /** アップロード／削除直後に呼ぶ */
+    public function forgetStorageStatsCache(int $userId): void
+    {
+        Cache::forget('photos:storage_stats:'.$userId);
+        unset($this->usedBytesApproxCache[$userId]);
+    }
+
+    public function computeStorageStats(int $userId): array
+    {
         $thumbExtra = (int) Photo::query()
             ->where('user_id', $userId)
             ->whereNotNull('thumb_path')
@@ -279,6 +296,7 @@ class PhotoService
         $overflowCount = (int) (clone $overflowQuery)->count();
         $hotUsedApprox = $hotUsed + $thumbExtra;
         $usedApprox = $hotUsedApprox + $coldUsed + $overflowUsed;
+        $this->usedBytesApproxCache[$userId] = $usedApprox;
         $photoCount = $hotCount + $coldCount + $overflowCount;
         $videoCount = $this->videoCountForUser($userId);
         $imageCount = max(0, $photoCount - $videoCount);
@@ -598,7 +616,7 @@ class PhotoService
     {
         $groupIds = $this->groups->approvedGroupIdsForUser($userId);
 
-        return PhotoAlbum::query()
+        $albums = PhotoAlbum::query()
             ->with(['group', 'user'])
             ->withCount('photos')
             ->where(function ($q) use ($userId, $groupIds) {
@@ -623,9 +641,74 @@ class PhotoService
             ->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$userId])
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get()
-            ->map(fn (PhotoAlbum $album) => $this->albumToArray($album, $userId))
+            ->get();
+
+        $coverByAlbumId = $this->resolveAlbumCovers($albums);
+
+        return $albums
+            ->map(fn (PhotoAlbum $album) => $this->albumToArray(
+                $album,
+                $userId,
+                $coverByAlbumId[(int) $album->id] ?? null
+            ))
             ->all();
+    }
+
+    /**
+     * アルバム表紙をまとめて解決（N+1 回避）。
+     *
+     * @param  \Illuminate\Support\Collection<int, PhotoAlbum>  $albums
+     * @return array<int, Photo>
+     */
+    private function resolveAlbumCovers($albums): array
+    {
+        if ($albums->isEmpty()) {
+            return [];
+        }
+
+        $coverIds = $albums->pluck('cover_photo_id')->filter()->unique()->values()->all();
+        $coversById = $coverIds === []
+            ? collect()
+            : Photo::query()->whereIn('id', $coverIds)->get()->keyBy('id');
+
+        $needFallbackIds = [];
+        foreach ($albums as $album) {
+            $coverId = $album->cover_photo_id ? (int) $album->cover_photo_id : null;
+            if (! $coverId || ! $coversById->has($coverId)) {
+                $needFallbackIds[] = (int) $album->id;
+            }
+        }
+
+        $fallbackByAlbumId = [];
+        if ($needFallbackIds !== []) {
+            $latestIds = Photo::query()
+                ->selectRaw('album_id, MAX(id) as max_id')
+                ->whereIn('album_id', $needFallbackIds)
+                ->groupBy('album_id')
+                ->pluck('max_id', 'album_id');
+            if ($latestIds->isNotEmpty()) {
+                $fallbackPhotos = Photo::query()->whereIn('id', $latestIds->values()->all())->get()->keyBy('id');
+                foreach ($latestIds as $albumId => $photoId) {
+                    $photo = $fallbackPhotos->get($photoId);
+                    if ($photo) {
+                        $fallbackByAlbumId[(int) $albumId] = $photo;
+                    }
+                }
+            }
+        }
+
+        $result = [];
+        foreach ($albums as $album) {
+            $albumId = (int) $album->id;
+            $coverId = $album->cover_photo_id ? (int) $album->cover_photo_id : null;
+            if ($coverId && $coversById->has($coverId)) {
+                $result[$albumId] = $coversById->get($coverId);
+            } elseif (isset($fallbackByAlbumId[$albumId])) {
+                $result[$albumId] = $fallbackByAlbumId[$albumId];
+            }
+        }
+
+        return $result;
     }
 
     public function canViewAlbum(int $userId, PhotoAlbum $album): bool
@@ -703,12 +786,59 @@ class PhotoService
         return $album;
     }
 
+    /** 年フィルタ用。全件ロードせず DISTINCT で取得する。 @return list<int> */
+    public function listPhotoYears(int $userId, ?int $albumId = null): array
+    {
+        $query = Photo::query();
+        if ($albumId !== null) {
+            $album = $this->findViewableAlbum($userId, $albumId);
+            if (! $album) {
+                return [];
+            }
+            $query->where('album_id', $albumId);
+        } else {
+            $query->where('user_id', $userId);
+        }
+
+        $driver = $query->getConnection()->getDriverName();
+        $yearExpr = $driver === 'sqlite'
+            ? "CAST(strftime('%Y', taken_at) AS INTEGER)"
+            : 'YEAR(taken_at)';
+
+        return $query
+            ->whereNotNull('taken_at')
+            ->selectRaw('DISTINCT '.$yearExpr.' as y')
+            ->orderByDesc('y')
+            ->pluck('y')
+            ->map(fn ($y) => (int) $y)
+            ->filter(fn (int $y) => $y >= 1970 && $y <= 2100)
+            ->values()
+            ->all();
+    }
+
+    public function countPhotos(int $userId, ?int $albumId = null): int
+    {
+        $query = Photo::query();
+        if ($albumId !== null) {
+            $album = $this->findViewableAlbum($userId, $albumId);
+            if (! $album) {
+                return 0;
+            }
+            $query->where('album_id', $albumId);
+        } else {
+            $query->where('user_id', $userId);
+        }
+
+        return (int) $query->count();
+    }
+
     /** @return list<array<string, mixed>> */
     public function listPhotos(
         int $userId,
         ?int $albumId = null,
         string $sort = 'taken_desc',
-        ?int $year = null
+        ?int $year = null,
+        ?int $limit = null,
     ): array {
         $query = Photo::query();
         if ($albumId !== null) {
@@ -733,6 +863,10 @@ class PhotoService
             'size_asc' => $query->orderBy('size_bytes')->orderByDesc('id'),
             default => $query->orderByDesc('taken_at')->orderByDesc('id'),
         };
+
+        if ($limit !== null && $limit > 0) {
+            $query->limit($limit);
+        }
 
         return $query
             ->get()
@@ -1212,6 +1346,10 @@ class PhotoService
 
         if ($created === [] && $skipped === []) {
             throw new \InvalidArgumentException('アップロードできるファイルがありません');
+        }
+
+        if ($created !== []) {
+            $this->forgetStorageStatsCache($userId);
         }
 
         return ['created' => $created, 'skipped' => $skipped];
@@ -1752,6 +1890,8 @@ class PhotoService
             ->where('user_id', $userId)
             ->whereIn('id', $photoIds)
             ->delete();
+
+        $this->forgetStorageStatsCache($userId);
 
         return count($photoIds);
     }
@@ -2908,14 +3048,15 @@ class PhotoService
     }
 
     /** @return array<string, mixed> */
-    public function albumToArray(PhotoAlbum $album, ?int $viewerUserId = null): array
+    public function albumToArray(PhotoAlbum $album, ?int $viewerUserId = null, ?Photo $cover = null): array
     {
-        $cover = null;
-        if ($album->cover_photo_id) {
-            $cover = Photo::query()->find($album->cover_photo_id);
-        }
-        if (! $cover) {
-            $cover = Photo::query()->where('album_id', $album->id)->orderByDesc('id')->first();
+        if ($cover === null) {
+            if ($album->cover_photo_id) {
+                $cover = Photo::query()->find($album->cover_photo_id);
+            }
+            if (! $cover) {
+                $cover = Photo::query()->where('album_id', $album->id)->orderByDesc('id')->first();
+            }
         }
 
         $coverIsVideo = $cover

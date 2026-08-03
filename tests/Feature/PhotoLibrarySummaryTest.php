@@ -136,4 +136,25 @@ class PhotoLibrarySummaryTest extends TestCase
 
         $this->assertSame([2026, 2024], $years);
     }
+
+    public function test_large_libraries_auto_scope_to_latest_year_until_all_requested(): void
+    {
+        $user = $this->makeUser('autoscope@example.com');
+        for ($i = 0; $i < 121; $i++) {
+            $this->makePhoto($user, "old{$i}.jpg", 'image/jpeg', sprintf('2024-01-%02d 10:00:00', ($i % 28) + 1));
+        }
+        $this->makePhoto($user, 'new.jpg', 'image/jpeg', '2026-08-01 10:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('最新の 2026 年のみ表示')
+            ->assertSee('すべての年を表示')
+            ->assertSee('data-year="2026"', false)
+            ->assertDontSee('data-year="2024"', false);
+
+        $this->actingAs($user)->get('/photos?year=all')
+            ->assertOk()
+            ->assertDontSee('最新の 2026 年のみ表示')
+            ->assertSee('data-year="2024"', false);
+    }
 }

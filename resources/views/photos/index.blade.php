@@ -725,6 +725,12 @@
           </div>
         </div>
       @else
+        @if(!empty($photosYearAutoScoped) && !empty($photosYear))
+          <p class="hint photos-year-auto-hint">
+            {{ __('表示を速くするため、最新の :year 年のみ表示しています（全 :total 件）。', ['year' => $photosYear, 'total' => $photosTotalInScope ?? count($photos)]) }}
+            <a href="{{ url('/photos'.(($selectedAlbumId ?? null) ? ('?album='.$selectedAlbumId.'&year=all') : '?year=all')) }}">{{ __('すべての年を表示') }}</a>
+          </p>
+        @endif
         <div class="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
           <div class="photos-mode-toggle" role="group" aria-label="{{ __('表示モード') }}">
             <button type="button" class="photos-mode-btn is-active" data-photos-mode="normal" aria-pressed="true">{{ __('通常') }}</button>
@@ -750,7 +756,7 @@
           <label class="photos-toolbar-select">
             <span class="visually-hidden">{{ __('年で絞り込み') }}</span>
             <select id="photos-year-select" aria-label="{{ __('年で絞り込み') }}">
-              <option value="" @selected(empty($photosYear))>{{ __('すべての年') }}</option>
+              <option value="all" @selected(!empty($photosYearExplicitAll) || (empty($photosYear) && empty($photosYearAutoScoped)))>{{ __('すべての年') }}</option>
               @foreach(($photoYears ?? []) as $yearOpt)
                 <option value="{{ $yearOpt }}" @selected((int) ($photosYear ?? 0) === (int) $yearOpt)>{{ __(':year年', ['year' => $yearOpt]) }}</option>
               @endforeach
@@ -1331,29 +1337,8 @@
 
     @php
       $usdToJpyFallback = max(1, (float) config('photos.usd_to_jpy_fallback', 150));
-      try {
-          $usdToJpy = (float) \Illuminate\Support\Facades\Cache::remember('photos_sim_usd_jpy', now()->addHours(6), function () use ($usdToJpyFallback) {
-              $res = \Illuminate\Support\Facades\Http::timeout(4)
-                  ->acceptJson()
-                  ->get('https://api.frankfurter.app/latest', [
-                      'from' => 'USD',
-                      'to' => 'JPY',
-                  ]);
-              if ($res->successful()) {
-                  $rate = (float) data_get($res->json(), 'rates.JPY', 0);
-                  if ($rate > 0) {
-                      return $rate;
-                  }
-              }
-
-              return $usdToJpyFallback;
-          });
-      } catch (\Throwable $e) {
-          $usdToJpy = $usdToJpyFallback;
-      }
-      if ($usdToJpy <= 0) {
-          $usdToJpy = $usdToJpyFallback;
-      }
+      // ページ表示をブロックしないよう FX はフォールバックのみ。シミュレーターはクライアントで取得する。
+      $usdToJpy = $usdToJpyFallback;
 
       $photosSimRates = [
         'r2FreeGb' => round(((int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024), 4),
@@ -1748,7 +1733,7 @@
 
     <script>
       (() => {
-        const photos = @json($photos);
+        const photos = @json($photosForJs ?? $photos);
         const uploadsBlocked = @json(!empty($storageStats['uploadsBlocked']));
         const uploadsBlockedMessage = @json(__('無料枠を超えているため追加できません。有料プラン連携後に超過利用が可能になります。'));
         const selectedAlbumId = @json($selectedAlbumId);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MediaStorageSetting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class StabilityAiService
@@ -131,24 +132,32 @@ class StabilityAiService
         }
 
         try {
-            $response = Http::withToken($apiKey)
-                ->timeout(5)
-                ->acceptJson()
-                ->get('https://api.stability.ai/v1/user/balance');
+            $credits = Cache::remember(
+                'stability:credit_balance:'.hash('xxh128', $apiKey),
+                now()->addMinutes(5),
+                function () use ($apiKey) {
+                    $response = Http::withToken($apiKey)
+                        ->timeout(5)
+                        ->acceptJson()
+                        ->get('https://api.stability.ai/v1/user/balance');
+
+                    if (! $response->successful()) {
+                        return null;
+                    }
+
+                    $value = data_get($response->json(), 'credits');
+                    if (! is_numeric($value)) {
+                        return null;
+                    }
+
+                    return round((float) $value, 4);
+                }
+            );
         } catch (\Throwable) {
             return null;
         }
 
-        if (! $response->successful()) {
-            return null;
-        }
-
-        $credits = data_get($response->json(), 'credits');
-        if (! is_numeric($credits)) {
-            return null;
-        }
-
-        return round((float) $credits, 4);
+        return is_numeric($credits) ? (float) $credits : null;
     }
 
     /**

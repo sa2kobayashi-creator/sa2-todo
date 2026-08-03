@@ -26,7 +26,6 @@ class PhotoController extends Controller
         if (! in_array($sort, ['taken_desc', 'taken_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc'], true)) {
             $sort = 'taken_desc';
         }
-        $year = $request->filled('year') ? (int) $request->query('year') : null;
         $revealHidden = (bool) session('photos_reveal_hidden_'.$userId, false);
         $albums = $this->photos->listAlbums($userId, $revealHidden);
         $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
@@ -42,9 +41,44 @@ class PhotoController extends Controller
         $albumLocked = $selectedAlbumModel
             && $this->photos->albumNeedsUnlock($selectedAlbumModel, $userId);
 
-        // 年選択肢用にフィルタ前の一覧（同一アルバム範囲）
-        $allForYears = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, 'taken_desc', null);
+        // year=all で全件。未指定かつ件数が多いときは最新年に自動絞り込み（初回表示を軽くする）
+        $yearRaw = $request->query('year');
+        $explicitAllYears = $yearRaw === 'all';
+        $year = (! $explicitAllYears && $request->filled('year') && is_numeric($yearRaw))
+            ? (int) $yearRaw
+            : null;
+
+        $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId);
+        $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId);
+        $autoYearScoped = false;
+        $autoYearThreshold = 120;
+        if (! $albumLocked && ! $explicitAllYears && $year === null && $totalInScope > $autoYearThreshold && $photoYears !== []) {
+            $year = $photoYears[0];
+            $autoYearScoped = true;
+        }
+
         $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year);
+        $photosForJs = array_map(static function (array $p): array {
+            return [
+                'id' => $p['id'] ?? null,
+                'albumId' => $p['albumId'] ?? null,
+                'url' => $p['url'] ?? null,
+                'thumbUrl' => $p['thumbUrl'] ?? null,
+                'originalName' => $p['originalName'] ?? null,
+                'caption' => $p['caption'] ?? null,
+                'mime' => $p['mime'] ?? null,
+                'mediaKind' => $p['mediaKind'] ?? 'image',
+                'width' => $p['width'] ?? null,
+                'height' => $p['height'] ?? null,
+                'takenAt' => $p['takenAt'] ?? null,
+                'takenDate' => $p['takenDate'] ?? null,
+                'takenAtLocal' => $p['takenAtLocal'] ?? null,
+                'canEdit' => $p['canEdit'] ?? false,
+                'fileUrl' => $p['fileUrl'] ?? null,
+                'editLabel' => $p['editLabel'] ?? null,
+                'parentPhotoId' => $p['parentPhotoId'] ?? null,
+            ];
+        }, $photoList);
         $ownedAlbums = array_values(array_filter($albums, fn ($a) => ! empty($a['canManage'])));
         $queryBase = [];
         if ($albumId) {
@@ -53,7 +87,9 @@ class PhotoController extends Controller
         if ($sort !== 'taken_desc') {
             $queryBase['sort'] = $sort;
         }
-        if ($year) {
+        if ($explicitAllYears) {
+            $queryBase['year'] = 'all';
+        } elseif ($year) {
             $queryBase['year'] = $year;
         }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
@@ -63,11 +99,15 @@ class PhotoController extends Controller
             'albums' => $albums,
             'ownedAlbums' => $ownedAlbums,
             'photos' => $photoList,
+            'photosForJs' => $photosForJs,
             'photoGroups' => $photoGroups,
-            'photoYears' => $this->photos->photoYearOptions($allForYears),
+            'photoYears' => $photoYears,
             'photoJumpYears' => $this->photos->groupYearOptions($photoGroups),
             'photosSort' => $sort,
             'photosYear' => $year,
+            'photosYearExplicitAll' => $explicitAllYears,
+            'photosYearAutoScoped' => $autoYearScoped,
+            'photosTotalInScope' => $totalInScope,
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
             'albumLocked' => $albumLocked,
