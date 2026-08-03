@@ -1,13 +1,13 @@
-{{-- スマホ月カレンダー: 下端ドラッグでセル高さを調整（既定は通常高さ） --}}
+{{-- スマホ月カレンダー: 下端バーをドラッグでセル高さを調整 --}}
 <script>
   (function () {
-    const STORAGE_KEY = 'sa2:cal-day-min-height'
-    // ツールバーと同じく 900px までをモバイル扱い（高DPI実機対策）
+    const STORAGE_KEY = 'sa2:cal-day-min-height-v2'
+    const LEGACY_STORAGE_KEY = 'sa2:cal-day-min-height'
     const MOBILE_MQ = '(max-width: 900px)'
-    const DEFAULT_MOBILE = 96
+    const DEFAULT_MOBILE = 64
     const DEFAULT_DESKTOP = 110
-    const MIN_H = 72
-    const MAX_H = 280
+    const MIN_H = 48
+    const MAX_H = 320
 
     function isMobile() {
       return window.matchMedia(MOBILE_MQ).matches
@@ -18,11 +18,18 @@
     }
 
     function applyHeight(px) {
-      const value = clamp(px) + 'px'
-      document.documentElement.style.setProperty('--cal-day-min-height', value)
-      document.querySelectorAll('.calendar-shell, .todos-calendar-panel').forEach((shell) => {
-        shell.style.setProperty('--cal-day-min-height', value)
+      const value = clamp(px)
+      const css = value + 'px'
+      document.documentElement.style.setProperty('--cal-day-min-height', css)
+      document.querySelectorAll('.calendar-shell').forEach((shell) => {
+        shell.style.setProperty('--cal-day-min-height', css)
       })
+      document.querySelectorAll('[data-cal-height-handle]').forEach((el) => {
+        el.setAttribute('aria-valuemin', String(MIN_H))
+        el.setAttribute('aria-valuemax', String(MAX_H))
+        el.setAttribute('aria-valuenow', String(value))
+      })
+      return value
     }
 
     function currentHeight() {
@@ -31,37 +38,45 @@
       return Number.isFinite(n) ? n : (isMobile() ? DEFAULT_MOBILE : DEFAULT_DESKTOP)
     }
 
+    function persist(px) {
+      if (!isMobile()) return
+      try {
+        window.localStorage.setItem(STORAGE_KEY, String(clamp(px)))
+      } catch (_) {}
+    }
+
+    function readStoredHeight() {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY)
+        if (raw != null) {
+          const n = Number(raw)
+          if (Number.isFinite(n)) return clamp(n)
+        }
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+      } catch (_) {}
+      return DEFAULT_MOBILE
+    }
+
     function loadHeight() {
       if (!isMobile()) {
-        applyHeight(DEFAULT_DESKTOP)
-        return DEFAULT_DESKTOP
+        return applyHeight(DEFAULT_DESKTOP)
       }
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      const n = raw != null ? Number(raw) : DEFAULT_MOBILE
-      const px = Number.isFinite(n) ? clamp(n) : DEFAULT_MOBILE
-      applyHeight(px)
-      return px
+      return applyHeight(readStoredHeight())
     }
 
-    function syncResizers() {
-      const show = isMobile()
-      document.querySelectorAll('[data-cal-height-resizer]').forEach((el) => {
-        el.hidden = !show
-        el.setAttribute('aria-hidden', show ? 'false' : 'true')
-      })
-    }
-
-    function bindResizer(el) {
+    function bindHandle(handle) {
       let startY = 0
       let startH = DEFAULT_MOBILE
       let dragging = false
       let activePointerId = null
 
       function clientYFromEvent(e) {
-        if (typeof e.clientY === 'number') return e.clientY
         const t = e.touches && e.touches[0]
         const ct = e.changedTouches && e.changedTouches[0]
-        return (t || ct || {}).clientY
+        const point = t || ct
+        if (point && typeof point.clientY === 'number') return point.clientY
+        if (typeof e.clientY === 'number') return e.clientY
+        return null
       }
 
       function onMove(clientY) {
@@ -73,11 +88,13 @@
         if (!dragging) return
         dragging = false
         activePointerId = null
-        el.classList.remove('is-dragging')
+        handle.classList.remove('is-dragging')
+        handle.closest('.calendar-height-resizer')?.classList.remove('is-dragging')
         document.body.classList.remove('cal-height-dragging')
-        try {
-          window.localStorage.setItem(STORAGE_KEY, String(clamp(currentHeight())))
-        } catch (_) {}
+        persist(currentHeight())
+        handle.removeEventListener('pointermove', onPointerMove)
+        handle.removeEventListener('pointerup', onPointerUp)
+        handle.removeEventListener('pointercancel', onPointerUp)
         window.removeEventListener('pointermove', onPointerMove)
         window.removeEventListener('pointerup', onPointerUp)
         window.removeEventListener('pointercancel', onPointerUp)
@@ -92,7 +109,8 @@
         activePointerId = pointerId != null ? pointerId : null
         startY = clientY
         startH = currentHeight()
-        el.classList.add('is-dragging')
+        handle.classList.add('is-dragging')
+        handle.closest('.calendar-height-resizer')?.classList.add('is-dragging')
         document.body.classList.add('cal-height-dragging')
       }
 
@@ -100,7 +118,7 @@
         if (!dragging) return
         if (activePointerId != null && e.pointerId !== activePointerId) return
         onMove(e.clientY)
-        e.preventDefault()
+        if (e.cancelable) e.preventDefault()
       }
 
       function onPointerUp(e) {
@@ -111,50 +129,48 @@
       function onTouchMove(e) {
         if (!dragging) return
         onMove(clientYFromEvent(e))
-        e.preventDefault()
+        if (e.cancelable) e.preventDefault()
       }
 
       function onTouchEnd() {
         onEnd()
       }
 
-      el.addEventListener('pointerdown', (e) => {
+      handle.addEventListener('pointerdown', (e) => {
         if (!isMobile()) return
         if (e.pointerType === 'mouse' && e.button !== 0) return
         beginDrag(e.clientY, e.pointerId)
-        try {
-          el.setPointerCapture(e.pointerId)
-        } catch (_) {}
+        try { handle.setPointerCapture(e.pointerId) } catch (_) {}
+        handle.addEventListener('pointermove', onPointerMove)
+        handle.addEventListener('pointerup', onPointerUp)
+        handle.addEventListener('pointercancel', onPointerUp)
         window.addEventListener('pointermove', onPointerMove, { passive: false })
         window.addEventListener('pointerup', onPointerUp)
         window.addEventListener('pointercancel', onPointerUp)
-        e.preventDefault()
+        window.addEventListener('touchmove', onTouchMove, { passive: false })
+        window.addEventListener('touchend', onTouchEnd)
+        window.addEventListener('touchcancel', onTouchEnd)
+        if (e.cancelable) e.preventDefault()
       })
 
-      // 一部 Android で Pointer Events が使えない場合のフォールバック
-      el.addEventListener('touchstart', (e) => {
-        if (window.PointerEvent || !isMobile() || dragging) return
+      handle.addEventListener('touchstart', (e) => {
+        if (!isMobile() || window.PointerEvent) return
         beginDrag(clientYFromEvent(e), null)
         window.addEventListener('touchmove', onTouchMove, { passive: false })
         window.addEventListener('touchend', onTouchEnd)
         window.addEventListener('touchcancel', onTouchEnd)
-      }, { passive: true })
+        if (e.cancelable) e.preventDefault()
+      }, { passive: false })
     }
 
     loadHeight()
-    syncResizers()
-    document.querySelectorAll('[data-cal-height-resizer]').forEach(bindResizer)
+    document.querySelectorAll('[data-cal-height-resizer]').forEach((root) => {
+      const handle = root.querySelector('[data-cal-height-handle]') || root
+      bindHandle(handle)
+    })
     const mq = window.matchMedia(MOBILE_MQ)
-    if (mq.addEventListener) {
-      mq.addEventListener('change', () => {
-        loadHeight()
-        syncResizers()
-      })
-    } else if (mq.addListener) {
-      mq.addListener(() => {
-        loadHeight()
-        syncResizers()
-      })
-    }
+    const onMq = () => loadHeight()
+    if (mq.addEventListener) mq.addEventListener('change', onMq)
+    else if (mq.addListener) mq.addListener(onMq)
   })()
 </script>

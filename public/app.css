@@ -1932,9 +1932,17 @@ a.filter-clear-btn {
     display: none !important;
   }
 
-  /* JS の MOBILE_MQ(900px) と揃える */
+  /* JS なしでも表示（hidden 依存をやめた） */
   .calendar-height-resizer {
-    display: block;
+    display: block !important;
+  }
+
+  /* 中身に合わせて伸びないよう固定高（ドラッグで伸縮できるようにする） */
+  .calendar-shell[data-calendar-view="month"] .calendar-day {
+    height: var(--cal-day-min-height, 64px);
+    min-height: var(--cal-day-min-height, 64px);
+    max-height: var(--cal-day-min-height, 64px);
+    overflow: hidden;
   }
 }
 
@@ -3105,39 +3113,45 @@ a.filter-clear-btn {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  cursor: ns-resize;
-  padding: 14px 12px 16px;
+  -webkit-touch-callout: none;
+  padding: 5px 12px 7px;
   text-align: center;
-  border-top: 1px dashed #dadce0;
-  background: #fafafa;
-  min-height: 48px;
+  border-top: 1px solid #e8eaed;
+  background: #fff;
   box-sizing: border-box;
+  position: relative;
+  z-index: 2;
 }
 
-.calendar-height-resizer[hidden] {
-  display: none !important;
+.calendar-height-resizer-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  margin: 0 auto;
+  max-width: 160px;
+  cursor: ns-resize;
+  touch-action: none;
+  border: none;
+  background: transparent;
+  padding: 4px 16px;
 }
 
 .calendar-height-resizer-bar {
   display: block;
-  width: 48px;
+  width: 44px;
   height: 5px;
-  margin: 0 auto 8px;
   border-radius: 999px;
   background: #9aa0a6;
 }
 
-.calendar-height-resizer-label {
-  font-size: 12px;
-  color: #6b7280;
-  pointer-events: none;
+.calendar-height-resizer.is-dragging,
+.calendar-height-resizer-handle.is-dragging {
+  background: transparent;
 }
 
-.calendar-height-resizer.is-dragging {
-  background: #e8f0fe;
-}
-
-.calendar-height-resizer.is-dragging .calendar-height-resizer-bar {
+.calendar-height-resizer.is-dragging .calendar-height-resizer-bar,
+.calendar-height-resizer-handle.is-dragging .calendar-height-resizer-bar {
   background: #1a73e8;
 }
 
@@ -8770,9 +8784,16 @@ body.map-page {
   }
 
   .calendar-day {
-    min-height: var(--cal-day-min-height, 96px);
+    min-height: var(--cal-day-min-height, 64px);
     padding: 3px 2px;
     cursor: pointer;
+  }
+
+  .calendar-shell[data-calendar-view="month"] .calendar-day {
+    height: var(--cal-day-min-height, 64px);
+    min-height: var(--cal-day-min-height, 64px);
+    max-height: var(--cal-day-min-height, 64px);
+    overflow: hidden;
   }
 
   .day-events {

@@ -161,10 +161,7 @@
             </div>
           @endforeach
         </div>
-        <div class="calendar-height-resizer" data-cal-height-resizer hidden>
-          <span class="calendar-height-resizer-bar" aria-hidden="true"></span>
-          <span class="calendar-height-resizer-label">{{ __('下にドラッグして高さを調整') }}</span>
-        </div>
+        @include('partials.calendar-height-resizer')
         @endif
       </div>
 

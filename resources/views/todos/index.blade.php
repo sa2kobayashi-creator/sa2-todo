@@ -414,13 +414,11 @@
               @endforeach
             </div>
             @endif
+            @if(($view ?? 'month') === 'month')
+              @include('partials.calendar-height-resizer')
+            @endif
           </div>
           @if(($view ?? 'month') === 'month')
-          <div class="calendar-height-resizer" data-cal-height-resizer hidden>
-            <span class="calendar-height-resizer-bar" aria-hidden="true"></span>
-            <span class="calendar-height-resizer-label">{{ __('下にドラッグして高さを調整') }}</span>
-          </div>
-
           <section class="mobile-month-agenda panel todos-mobile-agenda" aria-label="{{ $calendarMonth }}{{ __('月の予定一覧') }}">
             <h3>{{ $calendarMonth }}{{ __('月の予定') }}（{{ count($monthAgenda) }}{{ __('件') }}）</h3>
             @if(count($monthAgenda) === 0)
