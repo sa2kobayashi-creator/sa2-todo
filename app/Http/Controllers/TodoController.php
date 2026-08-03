@@ -12,6 +12,7 @@ use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
 use App\Services\TodoVoiceParseService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,66 +39,177 @@ class TodoController extends Controller
         $userId = (int) $user->id;
         $context = $this->contexts->current($user, $request);
         $filters = $this->todos->parseFilters($request->query());
-        $displayMode = ($request->query('display') === 'calendar') ? 'calendar' : 'list';
-        $pageResult = $this->todos->filterTodosPage($this->todos->listTodos($userId, $context), $filters);
-        $editId = (int) $request->query('edit');
-        $listQuery = $this->todos->buildTodosQuery($filters, [
-            'display' => $displayMode === 'calendar' ? 'calendar' : null,
+        // 既定はカレンダー。一覧は display=list のときだけ
+        $displayMode = $request->query('display') === 'list' ? 'list' : 'calendar';
+        $calState = $this->calendar->resolveCalendarState([
+            'view' => $request->query('view'),
+            'date' => $request->query('date'),
+            'year' => $request->query('year') ?? $filters['year'],
+            'month' => $request->query('month') ?? $filters['month'],
         ]);
+        $view = $calState['view'];
+        $focusDate = $calState['focusDate'];
+        $calendarYear = $calState['year'];
+        $calendarMonth = $calState['month'];
+        $listed = $this->todos->listTodos($userId, $context);
+        $listedTodos = $listed->all();
+
+        // 仕事モードは Google 予定をマージ（Meet 等をローカルにも反映）
+        $mergedTodos = $listedTodos;
+        if ($context === AppContext::Work) {
+            $mergedTodos = $this->mergeGoogleEvents($user, $listedTodos, $view, $focusDate, $calendarYear, $calendarMonth);
+        }
+
+        $googleExtrasById = [];
+        foreach ($mergedTodos as $todo) {
+            $id = $todo['id'] ?? null;
+            if (! is_numeric($id)) {
+                continue;
+            }
+            $googleExtrasById[(int) $id] = [
+                'googleMeetLink' => $todo['googleMeetLink'] ?? null,
+                'htmlLink' => $todo['htmlLink'] ?? null,
+            ];
+        }
+
+        $pageResult = $this->todos->filterTodosPage($listed, $filters);
+        $editId = (int) $request->query('edit');
+        $calNavExtra = $this->todosCalendarQueryExtra($view, $focusDate);
+        $listQuery = $this->todos->buildTodosQuery($filters, array_merge(
+            ['display' => $displayMode === 'list' ? 'list' : null],
+            $displayMode === 'calendar' ? $calNavExtra : []
+        ));
         $defaultStart = is_string($request->query('due')) ? $request->query('due') : '';
 
         $weeks = [];
-        $calendarYear = $filters['year'];
-        $calendarMonth = $filters['month'];
-        if ($displayMode === 'calendar') {
-            $holidayMap = $this->holidays->getHolidayInfoMapForYear($calendarYear);
-            $neighbor = $this->calendar->shiftMonth($calendarYear, $calendarMonth, -1);
-            $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($neighbor['year']));
-            $neighbor = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1);
-            $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($neighbor['year']));
+        $dayView = null;
+        $weekView = null;
+        $yearView = null;
+        $todosForJs = [];
+        $monthAgenda = [];
+        $activeNotes = [];
+        $prev = $this->calendar->shiftFocus($view, $focusDate, -1);
+        $next = $this->calendar->shiftFocus($view, $focusDate, 1);
+        $today = Carbon::now(config('app.timezone', 'Asia/Tokyo'))->format('Y-m-d');
+        $buildTodosCalUrl = fn (string $targetView, string $date) => $this->buildTodosCalendarUrl($filters, $targetView, $date);
 
-            $allTodos = $this->todos->listTodos($userId, $context)->all();
-            if ($context === AppContext::Work) {
-                $prev = $this->calendar->shiftMonth($calendarYear, $calendarMonth, -1);
-                $next = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1);
-                $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
-                $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
-                $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
-                $allTodos = $this->googleCalendar->mergeEventsIntoTodos($user, $allTodos, $timeMin, $timeMax);
+        if ($displayMode === 'calendar') {
+            $holidayYears = [$calendarYear];
+            if ($view === 'month') {
+                $holidayYears[] = $this->calendar->shiftMonth($calendarYear, $calendarMonth, -1)['year'];
+                $holidayYears[] = $this->calendar->shiftMonth($calendarYear, $calendarMonth, 1)['year'];
+            } elseif ($view === 'week') {
+                $weekStart = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'))->startOfWeek(Carbon::SUNDAY);
+                $weekEnd = $weekStart->copy()->addDays(6);
+                $holidayYears[] = (int) $weekStart->format('Y');
+                $holidayYears[] = (int) $weekEnd->format('Y');
             }
+            $holidayMap = [];
+            foreach (array_values(array_unique($holidayYears)) as $holidayYear) {
+                $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
+            }
+
+            $todosForJs = $mergedTodos;
             $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
-            $grid = $this->calendar->buildMonthGrid($calendarYear, $calendarMonth, $allTodos, $holidayMap);
-            $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
-            $weeks = $grid['weeks'];
+
+            if ($view === 'day') {
+                $dayView = $this->calendar->buildDayView($focusDate, $mergedTodos, $holidayMap, $activeNotes);
+            } elseif ($view === 'week') {
+                $weekView = $this->calendar->buildWeekView($focusDate, $mergedTodos, $holidayMap, $activeNotes);
+            } elseif ($view === 'year') {
+                $yearView = $this->calendar->buildYearView($calendarYear, $mergedTodos, $holidayMap);
+            } else {
+                $grid = $this->calendar->buildMonthGrid($calendarYear, $calendarMonth, $mergedTodos, $holidayMap);
+                $grid = $this->calendar->attachNotesToGrid($grid, $activeNotes, fn ($note) => $this->notes->getRegisteredDate($note));
+                $weeks = $grid['weeks'];
+                $monthAgenda = $this->buildMonthAgenda($calendarYear, $calendarMonth, $mergedTodos, $activeNotes);
+            }
+        }
+
+        $applyGoogleExtras = function (array $row) use ($googleExtrasById): array {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0 && isset($googleExtrasById[$id])) {
+                if (! empty($googleExtrasById[$id]['googleMeetLink'])) {
+                    $row['googleMeetLink'] = $googleExtrasById[$id]['googleMeetLink'];
+                }
+                if (! empty($googleExtrasById[$id]['htmlLink'])) {
+                    $row['htmlLink'] = $googleExtrasById[$id]['htmlLink'];
+                }
+            }
+
+            return $row;
+        };
+
+        $datedTodos = collect($pageResult['dated']['items'])
+            ->map(fn ($t) => $applyGoogleExtras($this->todos->mapTodoListRow($t)))
+            ->all();
+        $undatedTodos = collect($pageResult['undated'])
+            ->map(fn ($t) => $applyGoogleExtras($this->todos->mapTodoListRow($t, ['undated' => true])))
+            ->all();
+        // カレンダーから開いた編集対象がページ外でも、同じ ToDo 画面で編集行を出せるようにする
+        if ($editId > 0) {
+            $inList = collect($datedTodos)->contains(fn ($t) => (int) ($t['id'] ?? 0) === $editId)
+                || collect($undatedTodos)->contains(fn ($t) => (int) ($t['id'] ?? 0) === $editId);
+            if (! $inList) {
+                $editTodo = collect($listedTodos)->first(fn ($t) => (int) ($t['id'] ?? 0) === $editId);
+                if (is_array($editTodo) && $this->todos->userCanAccessTodo($userId, $editTodo)) {
+                    array_unshift($datedTodos, $applyGoogleExtras($this->todos->mapTodoListRow($editTodo)));
+                }
+            }
         }
 
         return view('todos.index', [
-            'todos' => collect($pageResult['dated']['items'])->map(fn ($t) => $this->todos->mapTodoListRow($t))->all(),
-            'undatedTodos' => collect($pageResult['undated'])->map(fn ($t) => $this->todos->mapTodoListRow($t, ['undated' => true]))->all(),
+            'todos' => $datedTodos,
+            'undatedTodos' => $undatedTodos,
             'pagination' => $pageResult['dated'],
             'datedTotal' => $pageResult['datedTotal'],
             'filters' => $filters,
             'displayMode' => $displayMode,
             'listQuery' => $listQuery,
             'listReturnTo' => '/todos'.$listQuery.'#todo-list-panel',
-            'buildTodosQuery' => fn (array $extra = []) => $this->todos->buildTodosQuery($filters, $extra),
-            'todayFilterHref' => $this->todos->buildTodayFilterHref($filters),
-            'clearFiltersHref' => $this->todos->buildClearFiltersHref(),
+            'buildTodosQuery' => fn (array $extra = []) => $this->todos->buildTodosQuery(
+                $filters,
+                array_merge(
+                    ['display' => $displayMode === 'list' ? 'list' : null],
+                    $displayMode === 'calendar' ? $calNavExtra : [],
+                    $extra
+                )
+            ),
+            'todayFilterHref' => '/todos'.$this->todos->buildTodosQuery(
+                [...$filters, 'scope' => 'today'],
+                ['display' => $displayMode === 'list' ? 'list' : null]
+            ).'#todo-list-panel',
+            'clearFiltersHref' => '/todos'.($displayMode === 'list' ? '?display=list' : '').'#todo-list-panel',
             'periodValue' => $filters['scope'] === 'today' ? '' : sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'periodYearValue' => (string) $filters['year'],
             'periodMode' => $filters['periodMode'] ?? 'month',
             'editId' => $editId > 0 ? $editId : null,
             'defaultStartDate' => $defaultStart,
             'defaultEndDate' => $defaultStart,
+            'view' => $view,
+            'viewLabels' => CalendarService::translatedViewLabels(),
+            'focusDate' => $focusDate,
+            'periodLabel' => $this->calendar->formatPeriodLabel($view, $focusDate),
+            'prevUrl' => $buildTodosCalUrl($view, $prev['focusDate']),
+            'nextUrl' => $buildTodosCalUrl($view, $next['focusDate']),
+            'todayUrl' => $buildTodosCalUrl($view, $today),
+            'buildViewUrl' => fn (string $targetView) => $buildTodosCalUrl($targetView, $focusDate),
+            'buildDashboardQuery' => $buildTodosCalUrl,
             'weeks' => $weeks,
+            'dayView' => $dayView,
+            'weekView' => $weekView,
+            'yearView' => $yearView,
+            'todosForJs' => $todosForJs,
+            'monthAgenda' => $monthAgenda,
             'calendarYear' => $calendarYear,
             'calendarMonth' => $calendarMonth,
             'weekdayLabels' => CalendarService::translatedWeekdayLabels(),
             'truncateTitle' => fn ($title, $max = 24) => $this->display->truncateTitle((string) $title, $max),
-            'limitTodosForCell' => fn ($todos, $limit = 4) => $this->display->limitTodosForCell($todos, $limit),
+            'limitTodosForCell' => fn ($todos, $limit = 6) => $this->display->limitTodosForCell($todos, $limit),
             'formatPeriodLabel' => fn ($todo) => $this->todos->formatPeriodLabel($todo),
             'formatNoteTooltip' => fn ($note) => $this->notes->formatNoteTooltip($note),
             'getNoteDisplayTitle' => fn ($note) => $this->notes->getDisplayTitle($note),
+            'getNoteRegisteredDate' => fn ($note) => $this->notes->getRegisteredDate($note),
             'noteColors' => NoteService::NOTE_COLORS,
             'dashboardMonthUrl' => $this->calendar->buildDashboardQuery(
                 'month',
@@ -320,5 +432,123 @@ class TodoController extends Controller
             $this->todos->parseIdList($request->input('ids')),
             fn (int $id) => $this->todos->userCanAccessTodo($userId, $this->todos->getTodo($id))
         ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $localTodos
+     * @return list<array<string, mixed>>
+     */
+    private function mergeGoogleEvents($user, array $localTodos, string $view, string $focusDate, int $year, int $month): array
+    {
+        if ($view === 'day') {
+            $timeMin = $focusDate.' 00:00:00';
+            $timeMax = $focusDate.' 23:59:59';
+        } elseif ($view === 'week') {
+            $start = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'))->startOfWeek(Carbon::SUNDAY);
+            $end = $start->copy()->addDays(6);
+            $timeMin = $start->format('Y-m-d').' 00:00:00';
+            $timeMax = $end->format('Y-m-d').' 23:59:59';
+        } elseif ($view === 'year') {
+            $timeMin = sprintf('%04d-01-01 00:00:00', $year);
+            $timeMax = sprintf('%04d-12-31 23:59:59', $year);
+        } else {
+            $prev = $this->calendar->shiftMonth($year, $month, -1);
+            $next = $this->calendar->shiftMonth($year, $month, 1);
+            $timeMin = sprintf('%04d-%02d-01 00:00:00', $prev['year'], $prev['month']);
+            $lastDay = cal_days_in_month(CAL_GREGORIAN, $next['month'], $next['year']);
+            $timeMax = sprintf('%04d-%02d-%02d 23:59:59', $next['year'], $next['month'], $lastDay);
+        }
+
+        return $this->googleCalendar->mergeEventsIntoTodos($user, $localTodos, $timeMin, $timeMax);
+    }
+
+    /** @return array<string, string> */
+    private function todosCalendarQueryExtra(string $view, string $focusDate): array
+    {
+        $focus = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'));
+        $extra = [];
+        if ($view !== 'month') {
+            $extra['view'] = $view;
+        }
+        if (in_array($view, ['day', 'week'], true)) {
+            $extra['date'] = $focus->format('Y-m-d');
+        }
+
+        return $extra;
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function buildTodosCalendarUrl(array $filters, string $view, string $focusDate): string
+    {
+        $focus = Carbon::parse($focusDate, config('app.timezone', 'Asia/Tokyo'));
+        $year = (int) $focus->format('Y');
+        $month = (int) $focus->format('n');
+        $isYear = $view === 'year';
+        $calFilters = [
+            ...$filters,
+            'scope' => $isYear ? 'year' : 'month',
+            'periodMode' => $isYear ? 'year' : 'month',
+            'year' => $year,
+            'month' => $month,
+            'page' => 1,
+        ];
+
+        return '/todos'.$this->todos->buildTodosQuery(
+            $calFilters,
+            array_merge(['display' => null], $this->todosCalendarQueryExtra($view, $focusDate))
+        ).'#todo-list-panel';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $allTodos
+     * @param  list<array<string, mixed>>  $activeNotes
+     * @return list<array<string, mixed>>
+     */
+    private function buildMonthAgenda(int $year, int $month, array $allTodos, array $activeNotes): array
+    {
+        $monthStart = sprintf('%04d-%02d-01', $year, $month);
+        $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year));
+
+        $items = [];
+        foreach ($allTodos as $todo) {
+            $range = $this->todos->getTodoRange($todo);
+            if (! $range || $range['start'] > $monthEnd || $range['end'] < $monthStart) {
+                continue;
+            }
+            $items[] = [
+                'kind' => 'todo',
+                'sortDate' => $todo['startDate'] ?? $todo['endDate'] ?? '',
+                'sortTime' => $todo['startTime'] ?? '',
+                'todo' => $todo,
+            ];
+        }
+        foreach ($activeNotes as $note) {
+            $d = $this->notes->getRegisteredDate($note);
+            if (! $d || $d < $monthStart || $d > $monthEnd) {
+                continue;
+            }
+            $items[] = [
+                'kind' => 'note',
+                'sortDate' => $d,
+                'sortTime' => '',
+                'note' => $note,
+            ];
+        }
+        usort($items, function ($a, $b) {
+            $dateCmp = strcmp((string) $a['sortDate'], (string) $b['sortDate']);
+            if ($dateCmp !== 0) {
+                return $dateCmp;
+            }
+            if ($a['kind'] !== $b['kind']) {
+                return $a['kind'] === 'todo' ? -1 : 1;
+            }
+            if ($a['kind'] === 'todo') {
+                return $this->display->compareTodosByDayTime($a['todo'], $b['todo']);
+            }
+
+            return 0;
+        });
+
+        return $items;
     }
 }

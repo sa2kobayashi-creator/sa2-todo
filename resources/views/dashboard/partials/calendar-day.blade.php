@@ -15,8 +15,12 @@
           data-tip-title="{{ $todo['title'] }}"
           data-tip-date="{{ $formatPeriodLabel($todo) }}"
           data-tip-time="{{ __('終日') }}"
+          @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
         >
           <span class="event-title">{{ $truncateTitle($todo['title'], 40) }}</span>
+          @if(!empty($todo['googleMeetLink']))
+            <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+          @endif
         </button>
       @endforeach
       @foreach(($dayView['cell']['notes'] ?? []) as $note)
@@ -69,6 +73,9 @@
           >
             <span class="cal-timed-event-time">{{ $todo['layoutStartLabel'] }}</span>
             <span class="event-title">{{ $truncateTitle($todo['title'], 36) }}</span>
+            @if(!empty($todo['googleMeetLink']))
+              <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+            @endif
           </button>
         @endforeach
       </div>

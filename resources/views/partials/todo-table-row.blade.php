@@ -3,7 +3,19 @@
     <input type="checkbox" class="todo-check" value="{{ $row['id'] }}" aria-label="{{ __('選択') }}" />
   </td>
   <td class="todo-col-date">{{ $row['dateLabel'] ?? '—' }}</td>
-  <td class="todo-col-title title">{{ $row['title'] }}</td>
+  <td class="todo-col-title title">
+    {{ $row['title'] }}
+    @if(!empty($row['googleMeetLink']))
+      <a
+        class="event-meet-badge"
+        href="{{ $row['googleMeetLink'] }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Google Meet"
+        onclick="event.stopPropagation()"
+      >Meet</a>
+    @endif
+  </td>
   <td class="todo-col-time">{{ $row['timeLabel'] ?? '—' }}</td>
   <td class="todo-col-category">
     <span class="category-badge category-{{ $row['category'] }}">{{ $row['categoryLabel'] ?? '—' }}</span>

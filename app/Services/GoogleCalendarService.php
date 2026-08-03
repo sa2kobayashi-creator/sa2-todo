@@ -301,21 +301,40 @@ class GoogleCalendarService
             return $localTodos;
         }
 
-        $known = [];
-        foreach ($localTodos as $todo) {
+        $byEventId = [];
+        foreach ($localTodos as $index => $todo) {
             if (! empty($todo['googleEventId'])) {
-                $known[(string) $todo['googleEventId']] = true;
+                $byEventId[(string) $todo['googleEventId']] = $index;
             }
         }
 
         foreach ($remote as $event) {
             $eid = (string) ($event['googleEventId'] ?? '');
-            if ($eid !== '' && isset($known[$eid])) {
+            if ($eid !== '' && array_key_exists($eid, $byEventId)) {
+                $idx = $byEventId[$eid];
+                // 既存 ToDo に Meet が無い／古い場合は Google 側を優先して反映
+                if (! empty($event['googleMeetLink'])) {
+                    $localTodos[$idx]['googleMeetLink'] = $event['googleMeetLink'];
+                    $localId = $localTodos[$idx]['id'] ?? null;
+                    if (is_numeric($localId)) {
+                        Todo::query()
+                            ->where('user_id', $user->id)
+                            ->where('id', (int) $localId)
+                            ->where(function ($q) use ($event) {
+                                $q->whereNull('google_meet_link')
+                                    ->orWhere('google_meet_link', '!=', $event['googleMeetLink']);
+                            })
+                            ->update(['google_meet_link' => $event['googleMeetLink']]);
+                    }
+                }
+                if (! empty($event['htmlLink'])) {
+                    $localTodos[$idx]['htmlLink'] = $event['htmlLink'];
+                }
                 continue;
             }
             $localTodos[] = $event;
             if ($eid !== '') {
-                $known[$eid] = true;
+                $byEventId[$eid] = count($localTodos) - 1;
             }
         }
 
@@ -620,26 +639,72 @@ class GoogleCalendarService
     }
 
     /**
+     * Google イベント JSON から Meet URL を取り出す（テストからも利用）。
+     *
      * @param  array<string, mixed>  $item
      */
-    private function extractMeetLink(array $item): ?string
+    public function extractMeetLink(array $item): ?string
     {
         if (! empty($item['hangoutLink']) && is_string($item['hangoutLink'])) {
-            return $item['hangoutLink'];
+            $normalized = $this->normalizeMeetUrl($item['hangoutLink']);
+            if ($normalized) {
+                return $normalized;
+            }
         }
 
         $entryPoints = $item['conferenceData']['entryPoints'] ?? null;
-        if (! is_array($entryPoints)) {
+        if (is_array($entryPoints)) {
+            foreach ($entryPoints as $ep) {
+                if (! is_array($ep)) {
+                    continue;
+                }
+                $uri = isset($ep['uri']) && is_string($ep['uri']) ? $ep['uri'] : '';
+                if ($uri === '') {
+                    continue;
+                }
+                if (($ep['entryPointType'] ?? '') === 'video' || str_contains(strtolower($uri), 'meet.google.com')) {
+                    $normalized = $this->normalizeMeetUrl($uri);
+                    if ($normalized) {
+                        return $normalized;
+                    }
+                }
+            }
+        }
+
+        // 本文・場所・その他フィールドに埋もれた Meet URL にも対応
+        $encoded = json_encode($item, JSON_UNESCAPED_SLASHES);
+        if (is_string($encoded)) {
+            $fromJson = $this->firstMeetUrlInText($encoded);
+            if ($fromJson) {
+                return $fromJson;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstMeetUrlInText(string $text): ?string
+    {
+        // xxx-yyyy-zzz / lookup/… の両方
+        if (preg_match('#https://meet\.google\.com/[a-zA-Z0-9/_\\-]+#', $text, $m) !== 1) {
             return null;
         }
 
-        foreach ($entryPoints as $ep) {
-            if (! is_array($ep)) {
-                continue;
-            }
-            if (($ep['entryPointType'] ?? '') === 'video' && ! empty($ep['uri']) && is_string($ep['uri'])) {
-                return $ep['uri'];
-            }
+        return rtrim($m[0], '.,);]');
+    }
+
+    private function normalizeMeetUrl(string $url): ?string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return null;
+        }
+        $fromMeet = $this->firstMeetUrlInText($url);
+        if ($fromMeet) {
+            return $fromMeet;
+        }
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
         }
 
         return null;

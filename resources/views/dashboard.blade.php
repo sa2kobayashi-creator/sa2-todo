@@ -30,27 +30,7 @@
       @include('dashboard.partials.travel')
 
       <div class="calendar-shell" data-calendar-view="{{ $view }}">
-        <div class="calendar-toolbar">
-          <div class="nav-group">
-            <a class="button-link secondary icon-btn" href="{{ $prevUrl }}">‹</a>
-            <a class="button-link secondary" href="{{ $todayUrl }}">{{ __('今日') }}</a>
-            <a class="button-link secondary icon-btn" href="{{ $nextUrl }}">›</a>
-          </div>
-          <div class="month-label">{{ $periodLabel }}</div>
-          <div class="calendar-toolbar-links">
-            <div class="calendar-view-switch" role="group" aria-label="{{ __('表示切替') }}">
-              @foreach($viewLabels as $viewKey => $viewLabel)
-                <a
-                  href="{{ $buildViewUrl($viewKey) }}"
-                  class="calendar-view-btn @if($view === $viewKey) is-active @endif"
-                  aria-current="{{ $view === $viewKey ? 'page' : 'false' }}"
-                >{{ $viewLabel }}</a>
-              @endforeach
-            </div>
-            <a class="button-link secondary" href="/notes">{{ __('メモ') }}</a>
-            <a class="button-link" href="/todos">{{ __('Todo 管理へ') }}</a>
-          </div>
-        </div>
+        @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => true])
 
         @if($view === 'day')
           @include('dashboard.partials.calendar-day')
@@ -71,7 +51,7 @@
               @foreach($week as $cell)
                 @php
                   $cellNotes = $cell['notes'] ?? [];
-                  $cellData = $limitTodosForCell($cell['todos'] ?? [], 4);
+                  $cellData = $limitTodosForCell($cell['todos'] ?? [], 6);
                   $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
                 @endphp
                 <div
@@ -128,6 +108,9 @@
                         @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
                       >
                         <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                        @if(!empty($todo['googleMeetLink']))
+                          <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+                        @endif
                       </button>
                     @endforeach
                     @if(($cellData['hiddenCount'] ?? 0) > 0)
@@ -138,6 +121,14 @@
                   </div>
                   <div class="day-events day-events-mobile">
                     @foreach($cellData['visible'] as $todo)
+                      @php
+                        $chipTimeLabelMobile = '—';
+                        if (!empty($todo['startTime'])) {
+                          $chipTimeLabelMobile = (!empty($todo['endTime']) && $todo['endTime'] !== $todo['startTime'])
+                            ? $todo['startTime'].'～'.$todo['endTime']
+                            : $todo['startTime'];
+                        }
+                      @endphp
                       <button
                         type="button"
                         @class([
@@ -148,8 +139,15 @@
                           'is-range' => ($todo['startDate'] ?? null) !== ($todo['endDate'] ?? null),
                         ])
                         data-todo-id="{{ $todo['id'] }}"
+                        data-tip-title="{{ $todo['title'] }}"
+                        data-tip-date="{{ $formatPeriodLabel($todo) }}"
+                        data-tip-time="{{ $chipTimeLabelMobile }}"
+                        @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
                       >
                         <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                        @if(!empty($todo['googleMeetLink']))
+                          <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+                        @endif
                       </button>
                     @endforeach
                     @if(($cellData['hiddenCount'] ?? 0) > 0)
@@ -162,6 +160,10 @@
               @endforeach
             </div>
           @endforeach
+        </div>
+        <div class="calendar-height-resizer" data-cal-height-resizer hidden>
+          <span class="calendar-height-resizer-bar" aria-hidden="true"></span>
+          <span class="calendar-height-resizer-label">{{ __('下にドラッグして高さを調整') }}</span>
         </div>
         @endif
       </div>
@@ -187,12 +189,20 @@
                 <li @class(['done' => !empty($todo['completed'])])>
                   <button type="button" class="mobile-agenda-item" data-todo-id="{{ $todo['id'] }}">
                     <span class="mobile-agenda-date">{{ $formatPeriodLabel($todo) }}</span>
-                    <span class="mobile-agenda-title">{{ $todo['title'] }}</span>
+                    <span class="mobile-agenda-title">
+                      {{ $todo['title'] }}
+                      @if(!empty($todo['googleMeetLink']))
+                        <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+                      @endif
+                    </span>
                     <span class="mobile-agenda-meta">
                       @if(!empty($todo['startTime']))
                         {{ $todo['startTime'] }}@if(!empty($todo['endTime']) && $todo['endTime'] !== $todo['startTime'])～{{ $todo['endTime'] }}@endif
                       @else
                         {{ __('終日') }}
+                      @endif
+                      @if(!empty($todo['googleMeetLink']))
+                        · Google Meet
                       @endif
                     </span>
                   </button>
@@ -1180,6 +1190,7 @@
         })
       })
     </script>
+    @include('partials.calendar-height-resizer-script')
     @include('partials.accordion-state')
   </body>
 </html>

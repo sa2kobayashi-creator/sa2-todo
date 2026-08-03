@@ -8,12 +8,13 @@ class CalendarService
 {
     public const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
-    public const VIEWS = ['day', 'week', 'month', 'year'];
+    /** 既定は月。UI の並びも月を先頭にする */
+    public const VIEWS = ['month', 'week', 'day', 'year'];
 
     public const VIEW_LABELS = [
-        'day' => '日',
-        'week' => '週',
         'month' => '月',
+        'week' => '週',
+        'day' => '日',
         'year' => '年',
     ];
 
@@ -35,9 +36,9 @@ class CalendarService
     {
         if (app()->getLocale() === 'en') {
             return [
-                'day' => 'Day',
-                'week' => 'Week',
                 'month' => 'Month',
+                'week' => 'Week',
+                'day' => 'Day',
                 'year' => 'Year',
             ];
         }

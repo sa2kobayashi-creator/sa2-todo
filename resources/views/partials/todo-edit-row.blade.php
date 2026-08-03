@@ -75,6 +75,18 @@
         <input type="checkbox" name="completed" value="1" @checked(!empty($todo['completed'])) />
         {{ __('完了') }}
       </label>
+      @if(!empty($todo['googleMeetLink']))
+        <p class="hint todo-meet-link">
+          {{ __('Google Meet') }}:
+          <a href="{{ $todo['googleMeetLink'] }}" target="_blank" rel="noopener noreferrer">{{ $todo['googleMeetLink'] }}</a>
+        </p>
+      @endif
+      @if(!empty($todo['htmlLink']))
+        <p class="hint todo-gcal-link">
+          {{ __('Google カレンダー') }}:
+          <a href="{{ $todo['htmlLink'] }}" target="_blank" rel="noopener noreferrer">{{ __('予定を開く') }}</a>
+        </p>
+      @endif
       <div class="form-actions">
         <button type="submit">{{ __('保存') }}</button>
         <a class="button-link secondary" href="{{ $listReturnTo }}">{{ __('キャンセル') }}</a>

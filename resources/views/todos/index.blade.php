@@ -182,9 +182,15 @@
       </div>
 
       <div class="panel" id="todo-list-panel">
+        <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-filter" @if(($displayMode ?? 'calendar') !== 'calendar') open @endif>
+          <summary class="app-accordion-summary">
+            <span>{{ __('検索・絞り込み') }}</span>
+            <span class="app-accordion-caret" aria-hidden="true">▾</span>
+          </summary>
+          <div class="app-accordion-body">
         <form class="filter-bar" method="get" action="/todos#todo-list-panel" id="filter-form">
-          @if(($displayMode ?? 'list') === 'calendar')
-            <input type="hidden" name="display" value="calendar" />
+          @if(($displayMode ?? 'calendar') === 'list')
+            <input type="hidden" name="display" value="list" />
           @endif
           <div class="filter-group filter-group-period">
             <label>{{ __('期間') }}@if(($filters['scope'] ?? '') === 'today') <span class="filter-scope-hint">{{ __('（今日で表示中）') }}</span>@endif</label>
@@ -289,20 +295,24 @@
         @elseif(($filters['scope'] ?? '') === 'year')
           <p class="hint filter-period-note">{{ __('表示中:') }} {{ $filters['year'] }}{{ __('年') }}</p>
         @endif
+          </div>
+        </details>
 
         <input type="hidden" id="bulk-return-to" value="{{ $listReturnTo }}" />
 
         <div class="list-toolbar">
-          <h2>
-            @if(($displayMode ?? 'list') === 'calendar')
-              {{ __('カレンダー') }}（{{ app()->getLocale() === 'en' ? sprintf('%s %04d', \Carbon\Carbon::create($calendarYear, $calendarMonth, 1)->locale('en')->isoFormat('MMM'), $calendarYear) : $calendarYear.__('年').$calendarMonth.__('月') }}）
-            @else
-              {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
-            @endif
-          </h2>
-          <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
-            <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'list') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
-            <a href="{{ $buildTodosQuery(['display' => 'calendar']) }}#todo-list-panel" class="{{ ($displayMode ?? '') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
+          <div class="list-toolbar-title-row">
+            <h2>
+              @if(($displayMode ?? 'list') === 'calendar')
+                {{ __('カレンダー') }}（{{ $periodLabel ?? ($calendarYear.__('年').$calendarMonth.__('月')) }}）
+              @else
+                {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
+              @endif
+            </h2>
+            <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
+              <a href="{{ $buildTodosQuery(['display' => 'list']) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
+              <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
+            </div>
           </div>
           @if(($displayMode ?? 'list') === 'list' && ($pagination['total'] ?? 0) > 0)
             <span class="todo-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
@@ -316,15 +326,24 @@
             <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">{{ __('コピー') }}</button>
           </div>
           @else
-            <p class="hint inline-hint">{{ __('ドラッグ＆ドロップや詳細編集は') }} <a href="{{ $dashboardMonthUrl }}">{{ __('ダッシュボード') }}</a> {{ __('でも操作できます。') }}</p>
+            <p class="hint inline-hint calendar-edit-hint">{{ __('予定をクリックすると詳細を編集できます。ドラッグで日付を変更できます。') }}</p>
           @endif
         </div>
 
-        @if(($displayMode ?? 'list') === 'calendar')
-          <div class="todos-calendar-panel calendar-month-view">
+        @if(($displayMode ?? 'calendar') === 'calendar')
+          <div class="todos-calendar-panel calendar-shell" data-calendar-view="{{ $view ?? 'month' }}">
+            @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => false])
+
+            @if(($view ?? 'month') === 'day')
+              @include('dashboard.partials.calendar-day')
+            @elseif(($view ?? 'month') === 'week')
+              @include('dashboard.partials.calendar-week')
+            @elseif(($view ?? 'month') === 'year')
+              @include('dashboard.partials.calendar-year')
+            @else
             <div class="calendar-weekdays">
-              @foreach($weekdayLabels as $label)
-                <div class="calendar-weekday">{{ $label }}</div>
+              @foreach($weekdayLabels as $index => $label)
+                <div class="calendar-weekday {{ $index === 0 ? 'sun' : ($index === 6 ? 'sat' : '') }}">{{ $label }}</div>
               @endforeach
             </div>
             <div class="calendar-body">
@@ -333,8 +352,9 @@
                   @foreach($week as $cell)
                     @php
                       $cellNotes = $cell['notes'] ?? [];
-                      $cellData = $limitTodosForCell($cell['todos'] ?? [], 4);
+                      $cellData = $limitTodosForCell($cell['todos'] ?? [], 6);
                       $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
+                      $eventCount = count($cell['todos'] ?? []);
                     @endphp
                     <div
                       class="calendar-day {{ !empty($cell['inMonth']) ? '' : 'other-month' }} {{ !empty($cell['isToday']) ? 'today' : '' }} {{ count($cellNotes) ? 'has-notes' : '' }} {{ $holidayClass }}"
@@ -342,6 +362,9 @@
                     >
                       <div class="day-header">
                         <span class="day-num">{{ $cell['day'] }}</span>
+                        @if($eventCount > 0)
+                          <span class="day-event-count" aria-hidden="true">{{ min($eventCount, 99) }}</span>
+                        @endif
                         @if(count($cellNotes) > 0)
                           <a
                             class="day-note-badge"
@@ -360,15 +383,26 @@
                       @endif
                       <div class="day-events">
                         @foreach($cellData['visible'] as $todo)
-                          <a
+                          @php
+                            $todoId = $todo['id'] ?? null;
+                            $isRemoteGoogle = is_string($todoId) && str_starts_with((string) $todoId, 'gcal:');
+                            $chipTitle = ($todo['title'] ?? '').'（'.$formatPeriodLabel($todo).'）';
+                            if (! empty($todo['googleMeetLink'])) {
+                              $chipTitle .= ' · Google Meet';
+                            }
+                          @endphp
+                          <button
+                            type="button"
                             class="event-chip category-{{ $todo['category'] ?? 'task' }} importance-{{ $todo['importance'] ?? 'medium' }} {{ !empty($todo['completed']) ? 'done' : '' }}"
-                            href="{{ $dashboardMonthUrl }}"
-                            title="{{ $todo['title'] }}（{{ $formatPeriodLabel($todo) }}）"
-                            draggable="true"
+                            title="{{ $chipTitle }}"
+                            draggable="{{ $isRemoteGoogle ? 'false' : 'true' }}"
                             data-todo-id="{{ $todo['id'] }}"
                           >
-                            <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
-                          </a>
+                            <span class="event-title">{{ $truncateTitle($todo['title'], 18) }}</span>
+                            @if(!empty($todo['googleMeetLink']))
+                              <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+                            @endif
+                          </button>
                         @endforeach
                         @if(($cellData['hiddenCount'] ?? 0) > 0)
                           <span class="event-more">{{ __('他') }} {{ $cellData['hiddenCount'] }} {{ __('件') }}</span>
@@ -379,40 +413,365 @@
                 </div>
               @endforeach
             </div>
+            @endif
           </div>
+          @if(($view ?? 'month') === 'month')
+          <div class="calendar-height-resizer" data-cal-height-resizer hidden>
+            <span class="calendar-height-resizer-bar" aria-hidden="true"></span>
+            <span class="calendar-height-resizer-label">{{ __('下にドラッグして高さを調整') }}</span>
+          </div>
+
+          <section class="mobile-month-agenda panel todos-mobile-agenda" aria-label="{{ $calendarMonth }}{{ __('月の予定一覧') }}">
+            <h3>{{ $calendarMonth }}{{ __('月の予定') }}（{{ count($monthAgenda) }}{{ __('件') }}）</h3>
+            @if(count($monthAgenda) === 0)
+              <p class="hint">{{ __('今月の予定はありません。') }}</p>
+            @else
+              <ul class="mobile-agenda-list">
+                @foreach($monthAgenda as $item)
+                  @if(($item['kind'] ?? '') === 'note')
+                    <li>
+                      <a class="mobile-agenda-item mobile-agenda-note" href="/notes?date={{ $getNoteRegisteredDate($item['note']) }}">
+                        <span class="mobile-agenda-date">{{ $getNoteRegisteredDate($item['note']) }}</span>
+                        <span class="mobile-agenda-title">📝 {{ $getNoteDisplayTitle($item['note']) }}</span>
+                        <span class="mobile-agenda-meta">{{ __('メモ') }}</span>
+                      </a>
+                    </li>
+                  @elseif(($item['kind'] ?? '') === 'todo')
+                    @php $todo = $item['todo']; @endphp
+                    <li @class(['done' => !empty($todo['completed'])])>
+                      <button type="button" class="mobile-agenda-item" data-todo-id="{{ $todo['id'] }}">
+                        <span class="mobile-agenda-date">{{ $formatPeriodLabel($todo) }}</span>
+                        <span class="mobile-agenda-title">
+                          {{ $todo['title'] }}
+                          @if(!empty($todo['googleMeetLink']))
+                            <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
+                          @endif
+                        </span>
+                        <span class="mobile-agenda-meta">
+                          @if(!empty($todo['startTime']))
+                            {{ $todo['startTime'] }}@if(!empty($todo['endTime']) && $todo['endTime'] !== $todo['startTime'])～{{ $todo['endTime'] }}@endif
+                          @else
+                            {{ __('終日') }}
+                          @endif
+                        </span>
+                      </button>
+                    </li>
+                  @endif
+                @endforeach
+              </ul>
+            @endif
+          </section>
+          @endif
+
+          @include('partials.todo-edit-modal', ['modalReturnTo' => $listReturnTo])
+
           <script>
             (function () {
-              const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+              const TODO_ITEMS = {!! \Illuminate\Support\Js::from($todosForJs ?? []) !!};
+              const OPEN_EDIT_ID = {!! \Illuminate\Support\Js::from(($editId ?? null) ? (string) $editId : null) !!};
+              const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+              const todoModal = document.getElementById('todo-modal');
+              const editForm = document.getElementById('todo-edit-form');
+              const deleteForm = document.getElementById('todo-delete-form');
+              const todoModalTitle = document.getElementById('todo-modal-title');
+              const todoModalSaveBtn = document.getElementById('todo-modal-save');
+              const todoModalDeleteBtn = document.getElementById('todo-modal-delete');
+              const todoModalCopyBtn = document.getElementById('todo-modal-copy');
+              const modalCompletedLabel = document.getElementById('modal-completed-label');
+              const modalStartDateText = document.getElementById('modal-start-date-text');
+              const modalEndDateLabel = document.getElementById('modal-end-date-label');
+              const modalDateModeSingle = document.getElementById('modal-date-mode-single');
+              const modalDateModeRange = document.getElementById('modal-date-mode-range');
+              let editingTodoId = null;
+              let todoModalMode = 'edit';
+
+              function findTodo(id) {
+                const key = String(id);
+                return TODO_ITEMS.find((item) => String(item.id) === key);
+              }
+
+              function escapeHtml(text) {
+                return String(text)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/"/g, '&quot;')
+              }
+
+              function closeTodoModal() {
+                if (todoModal) todoModal.hidden = true;
+              }
+
+              function syncModalDateMode(mode) {
+                const isSingle = mode === 'single';
+                if (modalDateModeSingle) modalDateModeSingle.checked = isSingle;
+                if (modalDateModeRange) modalDateModeRange.checked = !isSingle;
+                if (modalStartDateText) {
+                  modalStartDateText.textContent = isSingle ? @json(__('日付')) : @json(__('開始日'));
+                }
+                if (modalEndDateLabel) modalEndDateLabel.classList.toggle('date-panel-hidden', isSingle);
+                if (isSingle) {
+                  const start = editForm?.querySelector('#modal-start-date')?.value;
+                  const endInput = editForm?.querySelector('#modal-end-date');
+                  if (endInput && start) endInput.value = start;
+                }
+              }
+
+              function fillTodoModalFields(todo) {
+                if (!editForm) return;
+                const titleEl = editForm.querySelector('[name=title]');
+                if (titleEl) titleEl.value = todo.title || '';
+                const startDateEl = editForm.querySelector('#modal-start-date');
+                const endDateEl = editForm.querySelector('#modal-end-date');
+                if (startDateEl) startDateEl.value = todo.startDate || '';
+                if (endDateEl) endDateEl.value = todo.endDate || todo.startDate || '';
+                const enableTimeRange = editForm.querySelector('#modal-enable-time-range');
+                const timeRangePanel = editForm.querySelector('#modal-time-range-panel');
+                const startTimeInput = editForm.querySelector('#modal-start-time');
+                const endTimeInput = editForm.querySelector('#modal-end-time');
+                const hasTime = Boolean(todo.startTime);
+                if (enableTimeRange) enableTimeRange.checked = hasTime;
+                timeRangePanel?.classList.toggle('date-panel-hidden', !hasTime);
+                if (startTimeInput) {
+                  startTimeInput.disabled = !hasTime;
+                  startTimeInput.value = todo.startTime || '';
+                }
+                if (endTimeInput) {
+                  endTimeInput.disabled = !hasTime;
+                  endTimeInput.value = todo.endTime || '';
+                }
+                const importanceEl = editForm.querySelector('#modal-importance');
+                const categoryEl = editForm.querySelector('#modal-category');
+                const completedEl = editForm.querySelector('[name=completed], [data-completed-input]');
+                if (importanceEl) importanceEl.value = todo.importance || 'medium';
+                if (categoryEl) categoryEl.value = todo.category || 'task';
+                if (completedEl) completedEl.checked = !!todo.completed;
+                const isSingle = !todo.startDate || !todo.endDate || todo.startDate === todo.endDate;
+                syncModalDateMode(isSingle ? 'single' : 'range');
+
+                const meetEl = document.getElementById('modal-meet-link');
+                if (meetEl) {
+                  if (todo.googleMeetLink) {
+                    meetEl.hidden = false;
+                    const label = @json(__('Google Meet'));
+                    const url = escapeHtml(todo.googleMeetLink);
+                    meetEl.innerHTML = label + ': <a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+                  } else {
+                    meetEl.hidden = true;
+                    meetEl.textContent = '';
+                  }
+                }
+                const htmlEl = document.getElementById('modal-html-link');
+                if (htmlEl) {
+                  if (todo.htmlLink) {
+                    htmlEl.hidden = false;
+                    const label = @json(__('Google カレンダー'));
+                    const url = escapeHtml(todo.htmlLink);
+                    htmlEl.innerHTML = label + ': <a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+                  } else {
+                    htmlEl.hidden = true;
+                    htmlEl.textContent = '';
+                  }
+                }
+              }
+
+              function setTodoModalMode(mode) {
+                todoModalMode = mode;
+                const isCopy = mode === 'copy';
+                if (todoModalTitle) {
+                  todoModalTitle.textContent = isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集'));
+                }
+                if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isCopy;
+                if (todoModalCopyBtn) todoModalCopyBtn.hidden = isCopy;
+                if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isCopy);
+                if (isCopy) {
+                  editForm.action = '/todos';
+                  editForm.querySelector('[name=completed]')?.removeAttribute('name');
+                  editForm.querySelector('[name=completed]')?.setAttribute('data-completed-input', '1');
+                } else {
+                  const completed = editForm.querySelector('[data-completed-input], [name=completed]');
+                  if (completed) {
+                    completed.setAttribute('name', 'completed');
+                    completed.removeAttribute('data-completed-input');
+                  }
+                }
+              }
+
+              function openTodoModal(id) {
+                const todo = findTodo(id);
+                if (!todo || !editForm || !todoModal) return;
+                const isRemoteOnly = typeof todo.id === 'string' && String(todo.id).startsWith('gcal:');
+                editingTodoId = todo.id;
+                try {
+                  if (isRemoteOnly) {
+                    editForm.action = '#';
+                    if (deleteForm) deleteForm.action = '#';
+                    fillTodoModalFields(todo);
+                    setTodoModalMode('edit');
+                    if (todoModalTitle) todoModalTitle.textContent = @json(__('Google 予定（表示のみ）'));
+                    if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = true;
+                    if (todoModalSaveBtn) todoModalSaveBtn.hidden = true;
+                    if (todoModalCopyBtn) todoModalCopyBtn.hidden = true;
+                    Array.from(editForm.elements).forEach((el) => {
+                      if (el.name === 'returnTo' || el.name === '_token') return;
+                      el.disabled = true;
+                    });
+                  } else {
+                    editForm.action = '/todos/' + todo.id + '/update';
+                    if (deleteForm) deleteForm.action = '/todos/' + todo.id + '/delete';
+                    Array.from(editForm.elements).forEach((el) => { el.disabled = false; });
+                    if (todoModalSaveBtn) todoModalSaveBtn.hidden = false;
+                    if (todoModalCopyBtn) todoModalCopyBtn.hidden = false;
+                    fillTodoModalFields(todo);
+                    setTodoModalMode('edit');
+                  }
+                  todoModal.hidden = false;
+                } catch (err) {
+                  console.error('openTodoModal failed', err);
+                }
+              }
+
+              modalDateModeSingle?.addEventListener('change', () => {
+                if (modalDateModeSingle.checked) syncModalDateMode('single');
+              });
+              modalDateModeRange?.addEventListener('change', () => {
+                if (modalDateModeRange.checked) syncModalDateMode('range');
+              });
+              editForm?.querySelector('#modal-start-date')?.addEventListener('change', () => {
+                if (modalDateModeSingle?.checked) {
+                  const endInput = editForm.querySelector('#modal-end-date');
+                  if (endInput) endInput.value = editForm.querySelector('#modal-start-date').value;
+                }
+              });
+              editForm?.addEventListener('submit', () => {
+                if (modalDateModeSingle?.checked) {
+                  const endInput = editForm.querySelector('#modal-end-date');
+                  const start = editForm.querySelector('#modal-start-date')?.value;
+                  if (endInput && start) endInput.value = start;
+                }
+              });
+              todoModalCopyBtn?.addEventListener('click', () => {
+                if (!editingTodoId) return;
+                const source = findTodo(editingTodoId);
+                if (!source) return;
+                fillTodoModalFields({ ...source, completed: false });
+                setTodoModalMode('copy');
+                editingTodoId = null;
+                todoModal.hidden = false;
+                editForm.querySelector('[name=title]')?.focus();
+              });
+
+              const modalEnableTimeRange = editForm?.querySelector('#modal-enable-time-range');
+              modalEnableTimeRange?.addEventListener('change', () => {
+                const on = modalEnableTimeRange.checked;
+                const panel = editForm.querySelector('#modal-time-range-panel');
+                const startTime = editForm.querySelector('#modal-start-time');
+                const endTime = editForm.querySelector('#modal-end-time');
+                panel?.classList.toggle('date-panel-hidden', !on);
+                if (startTime) startTime.disabled = !on;
+                if (endTime) endTime.disabled = !on;
+                if (!on) {
+                  if (startTime) startTime.value = '';
+                  if (endTime) endTime.value = '';
+                }
+              });
+
+              document.querySelectorAll('[data-close-todo-modal]').forEach((el) => {
+                el.addEventListener('click', closeTodoModal);
+              });
+              document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && todoModal && !todoModal.hidden) closeTodoModal();
+              });
+
               function setupDraggable(el) {
+                const todoId = el.getAttribute('data-todo-id');
+                if (!todoId || !/^\d+$/.test(todoId)) {
+                  el.setAttribute('draggable', 'false');
+                  return;
+                }
+                el.setAttribute('draggable', 'true');
+                let startX = 0;
+                let startY = 0;
                 el.addEventListener('dragstart', (e) => {
-                  el.dataset.dragging = '1'
+                  startX = e.clientX;
+                  startY = e.clientY;
+                  el.dataset.dragging = '1';
+                  el.dataset.dragMoved = '0';
                   e.dataTransfer.setData('application/json', JSON.stringify({
                     type: 'todo',
                     id: Number(el.dataset.todoId),
-                  }))
-                  e.dataTransfer.effectAllowed = 'move'
-                })
+                  }));
+                  e.dataTransfer.effectAllowed = 'move';
+                  el.classList.add('is-dragging');
+                });
+                el.addEventListener('drag', (e) => {
+                  if (e.clientX === 0 && e.clientY === 0) return;
+                  if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) {
+                    el.dataset.dragMoved = '1';
+                  }
+                });
                 el.addEventListener('dragend', () => {
-                  setTimeout(() => { el.dataset.dragging = '0' }, 0)
-                })
-                el.addEventListener('click', (e) => {
-                  if (el.dataset.dragging === '1') e.preventDefault()
-                })
+                  el.classList.remove('is-dragging');
+                  el.dataset.dragging = '0';
+                  if (el.dataset.dragMoved === '1') {
+                    setTimeout(() => { el.dataset.dragMoved = '0'; }, 50);
+                  }
+                });
               }
-              document.querySelectorAll('.todos-calendar-panel [data-todo-id]').forEach((el) => setupDraggable(el))
+
+              document.querySelectorAll('.todos-calendar-panel .event-chip[data-todo-id]').forEach((el) => {
+                setupDraggable(el);
+                el.addEventListener('click', (e) => {
+                  if (el.dataset.dragMoved === '1') {
+                    el.dataset.dragMoved = '0';
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openTodoModal(el.dataset.todoId);
+                });
+              });
+
+              document.querySelectorAll('.todos-calendar-panel .day-add-btn[data-date]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const date = btn.getAttribute('data-date');
+                  if (!date) return;
+                  window.location.href = '/todos?due=' + encodeURIComponent(date) + '#add-form';
+                });
+              });
+
+              document.querySelectorAll('.todos-calendar-panel .event-chip.note-chip[data-note-id]').forEach((el) => {
+                el.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.location.href = '/notes?edit=' + encodeURIComponent(el.getAttribute('data-note-id') || '');
+                });
+              });
+
+              document.querySelectorAll('.todos-mobile-agenda .mobile-agenda-item[data-todo-id]').forEach((el) => {
+                el.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openTodoModal(el.dataset.todoId);
+                });
+              });
+
               document.querySelectorAll('.todos-calendar-panel .calendar-day[data-date]').forEach((day) => {
                 day.addEventListener('dragover', (e) => {
-                  e.preventDefault()
-                  day.classList.add('is-drop-target')
-                })
-                day.addEventListener('dragleave', () => day.classList.remove('is-drop-target'))
+                  e.preventDefault();
+                  day.classList.add('is-drop-target');
+                });
+                day.addEventListener('dragleave', () => day.classList.remove('is-drop-target'));
                 day.addEventListener('drop', async (e) => {
-                  e.preventDefault()
-                  day.classList.remove('is-drop-target')
-                  let payload
-                  try { payload = JSON.parse(e.dataTransfer.getData('application/json') || '{}') } catch (_) { return }
-                  if (payload.type !== 'todo' || !payload.id || !day.dataset.date) return
-                  const res = await fetch(`/todos/${payload.id}/reschedule`, {
+                  e.preventDefault();
+                  day.classList.remove('is-drop-target');
+                  let payload;
+                  try { payload = JSON.parse(e.dataTransfer.getData('application/json') || '{}'); } catch (_) { return; }
+                  if (payload.type !== 'todo' || !payload.id || !day.dataset.date) return;
+                  const res = await fetch('/todos/' + payload.id + '/reschedule', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -421,15 +780,17 @@
                       'X-Requested-With': 'XMLHttpRequest',
                     },
                     body: JSON.stringify({ date: day.dataset.date }),
-                  })
-                  const data = await res.json().catch(() => ({}))
+                  });
+                  const data = await res.json().catch(() => ({}));
                   if (!res.ok || !data.ok) {
-                    alert(data.message || '移動に失敗しました')
-                    return
+                    alert(data.message || '移動に失敗しました');
+                    return;
                   }
-                  location.reload()
-                })
-              })
+                  location.reload();
+                });
+              });
+
+              if (OPEN_EDIT_ID) openTodoModal(OPEN_EDIT_ID);
             })()
           </script>
         @else
@@ -1101,6 +1462,7 @@
         })
       })
     </script>
+    @include('partials.calendar-height-resizer-script')
     @include('partials.accordion-state')
   </body>
 </html>

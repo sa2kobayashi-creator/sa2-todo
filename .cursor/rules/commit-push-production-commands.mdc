@@ -1,0 +1,46 @@
+---
+description: commit & push 後は本番で実行するコマンドを必ず案内する
+alwaysApply: true
+---
+
+# commit & push 後の報告ルール
+
+`commit` と `push`（または同等の本番反映依頼）を完了したら、完了報告に **本番サーバーで実行すべきコマンド** を必ず含める。
+
+## 必須
+
+1. コミットハッシュと短い要約
+2. **本番コマンド**（コード反映〜必要な artisan）
+3. 今回の変更に応じた追加手順（migration / `.env` / キャッシュ / Google 再連携など）
+
+## 本番コマンドの基本形
+
+このプロジェクト（Laravel / ロリポップ想定）では、少なくとも次を案内する。
+
+```bash
+cd ~/（本番アプリのパス）
+git pull origin main
+php artisan migrate --force
+php artisan optimize:clear
+# 運用でキャッシュする場合のみ
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+## 変更内容に応じて追加
+
+| 変更 | 追加で案内すること |
+|------|-------------------|
+| migration あり | `php artisan migrate --force` を明示 |
+| `.env` / config 追加 | 本番 `.env` の項目名（秘密の値は書かない） |
+| ルート変更 | `route:cache` または `optimize:clear` |
+| Blade / フロント | 強制再読み込み（Ctrl+F5）、必要なら `view:cache` |
+| Google OAuth / scope | Google Cloud の再設定・再連携の有無 |
+| ストレージ / cron | 関連スクリプトや cron の確認 |
+
+## 書き方
+
+- 日本語で簡潔に
+- 秘密情報（Client Secret、トークン、APP_KEY）は書かない
+- 「本番でやること」見出しを付ける
