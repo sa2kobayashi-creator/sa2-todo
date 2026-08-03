@@ -214,9 +214,39 @@
         category: @json($filters['category']),
         csrfToken: @json(csrf_token()),
         datetimeUnits: @json($datetimeUnitLabels),
+        strings: {
+          addFavorite: @json(__('よく使う路線を登録')),
+          editFavorite: @json(__('路線を編集')),
+          save: @json(__('保存')),
+          update: @json(__('更新')),
+          noRoute: @json(__('経路が見つかりませんでした')),
+          noMatchingRoute: @json(__('条件に合う経路がありません。地名を「天神」「博多」「姪浜」「福岡空港」などに変えて試してください。')),
+          nishitetsuPreferred: @json(__('西鉄バス優先')),
+          walk: @json(__('徒歩')),
+          min: @json(app()->getLocale() === 'en' ? 'min' : '分'),
+          wait: @json(__('待ち')),
+          waitPrefix: @json(__('待ち')),
+          transfers: @json(__('乗換')),
+          times: @json(app()->getLocale() === 'en' ? '' : '回'),
+          externalTitle: @json(__('外部サービスでも確認')),
+          googleMapsRoute: @json(__('Google Maps でルート')),
+          yahooRoute: @json(__('Yahoo!路線でルート')),
+          nishitetsuNavi: @json(__('西鉄バスナビ')),
+          needFrom: @json(__('出発（バス停・駅）を入力してください')),
+          searching: @json(__('RAPTOR で検索中…')),
+          searchFailed: @json(__('検索に失敗しました。再読み込みして再度お試しください。')),
+          timetableFor: @json(__(':place の時刻表・地図')),
+          enterDestinationHint: @json(__('到着地も入力すると RAPTOR で乗換経路を出せます。')),
+          busStopSuffix: @json(__(' バス停')),
+          ferrySuffix: @json(__(' 渡船場')),
+          stationSuffix: @json(__(' 駅')),
+          googleMapsOpen: @json(__('Google Maps で開く')),
+          yahooTimetable: @json(__('Yahoo!路線で時刻表')),
+          zeroMin: @json(__('0分')),
+        },
       };
     </script>
-    <script src="{{ asset('transit.js') }}?v=9"></script>
+    <script src="{{ asset('transit.js') }}?v=10"></script>
     @if($hasGoogleMapsApiKey)
       <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsApiKey }}&libraries=places&callback=initTransitAutocomplete"></script>
     @endif

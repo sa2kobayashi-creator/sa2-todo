@@ -165,7 +165,7 @@ class NoteController extends Controller
         $items = $this->notes->parseChecklistItems($request->input('items', []));
 
         if ($type === 'checklist' && count($items) === 0) {
-            return $this->redirectWithMessage($returnTo, 'チェックリストの項目を1つ以上入力してください', 'error');
+            return $this->redirectWithMessage($returnTo, __('チェックリストの項目を1つ以上入力してください'), 'error');
         }
         $hasFiles = collect($request->file('attachments', []) ?: [])
             ->filter(fn ($f) => $f && $f->isValid())
@@ -176,7 +176,7 @@ class NoteController extends Controller
             && trim((string) $request->input('body')) === ''
             && ! $hasFiles
         ) {
-            return $this->redirectWithMessage($returnTo, 'メモの内容を入力してください', 'error');
+            return $this->redirectWithMessage($returnTo, __('メモの内容を入力してください'), 'error');
         }
 
         $updated = null;
@@ -199,7 +199,7 @@ class NoteController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'メモを追加しました');
+        return $this->redirectWithMessage($returnTo, __('メモを追加しました'));
     }
 
     public function update(Request $request, int $id)
@@ -237,10 +237,10 @@ class NoteController extends Controller
         }
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, 'メモが見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('メモが見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'メモを更新しました');
+        return $this->redirectWithMessage($returnTo, __('メモを更新しました'));
     }
 
     public function pin(Request $request, int $id)
@@ -335,20 +335,20 @@ class NoteController extends Controller
 
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, 'メモを移動できませんでした', 'error');
+            return $this->redirectWithMessage($returnTo, __('メモを移動できませんでした'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'メモの日付を変更しました');
+        return $this->redirectWithMessage($returnTo, __('メモの日付を変更しました'));
     }
 
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
         if (! $this->notes->deleteNote((int) $request->user()->id, $id)) {
-            return $this->redirectWithMessage($returnTo, 'メモが見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('メモが見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'メモを削除しました');
+        return $this->redirectWithMessage($returnTo, __('メモを削除しました'));
     }
 
     public function attachmentFile(Request $request, int $id)
@@ -398,7 +398,7 @@ class NoteController extends Controller
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
         $text = trim((string) $request->input('appendText'));
         if ($text === '') {
-            return $this->redirectWithMessage($returnTo, '追加する内容を入力してください', 'error');
+            return $this->redirectWithMessage($returnTo, __('追加する内容を入力してください'), 'error');
         }
         $count = $this->notes->bulkAppend((int) $request->user()->id, $this->notes->parseIdList($request->input('ids')), $text);
 

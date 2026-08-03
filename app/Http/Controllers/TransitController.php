@@ -123,7 +123,7 @@ class TransitController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'よく使う路線を登録しました');
+        return $this->redirectWithMessage($returnTo, __('よく使う路線を登録しました'));
     }
 
     public function update(Request $request, int $id)
@@ -144,19 +144,19 @@ class TransitController extends Controller
         }
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, '路線が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('路線が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '路線を更新しました');
+        return $this->redirectWithMessage($returnTo, __('路線を更新しました'));
     }
 
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/transit');
         if (! $this->transit->deleteFavorite((int) $request->user()->id, $id)) {
-            return $this->redirectWithMessage($returnTo, '路線が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('路線が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '路線を削除しました');
+        return $this->redirectWithMessage($returnTo, __('路線を削除しました'));
     }
 }

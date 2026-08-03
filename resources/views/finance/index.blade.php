@@ -1351,7 +1351,7 @@
           const result = evaluateAmountExpression(raw)
           if (result === null) {
             input.classList.add('is-invalid-calc')
-            input.setCustomValidity('計算式が正しくありません（例: 1000+340）')
+            input.setCustomValidity(@json(__('計算式が正しくありません（例: 1000+340）')))
             return false
           }
           input.classList.remove('is-invalid-calc')
@@ -1391,7 +1391,7 @@
           const btn = document.createElement('button')
           btn.type = 'button'
           btn.className = 'finance-easy-amount-btn finance-easy-amount-btn--icon text-btn'
-          btn.setAttribute('aria-label', '金額を簡単入力')
+          btn.setAttribute('aria-label', @json(__('金額を簡単入力')))
           btn.setAttribute('title', '簡単入力')
           btn.innerHTML = '<svg class="finance-easy-amount-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="6" rx="1.5"></rect><rect x="14" y="3" width="7" height="6" rx="1.5"></rect><rect x="3" y="11" width="7" height="6" rx="1.5"></rect><rect x="14" y="11" width="7" height="6" rx="1.5"></rect></svg>'
           return btn
@@ -1966,11 +1966,11 @@
               })
               const data = await response.json().catch(() => ({}))
               if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || 'カテゴリーの削除に失敗しました')
+                throw new Error(data?.message || @json(__('カテゴリーの削除に失敗しました')))
               }
               removeExpenseCategoryOption(slug)
             } catch (error) {
-              window.alert(error?.message || 'カテゴリーの削除に失敗しました')
+              window.alert(error?.message || @json(__('カテゴリーの削除に失敗しました')))
               btn.disabled = false
             }
           })

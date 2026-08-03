@@ -113,7 +113,7 @@ class PhotoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/photos?album='.$album['id'], 'アルバムを作成しました');
+        return $this->redirectWithMessage('/photos?album='.$album['id'], __('アルバムを作成しました'));
     }
 
     public function storeFolderAlbum(Request $request)
@@ -152,7 +152,7 @@ class PhotoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'アルバムを更新しました');
+        return $this->redirectWithMessage($returnTo, __('アルバムを更新しました'));
     }
 
     public function unlockAlbum(Request $request, int $id)
@@ -453,7 +453,7 @@ class PhotoController extends Controller
             'ok' => true,
             'count' => 1,
             'skipped' => 0,
-            'message' => '1件のメディアを追加しました',
+            'message' => __('1件のメディアを追加しました'),
             'photo' => $result['created'],
         ]);
     }
@@ -883,7 +883,7 @@ class PhotoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'アルバムの表紙を更新しました');
+        return $this->redirectWithMessage($returnTo, __('アルバムの表紙を更新しました'));
     }
 
     public function destroy(Request $request, int $id)
@@ -895,14 +895,14 @@ class PhotoController extends Controller
                 return response()->json(['ok' => false, 'message' => '写真が見つかりません'], 404);
             }
 
-            return $this->redirectWithMessage($returnTo, '写真が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('写真が見つかりません'), 'error');
         }
 
         if ($wantsJson) {
             return response()->json(['ok' => true, 'message' => '写真を削除しました']);
         }
 
-        return $this->redirectWithMessage($returnTo, '写真を削除しました');
+        return $this->redirectWithMessage($returnTo, __('写真を削除しました'));
     }
 
     public function bulkDestroy(Request $request)
@@ -917,7 +917,7 @@ class PhotoController extends Controller
             (int) $request->user()->id,
             $this->photos->parseIdList($request->input('ids'))
         );
-        $message = $count.'件のメディアを削除しました';
+        $message = __(':count件のメディアを削除しました', ['count' => $count]);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -946,16 +946,16 @@ class PhotoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, $count.'件のメディアを移動しました');
+        return $this->redirectWithMessage($returnTo, __(':count件のメディアを移動しました', ['count' => $count]));
     }
 
     public function destroyAlbum(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
         if (! $this->photos->deleteAlbum((int) $request->user()->id, $id)) {
-            return $this->redirectWithMessage($returnTo, 'アルバムが見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('アルバムが見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage('/photos', 'アルバムを削除しました');
+        return $this->redirectWithMessage('/photos', __('アルバムを削除しました'));
     }
 }

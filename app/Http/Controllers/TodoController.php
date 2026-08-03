@@ -250,7 +250,7 @@ class TodoController extends Controller
         );
 
         if (count($titles) === 0) {
-            return $this->redirectWithMessage($returnTo, 'ToDo の内容を入力してください', 'error');
+            return $this->redirectWithMessage($returnTo, __('ToDo の内容を入力してください'), 'error');
         }
 
         $dateMode = $request->input('dateMode', 'single');
@@ -279,7 +279,7 @@ class TodoController extends Controller
 
         $count = count($titles);
 
-        return $this->redirectWithMessage($returnTo, "ToDo を {$count} 件追加しました");
+        return $this->redirectWithMessage($returnTo, __('ToDo を :count 件追加しました', ['count' => $count]));
     }
 
     public function update(Request $request, int $id)
@@ -307,10 +307,10 @@ class TodoController extends Controller
         ]);
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, 'ToDo が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('ToDo が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'ToDo を更新しました');
+        return $this->redirectWithMessage($returnTo, __('ToDo を更新しました'));
     }
 
     public function toggle(Request $request, int $id)
@@ -332,7 +332,7 @@ class TodoController extends Controller
         }
         $this->todos->deleteTodo($id);
 
-        return $this->redirectWithMessage($returnTo, 'ToDo を削除しました');
+        return $this->redirectWithMessage($returnTo, __('ToDo を削除しました'));
     }
 
     public function duplicate(Request $request, int $id)
@@ -343,7 +343,7 @@ class TodoController extends Controller
         }
         $this->todos->duplicateTodo($id);
 
-        return $this->redirectWithMessage($returnTo, 'ToDo を複製しました');
+        return $this->redirectWithMessage($returnTo, __('ToDo を複製しました'));
     }
 
     public function reschedule(Request $request, int $id)
@@ -372,20 +372,20 @@ class TodoController extends Controller
 
         $returnTo = $this->safeReturnTo($request->input('returnTo'));
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, 'ToDo を移動できませんでした', 'error');
+            return $this->redirectWithMessage($returnTo, __('ToDo を移動できませんでした'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, 'ToDo の日付を変更しました');
+        return $this->redirectWithMessage($returnTo, __('ToDo の日付を変更しました'));
     }
 
     public function bulkComplete(Request $request)
     {
-        return $this->bulkSetCompleted($request, true, '一括で完了にしました');
+        return $this->bulkSetCompleted($request, true, __('一括で完了にしました'));
     }
 
     public function bulkUncomplete(Request $request)
     {
-        return $this->bulkSetCompleted($request, false, '一括で未完了にしました');
+        return $this->bulkSetCompleted($request, false, __('一括で未完了にしました'));
     }
 
     public function bulkDelete(Request $request)
@@ -394,7 +394,7 @@ class TodoController extends Controller
         $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkDelete($ids);
 
-        return $this->redirectWithMessage($returnTo, "{$count} 件削除しました");
+        return $this->redirectWithMessage($returnTo, __(':count 件削除しました', ['count' => $count]));
     }
 
     public function bulkDuplicate(Request $request)
@@ -403,7 +403,7 @@ class TodoController extends Controller
         $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkDuplicate($ids);
 
-        return $this->redirectWithMessage($returnTo, "{$count} 件複製しました");
+        return $this->redirectWithMessage($returnTo, __(':count 件複製しました', ['count' => $count]));
     }
 
     private function bulkSetCompleted(Request $request, bool $completed, string $message)
@@ -412,7 +412,7 @@ class TodoController extends Controller
         $ids = $this->accessibleTodoIds($request);
         $count = $this->todos->bulkSetCompleted($ids, $completed);
 
-        return $this->redirectWithMessage($returnTo, "{$count} 件{$message}");
+        return $this->redirectWithMessage($returnTo, __(':count 件:message', ['count' => $count, 'message' => $message]));
     }
 
     private function canAccessTodo(Request $request, int $id): bool

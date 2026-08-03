@@ -31,7 +31,7 @@ class LoginController extends Controller
 
         $user = User::query()->where('email', strtolower(trim($credentials['email'])))->first();
         if (! $user || ! $this->verifyPassword($credentials['password'], $user->password)) {
-            return back()->withInput(['email'])->with('error', 'メールアドレスまたはパスワードが正しくありません');
+            return back()->withInput(['email'])->with('error', __('メールアドレスまたはパスワードが正しくありません'));
         }
 
         if (str_starts_with($user->password, '$2b$') || str_starts_with($user->password, '$2a$')) {

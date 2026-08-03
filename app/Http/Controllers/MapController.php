@@ -50,7 +50,7 @@ class MapController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/map?route='.$route->id, 'ルートを保存しました');
+        return $this->redirectWithMessage('/map?route='.$route->id, __('ルートを保存しました'));
     }
 
     public function update(Request $request, int $id)
@@ -73,19 +73,19 @@ class MapController extends Controller
         }
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, 'ルートが見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('ルートが見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage('/map?route='.$id, 'ルートを更新しました');
+        return $this->redirectWithMessage('/map?route='.$id, __('ルートを更新しました'));
     }
 
     public function destroy(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/map');
         if (! $this->maps->deleteRoute((int) $request->user()->id, $id)) {
-            return $this->redirectWithMessage($returnTo, 'ルートが見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('ルートが見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage('/map', 'ルートを削除しました');
+        return $this->redirectWithMessage('/map', __('ルートを削除しました'));
     }
 }

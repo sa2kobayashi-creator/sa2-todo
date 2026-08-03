@@ -626,7 +626,7 @@
         function openAddModal() {
           editingId = null;
           if (editingIdInput) editingIdInput.value = '';
-          if (modalTitle) modalTitle.textContent = 'APIキーを追加';
+          if (modalTitle) modalTitle.textContent = @json(__('APIキーを追加'));
           if (form) {
             form.action = '/settings/translation-keys';
             form.reset();
@@ -653,7 +653,7 @@
               return;
             }
 
-            if (modalTitle) modalTitle.textContent = 'APIキーを編集';
+            if (modalTitle) modalTitle.textContent = @json(__('APIキーを編集'));
             if (form) form.action = `/settings/translation-keys/${id}/update`;
             if (editingIdInput) editingIdInput.value = String(id);
 

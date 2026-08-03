@@ -26,7 +26,7 @@ class TranslationApiKeyController extends Controller
 
         TranslationApiKey::create($this->payload($request));
 
-        return $this->redirectWithMessage(self::SETTINGS_PATH, '翻訳APIキーを追加しました');
+        return $this->redirectWithMessage(self::SETTINGS_PATH, __('翻訳APIキーを追加しました'));
     }
 
     public function edit(int $id)
@@ -43,7 +43,7 @@ class TranslationApiKeyController extends Controller
     {
         $key = TranslationApiKey::find($id);
         if (! $key) {
-            return $this->redirectWithMessage(self::SETTINGS_PATH, 'APIキーが見つかりません', 'error');
+            return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
 
         $validator = $this->makeValidator($request, $key);
@@ -73,25 +73,25 @@ class TranslationApiKeyController extends Controller
 
         $key->update($updateData);
 
-        return $this->redirectWithMessage(self::SETTINGS_PATH, '翻訳APIキーを更新しました');
+        return $this->redirectWithMessage(self::SETTINGS_PATH, __('翻訳APIキーを更新しました'));
     }
 
     public function destroy(int $id)
     {
         $key = TranslationApiKey::find($id);
         if (! $key) {
-            return $this->redirectWithMessage(self::SETTINGS_PATH, 'APIキーが見つかりません', 'error');
+            return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
         $key->delete();
 
-        return $this->redirectWithMessage(self::SETTINGS_PATH, '翻訳APIキーを削除しました');
+        return $this->redirectWithMessage(self::SETTINGS_PATH, __('翻訳APIキーを削除しました'));
     }
 
     public function resetUsage(int $id)
     {
         $key = TranslationApiKey::find($id);
         if (! $key) {
-            return $this->redirectWithMessage(self::SETTINGS_PATH, 'APIキーが見つかりません', 'error');
+            return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
 
         $key->update([
@@ -103,7 +103,7 @@ class TranslationApiKeyController extends Controller
             'last_monthly_reset_date' => now()->format('Y-m-01'),
         ]);
 
-        return $this->redirectWithMessage(self::SETTINGS_PATH, '使用量をリセットしました');
+        return $this->redirectWithMessage(self::SETTINGS_PATH, __('使用量をリセットしました'));
     }
 
     /**

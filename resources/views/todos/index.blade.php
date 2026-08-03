@@ -783,7 +783,7 @@
                   });
                   const data = await res.json().catch(() => ({}));
                   if (!res.ok || !data.ok) {
-                    alert(data.message || '移動に失敗しました');
+                    alert(data.message || @json(__('移動に失敗しました')));
                     return;
                   }
                   location.reload();

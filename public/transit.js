@@ -1,6 +1,36 @@
 (function () {
   const config = window.TRANSIT_CONFIG || {}
   const category = config.category || 'nishitetsu_bus'
+  const t = Object.assign({
+    addFavorite: 'よく使う路線を登録',
+    editFavorite: '路線を編集',
+    save: '保存',
+    update: '更新',
+    noRoute: '経路が見つかりませんでした',
+    noMatchingRoute: '条件に合う経路がありません。地名を「天神」「博多」「姪浜」「福岡空港」などに変えて試してください。',
+    nishitetsuPreferred: '西鉄バス優先',
+    walk: '徒歩',
+    min: '分',
+    wait: '待ち',
+    waitPrefix: '待ち',
+    transfers: '乗換',
+    times: '回',
+    externalTitle: '外部サービスでも確認',
+    googleMapsRoute: 'Google Maps でルート',
+    yahooRoute: 'Yahoo!路線でルート',
+    nishitetsuNavi: '西鉄バスナビ',
+    needFrom: '出発（バス停・駅）を入力してください',
+    searching: 'RAPTOR で検索中…',
+    searchFailed: '検索に失敗しました。再読み込みして再度お試しください。',
+    timetableFor: ':place の時刻表・地図',
+    enterDestinationHint: '到着地も入力すると RAPTOR で乗換経路を出せます。',
+    busStopSuffix: ' バス停',
+    ferrySuffix: ' 渡船場',
+    stationSuffix: ' 駅',
+    googleMapsOpen: 'Google Maps で開く',
+    yahooTimetable: 'Yahoo!路線で時刻表',
+    zeroMin: '0分',
+  }, config.strings || {})
 
   const modal = document.getElementById('transit-favorite-modal')
   const form = document.getElementById('transit-favorite-form')
@@ -16,8 +46,8 @@
   }
 
   function openAddModal() {
-    modalTitle.textContent = 'よく使う路線を登録'
-    submitBtn.textContent = '保存'
+    modalTitle.textContent = t.addFavorite
+    submitBtn.textContent = t.save
     favoriteIdInput.value = ''
     form.action = '/transit'
     form.querySelector('#transit-favorite-name').value = ''
@@ -34,8 +64,8 @@
   }
 
   function openEditModal(data) {
-    modalTitle.textContent = '路線を編集'
-    submitBtn.textContent = '更新'
+    modalTitle.textContent = t.editFavorite
+    submitBtn.textContent = t.update
     favoriteIdInput.value = String(data.id)
     form.action = '/transit/' + data.id + '/update'
     form.querySelector('#transit-favorite-category').value = data.category
@@ -175,25 +205,25 @@
     if (!itinerariesBox) return
     const list = data.itineraries || []
     if (!data.ok) {
-      itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">' + escapeHtml(data.message || '経路が見つかりませんでした') + '</p>'
+      itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">' + escapeHtml(data.message || t.noRoute) + '</p>'
       return
     }
     if (list.length === 0) {
-      itinerariesBox.innerHTML = '<p class="hint">条件に合う経路がありません。地名を「天神」「博多」「姪浜」「福岡空港」などに変えて試してください。</p>'
+      itinerariesBox.innerHTML = '<p class="hint">' + escapeHtml(t.noMatchingRoute) + '</p>'
       return
     }
     itinerariesBox.innerHTML = list.map(function (it, index) {
       const badge = it.usesNishitetsuBus
-        ? '<span class="transit-itinerary-badge is-nishitetsu">西鉄バス優先</span>'
+        ? '<span class="transit-itinerary-badge is-nishitetsu">' + escapeHtml(t.nishitetsuPreferred) + '</span>'
         : ''
       const legs = (it.legs || []).map(function (leg) {
         if (leg.type === 'walk') {
-          return '<li class="is-walk">徒歩 ' + escapeHtml(leg.from) + ' → ' + escapeHtml(leg.to) + '（' + escapeHtml(String(Math.round((leg.durationSec || 0) / 60))) + '分）</li>'
+          return '<li class="is-walk">' + escapeHtml(t.walk) + ' ' + escapeHtml(leg.from) + ' → ' + escapeHtml(leg.to) + '（' + escapeHtml(String(Math.round((leg.durationSec || 0) / 60))) + escapeHtml(t.min) + '）</li>'
         }
         return '<li class="is-ride"><strong>' + escapeHtml(leg.routeName || '') + '</strong> '
           + escapeHtml(leg.boardTime || '') + ' ' + escapeHtml(leg.from || '')
           + ' → ' + escapeHtml(leg.alightTime || '') + ' ' + escapeHtml(leg.to || '')
-          + (leg.waitSec ? ' <span class="hint">待ち' + Math.round(leg.waitSec / 60) + '分</span>' : '')
+          + (leg.waitSec ? ' <span class="hint">' + escapeHtml(t.wait) + Math.round(leg.waitSec / 60) + escapeHtml(t.min) + '</span>' : '')
           + '</li>'
       }).join('')
       return '<article class="transit-itinerary-card">'
@@ -204,8 +234,8 @@
         + '<div class="transit-itinerary-meta">'
         + escapeHtml(it.departureTime) + ' → ' + escapeHtml(it.arrivalTime)
         + ' · ' + escapeHtml(it.durationLabel)
-        + ' · 待ち ' + escapeHtml(it.waitLabel || '0分')
-        + ' · 乗換 ' + escapeHtml(String(it.transfers || 0)) + '回'
+        + ' · ' + escapeHtml(t.waitPrefix) + ' ' + escapeHtml(it.waitLabel || t.zeroMin)
+        + ' · ' + escapeHtml(t.transfers) + ' ' + escapeHtml(String(it.transfers || 0)) + escapeHtml(t.times)
         + ' · ' + escapeHtml(it.fareLabel || '')
         + '</div>'
         + '<ol class="transit-itinerary-legs">' + legs + '</ol>'
@@ -218,20 +248,20 @@
     linksBox.innerHTML = ''
     const title = document.createElement('h4')
     title.className = 'transit-external-title'
-    title.textContent = '外部サービスでも確認'
+    title.textContent = t.externalTitle
     linksBox.appendChild(title)
     linksBox.appendChild(makeLink(
-      'Google Maps でルート',
+      t.googleMapsRoute,
       'https://www.google.com/maps/dir/?api=1&travelmode=transit&origin=' + enc(fromRaw) + '&destination=' + enc(toRaw),
       false
     ))
     linksBox.appendChild(makeLink(
-      'Yahoo!路線でルート',
+      t.yahooRoute,
       'https://transit.yahoo.co.jp/search/result?from=' + enc(from) + '&to=' + enc(to) + timeParams,
       false
     ))
     if (category === 'nishitetsu_bus') {
-      linksBox.appendChild(makeLink('西鉄バスナビ', 'https://busnavi.nishitetsu.jp/', false))
+      linksBox.appendChild(makeLink(t.nishitetsuNavi, 'https://busnavi.nishitetsu.jp/', false))
     }
   }
 
@@ -269,14 +299,14 @@
     const toRaw = toInput.value.trim()
 
     if (!fromRaw && !toRaw) {
-      alert('出発（バス停・駅）を入力してください')
+      alert(t.needFrom)
       return
     }
 
     const from = cleanForTransit(fromRaw)
     const to = cleanForTransit(toRaw)
     linksBox.innerHTML = ''
-    if (itinerariesBox) itinerariesBox.innerHTML = '<p class="hint">RAPTOR で検索中…</p>'
+    if (itinerariesBox) itinerariesBox.innerHTML = '<p class="hint">' + escapeHtml(t.searching) + '</p>'
     resultsBox.removeAttribute('hidden')
 
     if (fromRaw && toRaw) {
@@ -286,7 +316,7 @@
         renderItineraries(data)
       } catch (err) {
         if (itinerariesBox) {
-          itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">検索に失敗しました。再読み込みして再度お試しください。</p>'
+          itinerariesBox.innerHTML = '<p class="hint transit-raptor-error">' + escapeHtml(t.searchFailed) + '</p>'
         }
       }
       appendExternalLinks(fromRaw, toRaw, from, to)
@@ -295,27 +325,27 @@
 
     const placeRaw = fromRaw || toRaw
     const place = from || to
-    resultsTitle.textContent = place + ' の時刻表・地図'
+    resultsTitle.textContent = (t.timetableFor || ':place の時刻表・地図').replace(':place', place)
     if (itinerariesBox) {
-      itinerariesBox.innerHTML = '<p class="hint">到着地も入力すると RAPTOR で乗換経路を出せます。</p>'
+      itinerariesBox.innerHTML = '<p class="hint">' + escapeHtml(t.enterDestinationHint) + '</p>'
     }
     let query = placeRaw
-    if (category === 'nishitetsu_bus') query = placeRaw + ' バス停'
-    else if (category === 'ferry') query = placeRaw + ' 渡船場'
-    else if (category !== 'all') query = placeRaw + ' 駅'
+    if (category === 'nishitetsu_bus') query = placeRaw + t.busStopSuffix
+    else if (category === 'ferry') query = placeRaw + t.ferrySuffix
+    else if (category !== 'all') query = placeRaw + t.stationSuffix
     const timeParams = yahooTimeParams()
     linksBox.appendChild(makeLink(
-      'Google Maps で開く',
+      t.googleMapsOpen,
       'https://www.google.com/maps/search/?api=1&query=' + enc(query),
       true
     ))
     linksBox.appendChild(makeLink(
-      'Yahoo!路線で時刻表',
+      t.yahooTimetable,
       'https://transit.yahoo.co.jp/search/result?from=' + enc(place) + timeParams,
       false
     ))
     if (category === 'nishitetsu_bus') {
-      linksBox.appendChild(makeLink('西鉄バスナビ', 'https://busnavi.nishitetsu.jp/', false))
+      linksBox.appendChild(makeLink(t.nishitetsuNavi, 'https://busnavi.nishitetsu.jp/', false))
     }
   }
 

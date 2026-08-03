@@ -26,7 +26,7 @@ class GoogleCalendarService
     {
         $connection = $this->connectionFor($user);
         if (! $connection) {
-            throw new \RuntimeException('Google カレンダーは連携されていません。');
+            throw new \RuntimeException(__('Google カレンダーは連携されていません。'));
         }
 
         if ($connection->accessTokenExpired()) {
@@ -35,7 +35,7 @@ class GoogleCalendarService
 
         $token = $connection->access_token;
         if (! is_string($token) || $token === '') {
-            throw new \RuntimeException('アクセストークンがありません。再連携してください。');
+            throw new \RuntimeException(__('アクセストークンがありません。再連携してください。'));
         }
 
         return $token;
@@ -168,7 +168,7 @@ class GoogleCalendarService
     {
         $connection = $this->connectionFor($user);
         if (! $connection) {
-            throw new \RuntimeException('Google カレンダーは連携されていません。');
+            throw new \RuntimeException(__('Google カレンダーは連携されていません。'));
         }
 
         $calendarId = $calendarId ?: $connection->syncCalendarId();
@@ -448,7 +448,7 @@ class GoogleCalendarService
     {
         $connection = $this->connectionFor($user);
         if (! $connection) {
-            throw new \RuntimeException('Google カレンダーは連携されていません。');
+            throw new \RuntimeException(__('Google カレンダーは連携されていません。'));
         }
 
         $ids = array_values(array_unique(array_filter(array_map(

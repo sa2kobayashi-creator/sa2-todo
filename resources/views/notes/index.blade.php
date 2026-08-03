@@ -659,9 +659,9 @@
           const row = document.createElement('div')
           row.className = 'checklist-row'
           row.innerHTML = `
-            <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
-            <input type="text" class="checklist-text" name="itemText" value="${value.replace(/"/g, '&quot;')}" placeholder="項目" />
-            <button type="button" class="checklist-remove" aria-label="削除">×</button>
+            <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="${@json(__('完了'))}" />
+            <input type="text" class="checklist-text" name="itemText" value="${value.replace(/"/g, '&quot;')}" placeholder="${@json(__('項目'))}" />
+            <button type="button" class="checklist-remove" aria-label="${@json(__('削除'))}">×</button>
           `
           row.querySelector('.checklist-remove')?.addEventListener('click', () => row.remove())
           checklistEditor?.appendChild(row)
@@ -755,10 +755,10 @@
           row.className = 'checklist-row'
           const safe = String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
           row.innerHTML = `
-            <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
-            <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="項目" />
+            <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="${@json(__('完了'))}" />
+            <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="${@json(__('項目'))}" />
             <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
-            <button type="button" class="checklist-remove" aria-label="削除">×</button>
+            <button type="button" class="checklist-remove" aria-label="${@json(__('削除'))}">×</button>
           `
           const check = row.querySelector('.checklist-check')
           const hidden = row.querySelector('.checklist-checked-hidden')
@@ -1354,10 +1354,10 @@
             row.className = 'checklist-row'
             const safe = String(text || '').replace(/"/g, '&quot;')
             row.innerHTML = `
-              <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="完了" />
-              <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="項目" />
+              <input type="checkbox" class="checklist-check" ${checked ? 'checked' : ''} aria-label="${@json(__('完了'))}" />
+              <input type="text" class="checklist-text" name="items[${index}][text]" value="${safe}" placeholder="${@json(__('項目'))}" />
               <input type="hidden" name="items[${index}][checked]" value="${checked ? '1' : '0'}" class="checklist-checked-hidden" />
-              <button type="button" class="checklist-remove" aria-label="削除">×</button>
+              <button type="button" class="checklist-remove" aria-label="${@json(__('削除'))}">×</button>
             `
             const check = row.querySelector('.checklist-check')
             const hidden = row.querySelector('.checklist-checked-hidden')

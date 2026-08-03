@@ -16,7 +16,7 @@ class MediaStorageSettingsController extends Controller
     public function update(Request $request, string $provider)
     {
         if (! in_array($provider, $this->storageConfig->providers(), true)) {
-            return $this->redirectWithMessage('/settings?section=storage', '不正なプロバイダです', 'error');
+            return $this->redirectWithMessage('/settings?section=storage', __('不正なプロバイダです'), 'error');
         }
 
         $enabled = $request->boolean('enabled');

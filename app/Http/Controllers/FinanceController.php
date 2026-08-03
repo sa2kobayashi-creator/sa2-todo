@@ -117,7 +117,7 @@ class FinanceController extends Controller
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         } catch (\Throwable) {
-            return $this->redirectWithMessage($returnTo, '取引の登録に失敗しました', 'error');
+            return $this->redirectWithMessage($returnTo, __('取引の登録に失敗しました'), 'error');
         }
 
         $transactionDate = (string) $request->input('transactionDate');
@@ -149,10 +149,10 @@ class FinanceController extends Controller
         }
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, '取引が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('取引が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '取引を更新しました');
+        return $this->redirectWithMessage($returnTo, __('取引を更新しました'));
     }
 
     public function parseVoice(Request $request): JsonResponse
@@ -203,10 +203,10 @@ class FinanceController extends Controller
         $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteTransaction($id)) {
-            return $this->redirectWithMessage($returnTo, '取引が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('取引が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '取引を削除しました（カード引落の場合は支払予定も削除しました）');
+        return $this->redirectWithMessage($returnTo, __('取引を削除しました（カード引落の場合は支払予定も削除しました）'));
     }
 
     public function bulkDestroy(Request $request)
@@ -223,12 +223,12 @@ class FinanceController extends Controller
             fn (int $id) => $id > 0
         )));
         if ($ids === []) {
-            return $this->redirectWithMessage($returnTo, '削除する取引が選択されていません', 'error');
+            return $this->redirectWithMessage($returnTo, __('削除する取引が選択されていません'), 'error');
         }
 
         $count = $this->finance->bulkDeleteTransactions($ids);
 
-        return $this->redirectWithMessage($returnTo, $count.'件の取引を削除しました');
+        return $this->redirectWithMessage($returnTo, __(':count件の取引を削除しました', ['count' => $count]));
     }
 
     public function storeExpenseCategory(Request $request)
@@ -271,10 +271,10 @@ class FinanceController extends Controller
             ? (float) $request->input('adjustmentAmount', 0)
             : null;
         if (! $this->finance->updateAccountInitialBalance($id, $balance, $adjustmentAmount)) {
-            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('口座が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '口座残高設定を更新しました');
+        return $this->redirectWithMessage($returnTo, __('口座残高設定を更新しました'));
     }
 
     public function resetAccountBalance(Request $request, int $id)
@@ -284,15 +284,15 @@ class FinanceController extends Controller
 
         try {
             if (! $this->finance->resetAccountBalanceToZero($id)) {
-                return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+                return $this->redirectWithMessage($returnTo, __('口座が見つかりません'), 'error');
             }
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         } catch (\Throwable) {
-            return $this->redirectWithMessage($returnTo, '残高のリセットに失敗しました', 'error');
+            return $this->redirectWithMessage($returnTo, __('残高のリセットに失敗しました'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '残高を0円にリセットしました');
+        return $this->redirectWithMessage($returnTo, __('残高を0円にリセットしました'));
     }
 
     public function updateLinkedBank(Request $request, int $id)
@@ -303,10 +303,10 @@ class FinanceController extends Controller
         $linkedBankId = $linkedBankId !== null && $linkedBankId !== '' ? (int) $linkedBankId : null;
 
         if (! $this->finance->updateLinkedBank($id, $linkedBankId)) {
-            return $this->redirectWithMessage($returnTo, '引落口座の更新に失敗しました', 'error');
+            return $this->redirectWithMessage($returnTo, __('引落口座の更新に失敗しました'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '引落口座を更新しました');
+        return $this->redirectWithMessage($returnTo, __('引落口座を更新しました'));
     }
 
     public function storeAccount(Request $request)
@@ -327,10 +327,10 @@ class FinanceController extends Controller
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         } catch (\Throwable) {
-            return $this->redirectWithMessage($returnTo, '口座の登録に失敗しました', 'error');
+            return $this->redirectWithMessage($returnTo, __('口座の登録に失敗しました'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '口座を登録しました');
+        return $this->redirectWithMessage($returnTo, __('口座を登録しました'));
     }
 
     public function updateAccountOverview(Request $request, int $id)
@@ -340,7 +340,7 @@ class FinanceController extends Controller
         $show = $request->boolean('show');
 
         if (! $this->finance->setAccountOverviewVisibility($id, $show)) {
-            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('口座が見つかりません'), 'error');
         }
 
         return $this->redirectWithMessage(
@@ -367,10 +367,10 @@ class FinanceController extends Controller
         }
 
         if (! $updated) {
-            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('口座が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '口座を更新しました');
+        return $this->redirectWithMessage($returnTo, __('口座を更新しました'));
     }
 
     public function destroyAccount(Request $request, int $id)
@@ -378,10 +378,10 @@ class FinanceController extends Controller
         $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteAccount($id)) {
-            return $this->redirectWithMessage($returnTo, '口座が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('口座が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '口座を削除しました');
+        return $this->redirectWithMessage($returnTo, __('口座を削除しました'));
     }
 
     public function storeAccountSchedule(Request $request, int $id)
@@ -399,7 +399,7 @@ class FinanceController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '予定を登録しました');
+        return $this->redirectWithMessage($returnTo, __('予定を登録しました'));
     }
 
     public function upsertAccountSchedule(Request $request, int $id)
@@ -417,7 +417,7 @@ class FinanceController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '予定を保存しました');
+        return $this->redirectWithMessage($returnTo, __('予定を保存しました'));
     }
 
     public function destroyAccountSchedule(Request $request, int $id)
@@ -425,10 +425,10 @@ class FinanceController extends Controller
         $this->actAsUser($request);
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
         if (! $this->finance->deleteSchedule($id)) {
-            return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
+            return $this->redirectWithMessage($returnTo, __('予定が見つかりません'), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '予定を削除しました（関連する引落取引も削除しました）');
+        return $this->redirectWithMessage($returnTo, __('予定を削除しました（関連する引落取引も削除しました）'));
     }
 
     public function updateAccountSchedule(Request $request, int $id)
@@ -442,13 +442,13 @@ class FinanceController extends Controller
                 'amount' => $request->input('amount'),
                 'memo' => $request->input('memo'),
             ])) {
-                return $this->redirectWithMessage($returnTo, '予定が見つかりません', 'error');
+                return $this->redirectWithMessage($returnTo, __('予定が見つかりません'), 'error');
             }
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, '予定を更新しました');
+        return $this->redirectWithMessage($returnTo, __('予定を更新しました'));
     }
 
     public function reorderAccounts(Request $request)
@@ -510,7 +510,7 @@ class FinanceController extends Controller
 
         $content = (string) file_get_contents($request->file('csv_file')->getRealPath());
         if ($content === '') {
-            return $this->redirectWithMessage($returnTo, 'CSVファイルが空です', 'error');
+            return $this->redirectWithMessage($returnTo, __('CSVファイルが空です'), 'error');
         }
 
         try {
@@ -526,7 +526,7 @@ class FinanceController extends Controller
         } catch (\Throwable $e) {
             return $this->redirectWithMessage(
                 $returnTo,
-                'CSVのインポートに失敗しました: '.$e->getMessage(),
+                __('CSVのインポートに失敗しました: :msg', ['msg' => $e->getMessage()]),
                 'error'
             );
         }

@@ -225,6 +225,7 @@
             searching: @json(__('検索中…')),
             noResults: @json(__('該当する動画がありません。')),
             searchFailed: @json(__('検索に失敗しました。')),
+            showingCount: @json(__(':count件表示')),
             play: @json(__('再生')),
             save: @json(__('ライブラリに追加')),
             saved: @json(__('追加しました')),
@@ -447,7 +448,7 @@
               return
             }
             const total = data.totalResults != null ? `（${Number(data.totalResults).toLocaleString()}）` : ''
-            setStatus(`${items.length}件表示${total}`, false)
+            setStatus((strings.showingCount || ':count件表示').replace(':count', String(items.length)) + total, false)
             renderResults(items)
           } catch (_) {
             setStatus(strings.searchFailed, true)
