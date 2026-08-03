@@ -46,6 +46,7 @@ class ShareViewData
                 'push' => __('プッシュ通知'),
                 'push_sound' => __('プッシュ（音あり）'),
                 'line' => __('LINE'),
+                'messenger' => __('Messenger'),
             ],
             'notifyViaOptions' => TodoService::NOTIFY_VIA_OPTIONS,
             'nationalHolidayDates' => $this->holidays->listAllJapaneseNationalHolidayDateKeys(),

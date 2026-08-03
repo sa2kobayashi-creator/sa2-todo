@@ -37,6 +37,12 @@ class MediaStorageSetting extends Model
     /** Travelpayouts（航空運賃） */
     public const PROVIDER_TRAVELPAYOUTS = 'travelpayouts';
 
+    /** LINE Messaging API（ToDo 通知） */
+    public const PROVIDER_LINE = 'line';
+
+    /** Facebook Page / Messenger（ToDo 通知） */
+    public const PROVIDER_FACEBOOK = 'facebook';
+
     protected $fillable = [
         'provider',
         'enabled',

@@ -7,6 +7,9 @@ use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
+use App\Services\GoogleCalendarService;
+use App\Services\LineMessagingService;
+use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
 use App\Services\TravelpayoutsConfigService;
@@ -25,13 +28,16 @@ class SettingsController extends Controller
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
-        private \App\Services\GoogleCalendarService $googleCalendar,
+        private GoogleCalendarService $googleCalendar,
+        private LineMessagingService $lineMessaging,
+        private MessengerMessagingService $messengerMessaging,
     ) {}
 
     public function index(Request $request)
     {
         $year = (int) ($request->query('year') ?: date('Y'));
         $section = $this->parseSection($request->query('section'));
+        $messagingSection = in_array($section, ['integration', 'notifications'], true);
 
         return view('settings.index', [
             'section' => $section,
@@ -43,7 +49,7 @@ class SettingsController extends Controller
             'prevHolidayYear' => $year - 1,
             'nextHolidayYear' => $year + 1,
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
-            'lineConfigured' => false,
+            'lineConfigured' => $this->lineMessaging->isConfigured(),
             'pushConfigured' => false,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
@@ -65,6 +71,12 @@ class SettingsController extends Controller
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
             'googleCalendar' => $section === 'integration'
                 ? $this->googleCalendar->formState($request->user())
+                : null,
+            'lineMessaging' => $messagingSection
+                ? $this->lineMessaging->formState($request->user())
+                : null,
+            'messengerMessaging' => $messagingSection
+                ? $this->messengerMessaging->formState($request->user())
                 : null,
             ...$this->flashFromQuery($request),
         ]);

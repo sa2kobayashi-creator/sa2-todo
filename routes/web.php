@@ -17,6 +17,9 @@ use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
+use App\Http\Controllers\LineWebhookController;
+use App\Http\Controllers\MessengerWebhookController;
+use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
@@ -68,6 +71,11 @@ Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
 Route::post('/app-context', [AppContextController::class, 'update'])
     ->middleware(['auth'])
     ->name('app-context.update');
+
+// LINE / Messenger Webhook（CSRF 除外は bootstrap/app.php）
+Route::post('/webhooks/line', LineWebhookController::class);
+Route::get('/webhooks/messenger', [MessengerWebhookController::class, 'verify']);
+Route::post('/webhooks/messenger', [MessengerWebhookController::class, 'receive']);
 
 // Google Calendar OAuth callback（ログイン連携ではない。セッションのログインユーザーに紐付ける）
 Route::get('/auth/google/calendar/callback', [GoogleCalendarSettingsController::class, 'callback'])
@@ -273,6 +281,19 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
         Route::post('/settings/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
         Route::post('/settings/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
+
+        Route::post('/settings/messaging/{provider}/channel', [MessagingSettingsController::class, 'saveChannel'])
+            ->where('provider', 'line|messenger');
+        Route::post('/settings/messaging/{provider}/channel/test', [MessagingSettingsController::class, 'testChannel'])
+            ->where('provider', 'line|messenger');
+        Route::post('/settings/messaging/line/disable', [MessagingSettingsController::class, 'disableLine']);
+        Route::post('/settings/messaging/line/qr/delete', [MessagingSettingsController::class, 'deleteLineQr']);
+        Route::post('/settings/messaging/{provider}/code', [MessagingSettingsController::class, 'issueCode'])
+            ->where('provider', 'line|messenger');
+        Route::post('/settings/messaging/{provider}/disconnect', [MessagingSettingsController::class, 'disconnect'])
+            ->where('provider', 'line|messenger');
+        Route::post('/settings/messaging/{provider}/test', [MessagingSettingsController::class, 'test'])
+            ->where('provider', 'line|messenger');
 
         Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive']);
         Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])

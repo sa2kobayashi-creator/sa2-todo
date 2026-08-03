@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SetLocale::class,
             \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/line',
+            'webhooks/messenger',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // 419 のまま素っ気ないエラー画面を出さず、元の画面へ理由付きで戻す。

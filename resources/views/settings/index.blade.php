@@ -431,7 +431,8 @@
         </table>
       </div>
       @elseif(($section ?? '') === 'integration')
-      <div class="panel"><h2>{{ __('LINE 連携') }}</h2><p class="hint">{{ __('次のフェーズで移植予定です。') }}</p></div>
+      @include('settings.partials.line-messaging')
+      @include('settings.partials.facebook-messenger')
       @include('settings.partials.google-calendar')
       @elseif(($section ?? '') === 'storage')
         @include('settings.partials.storage')
@@ -439,7 +440,7 @@
         @include('settings.partials.travelpayouts')
         @include('settings.partials.enhance')
       @elseif(($section ?? '') === 'notifications')
-      <div class="panel"><h2>{{ __('通知設定') }}</h2><p class="hint">{{ __('Web Push / LINE 通知は次のフェーズで移植予定です。') }}</p></div>
+      @include('settings.partials.notifications')
       @endif
     </main>
 

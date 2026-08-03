@@ -57,6 +57,11 @@ class User extends Authenticatable
         return $this->hasOne(GoogleCalendarConnection::class);
     }
 
+    public function messagingConnections()
+    {
+        return $this->hasMany(MessagingConnection::class);
+    }
+
     public function roleEnum(): UserRole
     {
         return $this->role instanceof UserRole

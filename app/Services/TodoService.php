@@ -39,9 +39,10 @@ class TodoService
         'push' => 'プッシュ通知',
         'push_sound' => 'プッシュ（音あり）',
         'line' => 'LINE',
+        'messenger' => 'Messenger',
     ];
 
-    public const NOTIFY_VIA_OPTIONS = ['push', 'push_sound', 'line'];
+    public const NOTIFY_VIA_OPTIONS = ['push', 'push_sound', 'line', 'messenger'];
 
     private const CATEGORY_FILTER_VALUES = ['task', 'personal', 'memo', 'other'];
 

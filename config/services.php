@@ -49,6 +49,28 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    /*
+    | LINE Messaging API（通知連携。ログイン認証ではない）
+    | Webhook: {APP_URL}/webhooks/line
+    */
+    'line' => [
+        'channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN'),
+        'channel_secret' => env('LINE_CHANNEL_SECRET'),
+        'bot_basic_id' => env('LINE_BOT_BASIC_ID'),
+    ],
+
+    /*
+    | Facebook Page / Messenger（通知連携）
+    | Webhook: {APP_URL}/webhooks/messenger
+    */
+    'facebook' => [
+        'app_id' => env('FACEBOOK_APP_ID'),
+        'app_secret' => env('FACEBOOK_APP_SECRET'),
+        'page_access_token' => env('FACEBOOK_PAGE_ACCESS_TOKEN'),
+        'verify_token' => env('FACEBOOK_VERIFY_TOKEN'),
+        'page_name' => env('FACEBOOK_PAGE_NAME'),
+    ],
+
     'translation' => [
         'provider' => env('TRANSLATION_PROVIDER', 'deepl'),
         'api_key' => env('TRANSLATION_API_KEY'),
