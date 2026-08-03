@@ -1743,11 +1743,26 @@ a.filter-clear-btn {
 
 .calendar-toolbar-inline {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   padding: 10px 12px;
-  flex-wrap: nowrap;
+}
+
+.calendar-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.calendar-toolbar-row-nav {
   justify-content: space-between;
+}
+
+.calendar-toolbar-row-controls {
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .calendar-toolbar-inline .calendar-nav-arrow {
@@ -1764,7 +1779,6 @@ a.filter-clear-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  vertical-align: middle;
 }
 
 .calendar-toolbar-inline .calendar-nav-glyph {
@@ -1772,45 +1786,30 @@ a.filter-clear-btn {
   font-size: 22px;
   line-height: 1;
   font-weight: 600;
-  /* ‹› のフォントメトリクス補正（見た目の縦中央） */
   transform: translateY(-1px);
 }
 
-.calendar-toolbar-mid {
-  position: relative;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 0;
-  min-height: 36px;
-}
-
 .calendar-toolbar-inline .month-label {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
   font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   line-height: 1.2;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.calendar-toolbar-controls {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: nowrap;
-  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 旧レイアウトの absolute 指定を打ち消す */
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  pointer-events: auto;
+  z-index: auto;
 }
 
 .calendar-toolbar-inline .calendar-chip-btn {
+  flex: 0 0 auto;
   min-height: 32px;
   height: 32px;
   padding: 0 10px;
@@ -1820,12 +1819,13 @@ a.filter-clear-btn {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .calendar-toolbar-inline .calendar-view-switch {
   flex: 0 0 auto;
-  align-self: center;
   width: auto;
+  min-width: 0;
 }
 
 .calendar-toolbar-inline .calendar-view-btn {
@@ -1853,89 +1853,47 @@ a.filter-clear-btn {
   box-sizing: border-box;
 }
 
-/* 狭い画面: 1行目 ‹ 年月 › / 2行目 今日・表示切替・メモ/Todo */
 @media (max-width: 900px) {
   .calendar-toolbar.calendar-toolbar-inline {
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) 36px;
-    grid-template-rows: auto auto;
-    gap: 8px 6px;
-    align-items: center;
     padding: 10px 8px;
+    gap: 8px;
   }
 
-  .calendar-toolbar-inline > .calendar-nav-arrow:first-of-type {
-    grid-column: 1;
-    grid-row: 1;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
+  .calendar-toolbar-row-nav {
+    flex-wrap: nowrap;
   }
 
-  .calendar-toolbar-inline > .calendar-nav-arrow:last-of-type {
-    grid-column: 3;
-    grid-row: 1;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
+  .calendar-toolbar-row-controls {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
   }
 
-  .calendar-toolbar-inline .calendar-toolbar-mid {
-    display: contents;
+  .calendar-toolbar-row-controls::-webkit-scrollbar {
+    display: none;
   }
 
   .calendar-toolbar-inline .month-label {
-    grid-column: 2;
-    grid-row: 1;
+    font-size: 15px;
     position: static !important;
     left: auto !important;
     top: auto !important;
     transform: none !important;
-    pointer-events: auto;
-    z-index: auto;
-    text-align: center;
-    font-size: 15px;
-    font-weight: 600;
-    justify-self: center;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .calendar-toolbar-inline .calendar-toolbar-controls {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    position: static;
-    z-index: auto;
+  .calendar-toolbar-inline .calendar-nav-arrow {
+    width: 36px;
+    height: 36px;
   }
 
-  .calendar-toolbar-inline .calendar-toolbar-controls::-webkit-scrollbar {
-    display: none;
-  }
-
-  .calendar-toolbar-inline .calendar-chip-btn {
-    flex: 0 0 auto;
-    min-height: 32px;
-    height: 32px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-
+  /* 720px 以下の width:100% / flex:1 を打ち消す（縦積みの原因） */
   .calendar-toolbar-inline .calendar-view-switch {
-    flex: 0 0 auto;
-    min-width: 0;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
   }
 
   .calendar-toolbar-inline .calendar-view-btn {
@@ -1947,17 +1905,23 @@ a.filter-clear-btn {
     font-size: 12px !important;
   }
 
+  .calendar-toolbar-inline .calendar-chip-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+  }
+
   .calendar-toolbar-inline .calendar-toolbar-actions {
-    flex: 0 0 auto;
-    gap: 4px;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin-left: auto;
   }
 
   .calendar-toolbar-inline .calendar-action-btn {
-    width: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    height: 32px;
-    padding: 0;
+    width: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
   }
 
   .calendar-toolbar-inline .calendar-action-icon {
@@ -1967,15 +1931,10 @@ a.filter-clear-btn {
   .calendar-toolbar-inline .calendar-action-label {
     display: none !important;
   }
-}
 
-@media (max-width: 900px) {
+  /* JS の MOBILE_MQ(900px) と揃える */
   .calendar-height-resizer {
     display: block;
-  }
-
-  .calendar-day {
-    min-height: var(--cal-day-min-height, 96px);
   }
 }
 
@@ -2635,6 +2594,14 @@ a.filter-clear-btn {
 
   .calendar-view-btn {
     flex: 1;
+  }
+
+  .calendar-toolbar-inline .calendar-view-switch {
+    width: auto !important;
+  }
+
+  .calendar-toolbar-inline .calendar-view-btn {
+    flex: 0 0 auto !important;
   }
 
   .cal-allday-row,
@@ -8734,8 +8701,8 @@ body.map-page {
   }
 
   .calendar-toolbar-inline .calendar-view-switch {
-    flex: 0 0 auto;
-    width: auto;
+    flex: 0 0 auto !important;
+    width: auto !important;
   }
 
   .calendar-toolbar-inline .calendar-view-btn {
@@ -8785,6 +8752,12 @@ body.map-page {
     display: none !important;
   }
 
+  .calendar-toolbar-inline .month-label {
+    position: static !important;
+    transform: none !important;
+    font-size: 15px;
+  }
+
   .calendar-toolbar > .button-link {
     justify-self: end;
     font-size: 13px;
@@ -8800,10 +8773,6 @@ body.map-page {
     min-height: var(--cal-day-min-height, 96px);
     padding: 3px 2px;
     cursor: pointer;
-  }
-
-  .calendar-height-resizer {
-    display: block;
   }
 
   .day-events {
