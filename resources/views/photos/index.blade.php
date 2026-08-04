@@ -762,12 +762,18 @@
               @endforeach
             </select>
           </label>
-          @if(count($photoJumpYears ?? []) > 1)
+          @php
+            // 自動で最新年に絞った場合も、ライブラリ全体の年へ移動できるようにする
+            $yearNavYears = count($photoYears ?? []) > 1
+              ? $photoYears
+              : ($photoJumpYears ?? []);
+          @endphp
+          @if(count($yearNavYears) > 1)
             <label class="photos-toolbar-select">
               <span class="visually-hidden">{{ __('年へ移動') }}</span>
               <select id="photos-year-jump" aria-label="{{ __('年へ移動') }}">
                 <option value="">{{ __('年へ移動') }}</option>
-                @foreach($photoJumpYears as $jumpYear)
+                @foreach($yearNavYears as $jumpYear)
                   <option value="{{ $jumpYear }}">{{ __(':year年へ', ['year' => $jumpYear]) }}</option>
                 @endforeach
               </select>
@@ -909,11 +915,11 @@
         </div>
 
         <div class="photos-year-dock is-hiding" id="photos-year-dock" aria-label="{{ __('年へ移動') }}" hidden>
-          @if(count($photoJumpYears ?? []) > 1)
+          @if(count($yearNavYears ?? []) > 1)
             <label class="photos-year-dock-field">
               <span class="visually-hidden">{{ __('年へ移動') }}</span>
               <select id="photos-year-dock-select" aria-label="{{ __('年へ移動') }}">
-                @foreach($photoJumpYears as $jumpYear)
+                @foreach($yearNavYears as $jumpYear)
                   <option value="{{ $jumpYear }}">{{ __(':year年', ['year' => $jumpYear]) }}</option>
                 @endforeach
               </select>
@@ -966,7 +972,6 @@
               <button type="button" class="photos-secondary-btn" id="photos-lightbox-fs-action">{{ __('全画面') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-lightbox-slideshow">{{ __('スライドショー') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-share-btn">{{ __('共有') }}</button>
-              <button type="button" class="photos-secondary-btn photos-messenger-btn" id="photos-share-messenger-btn">{{ __('Messengerで送る') }}</button>
               @if($selectedAlbumId && !empty($canManageSelected))
                 <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
                   @csrf
@@ -3646,25 +3651,28 @@
         pagerNext?.addEventListener('click', () => setPhotosPage(photosPage + 1, { scroll: true }))
 
         /**
-         * 年フィルタ（再読み込み）とは別に、いま並んでいる一覧の中をその年まで送る。
-         * 一覧モードはページ送りされているので、先に該当ページへ切り替える。
+         * 画面上にある年へはスクロール。無い年（最新年のみ表示中など）は年フィルタで遷移する。
          */
         function jumpToYear(year) {
-          if (!gallery || !/^\d{4}$/.test(String(year || ''))) return
-          const target = Array.from(gallery.querySelectorAll('.photos-day-group'))
-            .filter((group) => group.dataset.year === String(year))
-            .map((group) => ({
-              group,
-              wrap: Array.from(group.querySelectorAll('.photos-tile-wrap')).find(wrapMatchesMediaKind),
-            }))
-            .find((entry) => !!entry.wrap)
-          if (!target) return
-
-          if (currentPhotosMode() === 'list') {
-            const index = photoTileWraps().filter(wrapMatchesMediaKind).indexOf(target.wrap)
-            if (index >= 0) setPhotosPage(Math.floor(index / PHOTOS_PAGE_SIZE) + 1)
+          if (!/^\d{4}$/.test(String(year || ''))) return
+          const target = gallery
+            ? Array.from(gallery.querySelectorAll('.photos-day-group'))
+              .filter((group) => group.dataset.year === String(year))
+              .map((group) => ({
+                group,
+                wrap: Array.from(group.querySelectorAll('.photos-tile-wrap')).find(wrapMatchesMediaKind),
+              }))
+              .find((entry) => !!entry.wrap)
+            : null
+          if (target) {
+            if (currentPhotosMode() === 'list') {
+              const index = photoTileWraps().filter(wrapMatchesMediaKind).indexOf(target.wrap)
+              if (index >= 0) setPhotosPage(Math.floor(index / PHOTOS_PAGE_SIZE) + 1)
+            }
+            target.group.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            return
           }
-          target.group.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          applyPhotosListQuery({ year: String(year) })
         }
 
         const yearJumpSelect = document.getElementById('photos-year-jump')
@@ -3954,21 +3962,17 @@
           })
         })
 
-        async function shareCurrentMedia({ messengerHint = false } = {}) {
+        async function shareCurrentMedia() {
           const photo = photos[currentIndex]
           if (!photo) return
           const shareBtn = document.getElementById('photos-share-btn')
-          const messengerBtn = document.getElementById('photos-share-messenger-btn')
-          const busyBtns = [shareBtn, messengerBtn].filter(Boolean)
-          busyBtns.forEach((btn) => { btn.disabled = true })
+          if (shareBtn) shareBtn.disabled = true
           try {
             const file = await fetchCurrentMediaFile()
             const payload = {
               files: [file],
               title: photo.caption || photo.originalName || @json(__('写真')),
-              text: messengerHint
-                ? @json(__('Messenger を選んで送信してください。'))
-                : (photo.caption || photo.originalName || ''),
+              text: photo.caption || photo.originalName || '',
             }
             const canShareFiles = typeof navigator.canShare !== 'function'
               || navigator.canShare({ files: [file] })
@@ -3981,23 +3985,16 @@
               }
             }
             downloadFile(file)
-            window.alert(
-              messengerHint
-                ? @json(__('共有シートが使えないためダウンロードしました。Messenger を開き、ダウンロードしたファイルを添付して送信してください。'))
-                : @json(__('共有に対応していないため、ファイルをダウンロードしました。'))
-            )
+            window.alert(@json(__('共有に対応していないため、ファイルをダウンロードしました。')))
           } catch (_) {
             window.alert(@json(__('共有の準備に失敗しました。')))
           } finally {
-            busyBtns.forEach((btn) => { btn.disabled = false })
+            if (shareBtn) shareBtn.disabled = false
           }
         }
 
         document.getElementById('photos-share-btn')?.addEventListener('click', () => {
-          shareCurrentMedia({ messengerHint: false })
-        })
-        document.getElementById('photos-share-messenger-btn')?.addEventListener('click', () => {
-          shareCurrentMedia({ messengerHint: true })
+          shareCurrentMedia()
         })
 
         const slideshow = document.getElementById('photos-slideshow')

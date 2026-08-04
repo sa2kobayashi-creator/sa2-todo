@@ -801,9 +801,11 @@ class PhotoService
         }
 
         $driver = $query->getConnection()->getDriverName();
-        $yearExpr = $driver === 'sqlite'
-            ? "CAST(strftime('%Y', taken_at) AS INTEGER)"
-            : 'YEAR(taken_at)';
+        $yearExpr = match ($driver) {
+            'sqlite' => "CAST(strftime('%Y', taken_at) AS INTEGER)",
+            'pgsql' => 'EXTRACT(YEAR FROM taken_at)::integer',
+            default => 'YEAR(taken_at)',
+        };
 
         return $query
             ->whereNotNull('taken_at')

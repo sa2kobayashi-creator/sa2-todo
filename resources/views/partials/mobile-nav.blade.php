@@ -51,15 +51,4 @@
       <span class="mobile-nav-label">{{ __('マップ') }}</span>
     </a>
   @endif
-  @if(!empty($canSettings))
-    <a href="/settings" class="mobile-nav-item {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups'], true) ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">⚙</span>
-      <span class="mobile-nav-label">{{ __('設定') }}</span>
-    </a>
-  @elseif(!empty($canAdminUsers))
-    <a href="/admin/users" class="mobile-nav-item {{ ($active ?? '') === 'admin' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">🛡</span>
-      <span class="mobile-nav-label">{{ __('管理') }}</span>
-    </a>
-  @endif
 </nav>

@@ -150,7 +150,9 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertSee('最新の 2026 年のみ表示')
             ->assertSee('すべての年を表示')
             ->assertSee('data-year="2026"', false)
-            ->assertDontSee('data-year="2024"', false);
+            ->assertDontSee('data-year="2024"', false)
+            ->assertSee('id="photos-year-jump"', false)
+            ->assertSee('2024年へ');
 
         $this->actingAs($user)->get('/photos?year=all')
             ->assertOk()

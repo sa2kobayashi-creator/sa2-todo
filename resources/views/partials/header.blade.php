@@ -52,63 +52,103 @@
       @endif
     </nav>
 
-    <div class="nav-trailing">
+    <div class="header-actions">
       @if(!empty($currentUser))
-        <div class="lang-switcher context-switcher" role="group" aria-label="{{ __('表示モード') }}">
-          <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form">
-            @csrf
-            <input type="hidden" name="context" value="personal" />
-            <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
-            <button type="submit" class="lang-switch-btn{{ ($appContext ?? 'personal') === 'personal' ? ' is-active' : '' }}" aria-pressed="{{ ($appContext ?? 'personal') === 'personal' ? 'true' : 'false' }}">{{ __('プライベート') }}</button>
-          </form>
-          <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form">
-            @csrf
-            <input type="hidden" name="context" value="work" />
-            <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
-            <button type="submit" class="lang-switch-btn{{ ($appContext ?? 'personal') === 'work' ? ' is-active' : '' }}" aria-pressed="{{ ($appContext ?? 'personal') === 'work' ? 'true' : 'false' }}">{{ __('仕事') }}</button>
-          </form>
-        </div>
+        @php
+          $currentContext = ($appContext ?? 'personal') === 'work' ? 'work' : 'personal';
+          $nextContext = $currentContext === 'personal' ? 'work' : 'personal';
+          $contextLabel = $currentContext === 'personal' ? __('個人') : __('仕事');
+          $nextContextLabel = $nextContext === 'personal' ? __('個人') : __('仕事');
+        @endphp
+        <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form lang-toggle context-toggle">
+          @csrf
+          <input type="hidden" name="context" value="{{ $nextContext }}" />
+          <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
+          <button
+            type="submit"
+            class="lang-switch-btn lang-toggle-btn context-toggle-btn is-active"
+            title="{{ __('表示モードを:modeに切替', ['mode' => $nextContextLabel]) }}"
+            aria-label="{{ __('表示モードを:modeに切替', ['mode' => $nextContextLabel]) }}"
+          >{{ $contextLabel }}</button>
+        </form>
       @endif
-      <div class="lang-switcher" role="group" aria-label="{{ __('言語') }}">
-        <form method="post" action="{{ route('locale.update') }}" class="lang-switch-form">
-          @csrf
-          <input type="hidden" name="locale" value="ja" />
-          <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
-          <button type="submit" class="lang-switch-btn{{ ($appLocale ?? app()->getLocale()) === 'ja' ? ' is-active' : '' }}" aria-pressed="{{ ($appLocale ?? app()->getLocale()) === 'ja' ? 'true' : 'false' }}">JP</button>
-        </form>
-        <form method="post" action="{{ route('locale.update') }}" class="lang-switch-form">
-          @csrf
-          <input type="hidden" name="locale" value="en" />
-          <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
-          <button type="submit" class="lang-switch-btn{{ ($appLocale ?? app()->getLocale()) === 'en' ? ' is-active' : '' }}" aria-pressed="{{ ($appLocale ?? app()->getLocale()) === 'en' ? 'true' : 'false' }}">EN</button>
-        </form>
-      </div>
-    </div>
+      @php
+        $currentLocale = ($appLocale ?? app()->getLocale()) === 'en' ? 'en' : 'ja';
+        $nextLocale = $currentLocale === 'ja' ? 'en' : 'ja';
+        $localeLabel = $currentLocale === 'ja' ? 'JP' : 'EN';
+        $nextLocaleLabel = $nextLocale === 'ja' ? 'JP' : 'EN';
+      @endphp
+      <form method="post" action="{{ route('locale.update') }}" class="lang-switch-form lang-toggle">
+        @csrf
+        <input type="hidden" name="locale" value="{{ $nextLocale }}" />
+        <input type="hidden" name="redirect" value="{{ request()->getRequestUri() }}" />
+        <button
+          type="submit"
+          class="lang-switch-btn lang-toggle-btn is-active"
+          title="{{ __('言語を:langに切替', ['lang' => $nextLocaleLabel]) }}"
+          aria-label="{{ __('言語を:langに切替', ['lang' => $nextLocaleLabel]) }}"
+        >{{ $localeLabel }}</button>
+      </form>
 
-    @if(!empty($currentUser))
-      <div class="site-user-menu">
-        <div class="nav-dropdown" id="user-dropdown">
-          <button type="button" class="user-menu-toggle" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false">
-            <span class="user-menu-name">{{ $currentUser['displayName'] }}</span>
-            <span class="nav-dropdown-caret" aria-hidden="true">▾</span>
-          </button>
-          <div class="nav-dropdown-menu user-dropdown-menu" role="menu">
-            <div class="user-dropdown-meta">
-              <strong>{{ $currentUser['displayName'] }}</strong>
-              <span class="role-badge {{ $currentUser['role'] }}">{{ $currentUser['roleLabel'] }}</span>
+      @if(!empty($currentUser))
+        @php
+          $userDisplayName = (string) ($currentUser['displayName'] ?? '');
+          $nameParts = preg_split('/\s+/u', trim($userDisplayName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+          if (count($nameParts) >= 2) {
+            $userInitials = mb_substr($nameParts[0], 0, 1).mb_substr($nameParts[array_key_last($nameParts)], 0, 1);
+          } elseif ($nameParts !== []) {
+            $first = $nameParts[0];
+            $userInitials = mb_substr($first, 0, preg_match('/^[A-Za-z]/u', $first) ? 2 : 1);
+          } else {
+            $userInitials = '?';
+          }
+        @endphp
+        <div class="site-user-menu">
+          <div class="nav-dropdown" id="user-dropdown">
+            <button
+              type="button"
+              class="user-menu-toggle"
+              id="user-menu-toggle"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="{{ $userDisplayName }}"
+              title="{{ $userDisplayName }}"
+            >
+              <span class="user-menu-avatar" aria-hidden="true">{{ $userInitials }}</span>
+            </button>
+            <div class="nav-dropdown-menu user-dropdown-menu" role="menu">
+              <div class="user-dropdown-meta">
+                <strong>{{ $userDisplayName }}</strong>
+                <span class="role-badge {{ $currentUser['role'] }}">{{ $currentUser['roleLabel'] }}</span>
+              </div>
+              <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
+              @if(!empty($canGroups))
+                <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
+              @endif
+              @if(!empty($canSettings) || !empty($canAdminUsers))
+                <div class="user-dropdown-divider mobile-only" role="separator"></div>
+                @if(!empty($canSettings))
+                  <a href="/settings?section=holidays" class="mobile-only {{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
+                  <a href="/settings?section=ai" class="mobile-only {{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
+                  <a href="/settings?section=storage" class="mobile-only {{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
+                  <a href="/settings?section=enhance" class="mobile-only {{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
+                  <a href="/settings?section=integration" class="mobile-only {{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
+                  <a href="/settings?section=notifications" class="mobile-only {{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
+                @endif
+                @if(!empty($canAdminUsers))
+                  <a href="/admin/users" class="mobile-only {{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
+                  <a href="/admin/groups" class="mobile-only {{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
+                @endif
+              @endif
+              <form method="post" action="/logout" class="logout-form">
+                @csrf
+                <button type="submit" role="menuitem">{{ __('ログアウト') }}</button>
+              </form>
             </div>
-            <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
-            @if(!empty($canGroups))
-              <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
-            @endif
-            <form method="post" action="/logout" class="logout-form">
-              @csrf
-              <button type="submit" role="menuitem">{{ __('ログアウト') }}</button>
-            </form>
           </div>
         </div>
-      </div>
-    @endif
+      @endif
+    </div>
   </div>
 </header>
 <script>

@@ -10,7 +10,7 @@ enum AppContext: string
     public function label(): string
     {
         return match ($this) {
-            self::Personal => __('プライベート'),
+            self::Personal => __('個人'),
             self::Work => __('仕事'),
         };
     }
