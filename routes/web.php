@@ -77,6 +77,16 @@ Route::post('/webhooks/line', LineWebhookController::class);
 Route::get('/webhooks/messenger', [MessengerWebhookController::class, 'verify']);
 Route::post('/webhooks/messenger', [MessengerWebhookController::class, 'receive']);
 
+// Digital Asset Links（TWA）。静的ファイルでも可だが Content-Type を明示
+Route::get('/.well-known/assetlinks.json', function () {
+    $path = public_path('.well-known/assetlinks.json');
+    abort_unless(is_file($path), 404);
+    return response()->file($path, [
+        'Content-Type' => 'application/json; charset=utf-8',
+        'Cache-Control' => 'public, max-age=300',
+    ]);
+});
+
 // Google Calendar OAuth callback（ログイン連携ではない。セッションのログインユーザーに紐付ける）
 Route::get('/auth/google/calendar/callback', [GoogleCalendarSettingsController::class, 'callback'])
     ->middleware(['auth', ShareViewData::class]);

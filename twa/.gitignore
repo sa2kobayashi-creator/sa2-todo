@@ -1,0 +1,19 @@
+# Bubblewrap local artifacts (paths relative to this directory)
+android.keystore
+*.keystore
+*.apk
+*.aab
+*.idsig
+hs_err_pid*.log
+manifest-checksum.txt
+store_icon.png
+.gradle/
+app/
+build/
+gradle/
+gradlew
+gradlew.bat
+settings.gradle
+build.gradle
+AndroidManifest.xml
+output/
