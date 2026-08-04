@@ -5271,12 +5271,11 @@
           video.addEventListener('loadeddata', showFrame)
         })
 
+        // SW 登録は brand-head（全ページ共通）。ここでは更新チェックのみ
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then((reg) => reg.update().catch(() => {}))
-            .catch((err) => {
-              console.warn('Photos SW registration failed', err)
-            })
+          navigator.serviceWorker.getRegistration('/').then((reg) => {
+            if (reg) reg.update().catch(() => {})
+          }).catch(() => {})
         }
 
         const pwaGuideModal = document.getElementById('photos-pwa-guide-modal')

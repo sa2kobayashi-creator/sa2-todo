@@ -11,3 +11,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="application-name" content="{{ config('app.name', 'Sa2 Studio') }}" />
 <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Sa2 Studio') }}" />
+<script>
+  // 全体 PWA: 認証 HTML / API はキャッシュしない最小 SW を全ページで登録
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register(@json(asset('sw.js')), { scope: '/' })
+        .then((reg) => reg.update().catch(() => {}))
+        .catch(() => {})
+    })
+  }
+</script>

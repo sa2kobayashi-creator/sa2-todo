@@ -1,31 +1,37 @@
-/* Sa2 Photos PWA service worker - cache app shell only */
-const CACHE = 'sa2-photos-shell-v4'
-const SHELL = [
-  '/photos-start.html',
-  '/app.css',
+/* Sa2 Studio app PWA - installability only; do not cache authenticated HTML/API */
+const CACHE = 'sa2-app-shell-v1'
+const PRECACHE = [
   '/manifest.webmanifest',
+  '/offline.html',
   '/icons/pwa-192.png',
   '/icons/pwa-512.png',
 ]
 
-function offlineResponse(message = 'Offline') {
-  return new Response(message, {
-    status: 503,
-    statusText: 'Service Unavailable',
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+function offlineResponse() {
+  return caches.match('/offline.html').then((cached) => {
+    if (cached) return cached
+    return new Response('Offline', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   })
 }
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
   )
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE)
+          .map((key) => caches.delete(key))
+      )
     ).then(() => self.clients.claim())
   )
 })
@@ -34,33 +40,34 @@ self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
 
-  const url = new URL(req.url)
+  let url
+  try {
+    url = new URL(req.url)
+  } catch (_) {
+    return
+  }
   if (url.origin !== self.location.origin) return
 
-  // 画面遷移のみオフライン時にシェルへフォールバック（必ず Response を返す）
+  // HTML 画面遷移: 常にネットワーク。失敗時のみ静的 offline（ログイン/Photos へ落とさない）
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).catch(async () => {
-        const shell = await caches.match('/photos-start.html')
-        return shell || offlineResponse('Offline')
-      })
+      fetch(req).catch(() => offlineResponse())
     )
     return
   }
 
-  // /photos 配下の動的API・画像は SW で触らない（ログイン・鮮明化・file 配信を壊さない）
-  if (url.pathname.startsWith('/photos')) {
+  // 静的アイコン・manifest・offline のみ cache-first
+  const path = url.pathname
+  const isPrecacheAsset =
+    path === '/manifest.webmanifest'
+    || path === '/offline.html'
+    || path === '/icons/pwa-192.png'
+    || path === '/icons/pwa-512.png'
+
+  if (!isPrecacheAsset) {
+    // Laravel / API / CSS / JS / Photos 等は SW が介入しない（ブラウザ既定のネットワーク）
     return
   }
-
-  // シェル資産のみ cache-first
-  const isShellAsset =
-    url.pathname.endsWith('.css')
-    || url.pathname.startsWith('/icons/')
-    || url.pathname.endsWith('.webmanifest')
-    || url.pathname.endsWith('photos-start.html')
-
-  if (!isShellAsset) return
 
   event.respondWith(
     caches.match(req).then((cached) => {

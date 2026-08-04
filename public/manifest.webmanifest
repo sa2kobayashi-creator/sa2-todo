@@ -3,7 +3,7 @@
   "name": "Sa2 Studio",
   "short_name": "Sa2 Studio",
   "description": "Sa2 Studio",
-  "start_url": "/photos-start.html",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
