@@ -33,6 +33,18 @@
       <span class="mobile-nav-label">{{ __('動画') }}</span>
     </a>
   @endif
+  @if(!empty($canMessages))
+    <a href="/messages" class="mobile-nav-item {{ ($active ?? '') === 'messages' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">💬</span>
+      <span class="mobile-nav-label">{{ __('メッセージ') }}</span>
+    </a>
+  @endif
+  @if(!empty($canTranslate))
+    <a href="/translate" class="mobile-nav-item {{ ($active ?? '') === 'translate' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">文A</span>
+      <span class="mobile-nav-label">{{ __('翻訳') }}</span>
+    </a>
+  @endif
   @if(!empty($canTransit))
     <a href="/transit" class="mobile-nav-item {{ ($active ?? '') === 'transit' ? 'active' : '' }}">
       <span class="mobile-nav-icon" aria-hidden="true">🚌</span>

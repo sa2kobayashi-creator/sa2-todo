@@ -10,6 +10,8 @@ enum MenuFeature: string
     case Map = 'map';
     case Music = 'music';
     case Video = 'video';
+    case Messages = 'messages';
+    case Translate = 'translate';
 
     public function label(): string
     {
@@ -20,6 +22,8 @@ enum MenuFeature: string
             self::Map => 'マップ',
             self::Music => '音楽',
             self::Video => '動画',
+            self::Messages => 'メッセージ',
+            self::Translate => '翻訳',
         };
     }
 

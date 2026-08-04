@@ -107,6 +107,8 @@ class ShareViewData
                 'canMap' => $user->canAccess('map'),
                 'canMusic' => $user->canAccess('music'),
                 'canVideo' => $user->canAccess('video'),
+                'canMessages' => $user->canAccess('messages'),
+                'canTranslate' => $user->canAccess('translate'),
                 'canGroups' => $user->canAccess('groups'),
                 'canSettings' => $user->canAccess('settings'),
                 'canAdminUsers' => $user->canAccess('admin'),

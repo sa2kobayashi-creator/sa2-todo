@@ -21,6 +21,7 @@ use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\MessengerWebhookController;
 use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
+use App\Http\Controllers\TranslateController;
 use App\Http\Controllers\TravelController;
 use App\Http\Controllers\TravelpayoutsSettingsController;
 use App\Http\Controllers\TranslationApiKeyController;
@@ -174,6 +176,26 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/video/libraries', [VideoController::class, 'storeLibrary']);
         Route::post('/video/libraries/{id}/update', [VideoController::class, 'updateLibrary'])->whereNumber('id');
         Route::post('/video/libraries/{id}/delete', [VideoController::class, 'destroyLibrary'])->whereNumber('id');
+    });
+
+    Route::middleware(EnsureFeature::class.':messages')->group(function () {
+        Route::get('/messages', [MessageController::class, 'index']);
+        Route::get('/messages/attachments/{id}/file', [MessageController::class, 'attachmentFile'])->whereNumber('id');
+        Route::get('/messages/attachments/{id}/download', [MessageController::class, 'attachmentDownload'])->whereNumber('id');
+        Route::get('/messages/{groupId}/dm/{userId}', [MessageController::class, 'showDm'])->whereNumber('groupId')->whereNumber('userId');
+        Route::get('/messages/{groupId}', [MessageController::class, 'show'])->whereNumber('groupId');
+        Route::post('/messages/{groupId}', [MessageController::class, 'store'])->whereNumber('groupId');
+        Route::get('/messages/{groupId}/poll', [MessageController::class, 'poll'])->whereNumber('groupId');
+    });
+
+    Route::middleware(EnsureFeature::class.':translate')->group(function () {
+        Route::get('/translate', [TranslateController::class, 'index']);
+        Route::post('/translate', [TranslateController::class, 'translate']);
+        Route::post('/translate/document', [TranslateController::class, 'document']);
+        Route::post('/translate/website', [TranslateController::class, 'website']);
+        Route::get('/translate/history', [TranslateController::class, 'history']);
+        Route::post('/translate/history/{id}/saved', [TranslateController::class, 'toggleSaved'])->whereNumber('id');
+        Route::delete('/translate/history/{id}', [TranslateController::class, 'destroyHistory'])->whereNumber('id');
     });
 
     // グループはスタンダード以上。ライトは一覧も作成もできない

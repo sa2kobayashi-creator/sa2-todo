@@ -19,6 +19,12 @@
       @if(!empty($canVideo))
         <a href="/video" class="{{ ($active ?? '') === 'video' ? 'active' : '' }}">{{ __('動画') }}</a>
       @endif
+      @if(!empty($canMessages))
+        <a href="/messages" class="{{ ($active ?? '') === 'messages' ? 'active' : '' }}">{{ __('メッセージ') }}</a>
+      @endif
+      @if(!empty($canTranslate))
+        <a href="/translate" class="{{ ($active ?? '') === 'translate' ? 'active' : '' }}">{{ __('翻訳') }}</a>
+      @endif
       @if(!empty($canTransit))
         <a href="/transit" class="{{ ($active ?? '') === 'transit' ? 'active' : '' }}">{{ __('路線検索') }}</a>
       @endif

@@ -50,23 +50,78 @@ class TranslationService
 
     /**
      * テキストを翻訳する（24時間キャッシュ付き）。
+     * $sourceLang に AUTO / 空文字を渡すと DeepL の言語自動検出。
+     *
+     * @return array{text: string, detected_source: ?string}|null
      */
-    public function translate(string $text, string $sourceLang, string $targetLang): ?string
+    public function translateDetailed(string $text, string $sourceLang, string $targetLang): ?array
     {
         if (trim($text) === '') {
-            return $text;
-        }
-        if ($sourceLang === $targetLang) {
-            return $text;
+            return ['text' => $text, 'detected_source' => null];
         }
 
-        $cacheKey = 'translation:'.md5($text.'|'.$sourceLang.'|'.$targetLang);
+        $source = strtoupper(trim($sourceLang));
+        $target = strtoupper(trim($targetLang));
+        if ($source !== '' && $source !== 'AUTO' && $source === $target) {
+            return ['text' => $text, 'detected_source' => $source];
+        }
+
+        // 長文は段落単位で分割して翻訳
+        if (mb_strlen($text) > 4500) {
+            $parts = preg_split('/(\n{2,})/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
+            $out = '';
+            $detected = null;
+            $buf = '';
+            $flush = function (string $chunk) use (&$out, &$detected, $source, $target): bool {
+                if ($chunk === '') {
+                    return true;
+                }
+                // 単一段落が長すぎる場合は強制分割（再帰を避ける）
+                while (mb_strlen($chunk) > 4500) {
+                    $piece = mb_substr($chunk, 0, 4500);
+                    $chunk = mb_substr($chunk, 4500);
+                    $result = $this->fetchTranslationDetailed($piece, $source, $target);
+                    if ($result === null) {
+                        return false;
+                    }
+                    $out .= $result['text'];
+                    $detected = $detected ?: ($result['detected_source'] ?? null);
+                }
+                if ($chunk !== '') {
+                    $result = $this->fetchTranslationDetailed($chunk, $source, $target);
+                    if ($result === null) {
+                        return false;
+                    }
+                    $out .= $result['text'];
+                    $detected = $detected ?: ($result['detected_source'] ?? null);
+                }
+
+                return true;
+            };
+            foreach ($parts as $part) {
+                if (mb_strlen($buf.$part) > 4500 && $buf !== '') {
+                    if (! $flush($buf)) {
+                        return null;
+                    }
+                    $buf = $part;
+                } else {
+                    $buf .= $part;
+                }
+            }
+            if (! $flush($buf)) {
+                return null;
+            }
+
+            return ['text' => $out, 'detected_source' => $detected];
+        }
+
+        $cacheKey = 'translation:v2:'.md5($text.'|'.$source.'|'.$target);
         $cached = Cache::get($cacheKey);
-        if ($cached !== null) {
+        if (is_array($cached) && isset($cached['text'])) {
             return $cached;
         }
 
-        $result = $this->fetchTranslation($text, $sourceLang, $targetLang);
+        $result = $this->fetchTranslationDetailed($text, $source, $target);
         if ($result !== null) {
             Cache::put($cacheKey, $result, config('services.translation.cache_ttl', 86400));
         }
@@ -75,9 +130,21 @@ class TranslationService
     }
 
     /**
-     * リトライ／フェイルオーバー付きで翻訳を取得する。
+     * テキストを翻訳する（24時間キャッシュ付き）。互換用に文字列のみ返す。
      */
-    private function fetchTranslation(string $text, string $sourceLang, string $targetLang): ?string
+    public function translate(string $text, string $sourceLang, string $targetLang): ?string
+    {
+        $detailed = $this->translateDetailed($text, $sourceLang, $targetLang);
+
+        return $detailed['text'] ?? null;
+    }
+
+    /**
+     * リトライ／フェイルオーバー付きで翻訳を取得する。
+     *
+     * @return array{text: string, detected_source: ?string}|null
+     */
+    private function fetchTranslationDetailed(string $text, string $sourceLang, string $targetLang): ?array
     {
         $maxRetries = $this->useDatabaseKeys ? 3 : 1;
         $attempt = 0;
@@ -129,8 +196,10 @@ class TranslationService
 
     /**
      * DeepL API を呼び出して翻訳する。
+     *
+     * @return array{text: string, detected_source: ?string}|null
      */
-    private function translateWithDeepL(string $text, string $sourceLang, string $targetLang): ?string
+    private function translateWithDeepL(string $text, string $sourceLang, string $targetLang): ?array
     {
         if (! $this->apiKey) {
             Log::warning('DeepL API key not configured');
@@ -138,22 +207,33 @@ class TranslationService
             return null;
         }
 
-        $sourceLangCode = $this->convertToDeepLLangCode($sourceLang);
         $targetLangCode = $this->convertToDeepLLangCode($targetLang);
+        if ($targetLangCode === 'EN') {
+            $targetLangCode = 'EN-US';
+        }
         $apiUrl = $this->apiUrl ?: $this->defaultApiUrl($this->apiKey);
+
+        $payload = [
+            'text' => $text,
+            'target_lang' => $targetLangCode,
+        ];
+        if ($sourceLang !== '' && $sourceLang !== 'AUTO') {
+            $payload['source_lang'] = $this->convertToDeepLLangCode($sourceLang);
+        }
 
         $response = Http::withHeaders([
             'Authorization' => 'DeepL-Auth-Key '.$this->apiKey,
-        ])->timeout(15)->asForm()->post($apiUrl, [
-            'text' => $text,
-            'source_lang' => $sourceLangCode,
-            'target_lang' => $targetLangCode,
-        ]);
+        ])->timeout(45)->asForm()->post($apiUrl, $payload);
 
         if ($response->successful()) {
             $data = $response->json();
             if (isset($data['translations'][0]['text'])) {
-                return $data['translations'][0]['text'];
+                return [
+                    'text' => $data['translations'][0]['text'],
+                    'detected_source' => isset($data['translations'][0]['detected_source_language'])
+                        ? strtoupper((string) $data['translations'][0]['detected_source_language'])
+                        : null,
+                ];
             }
 
             Log::warning('Unexpected DeepL response format', ['response' => $data]);
@@ -235,9 +315,17 @@ class TranslationService
             'en' => 'EN',
             'zh-CN' => 'ZH-HANS',
             'zh-HK' => 'ZH-HANT',
+            'zh' => 'ZH-HANS',
             'ko' => 'KO',
+            'tl' => 'TL',
         ];
 
-        return $map[$locale] ?? strtoupper($locale);
+        $key = $locale;
+        $upper = strtoupper($locale);
+        if ($upper === 'ZH') {
+            return 'ZH-HANS';
+        }
+
+        return $map[$key] ?? $map[strtolower($locale)] ?? $upper;
     }
 }
