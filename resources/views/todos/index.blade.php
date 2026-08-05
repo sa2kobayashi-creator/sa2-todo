@@ -106,14 +106,20 @@
               <p class="hint inline-hint">{{ __('未選択の場合は、期間全体を1件の ToDo として登録します。「祝日を除く」は日本の祝日（例: 山の日）のみ、「休業日を除く」は会社休業日・定休日のみです（PH祝日は除きません）。既に登録済みの予定は自動では消えません。') }}</p>
             </fieldset>
             <div class="schedule-option">
-              <label class="schedule-toggle">
-                <input type="checkbox" id="enable-time-range" />
-                {{ __('時間帯を追加') }}
-              </label>
+              <div class="schedule-toggle-row">
+                <label class="schedule-toggle">
+                  <input type="checkbox" id="enable-time-range" />
+                  {{ __('時間帯を追加') }}
+                </label>
+                <label class="schedule-toggle">
+                  <input type="checkbox" id="enable-time-point" />
+                  {{ __('指定時間を追加') }}
+                </label>
+              </div>
               <div class="time-range-panel date-panel-hidden" id="time-range-panel">
                 <div class="time-range-inputs">
                   <input type="time" name="startTime" id="todo-start-time" aria-label="{{ __('開始時刻') }}" disabled />
-                  <span class="time-range-separator" aria-hidden="true">～</span>
+                  <span class="time-range-separator" id="todo-time-separator" aria-hidden="true">～</span>
                   <input type="time" name="endTime" id="todo-end-time" aria-label="{{ __('終了時刻') }}" disabled />
                 </div>
               </div>
@@ -504,18 +510,26 @@
                 if (startDateEl) startDateEl.value = todo.startDate || '';
                 if (endDateEl) endDateEl.value = todo.endDate || todo.startDate || '';
                 const enableTimeRange = editForm.querySelector('#modal-enable-time-range');
+                const enableTimePoint = editForm.querySelector('#modal-enable-time-point');
                 const timeRangePanel = editForm.querySelector('#modal-time-range-panel');
                 const startTimeInput = editForm.querySelector('#modal-start-time');
                 const endTimeInput = editForm.querySelector('#modal-end-time');
-                const hasTime = Boolean(todo.startTime);
-                if (enableTimeRange) enableTimeRange.checked = hasTime;
-                timeRangePanel?.classList.toggle('date-panel-hidden', !hasTime);
+                const timeSeparator = editForm.querySelector('#modal-time-separator');
+                const hasStart = Boolean(todo.startTime);
+                const hasEnd = Boolean(todo.endTime);
+                const isRange = hasStart && hasEnd;
+                const isPoint = hasStart && !hasEnd;
+                if (enableTimeRange) enableTimeRange.checked = isRange;
+                if (enableTimePoint) enableTimePoint.checked = isPoint;
+                timeRangePanel?.classList.toggle('date-panel-hidden', !hasStart);
+                timeSeparator?.classList.toggle('date-panel-hidden', !isRange);
                 if (startTimeInput) {
-                  startTimeInput.disabled = !hasTime;
+                  startTimeInput.disabled = !hasStart;
                   startTimeInput.value = todo.startTime || '';
                 }
                 if (endTimeInput) {
-                  endTimeInput.disabled = !hasTime;
+                  endTimeInput.disabled = !isRange;
+                  endTimeInput.classList.toggle('date-panel-hidden', !isRange);
                   endTimeInput.value = todo.endTime || '';
                 }
                 const importanceEl = editForm.querySelector('#modal-importance');
@@ -579,6 +593,7 @@
                     htmlEl.textContent = '';
                   }
                 }
+                window.syncTodoNotifySettings?.(editForm);
               }
 
               function setTodoModalMode(mode) {
@@ -727,19 +742,58 @@
               });
 
               const modalEnableTimeRange = editForm?.querySelector('#modal-enable-time-range');
-              modalEnableTimeRange?.addEventListener('change', () => {
-                const on = modalEnableTimeRange.checked;
+              const modalEnableTimePoint = editForm?.querySelector('#modal-enable-time-point');
+              function syncModalScheduleTime(source) {
                 const panel = editForm.querySelector('#modal-time-range-panel');
                 const startTime = editForm.querySelector('#modal-start-time');
                 const endTime = editForm.querySelector('#modal-end-time');
+                const separator = editForm.querySelector('#modal-time-separator');
+                if (source === 'range' && modalEnableTimeRange?.checked && modalEnableTimePoint) {
+                  modalEnableTimePoint.checked = false;
+                }
+                if (source === 'point' && modalEnableTimePoint?.checked && modalEnableTimeRange) {
+                  modalEnableTimeRange.checked = false;
+                }
+                const isRange = Boolean(modalEnableTimeRange?.checked);
+                const isPoint = Boolean(modalEnableTimePoint?.checked);
+                const on = isRange || isPoint;
                 panel?.classList.toggle('date-panel-hidden', !on);
+                separator?.classList.toggle('date-panel-hidden', !isRange);
                 if (startTime) startTime.disabled = !on;
-                if (endTime) endTime.disabled = !on;
-                if (!on) {
+                if (endTime) {
+                  endTime.disabled = !isRange;
+                  endTime.classList.toggle('date-panel-hidden', !isRange);
+                }
+                if (isRange) {
+                  if (startTime && !startTime.value) {
+                    const now = new Date();
+                    let hours = now.getHours();
+                    let minutes = Math.ceil(now.getMinutes() / 30) * 30;
+                    if (minutes >= 60) { minutes = 0; hours += 1; }
+                    const pad = (n) => String(n).padStart(2, '0');
+                    startTime.value = pad(hours % 24) + ':' + pad(minutes);
+                    if (endTime && !endTime.value) endTime.value = pad((hours + 1) % 24) + ':' + pad(minutes);
+                  } else if (endTime && startTime?.value && !endTime.value) {
+                    endTime.value = startTime.value;
+                  }
+                } else if (isPoint) {
+                  if (endTime) endTime.value = '';
+                  if (startTime && !startTime.value) {
+                    const now = new Date();
+                    let hours = now.getHours();
+                    let minutes = Math.ceil(now.getMinutes() / 30) * 30;
+                    if (minutes >= 60) { minutes = 0; hours += 1; }
+                    const pad = (n) => String(n).padStart(2, '0');
+                    startTime.value = pad(hours % 24) + ':' + pad(minutes);
+                  }
+                } else {
                   if (startTime) startTime.value = '';
                   if (endTime) endTime.value = '';
                 }
-              });
+                window.syncTodoNotifySettings?.(editForm);
+              }
+              modalEnableTimeRange?.addEventListener('change', () => syncModalScheduleTime('range'));
+              modalEnableTimePoint?.addEventListener('change', () => syncModalScheduleTime('point'));
 
               document.querySelectorAll('[data-close-todo-modal]').forEach((el) => {
                 el.addEventListener('click', closeTodoModal);
@@ -1094,7 +1148,9 @@
 
       const todoStartTime = document.getElementById('todo-start-time')
       const todoEndTime = document.getElementById('todo-end-time')
+      const todoTimeSeparator = document.getElementById('todo-time-separator')
       const enableTimeRange = document.getElementById('enable-time-range')
+      const enableTimePoint = document.getElementById('enable-time-point')
       const timeRangePanel = document.getElementById('time-range-panel')
 
       // 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す
@@ -1112,58 +1168,90 @@
         return { start, end }
       }
 
-      function syncTimeRangePanel() {
-        const on = enableTimeRange?.checked
+      function syncTimeRangePanel(source) {
+        if (source === 'range' && enableTimeRange?.checked && enableTimePoint) enableTimePoint.checked = false
+        if (source === 'point' && enableTimePoint?.checked && enableTimeRange) enableTimeRange.checked = false
+        const isRange = Boolean(enableTimeRange?.checked)
+        const isPoint = Boolean(enableTimePoint?.checked)
+        const on = isRange || isPoint
         timeRangePanel?.classList.toggle('date-panel-hidden', !on)
+        todoTimeSeparator?.classList.toggle('date-panel-hidden', !isRange)
         if (todoStartTime) todoStartTime.disabled = !on
-        if (todoEndTime) todoEndTime.disabled = !on
-        if (on) {
+        if (todoEndTime) {
+          todoEndTime.disabled = !isRange
+          todoEndTime.classList.toggle('date-panel-hidden', !isRange)
+        }
+        if (isRange) {
           if (todoStartTime && !todoStartTime.value) {
             const range = defaultTimeRange()
             todoStartTime.value = range.start
             if (todoEndTime && !todoEndTime.value) todoEndTime.value = range.end
+          } else if (todoEndTime && todoStartTime?.value && !todoEndTime.value) {
+            todoEndTime.value = todoStartTime.value
+          }
+        } else if (isPoint) {
+          if (todoEndTime) todoEndTime.value = ''
+          if (todoStartTime && !todoStartTime.value) {
+            todoStartTime.value = defaultTimeRange().start
           }
         } else {
           if (todoStartTime) todoStartTime.value = ''
           if (todoEndTime) todoEndTime.value = ''
         }
+        window.syncTodoNotifySettings?.(enableTimeRange?.form || document.getElementById('add-form'))
       }
 
-      enableTimeRange?.addEventListener('change', syncTimeRangePanel)
+      enableTimeRange?.addEventListener('change', () => syncTimeRangePanel('range'))
+      enableTimePoint?.addEventListener('change', () => syncTimeRangePanel('point'))
 
       todoStartTime?.addEventListener('change', () => {
-        if (!todoEndTime.value || todoEndTime.value < todoStartTime.value) {
+        if (enableTimeRange?.checked && todoEndTime && (!todoEndTime.value || todoEndTime.value < todoStartTime.value)) {
           todoEndTime.value = todoStartTime.value
         }
       })
 
       document.querySelectorAll('.edit-form').forEach((form) => {
-        const cb = form.querySelector('.edit-enable-time-range')
+        const rangeCb = form.querySelector('.edit-enable-time-range')
+        const pointCb = form.querySelector('.edit-enable-time-point')
         const panel = form.querySelector('.edit-time-range-panel')
         const start = form.querySelector('input[name="startTime"]')
         const end = form.querySelector('input[name="endTime"]')
-        if (!cb || !panel || !start || !end) return
+        const separator = form.querySelector('.edit-time-separator')
+        if (!rangeCb || !pointCb || !panel || !start || !end) return
 
-        function syncEditTimeRange() {
-          const on = cb.checked
+        function syncEditTimeRange(source) {
+          if (source === 'range' && rangeCb.checked) pointCb.checked = false
+          if (source === 'point' && pointCb.checked) rangeCb.checked = false
+          const isRange = rangeCb.checked
+          const isPoint = pointCb.checked
+          const on = isRange || isPoint
           panel.classList.toggle('date-panel-hidden', !on)
+          separator?.classList.toggle('date-panel-hidden', !isRange)
           start.disabled = !on
-          end.disabled = !on
-          if (on) {
+          end.disabled = !isRange
+          end.classList.toggle('date-panel-hidden', !isRange)
+          if (isRange) {
             if (!start.value) {
               const range = defaultTimeRange()
               start.value = range.start
               if (!end.value) end.value = range.end
+            } else if (!end.value) {
+              end.value = start.value
             }
+          } else if (isPoint) {
+            end.value = ''
+            if (!start.value) start.value = defaultTimeRange().start
           } else {
             start.value = ''
             end.value = ''
           }
+          window.syncTodoNotifySettings?.(form)
         }
 
-        cb.addEventListener('change', syncEditTimeRange)
+        rangeCb.addEventListener('change', () => syncEditTimeRange('range'))
+        pointCb.addEventListener('change', () => syncEditTimeRange('point'))
         start.addEventListener('change', () => {
-          if (!end.value || end.value < start.value) end.value = start.value
+          if (rangeCb.checked && (!end.value || end.value < start.value)) end.value = start.value
         })
       })
 

@@ -398,6 +398,10 @@ class TodoService
         $timeRange = $this->normalizeTimeRange($options['startTime'] ?? null, $options['endTime'] ?? null);
         $reminders = $this->normalizeReminders($options['reminders'] ?? [], $options['reminderTime'] ?? null);
         $notifyVia = $this->normalizeNotifyVia($options['notifyVia'] ?? null);
+        if ($timeRange['startTime'] === null) {
+            $reminders = [];
+            $notifyVia = null;
+        }
         $weekdays = $this->parseWeekdaysFromBody($options['weekdays'] ?? []);
         $expansionOptions = $this->resolveWeekdayExpansionOptions($weekdays, [
             'excludeHolidays' => $options['excludeHolidays'] ?? null,
@@ -463,8 +467,8 @@ class TodoService
         }
         if (array_key_exists('startTime', $patch) || array_key_exists('endTime', $patch)) {
             $range = $this->normalizeTimeRange(
-                $patch['startTime'] ?? $todo->start_time,
-                $patch['endTime'] ?? $todo->end_time
+                array_key_exists('startTime', $patch) ? (is_string($patch['startTime']) ? $patch['startTime'] : null) : $todo->start_time,
+                array_key_exists('endTime', $patch) ? (is_string($patch['endTime']) ? $patch['endTime'] : null) : $todo->end_time
             );
             $todo->start_time = $range['startTime'];
             $todo->end_time = $range['endTime'];
@@ -489,6 +493,14 @@ class TodoService
         }
         if (isset($patch['completed']) && is_bool($patch['completed'])) {
             $todo->completed = $patch['completed'];
+        }
+        $effectiveStartTime = is_string($todo->start_time) && $todo->start_time !== '' ? $todo->start_time : null;
+        if ($this->normalizeTime($effectiveStartTime) === null) {
+            if (($todo->reminders ?? []) !== [] || $todo->notify_via !== null) {
+                $todo->reminders = [];
+                $todo->notify_via = null;
+                $scheduleChanged = true;
+            }
         }
         if ($todo->context === AppContext::Work->value) {
             $todo->group_id = null;

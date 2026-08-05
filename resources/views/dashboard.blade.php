@@ -523,18 +523,26 @@
         if (startDateEl) startDateEl.value = todo.startDate || ''
         if (endDateEl) endDateEl.value = todo.endDate || todo.startDate || ''
         const enableTimeRange = editForm.querySelector('#modal-enable-time-range')
+        const enableTimePoint = editForm.querySelector('#modal-enable-time-point')
         const timeRangePanel = editForm.querySelector('#modal-time-range-panel')
         const startTimeInput = editForm.querySelector('#modal-start-time')
         const endTimeInput = editForm.querySelector('#modal-end-time')
-        const hasTime = Boolean(todo.startTime)
-        if (enableTimeRange) enableTimeRange.checked = hasTime
-        timeRangePanel?.classList.toggle('date-panel-hidden', !hasTime)
+        const timeSeparator = editForm.querySelector('#modal-time-separator')
+        const hasStart = Boolean(todo.startTime)
+        const hasEnd = Boolean(todo.endTime)
+        const isRange = hasStart && hasEnd
+        const isPoint = hasStart && !hasEnd
+        if (enableTimeRange) enableTimeRange.checked = isRange
+        if (enableTimePoint) enableTimePoint.checked = isPoint
+        timeRangePanel?.classList.toggle('date-panel-hidden', !hasStart)
+        timeSeparator?.classList.toggle('date-panel-hidden', !isRange)
         if (startTimeInput) {
-          startTimeInput.disabled = !hasTime
+          startTimeInput.disabled = !hasStart
           startTimeInput.value = todo.startTime || ''
         }
         if (endTimeInput) {
-          endTimeInput.disabled = !hasTime
+          endTimeInput.disabled = !isRange
+          endTimeInput.classList.toggle('date-panel-hidden', !isRange)
           endTimeInput.value = todo.endTime || ''
         }
         const importanceEl = editForm.querySelector('#modal-importance')
@@ -586,6 +594,7 @@
             meetEl.textContent = '';
           }
         }
+        window.syncTodoNotifySettings?.(editForm)
       }
 
       function setTodoModalMode(mode) {
@@ -1119,9 +1128,11 @@
       })
 
       const modalEnableTimeRange = editForm?.querySelector('#modal-enable-time-range')
+      const modalEnableTimePoint = editForm?.querySelector('#modal-enable-time-point')
       const modalTimeRangePanel = editForm?.querySelector('#modal-time-range-panel')
       const modalStartTime = editForm?.querySelector('#modal-start-time')
       const modalEndTime = editForm?.querySelector('#modal-end-time')
+      const modalTimeSeparator = editForm?.querySelector('#modal-time-separator')
 
       // 現在時刻を30分単位で切り上げた開始時刻と、その1時間後の終了時刻を返す
       function defaultTimeRange() {
@@ -1138,26 +1149,40 @@
         return { start, end }
       }
 
-      function syncModalTimeRange() {
-        const on = modalEnableTimeRange.checked
+      function syncModalTimeRange(source) {
+        if (!modalEnableTimeRange || !modalStartTime || !modalEndTime || !modalTimeRangePanel) return
+        if (source === 'range' && modalEnableTimeRange.checked && modalEnableTimePoint) modalEnableTimePoint.checked = false
+        if (source === 'point' && modalEnableTimePoint?.checked) modalEnableTimeRange.checked = false
+        const isRange = modalEnableTimeRange.checked
+        const isPoint = Boolean(modalEnableTimePoint?.checked)
+        const on = isRange || isPoint
         modalTimeRangePanel.classList.toggle('date-panel-hidden', !on)
+        modalTimeSeparator?.classList.toggle('date-panel-hidden', !isRange)
         modalStartTime.disabled = !on
-        modalEndTime.disabled = !on
-        if (on) {
+        modalEndTime.disabled = !isRange
+        modalEndTime.classList.toggle('date-panel-hidden', !isRange)
+        if (isRange) {
           if (!modalStartTime.value) {
             const range = defaultTimeRange()
             modalStartTime.value = range.start
             if (!modalEndTime.value) modalEndTime.value = range.end
+          } else if (!modalEndTime.value) {
+            modalEndTime.value = modalStartTime.value
           }
+        } else if (isPoint) {
+          modalEndTime.value = ''
+          if (!modalStartTime.value) modalStartTime.value = defaultTimeRange().start
         } else {
           modalStartTime.value = ''
           modalEndTime.value = ''
         }
+        window.syncTodoNotifySettings?.(editForm)
       }
 
-      modalEnableTimeRange.addEventListener('change', syncModalTimeRange)
-      modalStartTime.addEventListener('change', () => {
-        if (!modalEndTime.value || modalEndTime.value < modalStartTime.value) {
+      modalEnableTimeRange?.addEventListener('change', () => syncModalTimeRange('range'))
+      modalEnableTimePoint?.addEventListener('change', () => syncModalTimeRange('point'))
+      modalStartTime?.addEventListener('change', () => {
+        if (modalEnableTimeRange?.checked && modalEndTime && (!modalEndTime.value || modalEndTime.value < modalStartTime.value)) {
           modalEndTime.value = modalStartTime.value
         }
       })

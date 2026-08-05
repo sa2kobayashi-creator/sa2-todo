@@ -147,4 +147,82 @@ class TodoCalendarDisplayTest extends TestCase
         $response->assertSee('https://meet.google.com/xyz-uvwx-yz0');
         $response->assertSee('Google Meet');
     }
+
+    public function test_store_ignores_notifications_without_start_time(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user)->post('/todos', [
+            'titles' => '時間なし通知',
+            'startDate' => now()->format('Y-m-d'),
+            'dateMode' => 'single',
+            'importance' => 'medium',
+            'category' => 'task',
+            'reminders' => ['5min'],
+            'notifyVia' => 'line',
+            'returnTo' => '/todos',
+        ])->assertRedirect();
+
+        $todo = Todo::query()->first();
+        $this->assertNotNull($todo);
+        $this->assertSame([], $todo->reminders ?? []);
+        $this->assertNull($todo->notify_via);
+    }
+
+    public function test_store_keeps_notifications_with_start_time(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user)->post('/todos', [
+            'titles' => '時間あり通知',
+            'startDate' => now()->format('Y-m-d'),
+            'dateMode' => 'single',
+            'startTime' => '10:00',
+            'endTime' => '11:00',
+            'importance' => 'medium',
+            'category' => 'task',
+            'reminders' => ['5min'],
+            'notifyVia' => 'line',
+            'returnTo' => '/todos',
+        ])->assertRedirect();
+
+        $todo = Todo::query()->first();
+        $this->assertNotNull($todo);
+        $this->assertSame(['5min'], $todo->reminders ?? []);
+        $this->assertSame('line', $todo->notify_via);
+    }
+
+    public function test_update_clears_notifications_when_time_removed(): void
+    {
+        $user = $this->makeUser();
+        $todo = Todo::create([
+            'user_id' => $user->id,
+            'title' => '通知あり',
+            'completed' => false,
+            'start_date' => now()->format('Y-m-d'),
+            'end_date' => now()->format('Y-m-d'),
+            'start_time' => '10:00',
+            'end_time' => '11:00',
+            'importance' => 'medium',
+            'category' => 'task',
+            'reminders' => ['5min'],
+            'notify_via' => 'line',
+            'notified_at' => [],
+        ]);
+
+        $this->actingAs($user)->post('/todos/'.$todo->id.'/update', [
+            'title' => '通知あり',
+            'startDate' => now()->format('Y-m-d'),
+            'dateMode' => 'single',
+            'startTime' => '',
+            'endTime' => '',
+            'importance' => 'medium',
+            'category' => 'task',
+            'reminders' => ['5min'],
+            'notifyVia' => 'line',
+            'returnTo' => '/todos',
+        ])->assertRedirect();
+
+        $todo->refresh();
+        $this->assertSame([], $todo->reminders ?? []);
+        $this->assertNull($todo->notify_via);
+    }
 }

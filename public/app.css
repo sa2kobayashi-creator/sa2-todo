@@ -679,6 +679,13 @@ a {
   margin-top: 8px;
 }
 
+.schedule-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
 .schedule-toggle {
   display: inline-flex;
   align-items: center;
@@ -912,7 +919,7 @@ form.add .notify-at-time-option input[type="time"],
   min-width: 4.75rem;
   max-width: 4.75rem;
   min-height: 32px;
-  padding: 2px 2px 2px 4px;
+  padding: 2px 8px 2px 4px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 13px;
@@ -927,17 +934,36 @@ form.add .notify-at-time-option input[type="time"],
 }
 
 .notify-at-time-option input[type="time"]::-webkit-calendar-picker-indicator {
-  margin-inline: 0 -2px;
+  margin-inline: 0 2px;
   padding: 0;
   width: 12px;
   height: 12px;
   cursor: pointer;
 }
 
-.notify-settings-note {
+.notify-settings-wrap {
+  min-width: 0;
+}
+
+.notify-settings-note,
+.notify-settings-disabled-hint {
   margin: 6px 0 0;
   font-size: 12px;
   color: #6b7280;
+}
+
+.notify-settings-disabled-hint {
+  display: none;
+}
+
+.notify-settings-wrap.is-disabled .notify-settings,
+.notify-settings-wrap.is-disabled .notify-settings-note {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.notify-settings-wrap.is-disabled .notify-settings-disabled-hint {
+  display: block;
 }
 
 @media (max-width: 720px) {
@@ -3352,6 +3378,17 @@ a.filter-clear-btn {
 
 .modal-date-mode .field-label {
   font-weight: 600;
+}
+
+.modal-date-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.modal-date-fields:has(#modal-end-date-label.date-panel-hidden) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .modal-form #modal-group-id:disabled {

@@ -35,15 +35,21 @@
           </div>
         </div>
         <div class="schedule-option edit-schedule-option">
-          <label class="schedule-toggle">
-            <input type="checkbox" class="edit-enable-time-range" @checked(!empty($todo['startTime'])) />
-            {{ __('時間帯を追加') }}
-          </label>
+          <div class="schedule-toggle-row">
+            <label class="schedule-toggle">
+              <input type="checkbox" class="edit-enable-time-range" @checked(!empty($todo['startTime']) && !empty($todo['endTime'])) />
+              {{ __('時間帯を追加') }}
+            </label>
+            <label class="schedule-toggle">
+              <input type="checkbox" class="edit-enable-time-point" @checked(!empty($todo['startTime']) && empty($todo['endTime'])) />
+              {{ __('指定時間を追加') }}
+            </label>
+          </div>
           <div class="time-range-panel {{ empty($todo['startTime']) ? 'date-panel-hidden' : '' }} edit-time-range-panel">
             <div class="time-range-inputs">
               <input type="time" name="startTime" value="{{ $todo['startTime'] ?? '' }}" aria-label="{{ __('開始時刻') }}" @disabled(empty($todo['startTime'])) />
-              <span class="time-range-separator" aria-hidden="true">～</span>
-              <input type="time" name="endTime" value="{{ $todo['endTime'] ?? '' }}" aria-label="{{ __('終了時刻') }}" @disabled(empty($todo['startTime'])) />
+              <span class="time-range-separator edit-time-separator {{ empty($todo['endTime']) ? 'date-panel-hidden' : '' }}" aria-hidden="true">～</span>
+              <input type="time" name="endTime" class="edit-end-time {{ empty($todo['endTime']) ? 'date-panel-hidden' : '' }}" value="{{ $todo['endTime'] ?? '' }}" aria-label="{{ __('終了時刻') }}" @disabled(empty($todo['endTime'])) />
             </div>
           </div>
         </div>

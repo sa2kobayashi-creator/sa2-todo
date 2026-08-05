@@ -28,23 +28,31 @@
           {{ __('期間') }}
         </label>
       </div>
-      <label id="modal-start-date-label">
-        <span id="modal-start-date-text">{{ __('開始日') }}</span>
-        <input type="date" name="startDate" id="modal-start-date" />
-      </label>
-      <label id="modal-end-date-label">
-        {{ __('終了日') }}
-        <input type="date" name="endDate" id="modal-end-date" />
-      </label>
-      <div class="schedule-option">
-        <label class="schedule-toggle">
-          <input type="checkbox" id="modal-enable-time-range" />
-          {{ __('時間帯を追加') }}
+      <div class="modal-date-fields">
+        <label id="modal-start-date-label">
+          <span id="modal-start-date-text">{{ __('開始日') }}</span>
+          <input type="date" name="startDate" id="modal-start-date" />
         </label>
+        <label id="modal-end-date-label">
+          <span>{{ __('終了日') }}</span>
+          <input type="date" name="endDate" id="modal-end-date" />
+        </label>
+      </div>
+      <div class="schedule-option">
+        <div class="schedule-toggle-row">
+          <label class="schedule-toggle">
+            <input type="checkbox" id="modal-enable-time-range" />
+            {{ __('時間帯を追加') }}
+          </label>
+          <label class="schedule-toggle">
+            <input type="checkbox" id="modal-enable-time-point" />
+            {{ __('指定時間を追加') }}
+          </label>
+        </div>
         <div class="time-range-panel date-panel-hidden" id="modal-time-range-panel">
           <div class="time-range-inputs">
             <input type="time" name="startTime" id="modal-start-time" aria-label="{{ __('開始時刻') }}" disabled />
-            <span class="time-range-separator" aria-hidden="true">～</span>
+            <span class="time-range-separator" id="modal-time-separator" aria-hidden="true">～</span>
             <input type="time" name="endTime" id="modal-end-time" aria-label="{{ __('終了時刻') }}" disabled />
           </div>
         </div>

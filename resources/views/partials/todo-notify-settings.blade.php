@@ -7,6 +7,7 @@
   $fixedTimingOptions = ['10min', '30min', '1hour', '1day'];
   $isModal = ! empty($notifyIsModal);
 @endphp
+<div class="notify-settings-wrap is-disabled" data-notify-settings>
 <fieldset class="notify-settings">
   <legend>{{ __('通知設定') }}</legend>
   <div class="notify-settings-grid">
@@ -78,3 +79,59 @@
   </div>
 </fieldset>
 <p class="hint notify-settings-note">{{ __('※当日は時間指定') }}</p>
+<p class="hint notify-settings-disabled-hint">{{ __('時間を追加すると通知を設定できます。') }}</p>
+</div>
+@once
+<script>
+(function () {
+  if (window.syncTodoNotifySettings) return;
+
+  function isTimeReady(form) {
+    if (!form) return false;
+    const enableRange = form.querySelector('#enable-time-range, #modal-enable-time-range, .edit-enable-time-range');
+    const enablePoint = form.querySelector('#enable-time-point, #modal-enable-time-point, .edit-enable-time-point');
+    const startTime = form.querySelector('#modal-start-time, #todo-start-time, input[name="startTime"]');
+    if ((enableRange || enablePoint) && !enableRange?.checked && !enablePoint?.checked) return false;
+    return Boolean(startTime && startTime.value && !startTime.disabled);
+  }
+
+  function syncWrap(wrap) {
+    const ready = isTimeReady(wrap.closest('form'));
+    wrap.classList.toggle('is-disabled', !ready);
+    wrap.querySelectorAll('input, select, textarea').forEach((el) => {
+      el.disabled = !ready;
+    });
+  }
+
+  window.syncTodoNotifySettings = function (scope) {
+    const root = scope && scope.querySelectorAll ? scope : document;
+    if (scope && scope.matches && scope.matches('[data-notify-settings]')) {
+      syncWrap(scope);
+      return;
+    }
+    root.querySelectorAll('[data-notify-settings]').forEach(syncWrap);
+  };
+
+  document.addEventListener('change', (e) => {
+    const target = e.target;
+    if (!target || !target.matches) return;
+    if (!target.matches('#enable-time-range, #modal-enable-time-range, .edit-enable-time-range, #enable-time-point, #modal-enable-time-point, .edit-enable-time-point, #todo-start-time, #modal-start-time, input[name="startTime"]')) {
+      return;
+    }
+    window.syncTodoNotifySettings(target.closest('form') || document);
+  });
+  document.addEventListener('input', (e) => {
+    const target = e.target;
+    if (!target || !target.matches) return;
+    if (!target.matches('#todo-start-time, #modal-start-time, input[name="startTime"]')) return;
+    window.syncTodoNotifySettings(target.closest('form') || document);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => window.syncTodoNotifySettings());
+  } else {
+    window.syncTodoNotifySettings();
+  }
+})();
+</script>
+@endonce
