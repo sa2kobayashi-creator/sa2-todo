@@ -30,20 +30,21 @@
   <form method="post" action="/settings/messaging/messenger/channel" class="storage-provider-form" id="messenger-channel-form">
     @csrf
     <label class="storage-enable">
-      <input type="checkbox" name="enabled" value="1" @checked(!empty($mm['enabled'])) />
+      <input type="checkbox" name="enabled" value="1" @checked(!empty($mm['enabled']) || empty($mm['configured'])) />
       {{ __('有効にする') }}
     </label>
+    <p class="hint">{{ __('保存するときは必ず「有効にする」にチェックを入れてください。Page Access Token は Messenger → トークンを生成 で出る長い文字列（通常 EAA で始まる）です。App Secret や Advanced の Client Token ではありません。') }}</p>
     <label>
       {{ __('Page Access Token') }}
-      <input type="password" name="page_access_token" value="{{ $mm['page_access_token_masked'] ?? '' }}" autocomplete="off" />
+      <input type="password" name="page_access_token" value="" autocomplete="new-password" placeholder="{{ !empty($mm['page_access_token_masked']) ? '••••••••（変更するときだけ入力）' : 'EAA...' }}" />
     </label>
     <label>
       {{ __('App Secret') }}
-      <input type="password" name="app_secret" value="{{ $mm['app_secret_masked'] ?? '' }}" autocomplete="off" />
+      <input type="password" name="app_secret" value="" autocomplete="new-password" placeholder="{{ !empty($mm['app_secret_masked']) ? '••••••••（変更するときだけ入力）' : '' }}" />
     </label>
     <label>
       {{ __('Webhook Verify Token') }}
-      <input type="password" name="verify_token" value="{{ $mm['verify_token_masked'] ?? '' }}" autocomplete="off" placeholder="任意の文字列" />
+      <input type="password" name="verify_token" value="" autocomplete="new-password" placeholder="{{ !empty($mm['verify_token_masked']) ? '••••••••（変更するときだけ入力）' : __('任意の文字列') }}" />
     </label>
     <label>
       {{ __('App ID（任意）') }}

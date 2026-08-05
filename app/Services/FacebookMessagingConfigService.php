@@ -12,15 +12,25 @@ class FacebookMessagingConfigService
         return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_FACEBOOK);
     }
 
+    public function storedPageAccessToken(): string
+    {
+        $fromDb = $this->sanitizeSecret((string) $this->configRow()->secret('page_access_token', ''));
+        if ($fromDb !== '') {
+            return $fromDb;
+        }
+
+        return $this->sanitizeSecret((string) config('services.facebook.page_access_token', ''));
+    }
+
     public function pageAccessToken(): string
     {
         $row = $this->configRow();
-        $fromDb = trim((string) $row->secret('page_access_token', ''));
+        $fromDb = $this->sanitizeSecret((string) $row->secret('page_access_token', ''));
         if ($fromDb !== '') {
             return $row->enabled ? $fromDb : '';
         }
 
-        return trim((string) config('services.facebook.page_access_token', ''));
+        return $this->sanitizeSecret((string) config('services.facebook.page_access_token', ''));
     }
 
     public function appSecret(): string
@@ -88,7 +98,8 @@ class FacebookMessagingConfigService
         $settings = $row->settingsArray();
 
         foreach (['page_access_token', 'app_secret', 'verify_token'] as $key) {
-            $value = is_string($input[$key] ?? null) ? trim($input[$key]) : '';
+            $raw = is_string($input[$key] ?? null) ? $input[$key] : '';
+            $value = $key === 'verify_token' ? trim($raw) : $this->sanitizeSecret($raw);
             if ($value !== '' && $value !== '••••••••' && ! str_starts_with($value, '••••')) {
                 $secrets[$key] = $value;
             }
@@ -130,16 +141,24 @@ class FacebookMessagingConfigService
     /** @return array{ok: bool, message: string} */
     public function testConnection(): array
     {
-        $token = $this->pageAccessToken();
+        $token = $this->storedPageAccessToken();
         if ($token === '') {
-            return ['ok' => false, 'message' => __('Page Access Token を入力してください。')];
+            return ['ok' => false, 'message' => __('Page Access Token を入力して保存してください。')];
+        }
+
+        if (! $this->configRow()->enabled) {
+            return ['ok' => false, 'message' => __('トークンは保存されていますが「有効にする」がオフです。チェックを入れて保存してください。')];
+        }
+
+        if (! str_starts_with($token, 'EAA') && strlen($token) < 50) {
+            return ['ok' => false, 'message' => __('Page Access Token の形式が正しくありません。Messenger の「トークンを生成」で出した長いトークン（通常 EAA で始まる）を貼り付けてください。App Secret や Client Token ではありません。')];
         }
 
         try {
             $response = Http::timeout(15)
-                ->withToken($token)
                 ->acceptJson()
                 ->get('https://graph.facebook.com/v21.0/me', [
+                    'access_token' => $token,
                     'fields' => 'id,name',
                 ]);
         } catch (\Throwable $e) {
@@ -148,6 +167,15 @@ class FacebookMessagingConfigService
 
         if ($response->successful()) {
             $name = (string) ($response->json('name') ?? '');
+            if ($name !== '') {
+                $row = $this->configRow();
+                $settings = $row->settingsArray();
+                if (trim((string) ($settings['page_name'] ?? '')) === '') {
+                    $settings['page_name'] = $name;
+                    $row->fill(['settings' => $settings]);
+                    $row->save();
+                }
+            }
 
             return [
                 'ok' => true,
@@ -157,10 +185,27 @@ class FacebookMessagingConfigService
             ];
         }
 
+        $body = (string) $response->body();
+        $hint = '';
+        if (str_contains($body, 'Cannot parse access token') || str_contains($body, '"code":190')) {
+            $hint = ' '. __('App Secret / Client Token / ユーザーアクセストークンではなく、ページの Page Access Token を貼ってください。');
+        }
+
         return [
             'ok' => false,
-            'message' => __('Facebook API エラー: :msg', ['msg' => mb_substr($response->body(), 0, 200)]),
+            'message' => __('Facebook API エラー: :msg', ['msg' => mb_substr($body, 0, 200)]).$hint,
         ];
+    }
+
+    private function sanitizeSecret(string $value): string
+    {
+        $value = trim($value);
+        $value = trim($value, "\"'`");
+        if (str_starts_with($value, 'Bearer ') || str_starts_with($value, 'bearer ')) {
+            $value = trim(substr($value, 7));
+        }
+
+        return preg_replace('/\s+/u', '', $value) ?? $value;
     }
 
     public function recordTestResult(bool $ok, string $message): void

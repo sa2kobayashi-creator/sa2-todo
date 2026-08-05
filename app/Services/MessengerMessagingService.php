@@ -101,9 +101,9 @@ class MessengerMessagingService
 
     public function pushText(string $psid, string $text): array
     {
-        $response = Http::withToken($this->pageAccessToken())
-            ->acceptJson()
+        $response = Http::acceptJson()
             ->asJson()
+            ->withQueryParameters(['access_token' => $this->pageAccessToken()])
             ->post('https://graph.facebook.com/v21.0/me/messages', [
                 'recipient' => ['id' => $psid],
                 'messaging_type' => 'UPDATE',

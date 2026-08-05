@@ -59,7 +59,14 @@ class MessagingSettingsController extends Controller
             'page_name' => (string) $request->input('page_name', ''),
         ]);
 
-        return $this->redirectWithMessage($path, __('Facebook Messenger 設定を保存しました。'));
+        $result = $this->facebookConfig->testConnection();
+        $this->facebookConfig->recordTestResult($result['ok'], $result['message']);
+
+        return $this->redirectWithMessage(
+            $path,
+            __('Facebook Messenger 設定を保存しました。').' '.$result['message'],
+            $result['ok'] ? 'notice' : 'error'
+        );
     }
 
     public function disableLine()
