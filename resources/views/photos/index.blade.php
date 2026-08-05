@@ -89,6 +89,7 @@
             />
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
+            <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
             <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
               <input type="checkbox" id="photos-allow-duplicates" />
               <span>{{ __('重複も追加') }}</span>
@@ -96,6 +97,7 @@
             <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
           @endif
           <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
+          <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
           @if($selectedAlbum && !empty($canManageSelected))
             <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('名前変更') }}</button>
             <form
@@ -624,16 +626,7 @@
       </script>
       @endif
 
-      <aside class="photos-sync-tip" aria-label="スマホからの追加・PWA">
-        <div class="photos-sync-tip-copy">
-          <strong>{{ __('スマホ同期 / アプリ化') }}</strong>
-          <span>{{ __('「写真・動画を追加」→「フォルダから探す」で Pictures / Messenger / LINE などから選べます。ギャラリーが空でもフォルダ側に写真があることがあります。') }}</span>
-          <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
-        </div>
-        <button type="button" class="photos-secondary-btn photos-pwa-tip-btn" id="photos-pwa-install">{{ __('ホーム画面に追加') }}</button>
-      </aside>
-
-      <section class="photos-album-covers" aria-label="アルバム">
+      <section class="photos-album-covers" id="photos-album-covers" aria-label="{{ __('アルバム') }}" hidden>
         <a
           href="/photos{{ request()->filled('sort') || request()->filled('year') ? '?'.http_build_query(array_filter(['sort' => request('sort'), 'year' => request('year')])) : '' }}"
           @class(['photos-cover-card', 'is-all', 'is-active' => !$selectedAlbumId])
@@ -779,6 +772,7 @@
               </select>
             </label>
           @endif
+          <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
           <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
             <button
               type="button"
@@ -831,7 +825,6 @@
             <span class="photos-pager-status" id="photos-pager-status"></span>
             <button type="button" class="photos-pager-btn" id="photos-pager-next">{{ __('次へ') }}</button>
           </div>
-          <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
           <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
             <button type="button" class="photos-secondary-btn" id="photos-bulk-download">{{ __('ダウンロード') }}</button>
@@ -1784,6 +1777,22 @@
         let pendingFiles = null
         let lastPickMode = 'files'
         const photosSortSelect = document.getElementById('photos-sort-select')
+        const albumCovers = document.getElementById('photos-album-covers')
+        const albumsToggle = document.getElementById('photos-albums-toggle')
+        function setAlbumCoversVisible(visible) {
+          if (!albumCovers) return
+          albumCovers.hidden = !visible
+          if (albumsToggle) {
+            albumsToggle.setAttribute('aria-expanded', visible ? 'true' : 'false')
+            albumsToggle.textContent = visible ? @json(__('アルバムを隠す')) : @json(__('アルバム表示'));
+          }
+        }
+        albumsToggle?.addEventListener('click', () => {
+          setAlbumCoversVisible(Boolean(albumCovers?.hidden))
+        })
+        albumCovers?.addEventListener('click', (e) => {
+          if (e.target.closest('.photos-cover-card')) setAlbumCoversVisible(false)
+        })
         const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
         let deferredPrompt = null
@@ -5407,6 +5416,7 @@
         }
 
         window.addEventListener('beforeinstallprompt', (e) => {
+          if (!installButtons.length) return
           e.preventDefault()
           deferredPrompt = e
           installButtons.forEach((btn) => {

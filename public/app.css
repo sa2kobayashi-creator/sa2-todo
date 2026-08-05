@@ -10963,11 +10963,10 @@ label.photos-camera-btn span {
 }
 
 .photos-folder-watch-status {
-  display: block;
-  margin-top: 6px;
   font-size: 12px;
   color: #2563eb;
   font-weight: 600;
+  align-self: center;
 }
 
 .photos-secondary-btn:disabled {
@@ -10988,40 +10987,6 @@ label.photos-camera-btn span {
 .photos-danger-btn:hover {
   background: #fff5f5;
   color: #822727;
-}
-
-.photos-sync-tip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 18px;
-  padding: 12px 16px;
-  border: 1px solid var(--photos-line);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.65);
-  font-family: 'Outfit', sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--photos-muted);
-}
-
-.photos-sync-tip-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1 1 220px;
-  min-width: 0;
-}
-
-.photos-sync-tip strong {
-  color: var(--photos-ink);
-  font-weight: 600;
-}
-
-.photos-pwa-tip-btn {
-  flex: 0 0 auto;
 }
 
 .photos-pwa-guide-body {
@@ -11521,9 +11486,13 @@ label.photos-camera-btn span {
 
 .photos-album-covers {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.photos-album-covers[hidden] {
+  display: none;
 }
 
 .photos-cover-card {
@@ -12215,11 +12184,17 @@ label.photos-camera-btn span {
 
 .photos-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 8px;
   margin: 8px 0 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.photos-toolbar > * {
+  flex: 0 0 auto;
 }
 
 .photos-toolbar .photos-mode-toggle + .photos-mode-toggle {
@@ -12259,9 +12234,9 @@ label.photos-camera-btn span {
 .photos-cols-control {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
-  padding: 6px 12px 6px 10px;
+  gap: 8px;
+  margin-left: 0;
+  padding: 6px 10px 6px 8px;
   border-radius: 999px;
   border: 1px solid var(--photos-line);
   background: rgba(255, 255, 255, 0.78);
@@ -12311,7 +12286,7 @@ label.photos-camera-btn span {
 .photos-cols-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 116px;
+  width: 96px;
   height: 4px;
   border-radius: 999px;
   background: linear-gradient(
@@ -12834,10 +12809,7 @@ label.photos-camera-btn span {
   .photos-upload-btn,
   .photos-secondary-btn { flex: 1 1 auto; }
   .photos-cols-control {
-    order: 3;
-    width: 100%;
     margin-left: 0;
-    justify-content: center;
   }
   .photos-lightbox-stage {
     padding: 44px 40px 0;
