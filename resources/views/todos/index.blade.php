@@ -33,15 +33,19 @@
         @if(($displayMode ?? 'calendar') === 'list')
         <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-add-list" @if($defaultStartDate !== '' || old('titles')) open @endif>
         <summary class="app-accordion-summary">
-          <span>{{ __('ToDo を追加（複数行可）') }}</span>
+          <span>{{ __('ToDo を追加') }}</span>
           <span class="app-accordion-caret" aria-hidden="true">▾</span>
         </summary>
         <div class="app-accordion-body">
-        <p class="hint">{{ __('改行ごとに1件ずつ登録。日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }}@if(!empty($canSettings)) {{ __('定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}@endif</p>
+        <p class="hint">{{ __('日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }}@if(!empty($canSettings)) {{ __('定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}@endif</p>
         <form class="add" method="post" action="/todos" id="add-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />
-          <textarea id="titles-input" name="titles" placeholder="{{ __('買い物に行く') }}&#10;{{ __('レポートを書く') }}" required></textarea>
+          <label>
+            <span>{{ __('タイトル（1行1件）') }}</span>
+            <input type="text" id="titles-input" name="title" placeholder="{{ __('買い物に行く') }}" maxlength="255" required autocomplete="off" />
+          </label>
+          @include('partials.todo-memo-field', ['memoIdPrefix' => 'todo-add'])
           <div class="add-form-grid">
             <div class="form-grid-row form-grid-row-top">
               <span class="field-label">{{ __('指定方法') }}</span>
@@ -143,10 +147,7 @@
             <p class="hint">{{ __('仕事モードではグループ共有は使えません。日付付き ToDo は Google カレンダーへ同期されます。') }}</p>
             @endunless
           </div>
-          <label class="split-option">
-            <input type="checkbox" id="split-by-line" name="splitByLine" value="1" checked />
-            {{ __('改行ごとに別の ToDo として登録する') }}
-          </label>
+          <input type="hidden" name="splitByLine" value="0" />
           <div class="preview" id="line-preview" hidden>
             <h3>{{ __('登録プレビュー') }}（<span id="preview-count">0</span>{{ __('件') }}）</h3>
             <ol id="preview-list"></ol>
@@ -505,6 +506,7 @@
                 if (!editForm) return;
                 const titleEl = editForm.querySelector('[name=title]');
                 if (titleEl) titleEl.value = todo.title || '';
+                window.fillTodoMemoField?.(editForm, todo.memo || '');
                 const startDateEl = editForm.querySelector('#modal-start-date');
                 const endDateEl = editForm.querySelector('#modal-end-date');
                 if (startDateEl) startDateEl.value = todo.startDate || '';
@@ -611,12 +613,10 @@
                     : (isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集')));
                 }
                 if (titleLabel) {
-                  titleLabel.textContent = isNew ? @json(__('タイトル（1行1件）')) : @json(__('タイトル'));
+                  titleLabel.textContent = @json(__('タイトル（1行1件）'));
                 }
                 if (titleEl) {
-                  titleEl.placeholder = isNew
-                    ? (@json(__('買い物に行く')) + '\n' + @json(__('レポートを書く')))
-                    : '';
+                  titleEl.placeholder = @json(__('買い物に行く'));
                 }
                 if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isNew;
                 if (todoModalCopyBtn) todoModalCopyBtn.hidden = isNew;
@@ -657,6 +657,7 @@
                 const endHour = (hour + 1) % 24;
                 fillTodoModalFields({
                   title: '',
+                  memo: '',
                   startDate: date,
                   endDate: date,
                   startTime: hasTime ? pad2(hour) + ':' + pad2(minute) : '',
@@ -1075,7 +1076,6 @@
       })
 
       const input = document.getElementById('titles-input')
-      const splitByLine = document.getElementById('split-by-line')
       const preview = document.getElementById('line-preview')
       const previewCount = document.getElementById('preview-count')
       const previewList = document.getElementById('preview-list')
@@ -1259,13 +1259,9 @@
         return line.trim().replace(/^[-*・•]\s*/, '').replace(/^\d+[.)．]\s*/, '')
       }
 
-      function parseLines(raw, split) {
-        const lines = String(raw || '').split(/\r\n|\r|\n|\u2028|\u2029/)
-        if (!split) {
-          const single = lines.map((l) => l.trim()).filter(Boolean).join('\n').trim()
-          return single ? [single] : []
-        }
-        return lines.map(stripLine).filter((line) => line && !/^\[\/?(info|title|hr)\]$/i.test(line))
+      function parseLines(raw) {
+        const title = stripLine(String(raw || '').split(/\r\n|\r|\n|\u2028|\u2029/)[0] || '')
+        return title ? [title] : []
       }
 
       function getSelectedWeekdays() {
@@ -1329,7 +1325,7 @@
       }
 
       async function updatePreview() {
-        const titles = parseLines(input.value, splitByLine.checked)
+        const titles = parseLines(input?.value || '')
         const mode = document.querySelector('#add-form input[name="dateMode"]:checked')?.value || 'single'
         const weekdays = getSelectedWeekdays()
         const excludeHolidays = Boolean(excludeHolidaysInput?.checked)
@@ -1356,7 +1352,6 @@
       }
 
       input?.addEventListener('input', updatePreview)
-      splitByLine?.addEventListener('change', updatePreview)
       startDateInput?.addEventListener('change', updatePreview)
       endDateInput?.addEventListener('change', updatePreview)
       addWeekdayInputs.forEach((input) => input.addEventListener('change', updatePreview))
@@ -1392,14 +1387,6 @@
               return
             }
           }
-        }
-        if (!splitByLine.checked) {
-          splitByLine.disabled = true
-          const hidden = document.createElement('input')
-          hidden.type = 'hidden'
-          hidden.name = 'splitByLine'
-          hidden.value = '0'
-          addForm.appendChild(hidden)
         }
       })
 

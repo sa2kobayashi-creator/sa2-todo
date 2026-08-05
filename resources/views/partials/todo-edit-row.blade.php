@@ -4,7 +4,14 @@
     <form method="post" action="/todos/{{ $todo['id'] }}/update" class="edit-form">
       @csrf
       <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />
-      <textarea name="title" rows="3" required>{{ $todo['title'] }}</textarea>
+      <label>
+        <span>{{ __('タイトル（1行1件）') }}</span>
+        <input type="text" name="title" value="{{ $todo['title'] }}" maxlength="255" required autocomplete="off" />
+      </label>
+      @include('partials.todo-memo-field', [
+        'memoIdPrefix' => 'todo-edit-'.$todo['id'],
+        'memoValue' => $todo['memo'] ?? '',
+      ])
       <div class="add-form-grid">
         <div class="form-grid-row form-grid-row-labels">
           <span class="field-label">{{ __('開始日') }}</span>

@@ -267,6 +267,7 @@ class TodoController extends Controller
                 'category' => $request->input('category'),
                 'startTime' => $request->input('startTime'),
                 'endTime' => $request->input('endTime'),
+                'memo' => $request->input('memo'),
                 'reminders' => $request->input('reminders', []),
                 'reminderTime' => $request->input('reminderTime'),
                 'notifyVia' => $this->todos->parseNotifyViaFromBody($request->input('notifyVia')),
@@ -296,6 +297,7 @@ class TodoController extends Controller
 
         $updated = $this->todos->updateTodo($id, [
             'title' => $request->input('title'),
+            'memo' => $request->input('memo'),
             'startDate' => $startDate,
             'endDate' => $endDate,
             'startTime' => $request->input('startTime'),

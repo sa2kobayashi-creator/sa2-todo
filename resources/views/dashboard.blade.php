@@ -430,6 +430,7 @@
         const endHour = (hour + 1) % 24
         fillTodoModalFields({
           title: '',
+          memo: '',
           startDate: date,
           endDate: date,
           startTime: hasTime ? pad2(hour) + ':' + pad2(minute) : '',
@@ -518,6 +519,7 @@
         if (!editForm) return
         const titleEl = editForm.querySelector('[name=title]')
         if (titleEl) titleEl.value = todo.title || ''
+        window.fillTodoMemoField?.(editForm, todo.memo || '')
         const startDateEl = editForm.querySelector('#modal-start-date')
         const endDateEl = editForm.querySelector('#modal-end-date')
         if (startDateEl) startDateEl.value = todo.startDate || ''
@@ -612,12 +614,10 @@
             : (isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集')));
         }
         if (titleLabel) {
-          titleLabel.textContent = isNew ? @json(__('タイトル（1行1件）')) : @json(__('タイトル'));
+          titleLabel.textContent = @json(__('タイトル（1行1件）'));
         }
         if (titleEl) {
-          titleEl.placeholder = isNew
-            ? (@json(__('買い物に行く')) + '\n' + @json(__('レポートを書く')))
-            : ''
+          titleEl.placeholder = @json(__('買い物に行く'))
         }
         if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isNew
         if (todoModalCopyBtn) todoModalCopyBtn.hidden = isNew

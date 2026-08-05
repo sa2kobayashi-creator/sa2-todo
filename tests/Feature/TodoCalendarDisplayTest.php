@@ -190,6 +190,51 @@ class TodoCalendarDisplayTest extends TestCase
         $this->assertSame('line', $todo->notify_via);
     }
 
+    public function test_store_and_update_persist_optional_memo(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user)->post('/todos', [
+            'title' => '買い物',
+            'memo' => "牛乳\n卵",
+            'startDate' => now()->format('Y-m-d'),
+            'dateMode' => 'single',
+            'importance' => 'medium',
+            'category' => 'task',
+            'returnTo' => '/todos',
+        ])->assertRedirect();
+
+        $todo = Todo::query()->first();
+        $this->assertNotNull($todo);
+        $this->assertSame('買い物', $todo->title);
+        $this->assertSame("牛乳\n卵", $todo->memo);
+
+        $this->actingAs($user)->post('/todos/'.$todo->id.'/update', [
+            'title' => '買い物',
+            'memo' => '',
+            'startDate' => now()->format('Y-m-d'),
+            'dateMode' => 'single',
+            'importance' => 'medium',
+            'category' => 'task',
+            'returnTo' => '/todos',
+        ])->assertRedirect();
+
+        $todo->refresh();
+        $this->assertNull($todo->memo);
+    }
+
+    public function test_todos_modal_uses_single_line_title_and_optional_memo(): void
+    {
+        $user = $this->makeUser();
+        $html = $this->actingAs($user)->get('/todos')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="modal-title"', $html);
+        $this->assertStringContainsString('type="text"', $html);
+        $this->assertStringContainsString('タイトル（1行1件）', $html);
+        $this->assertStringContainsString('data-todo-memo', $html);
+        $this->assertStringContainsString('todo-enable-memo', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="modal-title"[^>]*><\/textarea>/', $html);
+    }
+
     public function test_update_clears_notifications_when_time_removed(): void
     {
         $user = $this->makeUser();

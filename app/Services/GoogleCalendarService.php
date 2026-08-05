@@ -620,6 +620,7 @@ class GoogleCalendarService
             'groupId' => null,
             'context' => 'work',
             'title' => (string) ($item['summary'] ?? __('（無題）')),
+            'memo' => trim((string) ($item['description'] ?? '')),
             'completed' => false,
             'startDate' => $startDate,
             'endDate' => $endDate ?: $startDate,
@@ -732,6 +733,7 @@ class GoogleCalendarService
 
         $payload = [
             'summary' => $title !== '' ? $title : __('（無題）'),
+            'description' => trim((string) ($todo['memo'] ?? '')),
         ];
 
         if (is_string($startTime) && $startTime !== '') {

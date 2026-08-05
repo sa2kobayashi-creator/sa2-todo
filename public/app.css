@@ -699,6 +699,27 @@ a {
   margin-top: 8px;
 }
 
+.todo-memo-option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todo-memo-panel {
+  width: 100%;
+}
+
+.todo-memo-input,
+form.add textarea.todo-memo-input,
+.edit-form textarea.todo-memo-input,
+.modal-form textarea.todo-memo-input {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
 .time-range-inputs {
   display: flex;
   align-items: center;
@@ -1157,9 +1178,19 @@ code {
 }
 
 /* Forms */
+form.add > label,
+.edit-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
 form.add textarea,
 form.add input[type="date"],
 form.add input[type="text"],
+.edit-form textarea,
 .edit-form input[type="text"],
 .edit-form input[type="date"] {
   width: 100%;

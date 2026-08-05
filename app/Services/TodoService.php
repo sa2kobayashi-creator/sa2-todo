@@ -421,6 +421,7 @@ class TodoService
                     'group_id' => $groupId,
                     'context' => $context->value,
                     'title' => $title,
+                    'memo' => $this->normalizeMemo($options['memo'] ?? null),
                     'completed' => false,
                     'start_date' => $date ?? $period['startDate'],
                     'end_date' => $date ?? $period['endDate'],
@@ -455,6 +456,9 @@ class TodoService
 
         if (isset($patch['title']) && is_string($patch['title']) && trim($patch['title'])) {
             $todo->title = trim($patch['title']);
+        }
+        if (array_key_exists('memo', $patch)) {
+            $todo->memo = $this->normalizeMemo($patch['memo']);
         }
         if (array_key_exists('startDate', $patch) || array_key_exists('endDate', $patch)) {
             $period = $this->normalizePeriod(
@@ -922,6 +926,16 @@ class TodoService
     public function normalizeCategory(?string $value): string
     {
         return in_array($value, ['task', 'personal', 'memo', 'other'], true) ? $value : 'task';
+    }
+
+    public function normalizeMemo(mixed $value): ?string
+    {
+        $memo = trim((string) ($value ?? ''));
+        if ($memo === '') {
+            return null;
+        }
+
+        return mb_substr($memo, 0, 10000);
     }
 
     /** @return array{startTime: ?string, endTime: ?string} */

@@ -12,11 +12,12 @@
     <form method="post" id="todo-edit-form" class="modal-form">
       @csrf
       <input type="hidden" name="returnTo" value="{{ $modalReturnTo }}" />
-      <input type="hidden" name="splitByLine" id="modal-split-by-line" value="1" />
+      <input type="hidden" name="splitByLine" id="modal-split-by-line" value="0" />
       <label>
-        <span id="modal-title-label">{{ __('タイトル') }}</span>
-        <textarea name="title" id="modal-title" rows="4" required></textarea>
+        <span id="modal-title-label">{{ __('タイトル（1行1件）') }}</span>
+        <input type="text" name="title" id="modal-title" maxlength="255" placeholder="{{ __('買い物に行く') }}" required autocomplete="off" />
       </label>
+      @include('partials.todo-memo-field', ['memoIdPrefix' => 'todo-modal'])
       <div class="modal-date-mode" role="group" aria-label="{{ __('指定方法') }}">
         <span class="field-label">{{ __('指定方法') }}</span>
         <label class="radio-inline">
