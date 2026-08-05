@@ -240,86 +240,10 @@
       </div>
     </div>
 
-    <div class="modal" id="todo-modal" hidden>
-      <div class="modal-backdrop" data-close-modal></div>
-      <div class="modal-dialog" role="dialog" aria-labelledby="todo-modal-title">
-        <div class="modal-header">
-          <h2 id="todo-modal-title">{{ __('ToDo 編集') }}</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
-        </div>
-        <form method="post" id="todo-edit-form" class="modal-form">
-          @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-          <label>
-            {{ __('タイトル') }}
-            <textarea name="title" rows="4" required></textarea>
-          </label>
-          <div class="modal-date-mode" role="group" aria-label="{{ __('指定方法') }}">
-            <span class="field-label">{{ __('指定方法') }}</span>
-            <label class="radio-inline">
-              <input type="radio" name="dateMode" id="modal-date-mode-single" value="single" />
-              {{ __('単日') }}
-            </label>
-            <label class="radio-inline">
-              <input type="radio" name="dateMode" id="modal-date-mode-range" value="range" />
-              {{ __('期間') }}
-            </label>
-          </div>
-          <label id="modal-start-date-label">
-            <span id="modal-start-date-text">{{ __('開始日') }}</span>
-            <input type="date" name="startDate" id="modal-start-date" />
-          </label>
-          <label id="modal-end-date-label">
-            {{ __('終了日') }}
-            <input type="date" name="endDate" id="modal-end-date" />
-          </label>
-          <div class="schedule-option">
-            <label class="schedule-toggle">
-              <input type="checkbox" id="modal-enable-time-range" />
-              {{ __('時間帯を追加') }}
-            </label>
-            <div class="time-range-panel date-panel-hidden" id="modal-time-range-panel">
-              <div class="time-range-inputs">
-                <input type="time" name="startTime" id="modal-start-time" aria-label="{{ __('開始時刻') }}" disabled />
-                <span class="time-range-separator" aria-hidden="true">～</span>
-                <input type="time" name="endTime" id="modal-end-time" aria-label="{{ __('終了時刻') }}" disabled />
-              </div>
-            </div>
-          </div>
-          <label>
-            {{ __('重要度') }}
-            <select name="importance" id="modal-importance">
-              @foreach($importanceLabels as $value => $label)
-                <option value="{{ $value }}">{{ $label }}</option>
-              @endforeach
-            </select>
-          </label>
-          <label>
-            {{ __('ステータス') }}
-            <select name="category" id="modal-category">
-              @foreach($categoryLabels as $value => $label)
-                <option value="{{ $value }}">{{ $label }}</option>
-              @endforeach
-            </select>
-          </label>
-          <label class="inline-check" id="modal-completed-label">
-            <input type="checkbox" name="completed" value="1" />
-            {{ __('完了') }}
-          </label>
-          <p class="hint" id="modal-meet-link" hidden></p>
-        </form>
-        <form method="post" id="todo-delete-form" class="modal-delete-form" onsubmit='return confirm(@json(__('この ToDo を削除しますか？')))'>
-          @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-        </form>
-        <div class="modal-actions">
-          <button type="button" class="secondary" data-close-modal>{{ __('キャンセル') }}</button>
-          <button type="submit" form="todo-edit-form" id="todo-modal-save">{{ __('保存') }}</button>
-          <button type="button" class="secondary" id="todo-modal-copy" title="{{ __('コピーして新規作成') }}">{{ __('コピー') }}</button>
-          <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">{{ __('削除') }}</button>
-        </div>
-      </div>
-    </div>
+    @include('partials.todo-edit-modal', [
+      'modalReturnTo' => $returnTo,
+      'showDashboardMemoButton' => true,
+    ])
 
     <div class="modal" id="note-day-modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
@@ -397,32 +321,6 @@
       </div>
     </div>
 
-    <div class="modal modal-centered" id="quick-add-modal" hidden>
-      <div class="modal-backdrop" data-close-modal></div>
-      <div class="modal-dialog" role="dialog" aria-labelledby="quick-add-modal-title">
-        <div class="modal-header">
-          <h2 id="quick-add-modal-title">{{ __('ToDo を追加') }}</h2>
-          <button type="button" class="modal-close" data-close-modal aria-label="{{ __('閉じる') }}">×</button>
-        </div>
-        <form method="post" action="/todos" id="quick-add-modal-form" class="modal-form quick-add-modal-form">
-          @csrf
-          <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-          <input type="hidden" name="startDate" id="quick-add-start" />
-          <input type="hidden" name="endDate" id="quick-add-end" />
-          <input type="hidden" name="splitByLine" value="1" />
-          <label>
-            {{ __('タイトル（1行1件）') }}
-            <textarea name="titles" id="quick-add-titles" rows="6" placeholder="{{ __('1行1件で入力') }}" required></textarea>
-          </label>
-          <div class="modal-actions quick-add-modal-actions">
-            <button type="button" class="secondary" id="quick-add-memo-btn">{{ __('メモを追加') }}</button>
-            <button type="button" class="secondary" data-close-modal>{{ __('閉じる') }}</button>
-            <button type="submit">{{ __('追加') }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <script>
       const TODO_ITEMS = {!! \Illuminate\Support\Js::from($todosForJs ?? []) !!};
       const NOTE_ITEMS = {!! \Illuminate\Support\Js::from($notesForJs ?? []) !!};
@@ -448,14 +346,11 @@
       const noteComposeTitle = document.getElementById('note-compose-title')
       const noteComposeBody = document.getElementById('note-compose-body')
       const noteComposeColor = document.getElementById('note-compose-color')
-      const quickAddModal = document.getElementById('quick-add-modal')
-      const quickAddTitles = document.getElementById('quick-add-titles')
-      const quickAddStart = document.getElementById('quick-add-start')
-      const quickAddEnd = document.getElementById('quick-add-end')
-      const quickAddMemoBtn = document.getElementById('quick-add-memo-btn')
       const editForm = document.getElementById('todo-edit-form')
       const deleteForm = document.getElementById('todo-delete-form')
       const todoModalCopyBtn = document.getElementById('todo-modal-copy')
+      const todoModalMemoBtn = document.getElementById('todo-modal-memo-btn')
+      const todoModalSaveBtn = document.getElementById('todo-modal-save')
       let editingTodoId = null
 
       function findTodo(id) {
@@ -491,7 +386,6 @@
         noteDayModal.hidden = true
         noteModal.hidden = true
         if (noteComposeModal) noteComposeModal.hidden = true
-        if (quickAddModal) quickAddModal.hidden = true
       }
 
       function applyNoteComposePalette(colorKey) {
@@ -519,16 +413,45 @@
         noteComposeTitle?.focus()
       }
 
-      function openQuickAddForDate(date) {
-        if (!quickAddModal) return
+      function pad2(n) {
+        return String(n).padStart(2, '0')
+      }
+
+      function openTodoCreateModal(date, timeHour, timeMinute) {
+        if (!editForm || !todoModal || !date) return
         quickAddDate = date
         closeModals()
-        document.getElementById('quick-add-modal-title').textContent = @json(__(':date に ToDo を追加')).replace(':date', date);
-        if (quickAddStart) quickAddStart.value = date
-        if (quickAddEnd) quickAddEnd.value = date
-        if (quickAddTitles) quickAddTitles.value = ''
-        quickAddModal.hidden = false
-        quickAddTitles?.focus()
+        hideEventTooltip()
+        editingTodoId = null
+        Array.from(editForm.elements).forEach((el) => { el.disabled = false })
+        const hasTime = timeHour != null && Number.isFinite(Number(timeHour))
+        const hour = hasTime ? Number(timeHour) : 9
+        const minute = hasTime && Number.isFinite(Number(timeMinute)) ? Number(timeMinute) : 0
+        const endHour = (hour + 1) % 24
+        fillTodoModalFields({
+          title: '',
+          startDate: date,
+          endDate: date,
+          startTime: hasTime ? pad2(hour) + ':' + pad2(minute) : '',
+          endTime: hasTime ? pad2(endHour) + ':' + pad2(minute) : '',
+          importance: 'medium',
+          category: 'task',
+          completed: false,
+          reminders: [],
+          reminderTime: '',
+          notifyVia: null,
+          groupId: null,
+        })
+        setTodoModalMode('create')
+        if (todoModalTitle) {
+          todoModalTitle.textContent = @json(__(':date に ToDo を追加')).replace(':date', date);
+        }
+        todoModal.hidden = false
+        editForm.querySelector('[name=title]')?.focus()
+      }
+
+      function openQuickAddForDate(date, timeHour, timeMinute) {
+        openTodoCreateModal(date, timeHour, timeMinute)
       }
 
       function inRange(date, todo) {
@@ -620,6 +543,34 @@
         if (importanceEl) importanceEl.value = todo.importance || 'medium'
         if (categoryEl) categoryEl.value = todo.category || 'task'
         if (completedEl) completedEl.checked = !!todo.completed
+        const reminderVals = Array.isArray(todo.reminders) ? todo.reminders.map(String) : []
+        const uiKeys = new Set()
+        let reminderTime = todo.reminderTime ? String(todo.reminderTime) : ''
+        reminderVals.forEach((key) => {
+          if (key === 'at9am') {
+            uiKeys.add('at_time')
+            if (!reminderTime) reminderTime = '09:00'
+            return
+          }
+          const atMatch = String(key).match(/^at:(\d{2}:\d{2})$/)
+          if (atMatch) {
+            uiKeys.add('at_time')
+            if (!reminderTime) reminderTime = atMatch[1]
+            return
+          }
+          uiKeys.add(key)
+        })
+        editForm.querySelectorAll('[data-modal-reminder]').forEach((cb) => {
+          cb.checked = uiKeys.has(String(cb.value))
+        })
+        const reminderTimeEl = editForm.querySelector('[data-modal-reminder-time]')
+        if (reminderTimeEl) reminderTimeEl.value = reminderTime
+        const notify = todo.notifyVia ? String(todo.notifyVia) : ''
+        editForm.querySelectorAll('[data-modal-notify]').forEach((radio) => {
+          radio.checked = notify !== '' && radio.value === notify
+        })
+        const groupEl = editForm.querySelector('#modal-group-id')
+        if (groupEl) groupEl.value = todo.groupId != null && todo.groupId !== '' ? String(todo.groupId) : ''
         const isSingle = !todo.startDate || !todo.endDate || todo.startDate === todo.endDate
         syncModalDateMode(isSingle ? 'single' : 'range')
 
@@ -640,15 +591,42 @@
       function setTodoModalMode(mode) {
         todoModalMode = mode
         const isCopy = mode === 'copy'
-        if (todoModalTitle) todoModalTitle.textContent = isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集'));
-        if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isCopy
-        if (todoModalCopyBtn) todoModalCopyBtn.hidden = isCopy
-        if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isCopy)
-        if (isCopy) {
+        const isCreate = mode === 'create'
+        const isNew = isCopy || isCreate
+        const titleLabel = document.getElementById('modal-title-label')
+        const titleEl = editForm?.querySelector('[name=title]')
+        const splitEl = document.getElementById('modal-split-by-line')
+        const groupEl = document.getElementById('modal-group-id')
+        if (todoModalTitle) {
+          todoModalTitle.textContent = isCreate
+            ? @json(__('ToDo を追加'))
+            : (isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集')));
+        }
+        if (titleLabel) {
+          titleLabel.textContent = isNew ? @json(__('タイトル（1行1件）')) : @json(__('タイトル'));
+        }
+        if (titleEl) {
+          titleEl.placeholder = isNew
+            ? (@json(__('買い物に行く')) + '\n' + @json(__('レポートを書く')))
+            : ''
+        }
+        if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isNew
+        if (todoModalCopyBtn) todoModalCopyBtn.hidden = isNew
+        if (todoModalSaveBtn) {
+          todoModalSaveBtn.hidden = false
+          todoModalSaveBtn.textContent = isNew ? @json(__('追加')) : @json(__('保存'));
+        }
+        if (todoModalMemoBtn) todoModalMemoBtn.hidden = !isCreate
+        if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isNew)
+        if (splitEl) splitEl.disabled = !isNew
+        if (groupEl) groupEl.disabled = !isNew
+        if (isNew) {
           editForm.action = '/todos'
-          // store 側で title も受付。完了は新規なので送らない
-          editForm.querySelector('[name=completed]')?.removeAttribute('name')
-          editForm.querySelector('[name=completed]')?.setAttribute('data-completed-input', '1')
+          const completed = editForm.querySelector('[name=completed]')
+          if (completed) {
+            completed.removeAttribute('name')
+            completed.setAttribute('data-completed-input', '1')
+          }
         } else {
           const completed = editForm.querySelector('[data-completed-input], [name=completed]')
           if (completed) {
@@ -1110,11 +1088,19 @@
         })
       })
 
-      quickAddMemoBtn?.addEventListener('click', (e) => {
+      todoModalMemoBtn?.addEventListener('click', (e) => {
         e.preventDefault()
         e.stopPropagation()
-        const date = quickAddStart?.value || quickAddDate
+        const date = editForm?.querySelector('#modal-start-date')?.value || quickAddDate
         if (date) openNoteComposeModal(date)
+      })
+
+      document.addEventListener('input', (e) => {
+        const timeInput = e.target?.closest?.('input[name="reminderTime"]')
+        if (!timeInput || !timeInput.value) return
+        const wrap = timeInput.closest('.notify-at-time-option')
+        const checkbox = wrap?.querySelector('input[value="at_time"]')
+        if (checkbox) checkbox.checked = true
       })
 
       noteComposeModal?.querySelectorAll('.note-compose-color-dot').forEach((dot) => {
@@ -1183,7 +1169,16 @@
       document.querySelectorAll('.day-add-btn').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation()
-          openQuickAddForDate(btn.dataset.date)
+          openTodoCreateModal(btn.dataset.date)
+        })
+      })
+
+      document.querySelectorAll('.cal-day-canvas[data-date], .cal-week-allday-col[data-date]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('button, a, form, textarea, input, select')) return
+          const hourLine = e.target.closest('.cal-hour-line')
+          const hour = hourLine ? Number(hourLine.dataset.hour) : null
+          openTodoCreateModal(el.dataset.date, Number.isFinite(hour) ? hour : null, 0)
         })
       })
     </script>

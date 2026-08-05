@@ -29,10 +29,11 @@
         </div>
       @endif
 
-      <div class="panel">
-        <details class="app-accordion" data-accordion-key="todos-add">
+      <div class="panel" id="todo-list-panel">
+        @if(($displayMode ?? 'calendar') === 'list')
+        <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-add-list" @if($defaultStartDate !== '' || old('titles')) open @endif>
         <summary class="app-accordion-summary">
-          <h2>{{ __('ToDo を追加（複数行可）') }}</h2>
+          <span>{{ __('ToDo を追加（複数行可）') }}</span>
           <span class="app-accordion-caret" aria-hidden="true">▾</span>
         </summary>
         <div class="app-accordion-body">
@@ -117,29 +118,7 @@
                 </div>
               </div>
             </div>
-            <fieldset class="reminder-checkboxes">
-              <legend>{{ __('通知タイミング') }}</legend>
-              <div class="reminder-check-row">
-                @foreach($reminderOptions as $key)
-                  <label class="reminder-check">
-                    <input type="checkbox" name="reminders" value="{{ $key }}" />
-                    {{ $reminderLabels[$key] }}
-                  </label>
-                @endforeach
-              </div>
-            </fieldset>
-            <fieldset class="notify-via-fieldset">
-              <legend>{{ __('通知方法') }}</legend>
-              <div class="notify-via-row">
-                @foreach($notifyViaOptions as $key)
-                  <label class="notify-via-option">
-                    <input type="radio" name="notifyVia" value="{{ $key }}" />
-                    {{ $notifyViaLabels[$key] }}
-                  </label>
-                @endforeach
-              </div>
-              <p class="hint inline-hint">{{ __('通知タイミングを選ぶ場合は、いずれか1つを選択してください。') }}</p>
-            </fieldset>
+            @include('partials.todo-notify-settings', ['notifyIdPrefix' => 'todo-add'])
             @unless(!empty($appContextIsWork))
             <div class="form-grid-row form-grid-row-labels">
               <span class="field-label">{{ __('共有先') }}</span>
@@ -179,9 +158,8 @@
         ])
         </div>
         </details>
-      </div>
+        @endif
 
-      <div class="panel" id="todo-list-panel">
         <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-filter" @if(($displayMode ?? 'calendar') !== 'calendar') open @endif>
           <summary class="app-accordion-summary">
             <span>{{ __('検索・絞り込み') }}</span>
@@ -326,7 +304,7 @@
             <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">{{ __('コピー') }}</button>
           </div>
           @else
-            <p class="hint inline-hint calendar-edit-hint">{{ __('予定をクリックすると詳細を編集できます。ドラッグで日付を変更できます。') }}</p>
+            <p class="hint inline-hint calendar-edit-hint">{{ __('余白をクリックすると ToDo を追加できます。予定をクリックすると編集、ドラッグで日付を変更できます。') }}</p>
           @endif
         </div>
 
@@ -362,6 +340,7 @@
                     >
                       <div class="day-header">
                         <span class="day-num">{{ $cell['day'] }}</span>
+                        <div class="day-header-actions">
                         @if($eventCount > 0)
                           <span class="day-event-count" aria-hidden="true">{{ min($eventCount, 99) }}</span>
                         @endif
@@ -377,6 +356,8 @@
                             @endif
                           </a>
                         @endif
+                        <button type="button" class="day-add-btn" data-date="{{ $cell['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
+                        </div>
                       </div>
                       @if(!empty($cell['holidayName']))
                         <div class="holiday-label" title="{{ $cell['holidayName'] }}">{{ $cell['holidayName'] }}</div>
@@ -543,6 +524,34 @@
                 if (importanceEl) importanceEl.value = todo.importance || 'medium';
                 if (categoryEl) categoryEl.value = todo.category || 'task';
                 if (completedEl) completedEl.checked = !!todo.completed;
+                const reminderVals = Array.isArray(todo.reminders) ? todo.reminders.map(String) : [];
+                const uiKeys = new Set();
+                let reminderTime = todo.reminderTime ? String(todo.reminderTime) : '';
+                reminderVals.forEach((key) => {
+                  if (key === 'at9am') {
+                    uiKeys.add('at_time');
+                    if (!reminderTime) reminderTime = '09:00';
+                    return;
+                  }
+                  const atMatch = String(key).match(/^at:(\d{2}:\d{2})$/);
+                  if (atMatch) {
+                    uiKeys.add('at_time');
+                    if (!reminderTime) reminderTime = atMatch[1];
+                    return;
+                  }
+                  uiKeys.add(key);
+                });
+                editForm.querySelectorAll('[data-modal-reminder]').forEach((cb) => {
+                  cb.checked = uiKeys.has(String(cb.value));
+                });
+                const reminderTimeEl = editForm.querySelector('[data-modal-reminder-time]');
+                if (reminderTimeEl) reminderTimeEl.value = reminderTime;
+                const notify = todo.notifyVia ? String(todo.notifyVia) : '';
+                editForm.querySelectorAll('[data-modal-notify]').forEach((radio) => {
+                  radio.checked = notify !== '' && radio.value === notify;
+                });
+                const groupEl = editForm.querySelector('#modal-group-id');
+                if (groupEl) groupEl.value = todo.groupId != null && todo.groupId !== '' ? String(todo.groupId) : '';
                 const isSingle = !todo.startDate || !todo.endDate || todo.startDate === todo.endDate;
                 syncModalDateMode(isSingle ? 'single' : 'range');
 
@@ -575,16 +584,41 @@
               function setTodoModalMode(mode) {
                 todoModalMode = mode;
                 const isCopy = mode === 'copy';
+                const isCreate = mode === 'create';
+                const isNew = isCopy || isCreate;
+                const titleLabel = document.getElementById('modal-title-label');
+                const titleEl = editForm?.querySelector('[name=title]');
+                const splitEl = document.getElementById('modal-split-by-line');
+                const groupEl = document.getElementById('modal-group-id');
                 if (todoModalTitle) {
-                  todoModalTitle.textContent = isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集'));
+                  todoModalTitle.textContent = isCreate
+                    ? @json(__('ToDo を追加'))
+                    : (isCopy ? @json(__('ToDo をコピーして追加')) : @json(__('ToDo 編集')));
                 }
-                if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isCopy;
-                if (todoModalCopyBtn) todoModalCopyBtn.hidden = isCopy;
-                if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isCopy);
-                if (isCopy) {
+                if (titleLabel) {
+                  titleLabel.textContent = isNew ? @json(__('タイトル（1行1件）')) : @json(__('タイトル'));
+                }
+                if (titleEl) {
+                  titleEl.placeholder = isNew
+                    ? (@json(__('買い物に行く')) + '\n' + @json(__('レポートを書く')))
+                    : '';
+                }
+                if (todoModalDeleteBtn) todoModalDeleteBtn.hidden = isNew;
+                if (todoModalCopyBtn) todoModalCopyBtn.hidden = isNew;
+                if (todoModalSaveBtn) {
+                  todoModalSaveBtn.hidden = false;
+                  todoModalSaveBtn.textContent = isNew ? @json(__('追加')) : @json(__('保存'));
+                }
+                if (modalCompletedLabel) modalCompletedLabel.classList.toggle('date-panel-hidden', isNew);
+                if (splitEl) splitEl.disabled = !isNew;
+                if (groupEl) groupEl.disabled = !isNew;
+                if (isNew) {
                   editForm.action = '/todos';
-                  editForm.querySelector('[name=completed]')?.removeAttribute('name');
-                  editForm.querySelector('[name=completed]')?.setAttribute('data-completed-input', '1');
+                  const completed = editForm.querySelector('[name=completed]');
+                  if (completed) {
+                    completed.removeAttribute('name');
+                    completed.setAttribute('data-completed-input', '1');
+                  }
                 } else {
                   const completed = editForm.querySelector('[data-completed-input], [name=completed]');
                   if (completed) {
@@ -592,6 +626,40 @@
                     completed.removeAttribute('data-completed-input');
                   }
                 }
+              }
+
+              function pad2(n) {
+                return String(n).padStart(2, '0');
+              }
+
+              function openTodoCreateModal(date, timeHour, timeMinute) {
+                if (!editForm || !todoModal || !date) return;
+                editingTodoId = null;
+                Array.from(editForm.elements).forEach((el) => { el.disabled = false; });
+                const hasTime = timeHour != null && Number.isFinite(Number(timeHour));
+                const hour = hasTime ? Number(timeHour) : 9;
+                const minute = hasTime && Number.isFinite(Number(timeMinute)) ? Number(timeMinute) : 0;
+                const endHour = (hour + 1) % 24;
+                fillTodoModalFields({
+                  title: '',
+                  startDate: date,
+                  endDate: date,
+                  startTime: hasTime ? pad2(hour) + ':' + pad2(minute) : '',
+                  endTime: hasTime ? pad2(endHour) + ':' + pad2(minute) : '',
+                  importance: 'medium',
+                  category: 'task',
+                  completed: false,
+                  reminders: [],
+                  reminderTime: '',
+                  notifyVia: null,
+                  groupId: null,
+                });
+                setTodoModalMode('create');
+                if (todoModalTitle) {
+                  todoModalTitle.textContent = @json(__(':date に ToDo を追加')).replace(':date', date);
+                }
+                todoModal.hidden = false;
+                editForm.querySelector('[name=title]')?.focus();
               }
 
               function openTodoModal(id) {
@@ -731,14 +799,22 @@
                 });
               });
 
-              document.querySelectorAll('.todos-calendar-panel .day-add-btn[data-date]').forEach((btn) => {
-                btn.addEventListener('click', (e) => {
+              window.openTodoQuickAdd = openTodoCreateModal;
+
+              document.querySelector('.todos-calendar-panel')?.addEventListener('click', (e) => {
+                const addBtn = e.target.closest('.day-add-btn[data-date]');
+                if (addBtn) {
                   e.preventDefault();
                   e.stopPropagation();
-                  const date = btn.getAttribute('data-date');
-                  if (!date) return;
-                  window.location.href = '/todos?due=' + encodeURIComponent(date) + '#add-form';
-                });
+                  openTodoCreateModal(addBtn.getAttribute('data-date'));
+                  return;
+                }
+                if (e.target.closest('.event-chip, a, form, textarea, input, select, .event-more')) return;
+                const day = e.target.closest('.calendar-day[data-date], .cal-day-canvas[data-date], .cal-week-allday-col[data-date], .calendar-day-view[data-date]');
+                if (!day || !day.closest('.todos-calendar-panel')) return;
+                const hourLine = e.target.closest('.cal-hour-line');
+                const hour = hourLine ? Number(hourLine.dataset.hour) : null;
+                openTodoCreateModal(day.dataset.date, Number.isFinite(hour) ? hour : null, 0);
               });
 
               document.querySelectorAll('.todos-calendar-panel .event-chip.note-chip[data-note-id]').forEach((el) => {
@@ -936,6 +1012,14 @@
     </form>
 
     <script>
+      document.addEventListener('input', (e) => {
+        const timeInput = e.target?.closest?.('input[name="reminderTime"]')
+        if (!timeInput || !timeInput.value) return
+        const wrap = timeInput.closest('.notify-at-time-option')
+        const checkbox = wrap?.querySelector('input[value="at_time"]')
+        if (checkbox) checkbox.checked = true
+      })
+
       const input = document.getElementById('titles-input')
       const splitByLine = document.getElementById('split-by-line')
       const preview = document.getElementById('line-preview')
@@ -999,11 +1083,11 @@
       }))
 
       const iso = todayIso()
-      if (!startDateInput.value) startDateInput.value = iso
-      if (!endDateInput.value) endDateInput.value = iso
+      if (startDateInput && !startDateInput.value) startDateInput.value = iso
+      if (endDateInput && !endDateInput.value) endDateInput.value = iso
 
       startDateInput?.addEventListener('change', () => {
-        if (!endDateInput.value || endDateInput.value < startDateInput.value) {
+        if (endDateInput && (!endDateInput.value || endDateInput.value < startDateInput.value)) {
           endDateInput.value = startDateInput.value
         }
       })
@@ -1231,9 +1315,11 @@
         }
       })
 
-      syncTodoDateMode()
-      syncTimeRangePanel()
-      updatePreview()
+      if (addForm && input) {
+        syncTodoDateMode()
+        syncTimeRangePanel()
+        updatePreview()
+      }
 
       selectAllBtn?.addEventListener('click', () => {
         const all = checks()

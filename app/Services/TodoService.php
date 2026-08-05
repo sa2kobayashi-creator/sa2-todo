@@ -27,17 +27,20 @@ class TodoService
     ];
 
     public const REMINDER_LABELS = [
-        'at9am' => '当日9時',
+        '5min' => '5分前',
+        '10min' => '10分前',
         '30min' => '30分前',
         '1hour' => '1時間前',
         '1day' => '1日前',
+        'at_time' => '当日',
+        'at9am' => '当日9時',
     ];
 
-    public const REMINDER_OPTIONS = ['at9am', '30min', '1hour', '1day'];
+    public const REMINDER_OPTIONS = ['5min', '10min', '30min', '1hour', '1day', 'at_time'];
 
     public const NOTIFY_VIA_LABELS = [
         'push' => 'プッシュ通知',
-        'push_sound' => 'プッシュ（音あり）',
+        'push_sound' => 'プッシュ通知（音あり）',
         'line' => 'LINE',
         'messenger' => 'Messenger',
     ];
@@ -393,7 +396,7 @@ class TodoService
         $importance = $this->normalizeImportance($options['importance'] ?? null);
         $category = $this->normalizeCategory($options['category'] ?? null);
         $timeRange = $this->normalizeTimeRange($options['startTime'] ?? null, $options['endTime'] ?? null);
-        $reminders = $this->normalizeReminders($options['reminders'] ?? []);
+        $reminders = $this->normalizeReminders($options['reminders'] ?? [], $options['reminderTime'] ?? null);
         $notifyVia = $this->normalizeNotifyVia($options['notifyVia'] ?? null);
         $weekdays = $this->parseWeekdaysFromBody($options['weekdays'] ?? []);
         $expansionOptions = $this->resolveWeekdayExpansionOptions($weekdays, [
@@ -467,8 +470,11 @@ class TodoService
             $todo->end_time = $range['endTime'];
             $scheduleChanged = true;
         }
-        if (array_key_exists('reminders', $patch)) {
-            $todo->reminders = $this->normalizeReminders($patch['reminders']);
+        if (array_key_exists('reminders', $patch) || array_key_exists('reminderTime', $patch)) {
+            $todo->reminders = $this->normalizeReminders(
+                $patch['reminders'] ?? $todo->reminders,
+                $patch['reminderTime'] ?? null
+            );
             $scheduleChanged = true;
         }
         if (array_key_exists('notifyVia', $patch)) {
@@ -719,9 +725,9 @@ class TodoService
     }
 
     /** @param mixed $raw */
-    public function parseRemindersFromBody(mixed $raw): array
+    public function parseRemindersFromBody(mixed $raw, mixed $reminderTime = null): array
     {
-        return $this->normalizeReminders($raw);
+        return $this->normalizeReminders($raw, $reminderTime);
     }
 
     /** @param mixed $raw */
@@ -938,12 +944,75 @@ class TodoService
     }
 
     /** @param mixed $value @return list<string> */
-    public function normalizeReminders(mixed $value): array
+    public function normalizeReminders(mixed $value, mixed $reminderTime = null): array
     {
-        $allowed = array_flip(self::REMINDER_OPTIONS);
+        $allowed = array_flip(['5min', '10min', '30min', '1hour', '1day']);
         $list = is_array($value) ? $value : ($value !== null ? [$value] : []);
+        $out = [];
+        $hasAtTime = false;
+        $atTime = is_string($reminderTime) ? $this->normalizeTime($reminderTime) : null;
 
-        return array_values(array_unique(array_filter($list, fn ($item) => isset($allowed[$item]))));
+        foreach ($list as $item) {
+            if (! is_string($item) || $item === '') {
+                continue;
+            }
+            if ($item === 'at9am') {
+                $hasAtTime = true;
+                $atTime ??= '09:00';
+                continue;
+            }
+            if ($item === 'at_time') {
+                $hasAtTime = true;
+                continue;
+            }
+            if (preg_match('/^at:(\d{2}:\d{2})$/', $item, $matches) === 1) {
+                $hasAtTime = true;
+                $atTime ??= $this->normalizeTime($matches[1]);
+                continue;
+            }
+            if (isset($allowed[$item])) {
+                $out[] = $item;
+            }
+        }
+
+        if ($hasAtTime) {
+            $out[] = 'at:'.($atTime ?: '09:00');
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /** @param list<string>|array<int, mixed> $reminders @return list<string> */
+    public static function reminderUiKeys(array $reminders): array
+    {
+        $keys = [];
+        foreach ($reminders as $item) {
+            if (! is_string($item) || $item === '') {
+                continue;
+            }
+            if ($item === 'at9am' || $item === 'at_time' || preg_match('/^at:\d{2}:\d{2}$/', $item) === 1) {
+                $keys[] = 'at_time';
+                continue;
+            }
+            $keys[] = $item;
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /** @param list<string>|array<int, mixed> $reminders */
+    public static function reminderTimeFromList(array $reminders): ?string
+    {
+        foreach ($reminders as $item) {
+            if ($item === 'at9am') {
+                return '09:00';
+            }
+            if (is_string($item) && preg_match('/^at:(\d{2}:\d{2})$/', $item, $matches) === 1) {
+                return $matches[1];
+            }
+        }
+
+        return null;
     }
 
     public function normalizeNotifyVia(?string $value): ?string

@@ -16,7 +16,7 @@
     <div class="cal-allday-label">{{ __('終日') }}</div>
     <div class="cal-week-allday-cols">
       @foreach($weekView['days'] as $day)
-        <div class="cal-week-allday-col">
+        <div class="cal-week-allday-col" data-date="{{ $day['date'] }}">
           @foreach($day['allDay'] as $todo)
             <button
               type="button"
@@ -59,7 +59,7 @@
         @endforeach
       </div>
       @foreach($weekView['days'] as $day)
-        <div class="cal-day-canvas @if(!empty($day['isToday'])) is-today @endif">
+        <div class="cal-day-canvas @if(!empty($day['isToday'])) is-today @endif" data-date="{{ $day['date'] }}">
           @foreach($weekView['hours'] as $hour)
             <div class="cal-hour-line" data-hour="{{ $hour }}"></div>
           @endforeach

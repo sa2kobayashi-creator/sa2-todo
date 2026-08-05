@@ -268,6 +268,7 @@ class TodoController extends Controller
                 'startTime' => $request->input('startTime'),
                 'endTime' => $request->input('endTime'),
                 'reminders' => $request->input('reminders', []),
+                'reminderTime' => $request->input('reminderTime'),
                 'notifyVia' => $this->todos->parseNotifyViaFromBody($request->input('notifyVia')),
                 'weekdays' => $request->input('weekdays', []),
                 'excludeHolidays' => $request->input('excludeHolidays'),
@@ -301,7 +302,7 @@ class TodoController extends Controller
             'endTime' => $request->input('endTime'),
             'importance' => $request->input('importance'),
             'category' => $request->input('category'),
-            'reminders' => $this->todos->parseRemindersFromBody($request->input('reminders')),
+            'reminders' => $this->todos->parseRemindersFromBody($request->input('reminders'), $request->input('reminderTime')),
             'notifyVia' => $this->todos->parseNotifyViaFromBody($request->input('notifyVia')),
             'completed' => $request->has('completed') ? $request->boolean('completed') : null,
         ]);

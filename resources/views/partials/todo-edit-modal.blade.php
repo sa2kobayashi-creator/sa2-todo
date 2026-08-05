@@ -1,20 +1,21 @@
-{{-- ダッシュボード / ToDo カレンダー共用の編集モーダル --}}
+{{-- ダッシュボード / ToDo カレンダー共用の追加・編集モーダル --}}
 @php
   $modalReturnTo = $modalReturnTo ?? ($listReturnTo ?? ($returnTo ?? '/todos'));
 @endphp
 <div class="modal" id="todo-modal" hidden>
-  <div class="modal-backdrop" data-close-todo-modal></div>
-  <div class="modal-dialog" role="dialog" aria-labelledby="todo-modal-title">
+  <div class="modal-backdrop" data-close-todo-modal data-close-modal></div>
+  <div class="modal-dialog modal-dialog-wide" role="dialog" aria-labelledby="todo-modal-title">
     <div class="modal-header">
       <h2 id="todo-modal-title">{{ __('ToDo 編集') }}</h2>
-      <button type="button" class="modal-close" data-close-todo-modal aria-label="{{ __('閉じる') }}">×</button>
+      <button type="button" class="modal-close" data-close-todo-modal data-close-modal aria-label="{{ __('閉じる') }}">×</button>
     </div>
     <form method="post" id="todo-edit-form" class="modal-form">
       @csrf
       <input type="hidden" name="returnTo" value="{{ $modalReturnTo }}" />
+      <input type="hidden" name="splitByLine" id="modal-split-by-line" value="1" />
       <label>
-        {{ __('タイトル') }}
-        <textarea name="title" rows="4" required></textarea>
+        <span id="modal-title-label">{{ __('タイトル') }}</span>
+        <textarea name="title" id="modal-title" rows="4" required></textarea>
       </label>
       <div class="modal-date-mode" role="group" aria-label="{{ __('指定方法') }}">
         <span class="field-label">{{ __('指定方法') }}</span>
@@ -64,6 +65,21 @@
           @endforeach
         </select>
       </label>
+      @include('partials.todo-notify-settings', [
+        'notifyIdPrefix' => 'todo-modal',
+        'notifyIsModal' => true,
+      ])
+      @unless(!empty($appContextIsWork))
+      <label id="modal-group-wrap">
+        {{ __('共有先') }}
+        <select name="groupId" id="modal-group-id">
+          <option value="">{{ __('個人（自分のみ）') }}</option>
+          @foreach($approvedGroups ?? [] as $group)
+            <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+          @endforeach
+        </select>
+      </label>
+      @endunless
       <label class="inline-check" id="modal-completed-label">
         <input type="checkbox" name="completed" value="1" />
         {{ __('完了') }}
@@ -76,7 +92,10 @@
       <input type="hidden" name="returnTo" value="{{ $modalReturnTo }}" />
     </form>
     <div class="modal-actions">
-      <button type="button" class="secondary" data-close-todo-modal>{{ __('キャンセル') }}</button>
+      @if(!empty($showDashboardMemoButton))
+        <button type="button" class="secondary" id="todo-modal-memo-btn" hidden>{{ __('メモを追加') }}</button>
+      @endif
+      <button type="button" class="secondary" data-close-todo-modal data-close-modal>{{ __('キャンセル') }}</button>
       <button type="submit" form="todo-edit-form" id="todo-modal-save">{{ __('保存') }}</button>
       <button type="button" class="secondary" id="todo-modal-copy" title="{{ __('コピーして新規作成') }}">{{ __('コピー') }}</button>
       <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">{{ __('削除') }}</button>

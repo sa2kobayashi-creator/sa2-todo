@@ -99,8 +99,18 @@ class ReminderNotificationService
             return null;
         }
 
+        if (preg_match('/^at:(\d{2}:\d{2})$/', $reminderKey, $matches) === 1) {
+            try {
+                return Carbon::parse($date.' '.$matches[1], $tz);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
         return match ($reminderKey) {
             'at9am' => Carbon::parse($date.' 09:00', $tz),
+            '5min' => $eventAt->copy()->subMinutes(5),
+            '10min' => $eventAt->copy()->subMinutes(10),
             '30min' => $eventAt->copy()->subMinutes(30),
             '1hour' => $eventAt->copy()->subHour(),
             '1day' => $eventAt->copy()->subDay(),
@@ -119,6 +129,9 @@ class ReminderNotificationService
         }
 
         $label = TodoService::REMINDER_LABELS[$reminderKey] ?? $reminderKey;
+        if (preg_match('/^at:(\d{2}:\d{2})$/', $reminderKey, $matches) === 1) {
+            $label = __('当日 :time', ['time' => $matches[1]]);
+        }
         $when = $todo->start_date?->format('Y-m-d');
         $time = trim((string) ($todo->start_time ?? ''));
         $schedule = $when.($time !== '' ? ' '.$time : '');

@@ -175,6 +175,41 @@ class MessagingNotificationTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.line.me'));
     }
 
+    public function test_send_reminders_supports_same_day_clock_time(): void
+    {
+        $this->configureLine();
+        $user = $this->makeAdmin();
+
+        MessagingConnection::create([
+            'user_id' => $user->id,
+            'provider' => 'line',
+            'external_user_id' => 'Uline888',
+            'linked_at' => now(),
+        ]);
+
+        Todo::create([
+            'user_id' => $user->id,
+            'title' => '資料を送る',
+            'completed' => false,
+            'start_date' => now()->toDateString(),
+            'start_time' => '18:00',
+            'importance' => 'medium',
+            'category' => 'task',
+            'reminders' => ['at:08:30'],
+            'notify_via' => 'line',
+            'notified_at' => [],
+        ]);
+
+        Http::fake([
+            'api.line.me/*' => Http::response([], 200),
+        ]);
+
+        $stats = app(ReminderNotificationService::class)->dispatchDueReminders(now()->setTime(8, 35));
+
+        $this->assertSame(1, $stats['sent']);
+        $this->assertNotEmpty(Todo::first()->notified_at['at:08:30'] ?? null);
+    }
+
     public function test_issue_code_requires_auth(): void
     {
         $this->configureLine();

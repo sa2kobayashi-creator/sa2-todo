@@ -50,7 +50,7 @@
           </div>
         @endforeach
       </div>
-      <div class="cal-day-canvas @if(!empty($dayView['cell']['isToday'])) is-today @endif">
+      <div class="cal-day-canvas @if(!empty($dayView['cell']['isToday'])) is-today @endif" data-date="{{ $dayView['date'] }}">
         @foreach($dayView['hours'] as $hour)
           <div class="cal-hour-line" data-hour="{{ $hour }}"></div>
         @endforeach

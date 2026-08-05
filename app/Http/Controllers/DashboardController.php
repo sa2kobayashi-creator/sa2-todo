@@ -8,6 +8,7 @@ use App\Services\CalendarService;
 use App\Services\DashboardAiUsageService;
 use App\Services\DisplayService;
 use App\Services\GoogleCalendarService;
+use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
@@ -29,6 +30,7 @@ class DashboardController extends Controller
         private TravelService $travel,
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
+        private GroupService $groups,
     ) {}
 
     public function index(Request $request)
@@ -132,6 +134,7 @@ class DashboardController extends Controller
                 : null,
             'googleCalendarConnected' => $context === AppContext::Work
                 && $this->googleCalendar->connectionFor($user) !== null,
+            'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             ...$this->flashFromQuery($request),
         ]);
     }

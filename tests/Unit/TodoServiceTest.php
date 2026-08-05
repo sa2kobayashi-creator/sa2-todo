@@ -75,6 +75,23 @@ class TodoServiceTest extends TestCase
         $this->assertNull($range['endTime']);
     }
 
+    public function test_normalize_reminders_encodes_same_day_clock_time(): void
+    {
+        $this->assertSame(
+            ['5min', '30min', 'at:08:15'],
+            $this->service->normalizeReminders(['5min', '30min', 'at_time'], '08:15')
+        );
+        $this->assertSame(
+            ['at:09:00'],
+            $this->service->normalizeReminders(['at9am'])
+        );
+        $this->assertSame(
+            ['at_time'],
+            TodoService::reminderUiKeys(['at:08:15'])
+        );
+        $this->assertSame('08:15', TodoService::reminderTimeFromList(['5min', 'at:08:15']));
+    }
+
     public function test_expand_dates_by_weekdays_returns_matching_weekdays_in_range(): void
     {
         // 2026-07-06 is Monday (1), 2026-07-12 is Sunday (0)

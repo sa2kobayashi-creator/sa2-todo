@@ -47,29 +47,12 @@
             </div>
           </div>
         </div>
-        <fieldset class="reminder-checkboxes edit-reminders">
-          <legend>{{ __('通知タイミング') }}</legend>
-          <div class="reminder-check-row">
-            @foreach($reminderOptions as $key)
-              <label class="reminder-check">
-                <input type="checkbox" name="reminders" value="{{ $key }}" @checked(in_array($key, $todo['reminders'] ?? [], true)) />
-                {{ $reminderLabels[$key] }}
-              </label>
-            @endforeach
-          </div>
-        </fieldset>
-        <fieldset class="notify-via-fieldset edit-notify-via">
-          <legend>{{ __('通知方法') }}</legend>
-          <div class="notify-via-row">
-            @foreach($notifyViaOptions as $key)
-              <label class="notify-via-option">
-                <input type="radio" name="notifyVia" value="{{ $key }}" @checked(($todo['notifyVia'] ?? null) === $key) />
-                {{ $notifyViaLabels[$key] }}
-              </label>
-            @endforeach
-          </div>
-          <p class="hint inline-hint">{{ __('通知タイミングを選ぶ場合は、いずれか1つを選択してください。') }}</p>
-        </fieldset>
+        @include('partials.todo-notify-settings', [
+          'notifyIdPrefix' => 'todo-edit-'.$todo['id'],
+          'selectedReminders' => $todo['reminders'] ?? [],
+          'selectedNotifyVia' => $todo['notifyVia'] ?? null,
+          'selectedReminderTime' => $todo['reminderTime'] ?? null,
+        ])
       </div>
       <label class="inline-check">
         <input type="checkbox" name="completed" value="1" @checked(!empty($todo['completed'])) />

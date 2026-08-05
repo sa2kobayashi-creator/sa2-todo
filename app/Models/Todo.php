@@ -68,6 +68,7 @@ class Todo extends Model
             'importance' => $this->importance,
             'category' => $this->category,
             'reminders' => $this->reminders ?? [],
+            'reminderTime' => \App\Services\TodoService::reminderTimeFromList($this->reminders ?? []),
             'notifyVia' => $this->notify_via,
             'notifiedAt' => $this->notified_at ?? [],
             'googleEventId' => $this->google_event_id,
