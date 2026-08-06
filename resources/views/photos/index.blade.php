@@ -97,22 +97,23 @@
             <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
             <button
               type="button"
-              class="photos-secondary-btn photos-storage-toggle"
+              class="photos-secondary-btn photos-storage-toggle{{ !empty($storageStats['overFreeTier']) ? ' is-over' : '' }}"
               id="photos-storage-toggle"
               aria-expanded="false"
               aria-controls="photos-storage-panel"
+              @if(!empty($storageStats['overFreeTier']))
+                title="{{ __('無料枠超過') }}（{{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}）"
+              @endif
             >
               <strong>{{ __('保存容量表示') }}</strong>
               <span class="photos-storage-toggle-total">
-                {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
+                {{ __('合計') }}
+                <span class="photos-storage-toggle-used">{{ $storageStats['formattedTotalUsed'] }}</span>
                 / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
                 {{ __('（写真 :images枚 · 動画 :videos本）', [
                   'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
                   'videos' => $storageStats['videoCount'] ?? 0,
                 ]) }}
-                @if(!empty($storageStats['overFreeTier']))
-                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-                @endif
               </span>
             </button>
           </div>
@@ -3602,7 +3603,9 @@
             gallery.dataset.cols = String(cols)
             gallery.style.setProperty('--photos-cols', String(cols))
             gallery.querySelectorAll('.photos-masonry').forEach((el) => {
-              el.style.columnCount = String(cols)
+              el.style.setProperty('--photos-cols', String(cols))
+              el.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`
+              el.style.removeProperty('column-count')
             })
           }
           if (colsSlider && Number(colsSlider.value) !== cols) {
@@ -3645,6 +3648,10 @@
           try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
           if (next !== 'list') {
             setPhotosCols(colsSlider?.value || gallery?.dataset.cols || PHOTOS_COLS_DEFAULT, { persist: false })
+          } else if (gallery) {
+            gallery.querySelectorAll('.photos-masonry').forEach((el) => {
+              el.style.removeProperty('grid-template-columns')
+            })
           }
           setPhotosPage(next === 'list' ? 1 : photosPage)
           updatePhotosBulkUi()
