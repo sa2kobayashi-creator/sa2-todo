@@ -90,14 +90,32 @@
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
-            <label class="photos-dup-option" title="{{ __('同じ内容のファイルを再度追加する') }}">
-              <input type="checkbox" id="photos-allow-duplicates" />
-              <span>{{ __('重複も追加') }}</span>
-            </label>
             <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
           @endif
-          <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
-          <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
+          <div class="photos-hero-album-actions">
+            <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
+            <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
+            <button
+              type="button"
+              class="photos-secondary-btn photos-storage-toggle"
+              id="photos-storage-toggle"
+              aria-expanded="false"
+              aria-controls="photos-storage-panel"
+            >
+              <strong>{{ __('保存容量表示') }}</strong>
+              <span class="photos-storage-toggle-total">
+                {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
+                / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
+                {{ __('（写真 :images枚 · 動画 :videos本）', [
+                  'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
+                  'videos' => $storageStats['videoCount'] ?? 0,
+                ]) }}
+                @if(!empty($storageStats['overFreeTier']))
+                  <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
+                @endif
+              </span>
+            </button>
+          </div>
           @if($selectedAlbum && !empty($canManageSelected))
             <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('名前変更') }}</button>
             <form
@@ -147,6 +165,10 @@
               </select>
             </label>
           @endif
+          <label class="photos-dup-option photos-add-sheet-dup" title="{{ __('同じ内容のファイルを再度追加する') }}">
+            <input type="checkbox" id="photos-allow-duplicates" />
+            <span>{{ __('重複も追加') }}</span>
+          </label>
           <button type="button" class="photos-upload-btn photos-add-sheet-action" id="photos-add-sheet-files">{{ __('フォルダから探す（推奨）') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-folders">{{ __('フォルダごとアルバムにする') }}</button>
           <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('親フォルダを選ぶと、その直下のフォルダ1つが1アルバムになります。複数のフォルダをこの画面にドラッグ＆ドロップしても同じです。') }}</p>
@@ -172,25 +194,7 @@
         </div>
       </div>
 
-      <aside class="photos-storage" aria-label="{{ __('保存容量') }}">
-        <details class="app-accordion" data-accordion-key="photos-storage">
-        <summary class="app-accordion-summary photos-storage-summary">
-          <strong>{{ __('保存容量') }}</strong>
-          <span class="photos-storage-summary-total">
-            {{ __('合計') }} {{ $storageStats['formattedTotalUsed'] }}
-            / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
-            {{ __('（写真 :images枚 · 動画 :videos本）', [
-              'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
-              'videos' => $storageStats['videoCount'] ?? 0,
-            ]) }}
-            · {{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}
-            @if(!empty($storageStats['overFreeTier']))
-              <em class="photos-storage-over">{{ __('無料枠超過') }}</em>
-            @endif
-          </span>
-          <span class="app-accordion-caret" aria-hidden="true">▾</span>
-        </summary>
-        <div class="app-accordion-body">
+      <aside class="photos-storage" id="photos-storage-panel" aria-label="{{ __('保存容量') }}" hidden>
         @php
           $archiveCapacityMode = $storageStats['capacityMode'] ?? 'age_archive';
           $hotQuotaLabel = $storageStats['formattedQuota'] ?? '10 GB';
@@ -288,8 +292,6 @@
             {{ __('超過見込単価') }} {{ $storageStats['overagePriceLabel'] }}。
           @endif
         </p>
-        </div>
-        </details>
       </aside>
 
       <script>
@@ -718,12 +720,6 @@
           </div>
         </div>
       @else
-        @if(!empty($photosYearAutoScoped) && !empty($photosYear))
-          <p class="hint photos-year-auto-hint">
-            {{ __('表示を速くするため、最新の :year 年のみ表示しています（全 :total 件）。', ['year' => $photosYear, 'total' => $photosTotalInScope ?? count($photos)]) }}
-            <a href="{{ url('/photos'.(($selectedAlbumId ?? null) ? ('?album='.$selectedAlbumId.'&year=all') : '?year=all')) }}">{{ __('すべての年を表示') }}</a>
-          </p>
-        @endif
         <div class="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
           <div class="photos-mode-toggle" role="group" aria-label="{{ __('表示モード') }}">
             <button type="button" class="photos-mode-btn is-active" data-photos-mode="normal" aria-pressed="true">{{ __('通常') }}</button>
@@ -791,7 +787,7 @@
               min="1"
               max="7"
               step="1"
-              value="4"
+              value="3"
               aria-label="{{ __('1行の枚数') }}"
             />
             <button
@@ -814,7 +810,7 @@
                 <rect x="13.5" y="13.5" width="5" height="5" rx="1"/>
               </svg>
             </button>
-            <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">4</span>
+            <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">3</span>
           </div>
           <div class="photos-select-actions" id="photos-select-actions" hidden>
             <button type="button" class="photos-secondary-btn" id="photos-select-all">{{ __('全選択') }}</button>
@@ -842,7 +838,14 @@
           </div>
         </div>
 
-        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="4" style="--photos-cols: 4">
+        @if(!empty($photosYearAutoScoped) && !empty($photosYear))
+          <p class="hint photos-year-auto-hint">
+            {{ __('最新の :year 年のみ表示しています（全 :total 件）。', ['year' => $photosYear, 'total' => $photosTotalInScope ?? count($photos)]) }}
+            <a href="{{ url('/photos'.(($selectedAlbumId ?? null) ? ('?album='.$selectedAlbumId.'&year=all') : '?year=all')) }}">{{ __('すべての年を表示') }}</a>
+          </p>
+        @endif
+
+        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="3" style="--photos-cols: 3">
           @php $flatIndex = 0; @endphp
           @foreach($photoGroups as $group)
             <section class="photos-day-group" data-year="{{ substr((string) ($group['date'] ?? ''), 0, 4) }}">
@@ -864,7 +867,6 @@
                     <button
                       type="button"
                       @class(['photos-tile', 'is-video' => ($photo['mediaKind'] ?? '') === 'video'])
-                      style="--photo-ratio: {{ max(0.66, min(1.45, ($photo['height'] && $photo['width']) ? ($photo['height'] / $photo['width']) : (($photo['mediaKind'] ?? '') === 'video' ? 0.75 : 1))) }}"
                       data-photo-index="{{ $flatIndex }}"
                       aria-label="{{ $photo['caption'] ?: ($photo['originalName'] ?: ((($photo['mediaKind'] ?? '') === 'video') ? __('動画を再生') : __('写真を表示'))) }}"
                     >
@@ -1792,6 +1794,22 @@
         })
         albumCovers?.addEventListener('click', (e) => {
           if (e.target.closest('.photos-cover-card')) setAlbumCoversVisible(false)
+        })
+        const storagePanel = document.getElementById('photos-storage-panel')
+        const storageToggle = document.getElementById('photos-storage-toggle')
+        const storageToggleLabel = storageToggle?.querySelector('strong')
+        function setStoragePanelVisible(visible) {
+          if (!storagePanel) return
+          storagePanel.hidden = !visible
+          if (storageToggle) {
+            storageToggle.setAttribute('aria-expanded', visible ? 'true' : 'false')
+          }
+          if (storageToggleLabel) {
+            storageToggleLabel.textContent = visible ? @json(__('保存容量を隠す')) : @json(__('保存容量表示'));
+          }
+        }
+        storageToggle?.addEventListener('click', () => {
+          setStoragePanelVisible(Boolean(storagePanel?.hidden))
         })
         const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
@@ -3457,9 +3475,9 @@
         const colsValue = document.getElementById('photos-cols-value')
         const colsStepButtons = Array.from(document.querySelectorAll('[data-cols-step]'))
         const PHOTOS_MODE_KEY = 'photos-view-mode'
-        const PHOTOS_COLS_KEY = 'photos-grid-cols'
+        const PHOTOS_COLS_KEY = 'photos-grid-cols-v2'
         const PHOTOS_KIND_KEY = 'photos-media-kind'
-        const PHOTOS_COLS_DEFAULT = 4
+        const PHOTOS_COLS_DEFAULT = 3
         const PHOTOS_PAGE_SIZE = 50
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
         const photosReturnTo = @json($returnTo);
