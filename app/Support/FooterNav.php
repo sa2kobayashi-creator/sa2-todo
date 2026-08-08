@@ -12,8 +12,11 @@ class FooterNav
     /** Default visible footer slots (order matters). */
     public const DEFAULT_FOOTER = ['dashboard', 'todos', 'notes', 'photos', 'messages'];
 
-    /** Max items in the bottom bar. */
+    /** Max items in the smartphone bottom bar. */
     public const MAX_FOOTER = 5;
+
+    /** Max items in the web header (catalog size; effectively unlimited for current set). */
+    public const MAX_HEADER = 20;
 
     /**
      * @return array<string, array{label: string, headerLabel: string, href: string, icon: string, feature: ?string}>
@@ -103,6 +106,44 @@ class FooterNav
     }
 
     /**
+     * Web ヘッダー用。null / 空のときは利用可能メニューをすべて表示（従来互換）。
+     *
+     * @return list<string>
+     */
+    public static function normalizeHeaderKeys(?array $keys, ?User $user): array
+    {
+        $allowed = self::allowedKeys($user);
+
+        // 未設定時は全表示（導入前と同じ挙動）
+        if ($keys === null) {
+            return $allowed;
+        }
+
+        $picked = [];
+        foreach ($keys as $key) {
+            $key = (string) $key;
+            if (! in_array($key, $allowed, true) || in_array($key, $picked, true)) {
+                continue;
+            }
+            $picked[] = $key;
+            if (count($picked) >= self::MAX_HEADER) {
+                break;
+            }
+        }
+
+        // 明示的に0件保存された場合も、最低コアは残す
+        if ($picked === []) {
+            foreach (self::CORE as $key) {
+                if (in_array($key, $allowed, true)) {
+                    $picked[] = $key;
+                }
+            }
+        }
+
+        return $picked;
+    }
+
+    /**
      * @return array{
      *   footer: list<array<string, mixed>>,
      *   more: list<array<string, mixed>>,
@@ -113,6 +154,7 @@ class FooterNav
     {
         $allowed = self::allowedKeys($user);
         $footerKeys = self::normalizeFooterKeys($user?->footer_nav, $user);
+        $headerKeys = self::normalizeHeaderKeys($user?->header_nav, $user);
         $catalog = self::catalog();
 
         $mapItem = function (string $key) use ($catalog): array {
@@ -137,8 +179,7 @@ class FooterNav
             $more[] = $mapItem($key);
         }
 
-        // Web ヘッダーは5件制限なし（利用可能なメニューをすべて表示）
-        $header = array_map($mapItem, $allowed);
+        $header = array_map($mapItem, $headerKeys);
 
         return ['footer' => $footer, 'more' => $more, 'header' => $header];
     }

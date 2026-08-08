@@ -187,23 +187,65 @@ a {
   gap: 8px;
 }
 
-.footer-nav-check label {
-  display: flex;
+.footer-nav-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
   align-items: center;
-  gap: 10px;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.footer-nav-head-col {
+  text-align: center;
+}
+
+.footer-nav-check .footer-nav-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
+  align-items: center;
   padding: 10px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
+  background: #fff;
+}
+
+.footer-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.footer-nav-col {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
   cursor: pointer;
+}
+
+.footer-nav-col input {
+  width: 18px;
+  height: 18px;
+  accent-color: #1a73e8;
 }
 
 .footer-nav-check.is-disabled {
   opacity: 0.55;
 }
 
+.footer-nav-check.is-disabled .footer-nav-col {
+  cursor: not-allowed;
+}
+
 .footer-nav-icon {
   width: 1.5em;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .todos-filter-row-status {

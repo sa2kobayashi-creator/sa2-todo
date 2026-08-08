@@ -82,6 +82,9 @@ class SettingsController extends Controller
             'footerNavSelected' => $section === 'nav'
                 ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())
                 : null,
+            'headerNavSelected' => $section === 'nav'
+                ? FooterNav::normalizeHeaderKeys($request->user()?->header_nav, $request->user())
+                : null,
             'currentUserModel' => $section === 'nav' ? $request->user() : null,
             ...$this->flashFromQuery($request),
         ]);
@@ -94,19 +97,26 @@ class SettingsController extends Controller
 
         if ($request->boolean('reset')) {
             $user->footer_nav = null;
+            $user->header_nav = null;
             $user->save();
 
-            return $this->redirectWithMessage($returnTo, __('フッターメニューを既定に戻しました'));
+            return $this->redirectWithMessage($returnTo, __('表示メニューを既定に戻しました'));
         }
 
-        $keys = $request->input('footer_nav', []);
-        if (! is_array($keys)) {
-            $keys = [];
+        $footerKeys = $request->input('footer_nav', []);
+        if (! is_array($footerKeys)) {
+            $footerKeys = [];
         }
-        $user->footer_nav = FooterNav::normalizeFooterKeys($keys, $user);
+        $headerKeys = $request->input('header_nav', []);
+        if (! is_array($headerKeys)) {
+            $headerKeys = [];
+        }
+
+        $user->footer_nav = FooterNav::normalizeFooterKeys($footerKeys, $user);
+        $user->header_nav = FooterNav::normalizeHeaderKeys($headerKeys, $user);
         $user->save();
 
-        return $this->redirectWithMessage($returnTo, __('フッターメニューを保存しました'));
+        return $this->redirectWithMessage($returnTo, __('表示メニューを保存しました'));
     }
 
     public function importHolidays(Request $request)
