@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TranslationApiKey;
+use App\Support\FooterNav;
 use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
@@ -78,8 +79,34 @@ class SettingsController extends Controller
             'messengerMessaging' => $messagingSection
                 ? $this->messengerMessaging->formState($request->user())
                 : null,
+            'footerNavSelected' => $section === 'nav'
+                ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())
+                : null,
+            'currentUserModel' => $section === 'nav' ? $request->user() : null,
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function updateFooterNav(Request $request)
+    {
+        $user = $request->user();
+        $returnTo = $this->settingsPath('nav');
+
+        if ($request->boolean('reset')) {
+            $user->footer_nav = null;
+            $user->save();
+
+            return $this->redirectWithMessage($returnTo, __('フッターメニューを既定に戻しました'));
+        }
+
+        $keys = $request->input('footer_nav', []);
+        if (! is_array($keys)) {
+            $keys = [];
+        }
+        $user->footer_nav = FooterNav::normalizeFooterKeys($keys, $user);
+        $user->save();
+
+        return $this->redirectWithMessage($returnTo, __('フッターメニューを保存しました'));
     }
 
     public function importHolidays(Request $request)
@@ -177,7 +204,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

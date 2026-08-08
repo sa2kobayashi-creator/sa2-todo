@@ -17,7 +17,9 @@
 
       @include('partials.settings-subnav', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
 
-      @if(($section ?? 'holidays') === 'holidays')
+      @if(($section ?? 'holidays') === 'nav')
+        @include('settings.partials.nav')
+      @elseif(($section ?? 'holidays') === 'holidays')
       <div class="panel" id="weekday-holidays">
         <h2>{{ __('曜日による休日') }}</h2>
         <p class="hint">{{ __('期間内でチェックした曜日を定休日にします。除外日を指定すると、その日だけ休日になりません。') }}</p>

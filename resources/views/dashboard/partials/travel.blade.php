@@ -8,16 +8,22 @@
     $promoAlerts = $travelSummary['promoAlerts'] ?? [];
     $dashReturn = $returnTo ?? '/dashboard';
   @endphp
-  <section class="dash-travel" aria-label="{{ __('Travel期限') }}">
+  <section class="dash-travel dash-quick-panel" aria-label="{{ __('Travel期限') }}">
     <details class="app-accordion" data-accordion-key="dash-travel">
-    <summary class="app-accordion-summary">
+    <summary class="app-accordion-summary dash-quick-summary">
       <h2 class="dash-travel-title">{{ __('Travel') }}</h2>
       @if($unread + $unreadPromo > 0)
-        <span class="dash-travel-alert-count">{{ __('未読 :n', ['n' => $unread + $unreadPromo]) }}</span>
+        <span class="dash-travel-alert-count dash-travel-alert-count-full">{{ __('未読 :n', ['n' => $unread + $unreadPromo]) }}</span>
+        <span class="dash-travel-alert-count dash-travel-alert-count-short" aria-label="{{ __('未読 :n', ['n' => $unread + $unreadPromo]) }}">{{ $unread + $unreadPromo }}</span>
       @endif
       <span class="app-accordion-caret" aria-hidden="true">▾</span>
     </summary>
-    <div class="app-accordion-body">
+    <div class="app-accordion-body dash-quick-modal-body">
+    <div class="dash-quick-modal-sheet">
+    <div class="dash-quick-modal-bar">
+      <strong>{{ __('Travel') }}</strong>
+      <button type="button" class="dash-quick-modal-close" data-close-dash-quick aria-label="{{ __('閉じる') }}">×</button>
+    </div>
     <div class="dash-travel-head">
       <p class="dash-travel-lead">{{ __('RP・Annual Report の期限と、セール／プロモ監視アラートです。') }}</p>
       <a class="button-link secondary" href="/travel">{{ __('Travelへ') }}</a>
@@ -105,6 +111,7 @@
         </ul>
       @endif
     </div>
+    </div>{{-- /.dash-quick-modal-sheet --}}
     </div>
     </details>
   </section>

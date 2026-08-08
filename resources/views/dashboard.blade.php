@@ -26,8 +26,55 @@
         </div>
       @endif
 
-      @include('dashboard.partials.ai-usage')
-      @include('dashboard.partials.travel')
+      <div class="dash-quick-panels" id="dash-quick-panels">
+        @include('dashboard.partials.ai-usage')
+        @include('dashboard.partials.travel')
+      </div>
+      <script>
+        (function () {
+          const root = document.getElementById('dash-quick-panels')
+          if (!root) return
+          const mq = window.matchMedia('(max-width: 768px)')
+          function isMobile() { return mq.matches }
+          function syncBodyLock() {
+            const anyOpen = isMobile() && !!root.querySelector('details.app-accordion[open]')
+            document.body.classList.toggle('dash-quick-modal-open', anyOpen)
+          }
+          root.querySelectorAll('details.app-accordion').forEach((details) => {
+            details.addEventListener('toggle', () => {
+              if (details.open && isMobile()) {
+                root.querySelectorAll('details.app-accordion').forEach((other) => {
+                  if (other !== details) other.open = false
+                })
+              }
+              syncBodyLock()
+            })
+          })
+          root.addEventListener('click', (e) => {
+            const closeBtn = e.target.closest('[data-close-dash-quick]')
+            const body = e.target.closest('.dash-quick-modal-body')
+            const sheet = e.target.closest('.dash-quick-modal-sheet')
+            if (closeBtn) {
+              e.preventDefault()
+              e.stopPropagation()
+              closeBtn.closest('details')?.removeAttribute('open')
+              syncBodyLock()
+              return
+            }
+            if (isMobile() && body && !sheet) {
+              body.closest('details')?.removeAttribute('open')
+              syncBodyLock()
+            }
+          })
+          mq.addEventListener?.('change', () => {
+            if (!isMobile()) {
+              document.body.classList.remove('dash-quick-modal-open')
+            } else {
+              syncBodyLock()
+            }
+          })
+        })()
+      </script>
 
       <div class="calendar-shell" data-calendar-view="{{ $view }}">
         @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => true])

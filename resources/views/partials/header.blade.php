@@ -1,4 +1,7 @@
-@php $navSettingsSection = $settingsSection ?? ''; @endphp
+@php
+  $navSettingsSection = $settingsSection ?? '';
+  $headerNavItems = $footerNavItems ?? [];
+@endphp
 <header class="site-header">
   <div class="site-header-inner">
     <a href="/dashboard" class="site-logo">
@@ -6,34 +9,17 @@
       <span>{{ config('app.name', 'Sa2 Studio') }}</span>
     </a>
     <nav class="site-nav" aria-label="{{ __('メインメニュー') }}">
-      <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">{{ __('ダッシュボード') }}</a>
-      <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">{{ __('Todo') }}</a>
-      <a href="/notes" class="{{ ($active ?? '') === 'notes' ? 'active' : '' }}">{{ __('メモ') }}</a>
-      <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
-      @if(!empty($canFinance))
-        <a href="/finance" class="{{ ($active ?? '') === 'finance' ? 'active' : '' }}">{{ __('入出金経費') }}</a>
-      @endif
-      @if(!empty($canMusic))
-        <a href="/music" class="{{ ($active ?? '') === 'music' ? 'active' : '' }}">{{ __('音楽') }}</a>
-      @endif
-      @if(!empty($canVideo))
-        <a href="/video" class="{{ ($active ?? '') === 'video' ? 'active' : '' }}">{{ __('動画') }}</a>
-      @endif
-      @if(!empty($canMessages))
-        <a href="/messages" class="{{ ($active ?? '') === 'messages' ? 'active' : '' }}">{{ __('メッセージ') }}</a>
-      @endif
-      @if(!empty($canTranslate))
-        <a href="/translate" class="{{ ($active ?? '') === 'translate' ? 'active' : '' }}">{{ __('翻訳') }}</a>
-      @endif
-      @if(!empty($canTransit))
-        <a href="/transit" class="{{ ($active ?? '') === 'transit' ? 'active' : '' }}">{{ __('路線検索') }}</a>
-      @endif
-      @if(!empty($canTravel))
-        <a href="/travel" class="{{ ($active ?? '') === 'travel' ? 'active' : '' }}">{{ __('Travel') }}</a>
-      @endif
-      @if(!empty($canMap))
-        <a href="/map" class="{{ ($active ?? '') === 'map' ? 'active' : '' }}">{{ __('マップ') }}</a>
-      @endif
+      @forelse($headerNavItems as $navItem)
+        <a
+          href="{{ $navItem['href'] }}"
+          class="{{ ($active ?? '') === ($navItem['activeKey'] ?? $navItem['key']) ? 'active' : '' }}"
+        >{{ $navItem['headerLabel'] ?? $navItem['label'] }}</a>
+      @empty
+        <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">{{ __('ダッシュボード') }}</a>
+        <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">{{ __('Todo') }}</a>
+        <a href="/notes" class="{{ ($active ?? '') === 'notes' ? 'active' : '' }}">{{ __('メモ') }}</a>
+        <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
+      @endforelse
       @if(!empty($canSettings) || !empty($canAdminUsers))
         <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'is-active' : '' }}" id="settings-dropdown">
           <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
@@ -42,6 +28,7 @@
           </button>
           <div class="nav-dropdown-menu" role="menu">
             @if(!empty($canSettings))
+              <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
               <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
               <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
               <a href="/settings?section=storage" class="{{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
@@ -65,6 +52,7 @@
           $nextContext = $currentContext === 'personal' ? 'work' : 'personal';
           $contextLabel = $currentContext === 'personal' ? __('個人') : __('仕事');
           $nextContextLabel = $nextContext === 'personal' ? __('個人') : __('仕事');
+          $moreNav = $moreNavItems ?? [];
         @endphp
         <form method="post" action="{{ route('app-context.update') }}" class="lang-switch-form lang-toggle context-toggle">
           @csrf
@@ -134,6 +122,7 @@
               @if(!empty($canSettings) || !empty($canAdminUsers))
                 <div class="user-dropdown-divider mobile-only" role="separator"></div>
                 @if(!empty($canSettings))
+                  <a href="/settings?section=nav" class="mobile-only {{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
                   <a href="/settings?section=holidays" class="mobile-only {{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
                   <a href="/settings?section=ai" class="mobile-only {{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
                   <a href="/settings?section=storage" class="mobile-only {{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
@@ -153,6 +142,39 @@
             </div>
           </div>
         </div>
+        @if(count($moreNav) > 0 || !empty($canSettings))
+          <div class="nav-dropdown header-more-menu mobile-only-flex" id="more-nav-dropdown">
+            <button
+              type="button"
+              class="header-more-toggle"
+              id="more-nav-toggle"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="{{ __('その他のメニュー') }}"
+              title="{{ __('その他のメニュー') }}"
+            >
+              <span class="header-more-glyph" aria-hidden="true">⋮</span>
+            </button>
+            <div class="nav-dropdown-menu header-more-dropdown" role="menu">
+              @foreach($moreNav as $moreItem)
+                <a
+                  href="{{ $moreItem['href'] }}"
+                  class="{{ ($active ?? '') === ($moreItem['activeKey'] ?? $moreItem['key']) ? 'active' : '' }}"
+                  role="menuitem"
+                >
+                  <span class="header-more-icon" aria-hidden="true">{{ $moreItem['icon'] }}</span>
+                  {{ $moreItem['label'] }}
+                </a>
+              @endforeach
+              @if(!empty($canSettings))
+                @if(count($moreNav) > 0)
+                  <div class="user-dropdown-divider" role="separator"></div>
+                @endif
+                <a href="/settings?section=nav" role="menuitem">{{ __('表示メニュー管理') }}</a>
+              @endif
+            </div>
+          </div>
+        @endif
       @endif
     </div>
   </div>
@@ -161,36 +183,57 @@
   (function () {
     const dropdown = document.getElementById('settings-dropdown')
     const toggle = document.getElementById('settings-dropdown-toggle')
+    const moreDropdown = document.getElementById('more-nav-dropdown')
+    const moreToggle = document.getElementById('more-nav-toggle')
+    const userDropdown = document.getElementById('user-dropdown')
+    const userToggle = document.getElementById('user-menu-toggle')
+
+    function closeAll(except) {
+      if (except !== 'settings') {
+        dropdown?.classList.remove('is-open')
+        toggle?.setAttribute('aria-expanded', 'false')
+      }
+      if (except !== 'more') {
+        moreDropdown?.classList.remove('is-open')
+        moreToggle?.setAttribute('aria-expanded', 'false')
+      }
+      if (except !== 'user') {
+        userDropdown?.classList.remove('is-open')
+        userToggle?.setAttribute('aria-expanded', 'false')
+      }
+    }
+
     if (dropdown && toggle) {
       toggle.addEventListener('click', (e) => {
         e.preventDefault()
         e.stopPropagation()
         const open = dropdown.classList.toggle('is-open')
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-        document.getElementById('user-dropdown')?.classList.remove('is-open')
-        document.getElementById('user-menu-toggle')?.setAttribute('aria-expanded', 'false')
+        if (open) closeAll('settings')
       })
     }
 
-    const userDropdown = document.getElementById('user-dropdown')
-    const userToggle = document.getElementById('user-menu-toggle')
+    if (moreDropdown && moreToggle) {
+      moreToggle.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const open = moreDropdown.classList.toggle('is-open')
+        moreToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+        if (open) closeAll('more')
+      })
+    }
+
     if (userDropdown && userToggle) {
       userToggle.addEventListener('click', (e) => {
         e.preventDefault()
         e.stopPropagation()
         const open = userDropdown.classList.toggle('is-open')
         userToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-        dropdown?.classList.remove('is-open')
-        toggle?.setAttribute('aria-expanded', 'false')
+        if (open) closeAll('user')
       })
     }
 
-    document.addEventListener('click', () => {
-      dropdown?.classList.remove('is-open')
-      toggle?.setAttribute('aria-expanded', 'false')
-      userDropdown?.classList.remove('is-open')
-      userToggle?.setAttribute('aria-expanded', 'false')
-    })
+    document.addEventListener('click', () => closeAll())
   })()
 </script>
 @include('partials.mobile-nav', ['active' => $active ?? ''])

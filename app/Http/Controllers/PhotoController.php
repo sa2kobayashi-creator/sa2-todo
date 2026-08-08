@@ -330,17 +330,17 @@ class PhotoController extends Controller
         $skipCount = count($skipped);
         $hasVideo = collect($created)->contains(fn ($item) => ($item['mediaKind'] ?? '') === 'video');
         $hasImage = collect($created)->contains(fn ($item) => ($item['mediaKind'] ?? '') !== 'video');
-        $label = match (true) {
+        $labelKey = match (true) {
             $count === 0 => 'メディア',
             $hasVideo && $hasImage => 'メディア',
             $hasVideo => '動画',
             default => '写真',
         };
         $message = $count > 0
-            ? $count.'件の'.$label.'を追加しました'
-            : '追加する新規ファイルはありませんでした';
+            ? __(':count件の'.$labelKey.'を追加しました', ['count' => $count])
+            : __('追加する新規ファイルはありませんでした');
         if ($skipCount > 0) {
-            $message .= '（重複スキップ '.$skipCount.'件）';
+            $message .= __('（重複スキップ :count件）', ['count' => $skipCount]);
         }
 
         if ($wantsJson) {
@@ -385,7 +385,7 @@ class PhotoController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => '重複スキャンに失敗しました。しばらくして再試行してください。',
+                'message' => __('重複スキャンに失敗しました。しばらくして再試行してください。'),
             ], 500);
         }
 
@@ -420,7 +420,7 @@ class PhotoController extends Controller
 
         $chunk = $request->file('chunk');
         if (! $chunk instanceof \Illuminate\Http\UploadedFile) {
-            return response()->json(['ok' => false, 'message' => 'チャンクがありません'], 422);
+            return response()->json(['ok' => false, 'message' => __('チャンクがありません')], 422);
         }
 
         try {
@@ -436,7 +436,7 @@ class PhotoController extends Controller
         } catch (\Throwable $e) {
             report($e);
 
-            return response()->json(['ok' => false, 'message' => 'チャンクの保存に失敗しました'], 500);
+            return response()->json(['ok' => false, 'message' => __('チャンクの保存に失敗しました')], 500);
         }
 
         return response()->json(['ok' => true]);
@@ -484,7 +484,7 @@ class PhotoController extends Controller
                 'ok' => true,
                 'count' => 0,
                 'skipped' => 1,
-                'message' => '重複のためスキップしました',
+                'message' => __('重複のためスキップしました'),
                 'skippedName' => $result['skippedName'],
             ]);
         }
@@ -869,10 +869,10 @@ class PhotoController extends Controller
     {
         $detail = trim(mb_substr($e->getMessage(), 0, 240));
         if ($detail !== '') {
-            return 'アップロードに失敗しました: '.$detail;
+            return __('アップロードに失敗しました: :detail', ['detail' => $detail]);
         }
 
-        return 'アップロードに失敗しました。ストレージ設定（R2）と PHP の upload_max_filesize / post_max_size を確認してください。';
+        return __('アップロードに失敗しました。ストレージ設定（R2）と PHP の upload_max_filesize / post_max_size を確認してください。');
     }
 
     private function uploadLimitMessage(Request $request): ?string
@@ -880,11 +880,10 @@ class PhotoController extends Controller
         $contentLength = (int) $request->server('CONTENT_LENGTH', 0);
         $postMax = $this->iniBytes((string) ini_get('post_max_size'));
         if ($contentLength > 0 && $postMax > 0 && $contentLength > $postMax && ! $request->files->count()) {
-            return 'アップロードがサーバー上限を超えています（送信='
-                .$this->formatMb($contentLength)
-                .' / post_max_size='
-                .ini_get('post_max_size')
-                .'）。composer serve で起動するか、大きい動画は分割送信になります。サーバー再起動後も続く場合は php-upload.ini を確認してください。';
+            return __('アップロードがサーバー上限を超えています（送信=:sent / post_max_size=:limit）。composer serve で起動するか、大きい動画は分割送信になります。サーバー再起動後も続く場合は php-upload.ini を確認してください。', [
+                'sent' => $this->formatMb($contentLength),
+                'limit' => (string) ini_get('post_max_size'),
+            ]);
         }
 
         return null;
@@ -932,14 +931,14 @@ class PhotoController extends Controller
         $wantsJson = $request->expectsJson() || $request->ajax();
         if (! $this->photos->deletePhoto((int) $request->user()->id, $id)) {
             if ($wantsJson) {
-                return response()->json(['ok' => false, 'message' => '写真が見つかりません'], 404);
+                return response()->json(['ok' => false, 'message' => __('写真が見つかりません')], 404);
             }
 
             return $this->redirectWithMessage($returnTo, __('写真が見つかりません'), 'error');
         }
 
         if ($wantsJson) {
-            return response()->json(['ok' => true, 'message' => '写真を削除しました']);
+            return response()->json(['ok' => true, 'message' => __('写真を削除しました')]);
         }
 
         return $this->redirectWithMessage($returnTo, __('写真を削除しました'));

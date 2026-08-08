@@ -88,6 +88,7 @@ class ShareViewData
 
         if ($user = $request->user()) {
             $appContext = app(\App\Services\AppContextService::class)->current($user, $request);
+            $nav = \App\Support\FooterNav::resolve($user);
             View::share([
                 'currentUser' => $user->toPublicArray(),
                 'isAdmin' => $user->isAdmin(),
@@ -105,6 +106,8 @@ class ShareViewData
                 'appContext' => $appContext->value,
                 'appContextIsWork' => $appContext === \App\Enums\AppContext::Work,
                 'appContextLabel' => $appContext->label(),
+                'footerNavItems' => $nav['footer'],
+                'moreNavItems' => $nav['more'],
             ]);
         }
 

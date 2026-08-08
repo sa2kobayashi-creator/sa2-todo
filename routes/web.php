@@ -277,6 +277,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(EnsureFeature::class.':settings')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index']);
+        Route::post('/settings/nav', [SettingsController::class, 'updateFooterNav']);
         Route::post('/settings/holidays/import', [SettingsController::class, 'importHolidays']);
         Route::post('/settings/holidays/add', [SettingsController::class, 'addHoliday']);
         Route::post('/settings/holidays/{id}/delete', [SettingsController::class, 'deleteHoliday'])->whereNumber('id');

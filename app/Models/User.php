@@ -19,6 +19,7 @@ class User extends Authenticatable
         'password',
         'role',
         'menu_features',
+        'footer_nav',
         'app_context',
         'must_change_password',
         'reset_token',
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'role' => UserRole::class,
             'menu_features' => 'array',
+            'footer_nav' => 'array',
         ];
     }
 

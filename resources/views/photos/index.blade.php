@@ -25,13 +25,19 @@
 
       <section class="photos-hero">
         <div class="photos-hero-copy">
-          <p class="photos-kicker">{{ __('Album') }}</p>
-          <h1 class="photos-title" id="photos-title-tap" title="{{ __('隠しアルバムの表示切替: 7回タップ') }}">{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
+          <div class="photos-hero-title-row">
+            <h1
+              class="photos-title"
+              id="photos-title-tap"
+              title="{{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}"
+            >{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
+            <button type="button" class="photos-ops-open" id="photos-ops-open" aria-expanded="false" aria-controls="photos-ops-panel">{{ __('操作') }}</button>
+          </div>
           @if(!empty($revealHiddenAlbums))
             <p class="photos-hidden-reveal-note" id="photos-hidden-reveal-note">{{ __('隠しアルバムを表示中（タイトルを7回タップで非表示）') }}</p>
           @endif
-          <p class="photos-lead">
-            @if($selectedAlbum)
+          @if($selectedAlbum)
+            <p class="photos-lead">
               {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }} · {{ __('表紙を選んでアルバムらしく') }}
               @if(!empty($selectedAlbum['hasPassword']))
                 · {{ __('鍵付き') }}
@@ -39,12 +45,16 @@
               @if(!empty($selectedAlbum['isHidden']))
                 · {{ __('隠し') }}
               @endif
-            @else
-              {{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}
-            @endif
-          </p>
+            </p>
+          @endif
         </div>
-        <div class="photos-hero-actions">
+        <div class="photos-ops-backdrop" id="photos-ops-backdrop" hidden></div>
+        <div class="photos-ops-panel" id="photos-ops-panel" hidden>
+        <div class="photos-ops-panel-head">
+          <strong>{{ __('操作') }}</strong>
+          <button type="button" class="photos-ops-close" id="photos-ops-close" aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="photos-hero-actions photos-ops-full-only">
           @if(empty($selectedAlbum) || !empty($canManageSelected))
             <button type="button" class="photos-upload-btn" id="photos-add-open" title="{{ __('写真・動画を追加（複数可）') }}">
               <span class="photos-upload-btn-label">{{ __('写真・動画を追加') }}</span>
@@ -102,7 +112,7 @@
               aria-expanded="false"
               aria-controls="photos-storage-panel"
               @if(!empty($storageStats['overFreeTier']))
-                title="{{ __('無料枠超過') }}（{{ __('無料枠') }} {{ $storageStats['formattedCombinedQuota'] }}）"
+                title="{{ __('無料枠超過（無料枠 :free）', ['free' => $storageStats['formattedCombinedQuota']]) }}"
               @endif
             >
               <strong>{{ __('保存容量表示') }}</strong>
@@ -131,6 +141,8 @@
             </form>
           @endif
         </div>
+        <div class="photos-ops-toolbar-slot" id="photos-ops-toolbar-slot"></div>
+        </div>{{-- /photos-ops-panel --}}
         <div class="photos-pending-bar" id="photos-pending-bar" hidden>
           <span class="photos-pending-count" id="photos-pending-count"></span>
           @if(!empty($ownedAlbums))
@@ -721,18 +733,18 @@
           </div>
         </div>
       @else
-        <div class="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
-          <div class="photos-mode-toggle" role="group" aria-label="{{ __('表示モード') }}">
+        <div class="photos-toolbar" id="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
+          <div class="photos-mode-toggle photos-mode-toggle-view" role="group" aria-label="{{ __('表示モード') }}">
             <button type="button" class="photos-mode-btn is-active" data-photos-mode="normal" aria-pressed="true">{{ __('通常') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-mode="select" aria-pressed="false">{{ __('選択') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-mode="list" aria-pressed="false">{{ __('一覧') }}</button>
           </div>
-          <div class="photos-mode-toggle" role="group" aria-label="{{ __('フィルター') }}">
+          <div class="photos-mode-toggle photos-mode-toggle-kind photos-ops-full-only" role="group" aria-label="{{ __('フィルター') }}">
             <button type="button" class="photos-mode-btn is-active" data-photos-kind="all" aria-pressed="true">{{ __('すべて') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-kind="image" aria-pressed="false">{{ __('写真') }}</button>
             <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
           </div>
-          <label class="photos-toolbar-select">
+          <label class="photos-toolbar-select photos-ops-full-only">
             <span class="visually-hidden">{{ __('並び替え') }}</span>
             <select id="photos-sort-select" aria-label="{{ __('並び替え') }}">
               <option value="taken_desc" @selected(($photosSort ?? 'taken_desc') === 'taken_desc')>{{ __('撮影日（新しい順）') }}</option>
@@ -743,7 +755,7 @@
               <option value="size_asc" @selected(($photosSort ?? '') === 'size_asc')>{{ __('サイズ（小さい順）') }}</option>
             </select>
           </label>
-          <label class="photos-toolbar-select">
+          <label class="photos-toolbar-select photos-ops-full-only">
             <span class="visually-hidden">{{ __('年で絞り込み') }}</span>
             <select id="photos-year-select" aria-label="{{ __('年で絞り込み') }}">
               <option value="all" @selected(!empty($photosYearExplicitAll) || (empty($photosYear) && empty($photosYearAutoScoped)))>{{ __('すべての年') }}</option>
@@ -759,7 +771,7 @@
               : ($photoJumpYears ?? []);
           @endphp
           @if(count($yearNavYears) > 1)
-            <label class="photos-toolbar-select">
+            <label class="photos-toolbar-select photos-ops-full-only">
               <span class="visually-hidden">{{ __('年へ移動') }}</span>
               <select id="photos-year-jump" aria-label="{{ __('年へ移動') }}">
                 <option value="">{{ __('年へ移動') }}</option>
@@ -769,8 +781,8 @@
               </select>
             </label>
           @endif
-          <button type="button" class="photos-secondary-btn" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
-          <div class="photos-cols-control" id="photos-cols-control" title="{{ __('列数') }}">
+          <button type="button" class="photos-secondary-btn photos-ops-full-only" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
+          <div class="photos-cols-control photos-ops-full-only" id="photos-cols-control" title="{{ __('列数') }}">
             <button
               type="button"
               class="photos-cols-icon photos-cols-step"
@@ -822,7 +834,7 @@
             <span class="photos-pager-status" id="photos-pager-status"></span>
             <button type="button" class="photos-pager-btn" id="photos-pager-next">{{ __('次へ') }}</button>
           </div>
-          <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
+          <div class="photos-bulk-bar photos-ops-full-only" id="photos-bulk-bar" hidden>
             <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
             <button type="button" class="photos-secondary-btn" id="photos-bulk-download">{{ __('ダウンロード') }}</button>
             <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
@@ -838,13 +850,6 @@
             </label>
           </div>
         </div>
-
-        @if(!empty($photosYearAutoScoped) && !empty($photosYear))
-          <p class="hint photos-year-auto-hint">
-            {{ __('最新の :year 年のみ表示しています（全 :total 件）。', ['year' => $photosYear, 'total' => $photosTotalInScope ?? count($photos)]) }}
-            <a href="{{ url('/photos'.(($selectedAlbumId ?? null) ? ('?album='.$selectedAlbumId.'&year=all') : '?year=all')) }}">{{ __('すべての年を表示') }}</a>
-          </p>
-        @endif
 
         <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="3" style="--photos-cols: 3">
           @php $flatIndex = 0; @endphp
@@ -931,10 +936,10 @@
 
     <div class="photos-lightbox" id="photos-lightbox" hidden>
       <div class="photos-lightbox-backdrop" data-close-lightbox></div>
-      <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="閉じる">×</button>
+      <button type="button" class="photos-lightbox-close" data-close-lightbox aria-label="{{ __('閉じる') }}">×</button>
       <button type="button" class="photos-lightbox-fs" id="photos-lightbox-fs" aria-pressed="false" aria-label="{{ __('全画面') }}">{{ __('全画面') }}</button>
-      <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="写真プレビュー">
-        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="前へ">
+      <div class="photos-lightbox-stage" role="dialog" aria-modal="true" aria-label="{{ __('写真プレビュー') }}">
+        <button type="button" class="photos-lightbox-nav is-prev" id="photos-lightbox-prev" aria-label="{{ __('前へ') }}">
           <svg class="photos-lightbox-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
             <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -948,7 +953,7 @@
             <a href="#" id="photos-lightbox-unplayable-link" download>{{ __('ダウンロードして再生') }}</a>
           </p>
         </div>
-        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="次へ">
+        <button type="button" class="photos-lightbox-nav is-next" id="photos-lightbox-next" aria-label="{{ __('次へ') }}">
           <svg class="photos-lightbox-chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
             <path d="M9.5 5.5L16 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -1300,28 +1305,28 @@
 
             <aside class="photos-sim-result" aria-live="polite">
               <h3>{{ __('月額概算') }}</h3>
-              <p class="photos-sim-total" id="photos-sim-total-usd">$0/月</p>
-              <p class="photos-sim-total-jpy" id="photos-sim-total-jpy">約 ¥0/月</p>
+              <p class="photos-sim-total" id="photos-sim-total-usd">$0{{ __('/月') }}</p>
+              <p class="photos-sim-total-jpy" id="photos-sim-total-jpy">{{ __('約 ¥:yen/月', ['yen' => 0]) }}</p>
               <dl class="photos-sim-result-dl">
                 <div>
                   <dt>R2 {{ __('保管料') }}</dt>
-                  <dd id="photos-sim-r2-storage">$0/月</dd>
+                  <dd id="photos-sim-r2-storage">$0{{ __('/月') }}</dd>
                 </div>
                 <div>
                   <dt>B2 {{ __('保管料') }}</dt>
-                  <dd id="photos-sim-b2-storage">$0/月</dd>
+                  <dd id="photos-sim-b2-storage">$0{{ __('/月') }}</dd>
                 </div>
                 <div>
                   <dt>R2 {{ __('転送料') }}</dt>
-                  <dd id="photos-sim-r2-egress-usd">$0/月</dd>
+                  <dd id="photos-sim-r2-egress-usd">$0{{ __('/月') }}</dd>
                 </div>
                 <div>
                   <dt>B2 {{ __('転送料') }}</dt>
-                  <dd id="photos-sim-b2-egress-usd">$0/月</dd>
+                  <dd id="photos-sim-b2-egress-usd">$0{{ __('/月') }}</dd>
                 </div>
                 <div>
                   <dt>B2 {{ __('操作料') }}</dt>
-                  <dd id="photos-sim-b2-ops-usd">$0/月</dd>
+                  <dd id="photos-sim-b2-ops-usd">$0{{ __('/月') }}</dd>
                 </div>
               </dl>
               <p class="photos-usage-note" id="photos-sim-fx-note"></p>
@@ -1384,11 +1389,11 @@
           daysInMonth: 30,
           usdToJpy: 150,
           i18n: {
-            splitSummary: '振り分け結果: R2 :r2 · B2 :b2',
-            resultNote: 'R2 転送は無料。B2 転送の無料枠は保管 :stored の約 :mult 倍（:free）。',
-            perMonth: '/月',
-            fxNote: '換算レート: 1 USD ≒ ¥:rate（計算時）',
-            approxYen: '約 ¥:yen/月'
+            splitSummary: @json(__('振り分け結果: R2 :r2 · B2 :b2')),
+            resultNote: @json(__('R2 転送は無料。B2 転送の無料枠は保管 :stored の約 :mult 倍（:free）。')),
+            perMonth: @json(__('/月')),
+            fxNote: @json(__('換算レート: 1 USD ≒ ¥:rate（計算時）')),
+            approxYen: @json(__('約 ¥:yen/月'))
           }
         }
 
@@ -1737,6 +1742,68 @@
         const photos = @json($photosForJs ?? $photos);
         const uploadsBlocked = @json(!empty($storageStats['uploadsBlocked']));
         const uploadsBlockedMessage = @json(__('無料枠を超えているため追加できません。有料プラン連携後に超過利用が可能になります。'));
+        const PHOTOS_T = {
+          uploadFailed: @json(__('アップロードに失敗しました')),
+          uploadFailedStatus: @json(__('アップロードに失敗しました（:status）')),
+          uploadingNamePct: @json(__('送信中… :name (:pct%)')),
+          savingName: @json(__('保存中… :name')),
+          doneName: @json(__('完了… :name')),
+          preparingName: @json(__('準備中… :name')),
+          thumbName: @json(__('サムネ準備… :name')),
+          retryName: @json(__('再試行… :name')),
+          failedName: @json(__('失敗… :name')),
+          dupCheckProgress: @json(__('重複チェック中… :current/:total')),
+          dupSkippedSend: @json(__('重複 :count件スキップ → 送信 :queue件')),
+          unsupportedFormat: @json(__('対象外の形式')),
+          videoFormatsOnly: @json(__('動画はMP4・MOV・AVIのみ対応')),
+          maxSize: @json(__('最大 :size まで')),
+          timeout: @json(__('タイムアウト')),
+          networkError: @json(__('通信エラー')),
+          failed: @json(__('失敗')),
+          addedCount: @json(__(':count件追加')),
+          dupSkipped: @json(__('重複スキップ')),
+          unsupported: @json(__('対象外')),
+          andMore: @json(__('…他 :count件')),
+          noFilesSelected: @json(__('ファイルが選択されていません')),
+          metadataOnly: @json(__('写真・動画がありません（メタデータJSONのみ）')),
+          nothingAddable: @json(__('追加できるファイルがありませんでした')),
+          dupAlready: @json(__('重複（既に登録済み）')),
+          serverSide: @json(__('（サーバー側）')),
+          videoPrefix: @json(__('動画 · ')),
+          photo: @json(__('写真')),
+          metadataOnlyHint: @json(__('選択されたのは付属のメタデータJSONのみです。写真・動画ファイルを選んでください。')),
+          supportedFormatsHint: @json(__('対応形式: 画像（JPEG/PNG/WebP/GIF/HEIC 等）と動画（MP4 / MOV）')),
+          failedNext: @json(__('失敗… :name → 次へ')),
+          doneAddedSkipped: @json(__('完了… 追加:created / スキップ:skipped')),
+          pwaNeedHttps: @json(__('Chrome のワンタップ追加には HTTPS または localhost が必要です。')),
+          pwaIosLead: @json(__('iPhone / iPad では、Safari の共有メニューから追加します。')),
+          pwaChromeLead: @json(__('自動プロンプトがまだ来ていません。次の手順で追加できます。')),
+          pwaOtherLead: @json(__('ブラウザのメニューからホーム画面に追加してください。')),
+          pwaStepLocalhost: @json(__('PC なら http://localhost:8000/photos で開き直す')),
+          pwaStepHttpLan: @json(__('スマホなら PC と同じ Wi‑Fi でも HTTP のままでは Chrome 追加不可（localhost / HTTPS が必要）')),
+          pwaStepInstallIcon: @json(__('アドレスバー右のインストールアイコン、またはメニュー「アプリをインストール」を選ぶ')),
+          pwaStepSafariOpen: @json(__('Safari でこのページを開く')),
+          pwaStepShare: @json(__('共有ボタン（□と↑）をタップ')),
+          pwaStepAddHome: @json(__('「ホーム画面に追加」→「追加」')),
+          pwaStepReload: @json(__('ページを再読み込みする（Service Worker 更新）')),
+          pwaStepChromeIcon: @json(__('アドレスバー右の「インストール」アイコンを押す')),
+          pwaStepChromeMenu: @json(__('またはメニュー（⋮）→「アプリをインストール」 / 「Cast, save, and share」→「Install page as app」')),
+          pwaStepBrowserMenu: @json(__('ブラウザのメニューを開く')),
+          pwaStepPickInstall: @json(__('「アプリをインストール」または「ホーム画面に追加」を選ぶ')),
+          pwaStepConfirm: @json(__('確認画面で追加する')),
+          pwaUrlNow: @json(__('いまのURL: :url')),
+          pwaInsecureNote: @json(__('この接続は安全なコンテキストではありません（HTTP の LAN IP など）。')),
+          alreadyInstalled: @json(__('すでにホーム画面アプリとして開いています。')),
+          needHttpsAgain: @json(__('Chrome では localhost か HTTPS で開き直してください。')),
+          swMissing: @json(__('Service Worker 未登録です。再読み込み後にもう一度試してください。')),
+        }
+        function photosT(key, vars = {}) {
+          let text = PHOTOS_T[key] || key
+          Object.keys(vars).forEach((name) => {
+            text = text.split(':' + name).join(String(vars[name]))
+          })
+          return text
+        }
         const selectedAlbumId = @json($selectedAlbumId);
         const coverPhotoId = @json($selectedAlbum['coverPhotoId'] ?? null);
         const fileInput = document.getElementById('photos-file-input')
@@ -1790,8 +1857,73 @@
             albumsToggle.textContent = visible ? @json(__('アルバムを隠す')) : @json(__('アルバム表示'));
           }
         }
+        const opsOpenBtn = document.getElementById('photos-ops-open')
+        const opsCloseBtn = document.getElementById('photos-ops-close')
+        const opsPanel = document.getElementById('photos-ops-panel')
+        const opsBackdrop = document.getElementById('photos-ops-backdrop')
+        const opsToolbarSlot = document.getElementById('photos-ops-toolbar-slot')
+        const photosToolbar = document.getElementById('photos-toolbar')
+        let toolbarHome = photosToolbar?.parentElement || null
+        function isPhotosMobileOps() {
+          return window.matchMedia('(max-width: 768px)').matches
+        }
+        function syncPhotosOpsCompact(mode) {
+          if (!opsPanel) return
+          const compact = (mode === 'select' || mode === 'list') ? mode : ''
+          if (compact) opsPanel.setAttribute('data-ops-compact', compact)
+          else opsPanel.removeAttribute('data-ops-compact')
+        }
+        function setPhotosOpsOpen(open) {
+          if (!opsPanel) return
+          if (!isPhotosMobileOps()) {
+            opsPanel.hidden = false
+            opsPanel.removeAttribute('data-ops-compact')
+            if (opsBackdrop) opsBackdrop.hidden = true
+            if (photosToolbar && toolbarHome && photosToolbar.parentElement !== toolbarHome) {
+              toolbarHome.insertBefore(photosToolbar, toolbarHome.firstChild?.nextSibling || null)
+            }
+            opsOpenBtn?.setAttribute('aria-expanded', 'false')
+            return
+          }
+          if (open) {
+            if (photosToolbar && opsToolbarSlot && photosToolbar.parentElement !== opsToolbarSlot) {
+              opsToolbarSlot.appendChild(photosToolbar)
+            }
+            opsPanel.hidden = false
+            if (opsBackdrop) opsBackdrop.hidden = false
+          } else {
+            opsPanel.hidden = true
+            opsPanel.removeAttribute('data-ops-compact')
+            if (opsBackdrop) opsBackdrop.hidden = true
+            if (photosToolbar && toolbarHome && photosToolbar.parentElement !== toolbarHome) {
+              const gallery = document.getElementById('photos-gallery')
+              if (gallery?.parentElement) {
+                gallery.parentElement.insertBefore(photosToolbar, gallery)
+              } else {
+                toolbarHome.appendChild(photosToolbar)
+              }
+            }
+          }
+          opsOpenBtn?.setAttribute('aria-expanded', open ? 'true' : 'false')
+        }
+        opsOpenBtn?.addEventListener('click', () => {
+          syncPhotosOpsCompact('normal')
+          setPhotosOpsOpen(true)
+        })
+        opsCloseBtn?.addEventListener('click', () => setPhotosOpsOpen(false))
+        opsBackdrop?.addEventListener('click', () => setPhotosOpsOpen(false))
+        window.addEventListener('resize', () => {
+          if (!isPhotosMobileOps()) setPhotosOpsOpen(false)
+        })
+        // Desktop: keep panel contents visible (not a modal)
+        if (!isPhotosMobileOps() && opsPanel) {
+          opsPanel.hidden = false
+          if (opsBackdrop) opsBackdrop.hidden = true
+        }
+
         albumsToggle?.addEventListener('click', () => {
           setAlbumCoversVisible(Boolean(albumCovers?.hidden))
+          if (isPhotosMobileOps()) setPhotosOpsOpen(false)
         })
         albumCovers?.addEventListener('click', (e) => {
           if (e.target.closest('.photos-cover-card')) setAlbumCoversVisible(false)
@@ -1811,7 +1943,9 @@
         }
         storageToggle?.addEventListener('click', () => {
           setStoragePanelVisible(Boolean(storagePanel?.hidden))
+          if (isPhotosMobileOps()) setPhotosOpsOpen(false)
         })
+
         const photosYearSelect = document.getElementById('photos-year-select')
         let currentIndex = 0
         let deferredPrompt = null
@@ -2093,7 +2227,7 @@
               const res = await postUploadFormData(url, fd, opts)
               if (res.ok && res.data?.ok) return res
               const retryable = res.status === 419 || res.status === 429 || res.status >= 500
-              const message = res.data?.message || `アップロードに失敗しました（${res.status}）`
+              const message = res.data?.message || photosT('uploadFailedStatus', { status: res.status })
               if (!retryable || attempt === retries) {
                 throw new Error(message)
               }
@@ -2106,7 +2240,7 @@
               await sleep(800 * attempt)
             }
           }
-          throw lastErr || new Error('アップロードに失敗しました')
+          throw lastErr || new Error(photosT('uploadFailed'))
         }
 
         function newUploadId() {
@@ -2180,7 +2314,7 @@
               timeoutMs: 10 * 60 * 1000,
               onProgress: (pct) => {
                 const overall = Math.round(((i + pct / 100) / total) * 90)
-                if (typeof onProgress === 'function') onProgress(overall, `送信中… ${fileLabel} (${overall}%)`)
+                if (typeof onProgress === 'function') onProgress(overall, photosT('uploadingNamePct', { name: fileLabel, pct: overall }))
               },
             })
           }
@@ -2196,11 +2330,11 @@
           if (takenHint) done.append('taken_at', takenHint)
           if (contentHash) done.append('content_hash', contentHash)
           if (thumb) done.append('video_thumb', thumb, thumb.name)
-          if (typeof onProgress === 'function') onProgress(95, `保存中… ${fileLabel}`)
+          if (typeof onProgress === 'function') onProgress(95, photosT('savingName', { name: fileLabel }))
           const complete = await postUploadFormDataWithRetry('/photos/upload/complete', done, {
             timeoutMs: 20 * 60 * 1000,
           }, 2)
-          if (typeof onProgress === 'function') onProgress(100, `完了… ${fileLabel}`)
+          if (typeof onProgress === 'function') onProgress(100, photosT('doneName', { name: fileLabel }))
           return {
             count: Number(complete.data?.count) || 0,
             skipped: Number(complete.data?.skipped) || 0,
@@ -2222,7 +2356,7 @@
           }
           const res = await postUploadFormDataWithRetry(form.action || '/photos', fd, {
             onProgress: (pct) => {
-              if (typeof onProgress === 'function') onProgress(pct, `送信中… ${fileLabel} (${pct}%)`)
+              if (typeof onProgress === 'function') onProgress(pct, photosT('uploadingNamePct', { name: fileLabel, pct }))
             },
             timeoutMs: 20 * 60 * 1000,
           })
@@ -2263,12 +2397,12 @@
               continue
             }
             if (!isMediaFile(file)) {
-              rejected.push(`${displayName}: 対象外の形式`)
+              rejected.push(`${displayName}: ${photosT('unsupportedFormat')}`)
               continue
             }
             const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv|m4v)$/i.test(displayName)
             if (isVideo && !isSupportedVideoFile(file)) {
-              rejected.push(`${displayName}: 動画はMP4・MOV・AVIのみ対応`)
+              rejected.push(`${displayName}: ${photosT('videoFormatsOnly')}`)
               continue
             }
             mediaList.push(file)
@@ -2292,17 +2426,17 @@
             } else if (totalSelected === 0) {
               setUploadProgress(@json(__('対象ファイルを確認中…')))
             } else {
-              setUploadProgress(`重複チェック中… 0/${totalSelected}`)
+              setUploadProgress(photosT('dupCheckProgress', { current: 0, total: totalSelected }))
             }
             const hashed = []
             for (let i = 0; i < mediaList.length; i++) {
               const file = mediaList[i]
               const displayName = file.name || `file-${i + 1}`
               if (isVideoFile(file) && (Number(file.size) || 0) > videoMax) {
-                failed.push(`${displayName}: 最大 ${Math.round(videoMax / 1048576)}MB まで`)
+                failed.push(`${displayName}: ${photosT('maxSize', { size: `${Math.round(videoMax / 1048576)}MB` })}`)
                 continue
               }
-              setUploadProgress(`重複チェック中… ${i + 1}/${totalSelected}`)
+              setUploadProgress(photosT('dupCheckProgress', { current: i + 1, total: totalSelected }))
               let hash = ''
               try {
                 hash = await computeContentHash(file)
@@ -2332,7 +2466,7 @@
             }
 
             if (totalSkipped > 0) {
-              setUploadProgress(`重複 ${totalSkipped}件スキップ → 送信 ${queue.length}件`)
+              setUploadProgress(photosT('dupSkippedSend', { count: totalSkipped, queue: queue.length }))
               await sleep(400)
             }
 
@@ -2341,11 +2475,11 @@
               const { file, displayName, hash } = queue[i]
               const fileLabel = `${i + 1}/${queue.length}`
 
-              setUploadProgress(`準備中… ${fileLabel}`)
+              setUploadProgress(photosT('preparingName', { name: fileLabel }))
               // 動画サムネは時間をかけない（失敗時はサーバー側プレースホルダ）
               let thumb = null
               if (isVideoFile(file)) {
-                setUploadProgress(`サムネ準備… ${fileLabel}`)
+                setUploadProgress(photosT('thumbName', { name: fileLabel }))
                 thumb = await captureVideoThumb(file, 800)
               }
 
@@ -2365,7 +2499,7 @@
                     lastErr = err
                     if (err?.message === 'aborted' || uploadCancelRequested) break
                     if (attempt < 2) {
-                      setUploadProgress(`再試行… ${fileLabel}`)
+                      setUploadProgress(photosT('retryName', { name: fileLabel }))
                       await sleep(1000)
                     }
                   }
@@ -2375,16 +2509,16 @@
                 totalCreated += result.count
                 if (result.skipped > 0) {
                   totalSkipped += result.skipped
-                  duplicateNames.push(`${displayName}（サーバー側）`)
+                  duplicateNames.push(`${displayName}${photosT('serverSide')}`)
                 }
-                setUploadProgress(`完了… 追加${totalCreated} / スキップ${totalSkipped}`)
+                setUploadProgress(photosT('doneAddedSkipped', { created: totalCreated, skipped: totalSkipped }))
               } catch (err) {
                 if (err?.message === 'aborted' || uploadCancelRequested) break
                 const reason = err?.message === 'timeout'
-                  ? 'タイムアウト'
-                  : (err?.message === 'network' ? '通信エラー' : (err?.message || '失敗'))
+                  ? photosT('timeout')
+                  : (err?.message === 'network' ? photosT('networkError') : (err?.message || photosT('failed')))
                 failed.push(`${displayName}: ${reason}`)
-                setUploadProgress(`失敗… ${fileLabel} → 次へ`)
+                setUploadProgress(photosT('failedNext', { name: fileLabel }))
                 await sleep(300)
               }
             }
@@ -2392,34 +2526,34 @@
             const formatDetailBlock = (title, rows, limit = 8) => {
               if (!rows.length) return ''
               const shown = rows.slice(0, limit)
-              const more = rows.length > limit ? `\n…他 ${rows.length - limit}件` : ''
+              const more = rows.length > limit ? `\n${photosT('andMore', { count: rows.length - limit })}` : ''
               return `\n\n${title}:\n- ${shown.join('\n- ')}${more}`
             }
 
             const buildResultNotice = () => {
               const parts = []
-              if (totalCreated > 0) parts.push(`${totalCreated}件追加`)
-              if (totalSkipped > 0) parts.push(`重複スキップ ${totalSkipped}件`)
-              if (rejected.length > 0) parts.push(`対象外 ${rejected.length}件`)
-              if (failed.length > 0) parts.push(`失敗 ${failed.length}件`)
+              if (totalCreated > 0) parts.push(photosT('addedCount', { count: totalCreated }))
+              if (totalSkipped > 0) parts.push(`${photosT('dupSkipped')} ${totalSkipped}`)
+              if (rejected.length > 0) parts.push(`${photosT('unsupported')} ${rejected.length}`)
+              if (failed.length > 0) parts.push(`${photosT('failed')} ${failed.length}`)
               if (parts.length) return parts.join(' · ')
-              if (list.length === 0) return 'ファイルが選択されていません'
+              if (list.length === 0) return photosT('noFilesSelected')
               if (jsonCompanionCount > 0 && mediaList.length === 0) {
-                return '写真・動画がありません（メタデータJSONのみ）'
+                return photosT('metadataOnly')
               }
-              return '追加できるファイルがありませんでした'
+              return photosT('nothingAddable')
             }
 
             const showResultAlert = (notice) => {
               let body = notice
-              body += formatDetailBlock('重複（既に登録済み）', duplicateNames)
-              body += formatDetailBlock('対象外', rejected)
-              body += formatDetailBlock('失敗', failed)
+              body += formatDetailBlock(photosT('dupAlready'), duplicateNames)
+              body += formatDetailBlock(photosT('unsupported'), rejected)
+              body += formatDetailBlock(photosT('failed'), failed)
               if (!totalCreated && !totalSkipped && !rejected.length && !failed.length) {
                 if (jsonCompanionCount > 0) {
-                  body += '\n\n選択されたのは付属のメタデータJSONのみです。写真・動画ファイルを選んでください。'
+                  body += `\n\n${photosT('metadataOnlyHint')}`
                 } else {
-                  body += '\n\n対応形式: 画像（JPEG/PNG/WebP/GIF/HEIC 等）と動画（MP4 / MOV）'
+                  body += `\n\n${photosT('supportedFormatsHint')}`
                 }
               }
               window.alert(body)
@@ -3063,9 +3197,9 @@
           }
           if (pendingCount) {
             const names = files.slice(0, 3).map((f) => f.name || 'file')
-            const more = files.length > 3 ? ` …他${files.length - 3}件` : ''
+            const more = files.length > 3 ? ` ${photosT('andMore', { count: files.length - 3 })}` : ''
             pendingCount.textContent = @json(__(':count件選択中')).replace(':count', String(files.length))
-              + (names.length ? `（${names.join('、')}${more}）` : '')
+              + (names.length ? ` (${names.join(', ')}${more})` : '')
           }
           if (pendingBar) {
             pendingBar.hidden = false
@@ -3282,11 +3416,11 @@
             if (lightboxImage) {
               lightboxImage.hidden = false
               lightboxImage.src = photo.url || photo.fileUrl || (`/photos/${photo.id}/file`)
-              lightboxImage.alt = photo.caption || photo.originalName || '写真'
+              lightboxImage.alt = photo.caption || photo.originalName || photosT('photo')
             }
           }
           lightboxCaption.textContent = photo.caption || photo.originalName || ''
-          lightboxDate.textContent = (isVideo ? '動画 · ' : '') + (photo.takenAt || '')
+          lightboxDate.textContent = (isVideo ? photosT('videoPrefix') : '') + (photo.takenAt || '')
           if (photo.editLabel) {
             lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + photo.editLabel
           }
@@ -3655,6 +3789,14 @@
           }
           setPhotosPage(next === 'list' ? 1 : photosPage)
           updatePhotosBulkUi()
+          if (isPhotosMobileOps()) {
+            if (next === 'select' || next === 'list') {
+              syncPhotosOpsCompact(next)
+              setPhotosOpsOpen(true)
+            } else {
+              syncPhotosOpsCompact('normal')
+            }
+          }
         }
         document.querySelectorAll('.photos-mode-btn[data-photos-mode]').forEach((btn) => {
           btn.addEventListener('click', () => setPhotosMode(btn.dataset.photosMode))
@@ -5346,49 +5488,49 @@
           const chrome = isChromeBrowser()
           if (pwaGuideLead) {
             if (!secure) {
-              pwaGuideLead.textContent = 'Chrome のワンタップ追加には HTTPS または localhost が必要です。'
+              pwaGuideLead.textContent = photosT('pwaNeedHttps')
             } else if (ios) {
-              pwaGuideLead.textContent = 'iPhone / iPad では、Safari の共有メニューから追加します。'
+              pwaGuideLead.textContent = photosT('pwaIosLead')
             } else if (chrome) {
-              pwaGuideLead.textContent = '自動プロンプトがまだ来ていません。次の手順で追加できます。'
+              pwaGuideLead.textContent = photosT('pwaChromeLead')
             } else {
-              pwaGuideLead.textContent = 'ブラウザのメニューからホーム画面に追加してください。'
+              pwaGuideLead.textContent = photosT('pwaOtherLead')
             }
           }
           if (pwaGuideSteps) {
             let steps
             if (!secure && chrome) {
               steps = [
-                'PC なら http://localhost:8000/photos で開き直す',
-                'スマホなら PC と同じ Wi‑Fi でも HTTP のままでは Chrome 追加不可（localhost / HTTPS が必要）',
-                'アドレスバー右のインストールアイコン、またはメニュー「アプリをインストール」を選ぶ',
+                photosT('pwaStepLocalhost'),
+                photosT('pwaStepHttpLan'),
+                photosT('pwaStepInstallIcon'),
               ]
             } else if (ios) {
               steps = [
-                'Safari でこのページを開く',
-                '共有ボタン（□と↑）をタップ',
-                '「ホーム画面に追加」→「追加」',
+                photosT('pwaStepSafariOpen'),
+                photosT('pwaStepShare'),
+                photosT('pwaStepAddHome'),
               ]
             } else if (chrome) {
               steps = [
-                'ページを再読み込みする（Service Worker 更新）',
-                'アドレスバー右の「インストール」アイコンを押す',
-                'またはメニュー（⋮）→「アプリをインストール」 / 「Cast, save, and share」→「Install page as app」',
+                photosT('pwaStepReload'),
+                photosT('pwaStepChromeIcon'),
+                photosT('pwaStepChromeMenu'),
               ]
             } else {
               steps = [
-                'ブラウザのメニューを開く',
-                '「アプリをインストール」または「ホーム画面に追加」を選ぶ',
-                '確認画面で追加する',
+                photosT('pwaStepBrowserMenu'),
+                photosT('pwaStepPickInstall'),
+                photosT('pwaStepConfirm'),
               ]
             }
             pwaGuideSteps.innerHTML = steps.map((step) => `<li>${step}</li>`).join('')
           }
           if (pwaGuideNote) {
             const notes = []
-            notes.push(`いまのURL: ${location.origin}`)
+            notes.push(photosT('pwaUrlNow', { url: location.origin }))
             if (!secure) {
-              notes.push('この接続は安全なコンテキストではありません（HTTP の LAN IP など）。')
+              notes.push(photosT('pwaInsecureNote'))
             }
             if (extraNote) notes.push(extraNote)
             pwaGuideNote.textContent = notes.join(' ')
@@ -5428,10 +5570,10 @@
           }
           let extra = ''
           if (!isSecureForPwa()) {
-            extra = 'Chrome では localhost か HTTPS で開き直してください。'
+            extra = photosT('needHttpsAgain')
           } else if ('serviceWorker' in navigator) {
             const ready = await navigator.serviceWorker.getRegistration('/')
-            if (!ready) extra = 'Service Worker 未登録です。再読み込み後にもう一度試してください。'
+            if (!ready) extra = photosT('swMissing')
           }
           showPwaGuide(extra)
         }

@@ -1,66 +1,32 @@
+@php
+  $footerItems = $footerNavItems ?? [];
+  $activeKey = $active ?? '';
+@endphp
 <nav class="mobile-bottom-nav" aria-label="{{ __('メインメニュー') }}">
-  <a href="/dashboard" class="mobile-nav-item {{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">📅</span>
-    <span class="mobile-nav-label">{{ __('ホーム') }}</span>
-  </a>
-  <a href="/todos" class="mobile-nav-item {{ ($active ?? '') === 'todos' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">✓</span>
-    <span class="mobile-nav-label">{{ __('Todo') }}</span>
-  </a>
-  <a href="/notes" class="mobile-nav-item {{ ($active ?? '') === 'notes' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">📝</span>
-    <span class="mobile-nav-label">{{ __('メモ') }}</span>
-  </a>
-  <a href="/photos" class="mobile-nav-item {{ ($active ?? '') === 'photos' ? 'active' : '' }}">
-    <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
-    <span class="mobile-nav-label">{{ __('Photos') }}</span>
-  </a>
-  @if(!empty($canFinance))
-    <a href="/finance" class="mobile-nav-item {{ ($active ?? '') === 'finance' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">💰</span>
-      <span class="mobile-nav-label">{{ __('入出金') }}</span>
+  @forelse($footerItems as $item)
+    @php
+      $itemActive = $activeKey === ($item['activeKey'] ?? $item['key']);
+    @endphp
+    <a href="{{ $item['href'] }}" class="mobile-nav-item {{ $itemActive ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">{{ $item['icon'] }}</span>
+      <span class="mobile-nav-label">{{ $item['label'] }}</span>
     </a>
-  @endif
-  @if(!empty($canMusic))
-    <a href="/music" class="mobile-nav-item {{ ($active ?? '') === 'music' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">♪</span>
-      <span class="mobile-nav-label">{{ __('音楽') }}</span>
+  @empty
+    <a href="/dashboard" class="mobile-nav-item {{ $activeKey === 'dashboard' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">📅</span>
+      <span class="mobile-nav-label">{{ __('ホーム') }}</span>
     </a>
-  @endif
-  @if(!empty($canVideo))
-    <a href="/video" class="mobile-nav-item {{ ($active ?? '') === 'video' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">▶</span>
-      <span class="mobile-nav-label">{{ __('動画') }}</span>
+    <a href="/todos" class="mobile-nav-item {{ $activeKey === 'todos' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">✓</span>
+      <span class="mobile-nav-label">{{ __('Todo') }}</span>
     </a>
-  @endif
-  @if(!empty($canMessages))
-    <a href="/messages" class="mobile-nav-item {{ ($active ?? '') === 'messages' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">💬</span>
-      <span class="mobile-nav-label">{{ __('メッセージ') }}</span>
+    <a href="/notes" class="mobile-nav-item {{ $activeKey === 'notes' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">📝</span>
+      <span class="mobile-nav-label">{{ __('メモ') }}</span>
     </a>
-  @endif
-  @if(!empty($canTranslate))
-    <a href="/translate" class="mobile-nav-item {{ ($active ?? '') === 'translate' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">文A</span>
-      <span class="mobile-nav-label">{{ __('翻訳') }}</span>
+    <a href="/photos" class="mobile-nav-item {{ $activeKey === 'photos' ? 'active' : '' }}">
+      <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
+      <span class="mobile-nav-label">{{ __('Photos') }}</span>
     </a>
-  @endif
-  @if(!empty($canTransit))
-    <a href="/transit" class="mobile-nav-item {{ ($active ?? '') === 'transit' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">🚌</span>
-      <span class="mobile-nav-label">{{ __('路線') }}</span>
-    </a>
-  @endif
-  @if(!empty($canTravel))
-    <a href="/travel" class="mobile-nav-item {{ ($active ?? '') === 'travel' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">✈</span>
-      <span class="mobile-nav-label">{{ __('Travel') }}</span>
-    </a>
-  @endif
-  @if(!empty($canMap))
-    <a href="/map" class="mobile-nav-item {{ ($active ?? '') === 'map' ? 'active' : '' }}">
-      <span class="mobile-nav-icon" aria-hidden="true">🗺</span>
-      <span class="mobile-nav-label">{{ __('マップ') }}</span>
-    </a>
-  @endif
+  @endforelse
 </nav>

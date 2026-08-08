@@ -1,10 +1,18 @@
-<section class="dash-ai-usage" aria-label="{{ __('AI使用状況') }}">
+<section class="dash-ai-usage dash-quick-panel" aria-label="{{ __('AI使用状況') }}">
   <details class="app-accordion" data-accordion-key="dash-ai-usage">
-  <summary class="app-accordion-summary">
-    <h2 class="dash-ai-usage-title">{{ __('AI使用料・翻訳使用料') }}</h2>
+  <summary class="app-accordion-summary dash-quick-summary">
+    <h2 class="dash-ai-usage-title">
+      <span class="dash-title-full">{{ __('AI使用料・翻訳使用料') }}</span>
+      <span class="dash-title-short">{{ __('AI/翻訳') }}</span>
+    </h2>
     <span class="app-accordion-caret" aria-hidden="true">▾</span>
   </summary>
-  <div class="app-accordion-body">
+  <div class="app-accordion-body dash-quick-modal-body">
+  <div class="dash-quick-modal-sheet">
+  <div class="dash-quick-modal-bar">
+    <strong>{{ __('AI/翻訳') }}</strong>
+    <button type="button" class="dash-quick-modal-close" data-close-dash-quick aria-label="{{ __('閉じる') }}">×</button>
+  </div>
   <div class="dash-ai-usage-head">
     <p class="dash-ai-usage-lead">{{ __('無料枠の残りと、見込まれる使用料の目安です。詳細は設定画面で確認・更新できます。') }}</p>
   </div>
@@ -75,6 +83,7 @@
       </article>
     @endforeach
   </div>
+  </div>{{-- /.dash-quick-modal-sheet --}}
   </div>
   </details>
 </section>
