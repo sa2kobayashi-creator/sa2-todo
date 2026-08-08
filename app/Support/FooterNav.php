@@ -103,7 +103,11 @@ class FooterNav
     }
 
     /**
-     * @return array{footer: list<array<string, mixed>>, more: list<array<string, mixed>>}
+     * @return array{
+     *   footer: list<array<string, mixed>>,
+     *   more: list<array<string, mixed>>,
+     *   header: list<array<string, mixed>>
+     * }
      */
     public static function resolve(?User $user): array
     {
@@ -133,6 +137,9 @@ class FooterNav
             $more[] = $mapItem($key);
         }
 
-        return ['footer' => $footer, 'more' => $more];
+        // Web ヘッダーは5件制限なし（利用可能なメニューをすべて表示）
+        $header = array_map($mapItem, $allowed);
+
+        return ['footer' => $footer, 'more' => $more, 'header' => $header];
     }
 }

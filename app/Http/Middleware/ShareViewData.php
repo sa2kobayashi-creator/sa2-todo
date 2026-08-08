@@ -108,6 +108,7 @@ class ShareViewData
                 'appContextLabel' => $appContext->label(),
                 'footerNavItems' => $nav['footer'],
                 'moreNavItems' => $nav['more'],
+                'headerNavItems' => $nav['header'],
             ]);
         }
 

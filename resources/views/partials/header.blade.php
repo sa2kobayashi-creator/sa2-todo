@@ -1,6 +1,7 @@
 @php
   $navSettingsSection = $settingsSection ?? '';
-  $headerNavItems = $footerNavItems ?? [];
+  // Web ヘッダーは全メニュー。スマホ下部の5件選択（footerNavItems）は適用しない
+  $headerNavItems = $headerNavItems ?? [];
 @endphp
 <header class="site-header">
   <div class="site-header-inner">

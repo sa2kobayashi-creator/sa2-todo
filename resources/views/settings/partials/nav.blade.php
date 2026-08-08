@@ -6,7 +6,7 @@
 @endphp
 <div class="panel" id="footer-nav-settings">
   <h2>{{ __('表示メニュー管理') }}</h2>
-  <p class="hint">{{ __('表示するメニュー（最大:max件）を選べます。スマートフォン下部メニューとWebヘッダーに反映されます。選ばなかった項目はスマートフォンの「⋮」に入ります（Webでは⋮は表示しません）。', ['max' => FooterNav::MAX_FOOTER]) }}</p>
+  <p class="hint">{{ __('スマートフォン下部に表示するメニュー（最大:max件）を選べます。選ばなかった項目はスマートフォンの「⋮」に入ります。Web（PC）ヘッダーにはこの件数制限は適用されず、利用可能なメニューがすべて表示されます。', ['max' => FooterNav::MAX_FOOTER]) }}</p>
 
   <form method="post" action="/settings/nav" class="footer-nav-form">
     @csrf

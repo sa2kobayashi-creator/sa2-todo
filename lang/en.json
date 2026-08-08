@@ -1989,6 +1989,7 @@
     "表示されている Webhook URL を LINE Developers の Webhook に設定し、Webhook をオンにします。": "Set the shown Webhook URL in LINE Developers and turn the webhook on.",
     "表示するカレンダー": "Calendars to display",
     "表示するメニュー（最大:max件）を選べます。スマートフォン下部メニューとWebヘッダーに反映されます。選ばなかった項目はスマートフォンの「⋮」に入ります（Webでは⋮は表示しません）。": "Choose up to :max menus. They appear in the smartphone bottom bar and the web header. Unselected items go to the smartphone ⋮ menu (⋮ is hidden on web).",
+    "スマートフォン下部に表示するメニュー（最大:max件）を選べます。選ばなかった項目はスマートフォンの「⋮」に入ります。Web（PC）ヘッダーにはこの件数制限は適用されず、利用可能なメニューがすべて表示されます。": "Choose up to :max items for the smartphone bottom bar. Unselected items appear in the smartphone ⋮ menu. The web (PC) header ignores this limit and shows all available menus.",
     "表示する口座がありません。": "No accounts to display.",
     "表示を速くするため、最新の :year 年のみ表示しています（全 :total 件）。": "To load faster, showing :year only (:total items total).",
     "表示メニューは最大 :max 件までです。": "You can show up to :max menus.",
