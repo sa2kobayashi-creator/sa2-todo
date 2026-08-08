@@ -17,10 +17,39 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      {{-- 検索結果をスクロールしても常に見えるよう、画面上部に固定 --}}
+      <section class="panel media-player-stage media-player-stage-video" id="video-player-stage">
+        <div class="media-video-frame" id="video-local-wrap">
+          <video id="video-player" controls playsinline preload="metadata" class="media-video-el"></video>
+        </div>
+        <div class="media-video-frame media-youtube-frame" id="video-youtube-wrap" hidden>
+          <iframe
+            id="youtube-player"
+            class="media-youtube-el"
+            title="YouTube"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+          ></iframe>
+        </div>
+        <div class="media-now-playing">
+          <div class="media-now-playing-text">
+            <strong id="video-now-title">{{ __('動画を選択してください') }}</strong>
+            <span class="hint" id="video-now-meta"></span>
+          </div>
+          <div class="media-transport" id="video-transport" hidden>
+            <button type="button" class="secondary" id="video-btn-pause">{{ __('一時停止') }}</button>
+            <button type="button" class="secondary" id="video-btn-resume" hidden>{{ __('再生') }}</button>
+            <button type="button" class="secondary" id="video-btn-stop">{{ __('停止') }}</button>
+          </div>
+        </div>
+      </section>
+      <div class="media-player-stage-spacer" id="video-player-spacer" aria-hidden="true"></div>
+
       <section class="panel media-player-hero">
         <div>
           <h1 class="media-player-title">{{ __('動画') }}</h1>
-          <p class="hint">{{ __('YouTube検索・リンク貼り付け・動画アップロード（MP4 / MOV）で再生できます。') }}</p>
+          <p class="hint">{{ __('YouTube検索・リンク貼り付け・動画アップロード（MP4 / MOV）で再生できます。検索結果はライブラリに追加しなくてもプレビュー再生できます。') }}</p>
         </div>
         <div class="media-video-add-actions">
           <form method="post" action="/video" enctype="multipart/form-data" class="media-upload-form">
@@ -37,6 +66,7 @@
 
       <section class="panel media-youtube-search-panel" id="youtube-search-panel">
         <h2 class="media-list-title">{{ __('YouTubeで探す') }}</h2>
+        <p class="hint">{{ __('結果をタップでプレビュー再生。保存する場合は「ライブラリに追加」を押してください。') }}</p>
         @if(empty($youtubeSearchReady))
           <p class="hint">
             {{ __('検索を使うには YouTube Data API キーが必要です。') }}
@@ -86,26 +116,6 @@
           <button type="submit" class="button-link media-youtube-submit">{{ __('リンクを追加') }}</button>
         </form>
         <p class="hint">{{ __('追加先: :name', ['name' => $currentLibrary['name'] ?? __('マイリスト')]) }}</p>
-      </section>
-
-      <section class="panel media-player-stage media-player-stage-video">
-        <div class="media-video-frame" id="video-local-wrap">
-          <video id="video-player" controls playsinline preload="metadata" class="media-video-el"></video>
-        </div>
-        <div class="media-video-frame media-youtube-frame" id="video-youtube-wrap" hidden>
-          <iframe
-            id="youtube-player"
-            class="media-youtube-el"
-            title="YouTube"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-            allowfullscreen
-            referrerpolicy="strict-origin-when-cross-origin"
-          ></iframe>
-        </div>
-        <div class="media-now-playing">
-          <strong id="video-now-title">{{ __('動画を選択してください') }}</strong>
-          <span class="hint" id="video-now-meta"></span>
-        </div>
       </section>
 
       <section class="panel media-library-panel">
@@ -229,10 +239,12 @@
             searchFailed: @json(__('検索に失敗しました。')),
             showingCount: @json(__(':count件表示')),
             play: @json(__('再生')),
+            preview: @json(__('プレビュー')),
             save: @json(__('ライブラリに追加')),
             saved: @json(__('追加しました')),
             saveFailed: @json(__('追加に失敗しました')),
             notReady: @json(__('YouTube検索が未設定です。')),
+            previewHint: @json(__('プレビュー再生中（ライブラリ未追加）')),
           },
         };
         const csrf = videoCfg.csrf
@@ -240,16 +252,66 @@
         const youtube = document.getElementById('youtube-player')
         const localWrap = document.getElementById('video-local-wrap')
         const youtubeWrap = document.getElementById('video-youtube-wrap')
+        const stageEl = document.getElementById('video-player-stage')
+        const spacerEl = document.getElementById('video-player-spacer')
         const titleEl = document.getElementById('video-now-title')
         const metaEl = document.getElementById('video-now-meta')
+        const transportEl = document.getElementById('video-transport')
+        const btnPause = document.getElementById('video-btn-pause')
+        const btnResume = document.getElementById('video-btn-resume')
+        const btnStop = document.getElementById('video-btn-stop')
         const buttons = () => [...document.querySelectorAll('.media-video-play')]
         const uploadInput = document.querySelector('.media-upload-form input[type="file"]')
         const searchReady = Boolean(videoCfg.searchReady)
         const strings = videoCfg.strings
+        let activeSource = null // 'youtube' | 'upload' | null
+        let isPaused = false
 
         uploadInput?.addEventListener('change', () => {
           if (uploadInput.files?.length) uploadInput.closest('form')?.submit()
         })
+
+        function syncPlayerDock() {
+          const header = document.querySelector('.site-header')
+          const headerH = header ? Math.ceil(header.getBoundingClientRect().height) : 56
+          document.documentElement.style.setProperty('--site-header-offset', headerH + 'px')
+          if (stageEl && spacerEl) {
+            spacerEl.style.height = Math.ceil(stageEl.getBoundingClientRect().height) + 'px'
+          }
+        }
+
+        function focusStage() {
+          syncPlayerDock()
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+
+        syncPlayerDock()
+        window.addEventListener('resize', syncPlayerDock)
+        if (stageEl && typeof ResizeObserver !== 'undefined') {
+          new ResizeObserver(syncPlayerDock).observe(stageEl)
+        }
+
+        function setTransportVisible(visible) {
+          if (transportEl) transportEl.hidden = !visible
+          setPausedUi(false)
+        }
+
+        function setPausedUi(paused) {
+          isPaused = paused
+          if (btnPause) btnPause.hidden = paused
+          if (btnResume) btnResume.hidden = !paused
+        }
+
+        function ytCommand(func) {
+          if (!youtube?.contentWindow) return
+          try {
+            youtube.contentWindow.postMessage(JSON.stringify({
+              event: 'command',
+              func,
+              args: [],
+            }), '*')
+          } catch (_) {}
+        }
 
         function stopLocal() {
           if (!player) return
@@ -260,28 +322,44 @@
 
         function stopYoutube() {
           if (!youtube) return
+          ytCommand('stopVideo')
           youtube.removeAttribute('src')
         }
 
-        function playEmbed(embedUrl, title, meta) {
+        function playEmbed(embedUrl, title, meta, opts) {
+          const options = opts || {}
           stopLocal()
           if (localWrap) localWrap.hidden = true
           if (youtubeWrap) youtubeWrap.hidden = false
           if (titleEl) titleEl.textContent = title || ''
-          if (metaEl) metaEl.textContent = meta || ''
+          if (metaEl) {
+            metaEl.textContent = options.preview
+              ? (strings.previewHint + (meta ? ' · ' + meta : ''))
+              : (meta || '')
+          }
+          activeSource = 'youtube'
+          setTransportVisible(true)
+          focusStage()
           if (youtube && embedUrl) {
             try {
               const u = new URL(embedUrl, window.location.origin)
               u.searchParams.set('autoplay', '1')
               u.searchParams.set('playsinline', '1')
               u.searchParams.set('rel', '0')
+              u.searchParams.set('enablejsapi', '1')
+              u.searchParams.set('controls', '1')
+              u.searchParams.set('fs', '1')
               if (!u.searchParams.get('origin')) {
                 u.searchParams.set('origin', window.location.origin)
               }
-              youtube.src = u.toString()
+              // src を付け直して確実に再読込
+              youtube.src = 'about:blank'
+              requestAnimationFrame(() => {
+                youtube.src = u.toString()
+              })
             } catch (_) {
               const join = embedUrl.includes('?') ? '&' : '?'
-              youtube.src = embedUrl + join + 'autoplay=1&playsinline=1&origin=' + encodeURIComponent(window.location.origin)
+              youtube.src = embedUrl + join + 'autoplay=1&playsinline=1&enablejsapi=1&origin=' + encodeURIComponent(window.location.origin)
             }
           }
         }
@@ -292,11 +370,60 @@
           if (localWrap) localWrap.hidden = false
           if (titleEl) titleEl.textContent = title || ''
           if (metaEl) metaEl.textContent = meta || ''
+          activeSource = 'upload'
+          setTransportVisible(true)
+          focusStage()
           if (player) {
             player.src = url || ''
             player.play().catch(() => {})
           }
         }
+
+        function pausePlayback() {
+          if (activeSource === 'youtube') {
+            ytCommand('pauseVideo')
+            setPausedUi(true)
+            return
+          }
+          if (activeSource === 'upload' && player) {
+            player.pause()
+            setPausedUi(true)
+          }
+        }
+
+        function resumePlayback() {
+          if (activeSource === 'youtube') {
+            ytCommand('playVideo')
+            setPausedUi(false)
+            return
+          }
+          if (activeSource === 'upload' && player) {
+            player.play().catch(() => {})
+            setPausedUi(false)
+          }
+        }
+
+        function stopPlayback() {
+          stopLocal()
+          stopYoutube()
+          if (youtubeWrap) youtubeWrap.hidden = true
+          if (localWrap) localWrap.hidden = false
+          activeSource = null
+          setTransportVisible(false)
+          if (titleEl) titleEl.textContent = @json(__('動画を選択してください'))
+          if (metaEl) metaEl.textContent = ''
+          buttons().forEach((b) => b.classList.remove('is-active'))
+        }
+
+        btnPause?.addEventListener('click', pausePlayback)
+        btnResume?.addEventListener('click', resumePlayback)
+        btnStop?.addEventListener('click', stopPlayback)
+        player?.addEventListener('pause', () => {
+          if (activeSource === 'upload' && player && !player.ended) setPausedUi(true)
+        })
+        player?.addEventListener('play', () => {
+          if (activeSource === 'upload') setPausedUi(false)
+        })
 
         function playAt(index) {
           const list = buttons()
@@ -361,6 +488,7 @@
                   <strong class="yt-result-title"></strong>
                   <span class="hint yt-result-channel"></span>
                 </span>
+                <span class="yt-result-play-label"></span>
               </button>
               <button type="button" class="secondary yt-result-save"></button>
             `
@@ -370,11 +498,14 @@
             if (title) title.textContent = item.title || ''
             const channel = card.querySelector('.yt-result-channel')
             if (channel) channel.textContent = [item.channelTitle, item.publishedAt].filter(Boolean).join(' · ')
+            const playLabel = card.querySelector('.yt-result-play-label')
+            if (playLabel) playLabel.textContent = '▶ ' + (strings.preview || strings.play)
             const saveBtn = card.querySelector('.yt-result-save')
             if (saveBtn) saveBtn.textContent = strings.save
 
             card.querySelector('.yt-result-play')?.addEventListener('click', () => {
-              playEmbed(item.embedUrl, item.title, item.channelTitle || '')
+              // ライブラリ追加なしで上部プレイヤーへプレビュー再生
+              playEmbed(item.embedUrl, item.title, item.channelTitle || '', { preview: true })
               buttons().forEach((b) => b.classList.remove('is-active'))
             })
 
