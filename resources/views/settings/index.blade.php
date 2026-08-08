@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('設定') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    @include('partials.app-css')
   </head>
   <body>
     @include('partials.header', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])

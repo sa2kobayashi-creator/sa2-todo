@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('グループ管理') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    @include('partials.app-css')
   </head>
   <body>
     @include('partials.header', ['active' => 'admin-groups'])

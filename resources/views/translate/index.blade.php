@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('翻訳') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}?v=gt-ui-1" />
+    @include('partials.app-css')
   </head>
   <body class="gt-app">
     @include('partials.header', ['active' => 'translate'])

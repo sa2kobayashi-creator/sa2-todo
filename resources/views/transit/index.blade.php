@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('路線検索') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    @include('partials.app-css')
   </head>
   <body class="transit-page">
     @include('partials.header', ['active' => 'transit'])

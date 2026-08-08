@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <title>{{ __('マップ') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    @include('partials.app-css')
   </head>
   <body class="map-page">
     @include('partials.header', ['active' => 'map'])

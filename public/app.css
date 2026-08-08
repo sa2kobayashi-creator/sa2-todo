@@ -9122,18 +9122,27 @@ body.map-page {
     padding: 16px 12px 24px;
   }
 
+  .site-header {
+    overflow: visible;
+  }
+
   .site-header-inner {
-    flex-wrap: nowrap;
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     height: 52px;
+    min-height: 52px;
     padding: 0 10px;
-    gap: 8px;
+    gap: 6px;
     overflow: visible;
   }
 
   .site-logo {
     font-size: 15px;
-    max-width: 42%;
+    max-width: calc(100% - 168px);
     min-width: 0;
+    flex: 0 1 auto;
   }
 
   .site-logo span {
@@ -9151,12 +9160,31 @@ body.map-page {
   }
 
   .nav-trailing,
-  .header-actions {
+  .site-header .header-actions {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
     margin-left: auto;
     gap: 4px;
-    flex-wrap: nowrap;
-    flex-direction: row;
-    align-items: center;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    align-self: center;
+  }
+
+  .site-header .header-actions > form,
+  .site-header .header-actions > .site-user-menu,
+  .site-header .header-actions > .header-more-menu,
+  .site-header .header-actions > .nav-dropdown {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0;
+    margin: 0 !important;
+    float: none !important;
   }
 
   .mobile-only-flex {
@@ -9170,7 +9198,7 @@ body.map-page {
     padding: 0 8px;
     font-size: 11px;
     line-height: 1;
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
   }
@@ -9179,6 +9207,18 @@ body.map-page {
   .user-menu-toggle {
     width: 32px;
     height: 32px;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .site-header .header-more-toggle {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   .mobile-only {
@@ -9791,7 +9831,8 @@ body.map-page {
   }
 
   .site-user-menu {
-    display: block;
+    display: inline-flex !important;
+    align-items: center;
   }
 
   .user-menu-toggle {
@@ -15094,7 +15135,7 @@ label.photos-camera-btn span {
     radial-gradient(circle at 12% 0%, rgba(15, 118, 110, 0.14), transparent 42%),
     radial-gradient(circle at 88% 8%, rgba(14, 165, 233, 0.12), transparent 36%),
     linear-gradient(180deg, #f3faf8 0%, #eef2f6 100%);
-  font-family: Manrope, \"Segoe UI\", sans-serif;
+  font-family: Manrope, "Segoe UI", sans-serif;
 }
 .msg-shell {
   max-width: 1180px;
@@ -15354,7 +15395,7 @@ label.photos-camera-btn span {
     radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.16), transparent 34%),
     radial-gradient(circle at 10% 20%, rgba(15, 118, 110, 0.16), transparent 40%),
     #f4f8f7;
-  font-family: Manrope, \"Segoe UI\", sans-serif;
+  font-family: Manrope, "Segoe UI", sans-serif;
   min-height: 100vh;
 }
 .tr-shell {
@@ -16230,4 +16271,32 @@ label.photos-camera-btn span {
     display: contents;
   }
   .photos-ops-toolbar-slot:empty { display: none; }
+}
+
+/* ヘッダー右アクションは常に1行（メッセージ等のページ固有CSSより後で勝たせる） */
+@media (max-width: 768px) {
+  body .site-header .site-header-inner {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+  }
+
+  body .site-header .header-actions {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+
+  body .site-header .header-actions > * {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    flex: 0 0 auto !important;
+  }
+
+  body .site-header .header-more-toggle {
+    background: transparent !important;
+    color: #1f2937 !important;
+  }
 }

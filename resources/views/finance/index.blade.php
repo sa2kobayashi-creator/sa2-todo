@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('入出金経費') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}" />
+    @include('partials.app-css')
     <script src="{{ asset('voice-entry.js') }}" defer></script>
   </head>
   <body class="finance-page">
