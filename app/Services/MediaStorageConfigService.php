@@ -10,6 +10,11 @@ use Illuminate\Support\Str;
 
 class MediaStorageConfigService
 {
+    /** @var array<string, MediaStorageSetting> */
+    private array $providerCache = [];
+
+    private ?bool $pipelineCloudinaryDisplayCache = null;
+
     /** @return list<string> */
     public function providers(): array
     {
@@ -27,7 +32,7 @@ class MediaStorageConfigService
 
     public function get(string $provider): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider($provider);
+        return $this->providerCache[$provider] ??= MediaStorageSetting::forProvider($provider);
     }
 
     /**
@@ -99,6 +104,8 @@ class MediaStorageConfigService
                     'secrets' => [],
                 ]
             );
+            unset($this->providerCache[$provider]);
+            $this->pipelineCloudinaryDisplayCache = null;
             $row = $this->get($provider);
             if ($provider !== MediaStorageSetting::PROVIDER_PIPELINE && $mergedSecrets !== []) {
                 try {
@@ -111,6 +118,8 @@ class MediaStorageConfigService
             }
         }
 
+        $this->providerCache[$provider] = $row;
+        $this->pipelineCloudinaryDisplayCache = null;
         $this->applyRuntimeDisks();
 
         return $row;
@@ -194,10 +203,15 @@ class MediaStorageConfigService
 
     public function pipelineUsesCloudinaryDisplay(): bool
     {
+        if ($this->pipelineCloudinaryDisplayCache !== null) {
+            return $this->pipelineCloudinaryDisplayCache;
+        }
+
         $pipeline = $this->get(MediaStorageSetting::PROVIDER_PIPELINE);
 
         // 既定は false（Cloudinary は編集専用。表示同期は明示オプトイン）
-        return $pipeline->enabled && (bool) $pipeline->setting('use_cloudinary_display', false);
+        return $this->pipelineCloudinaryDisplayCache =
+            $pipeline->enabled && (bool) $pipeline->setting('use_cloudinary_display', false);
     }
 
     public function cloudinaryEditorEnabled(): bool

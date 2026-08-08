@@ -6,8 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
+    {{-- YouTube 埋め込みは Referer 必須（no-referrer / same-origin だと映像が落ちることがある） --}}
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>{{ __('動画') }} - {{ config('app.name') }}</title>
-    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ @filemtime(public_path('app.css')) ?: time() }}" />
+    @include('partials.app-css')
   </head>
   <body class="media-player-page video-page">
     @include('partials.header', ['active' => 'video'])
@@ -95,7 +97,7 @@
             id="youtube-player"
             class="media-youtube-el"
             title="YouTube"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowfullscreen
             referrerpolicy="strict-origin-when-cross-origin"
           ></iframe>
@@ -268,8 +270,19 @@
           if (titleEl) titleEl.textContent = title || ''
           if (metaEl) metaEl.textContent = meta || ''
           if (youtube && embedUrl) {
-            const join = embedUrl.includes('?') ? '&' : '?'
-            youtube.src = embedUrl + join + 'autoplay=1'
+            try {
+              const u = new URL(embedUrl, window.location.origin)
+              u.searchParams.set('autoplay', '1')
+              u.searchParams.set('playsinline', '1')
+              u.searchParams.set('rel', '0')
+              if (!u.searchParams.get('origin')) {
+                u.searchParams.set('origin', window.location.origin)
+              }
+              youtube.src = u.toString()
+            } catch (_) {
+              const join = embedUrl.includes('?') ? '&' : '?'
+              youtube.src = embedUrl + join + 'autoplay=1&playsinline=1&origin=' + encodeURIComponent(window.location.origin)
+            }
           }
         }
 

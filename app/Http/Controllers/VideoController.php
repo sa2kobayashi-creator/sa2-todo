@@ -34,12 +34,12 @@ class VideoController extends Controller
             $playlist[] = $item;
         }
 
-        $uploads = $this->photos->listVideos($userId);
-        $uploadCount = count($uploads);
+        // 件数は常に COUNT。一覧はマイリスト時のみ（全写真ロードはしない）
+        $uploadCount = $this->photos->countVideosForUser($userId);
 
         // アップロード動画はマイリスト（デフォルト）にのみ表示
-        if (! empty($current['isDefault'])) {
-            foreach ($uploads as $video) {
+        if (! empty($current['isDefault']) && $uploadCount > 0) {
+            foreach ($this->photos->listVideos($userId) as $video) {
                 $playlist[] = [
                     'id' => $video['id'],
                     'source' => 'upload',

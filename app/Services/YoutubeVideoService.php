@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class YoutubeVideoService
 {
+    /** @var array<int, VideoLibrary> */
+    private array $defaultLibraryCache = [];
+
     public function configRow(): MediaStorageSetting
     {
         return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
@@ -203,7 +206,7 @@ class YoutubeVideoService
                 'description' => mb_substr(trim((string) ($snippet['description'] ?? '')), 0, 240),
                 'thumbUrl' => $thumb,
                 'url' => 'https://www.youtube.com/watch?v='.$videoId,
-                'embedUrl' => 'https://www.youtube.com/embed/'.$videoId.'?rel=0&modestbranding=1',
+                'embedUrl' => $this->embedUrlFor($videoId),
                 'publishedAt' => $published !== '' ? substr($published, 0, 10) : '',
             ];
         }
@@ -237,17 +240,27 @@ class YoutubeVideoService
 
     public function ensureDefaultLibrary(int $userId): VideoLibrary
     {
+        if (isset($this->defaultLibraryCache[$userId])) {
+            return $this->defaultLibraryCache[$userId];
+        }
+
         $existing = VideoLibrary::query()
             ->where('user_id', $userId)
             ->where('is_default', true)
             ->first();
         if ($existing) {
-            YoutubeVideo::query()
+            $hasOrphans = YoutubeVideo::query()
                 ->where('user_id', $userId)
                 ->whereNull('video_library_id')
-                ->update(['video_library_id' => $existing->id]);
+                ->exists();
+            if ($hasOrphans) {
+                YoutubeVideo::query()
+                    ->where('user_id', $userId)
+                    ->whereNull('video_library_id')
+                    ->update(['video_library_id' => $existing->id]);
+            }
 
-            return $existing;
+            return $this->defaultLibraryCache[$userId] = $existing;
         }
 
         $library = VideoLibrary::query()->create([
@@ -262,7 +275,7 @@ class YoutubeVideoService
             ->whereNull('video_library_id')
             ->update(['video_library_id' => $library->id]);
 
-        return $library;
+        return $this->defaultLibraryCache[$userId] = $library;
     }
 
     public function findOwnedLibrary(int $userId, int $id): ?VideoLibrary
@@ -586,11 +599,27 @@ class YoutubeVideoService
             'youtubeId' => $video->youtube_id,
             'title' => $video->title ?: __('YouTube動画'),
             'url' => $video->url,
-            'embedUrl' => 'https://www.youtube.com/embed/'.$video->youtube_id.'?rel=0&modestbranding=1',
+            'embedUrl' => $this->embedUrlFor((string) $video->youtube_id),
             'thumbUrl' => $video->thumbnail_url
                 ?: 'https://i.ytimg.com/vi/'.$video->youtube_id.'/hqdefault.jpg',
             'createdAt' => $video->created_at?->format('Y-m-d H:i'),
         ];
+    }
+
+    public function embedUrlFor(string $youtubeId): string
+    {
+        $params = [
+            'rel' => '0',
+            'modestbranding' => '1',
+            'playsinline' => '1',
+            'enablejsapi' => '1',
+        ];
+        $origin = rtrim((string) config('app.url', ''), '/');
+        if ($origin !== '' && preg_match('#^https?://#i', $origin)) {
+            $params['origin'] = $origin;
+        }
+
+        return 'https://www.youtube.com/embed/'.$youtubeId.'?'.http_build_query($params);
     }
 
     private function resolveTitle(?string $input, ?string $oembed, string $youtubeId): string

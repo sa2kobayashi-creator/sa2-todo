@@ -107,20 +107,35 @@ class PhotoService
     /**
      * 端末によっては MIME が octet-stream で保存されているので、拡張子でも数える。
      * isVideoMime() の判定を SQL に写したもの。
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>  $query
      */
+    private function constrainQueryToVideos($query): void
+    {
+        $query->where(function ($q) {
+            foreach (self::ALLOWED_VIDEO_MIMES as $mime) {
+                $q->orWhere('mime', 'like', $mime.'%');
+            }
+            $q->orWhere('mime', 'application/mp4')
+                ->orWhere('mime', 'application/quicktime');
+            foreach (self::ALLOWED_VIDEO_EXTENSIONS as $ext) {
+                $q->orWhere('path', 'like', '%.'.$ext)
+                    ->orWhere('original_name', 'like', '%.'.$ext);
+            }
+        });
+    }
+
+    public function countVideosForUser(int $userId): int
+    {
+        $query = Photo::query()->where('user_id', $userId);
+        $this->constrainQueryToVideos($query);
+
+        return (int) $query->count();
+    }
+
     private function videoCountForUser(int $userId): int
     {
-        return (int) Photo::query()
-            ->where('user_id', $userId)
-            ->where(function ($q) {
-                foreach (self::ALLOWED_VIDEO_MIMES as $mime) {
-                    $q->orWhere('mime', 'like', $mime.'%');
-                }
-                foreach (self::ALLOWED_VIDEO_EXTENSIONS as $ext) {
-                    $q->orWhere('path', 'like', '%.'.$ext);
-                }
-            })
-            ->count();
+        return $this->countVideosForUser($userId);
     }
 
     public function userQuotaBytes(): int
@@ -990,13 +1005,26 @@ class PhotoService
         return null;
     }
 
-    /** @return list<array<string, mixed>> */
-    public function listVideos(int $userId): array
+    /**
+     * 動画のみを SQL で取得する（全写真を読んでフィルタしない）。
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listVideos(int $userId, ?int $limit = null): array
     {
-        return array_values(array_filter(
-            $this->listPhotos($userId),
-            static fn (array $photo): bool => ($photo['mediaKind'] ?? '') === 'video'
-        ));
+        $query = Photo::query()
+            ->where('user_id', $userId)
+            ->orderByDesc('taken_at')
+            ->orderByDesc('id');
+        $this->constrainQueryToVideos($query);
+        if ($limit !== null && $limit > 0) {
+            $query->limit($limit);
+        }
+
+        return $query
+            ->get()
+            ->map(fn (Photo $photo) => $this->photoToArray($photo, $userId))
+            ->all();
     }
 
     /**
