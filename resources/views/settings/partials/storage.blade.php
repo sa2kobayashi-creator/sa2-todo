@@ -179,45 +179,6 @@
   </form>
 </div>
 
-<div class="panel storage-settings" id="storage-cloudinary">
-  <h2>Cloudinary</h2>
-  <p class="hint">{{ __('画像編集（Media Editor）専用です。編集開始時だけ一時アップロードし、保存後に Cloudinary から削除します。') }}</p>
-  @if(!empty($cloudinary['last_test_message']))
-    <p class="hint storage-test-result {{ ($cloudinary['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
-      {{ ($cloudinary['last_tested_at'] ?? '') }} — {{ $cloudinary['last_test_message'] }}
-    </p>
-  @endif
-  <form method="post" action="/settings/storage/cloudinary" class="storage-provider-form" data-provider="cloudinary">
-    @csrf
-    <label class="storage-enable">
-      <input type="checkbox" name="enabled" value="1" @checked(!empty($cloudinary['enabled'])) />
-      {{ __('Cloudinary を有効にする') }}
-    </label>
-    <label class="storage-enable">
-      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($cSettings['allow_paid_overage'])) />
-      {{ __('有料枠（無料枠超過）を許可する') }}
-    </label>
-    <p class="hint">{{ __('オンにすると、製品無料枠を超えても追加できます。いずれかのストレージでオンなら全体で解除されます。') }}</p>
-    <label>Cloud name
-      <input type="text" name="cloud_name" value="{{ $cSettings['cloud_name'] ?? '' }}" autocomplete="off" />
-    </label>
-    <label>API Key
-      <input type="password" name="api_key" autocomplete="off" placeholder="{{ !empty($cloudinary['hasSecrets']['api_key']) ? '••••••••' : '' }}" />
-    </label>
-    <label>API Secret
-      <input type="password" name="api_secret" autocomplete="off" placeholder="{{ !empty($cloudinary['hasSecrets']['api_secret']) ? '••••••••' : '' }}" />
-    </label>
-    <label>{{ __('フォルダ') }}
-      <input type="text" name="folder" value="{{ $cSettings['folder'] ?? 'sa2todo' }}" />
-    </label>
-    <div class="storage-form-actions">
-      <button type="submit" class="button-link">{{ __('保存') }}</button>
-      <button type="button" class="secondary storage-test-btn" data-provider="cloudinary">{{ __('接続テスト') }}</button>
-      <span class="storage-test-live hint" data-test-live="cloudinary"></span>
-    </div>
-  </form>
-</div>
-
 <div class="panel storage-settings" id="storage-backblaze">
   <h2>Backblaze B2</h2>
   <p class="hint">{{ __('長期保存用です。S3 互換の Endpoint（例: https://s3.us-west-004.backblazeb2.com）を入力してください。パイプラインで自動アーカイブを有効にすると、指定日数を過ぎた原本をここへ移動します（サムネは高速表示のためホット側に残します）。') }}</p>
@@ -263,6 +224,45 @@
       <button type="submit" class="button-link">{{ __('保存') }}</button>
       <button type="button" class="secondary storage-test-btn" data-provider="backblaze">{{ __('接続テスト') }}</button>
       <span class="storage-test-live hint" data-test-live="backblaze"></span>
+    </div>
+  </form>
+</div>
+
+<div class="panel storage-settings" id="storage-cloudinary">
+  <h2>Cloudinary</h2>
+  <p class="hint">{{ __('画像編集（Media Editor）専用です。編集開始時だけ一時アップロードし、保存後に Cloudinary から削除します。') }}</p>
+  @if(!empty($cloudinary['last_test_message']))
+    <p class="hint storage-test-result {{ ($cloudinary['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
+      {{ ($cloudinary['last_tested_at'] ?? '') }} — {{ $cloudinary['last_test_message'] }}
+    </p>
+  @endif
+  <form method="post" action="/settings/storage/cloudinary" class="storage-provider-form" data-provider="cloudinary">
+    @csrf
+    <label class="storage-enable">
+      <input type="checkbox" name="enabled" value="1" @checked(!empty($cloudinary['enabled'])) />
+      {{ __('Cloudinary を有効にする') }}
+    </label>
+    <label class="storage-enable">
+      <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($cSettings['allow_paid_overage'])) />
+      {{ __('有料枠（無料枠超過）を許可する') }}
+    </label>
+    <p class="hint">{{ __('オンにすると、製品無料枠を超えても追加できます。いずれかのストレージでオンなら全体で解除されます。') }}</p>
+    <label>Cloud name
+      <input type="text" name="cloud_name" value="{{ $cSettings['cloud_name'] ?? '' }}" autocomplete="off" />
+    </label>
+    <label>API Key
+      <input type="password" name="api_key" autocomplete="off" placeholder="{{ !empty($cloudinary['hasSecrets']['api_key']) ? '••••••••' : '' }}" />
+    </label>
+    <label>API Secret
+      <input type="password" name="api_secret" autocomplete="off" placeholder="{{ !empty($cloudinary['hasSecrets']['api_secret']) ? '••••••••' : '' }}" />
+    </label>
+    <label>{{ __('フォルダ') }}
+      <input type="text" name="folder" value="{{ $cSettings['folder'] ?? 'sa2todo' }}" />
+    </label>
+    <div class="storage-form-actions">
+      <button type="submit" class="button-link">{{ __('保存') }}</button>
+      <button type="button" class="secondary storage-test-btn" data-provider="cloudinary">{{ __('接続テスト') }}</button>
+      <span class="storage-test-live hint" data-test-live="cloudinary"></span>
     </div>
   </form>
 </div>
