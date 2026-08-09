@@ -328,6 +328,54 @@ class BulkActionsAndPagesTest extends TestCase
         $library->assertSee(__('アルバム含む'), false);
     }
 
+    public function test_photos_library_scope_excludes_hidden_album_photos(): void
+    {
+        $visibleAlbum = PhotoAlbum::create([
+            'user_id' => $this->user->id,
+            'name' => 'Visible Album',
+            'sort_order' => 1,
+            'is_hidden' => false,
+        ]);
+        $hiddenAlbum = PhotoAlbum::create([
+            'user_id' => $this->user->id,
+            'name' => 'Hidden Album',
+            'sort_order' => 2,
+            'is_hidden' => true,
+        ]);
+
+        Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => $visibleAlbum->id,
+            'path' => 'photos/visible-album.jpg',
+            'thumb_path' => 'photos/visible-album-thumb.jpg',
+            'original_name' => 'visible-album.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+        ]);
+        Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => $hiddenAlbum->id,
+            'path' => 'photos/secret-album.jpg',
+            'thumb_path' => 'photos/secret-album-thumb.jpg',
+            'original_name' => 'secret-album.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 2,
+            'taken_at' => now(),
+        ]);
+
+        $library = $this->actingAs($this->user)->get('/photos?scope=library');
+        $library->assertOk();
+        $library->assertSee('visible-album.jpg', false);
+        $this->assertStringNotContainsString('secret-album.jpg', $library->getContent());
+    }
+
     public function test_photos_bulk_archive_and_restore(): void
     {
         $photo = Photo::create([

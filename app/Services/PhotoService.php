@@ -816,7 +816,7 @@ class PhotoService
     /**
      * ルート表示の所属範囲。
      * - loose: アルバム未所属のみ（既定）
-     * - library: アルバム所属も含む（アーカイブ除外は library=active 側）
+     * - library: 非隠しアルバム所属も含む（隠しアルバム内はルートに出さない）
      *
      * @param  'loose'|'library'  $scope
      */
@@ -827,7 +827,17 @@ class PhotoService
         }
         if ($scope !== 'library') {
             $query->whereNull('album_id');
+
+            return $query;
         }
+
+        // アルバム含む: 未所属 + 非隠しアルバムのみ（隠しアルバムはアルバム画面からのみ）
+        $query->where(function ($q) {
+            $q->whereNull('album_id')
+                ->orWhereHas('album', function ($albumQ) {
+                    $albumQ->where('is_hidden', false);
+                });
+        });
 
         return $query;
     }
