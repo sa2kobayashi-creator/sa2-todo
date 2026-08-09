@@ -369,7 +369,7 @@
                   @foreach($week as $cell)
                     @php
                       $cellNotes = $cell['notes'] ?? [];
-                      $cellData = $limitTodosForCell($cell['todos'] ?? [], 6);
+                      $cellData = $limitTodosForCell($cell['todos'] ?? [], 10);
                       $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
                       $eventCount = count($cell['todos'] ?? []);
                     @endphp
@@ -418,7 +418,7 @@
                             draggable="{{ $isRemoteGoogle ? 'false' : 'true' }}"
                             data-todo-id="{{ $todo['id'] }}"
                           >
-                            <span class="event-title">{{ $truncateTitle($todo['title'], 18) }}</span>
+                            <span class="event-title">{{ $todo['title'] ?? '' }}</span>
                             @if(!empty($todo['googleMeetLink']))
                               <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
                             @endif

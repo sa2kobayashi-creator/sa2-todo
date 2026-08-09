@@ -98,7 +98,7 @@
               @foreach($week as $cell)
                 @php
                   $cellNotes = $cell['notes'] ?? [];
-                  $cellData = $limitTodosForCell($cell['todos'] ?? [], 6);
+                  $cellData = $limitTodosForCell($cell['todos'] ?? [], 10);
                   $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
                 @endphp
                 <div
@@ -154,7 +154,7 @@
                         data-tip-time="{{ $chipTimeLabel }}"
                         @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
                       >
-                        <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                        <span class="event-title">{{ $todo['title'] }}</span>
                         @if(!empty($todo['googleMeetLink']))
                           <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
                         @endif
@@ -191,7 +191,7 @@
                         data-tip-time="{{ $chipTimeLabelMobile }}"
                         @if(!empty($todo['googleMeetLink'])) data-tip-meet="{{ $todo['googleMeetLink'] }}" @endif
                       >
-                        <span class="event-title">{{ $truncateTitle($todo['title']) }}</span>
+                        <span class="event-title">{{ $todo['title'] }}</span>
                         @if(!empty($todo['googleMeetLink']))
                           <span class="event-meet-badge" aria-label="Google Meet">Meet</span>
                         @endif
