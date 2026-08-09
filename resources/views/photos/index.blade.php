@@ -760,10 +760,22 @@
             <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'list' ? ' is-active' : '' }}" data-photos-mode="list" aria-pressed="{{ $initialPhotosMode === 'list' ? 'true' : 'false' }}">{{ __('一覧') }}</button>
             <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'archive' ? ' is-active' : '' }}" data-photos-mode="archive" aria-pressed="{{ $initialPhotosMode === 'archive' ? 'true' : 'false' }}">{{ __('アーカイブ') }}</button>
           </div>
-          <div class="photos-mode-toggle photos-mode-toggle-kind photos-ops-full-only" role="group" aria-label="{{ __('フィルター') }}">
-            <button type="button" class="photos-mode-btn is-active" data-photos-kind="all" aria-pressed="true">{{ __('すべて') }}</button>
-            <button type="button" class="photos-mode-btn" data-photos-kind="image" aria-pressed="false">{{ __('写真') }}</button>
-            <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
+          <div class="photos-kind-filter-row photos-ops-full-only">
+            <div class="photos-mode-toggle photos-mode-toggle-kind" role="group" aria-label="{{ __('フィルター') }}">
+              <button type="button" class="photos-mode-btn is-active" data-photos-kind="all" aria-pressed="true">{{ __('すべて') }}</button>
+              <button type="button" class="photos-mode-btn" data-photos-kind="image" aria-pressed="false">{{ __('写真') }}</button>
+              <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
+            </div>
+            @if(empty($selectedAlbumId) && ($photosLibrary ?? 'active') !== 'archived')
+              @php $photosScope = ($photosScope ?? 'loose') === 'library' ? 'library' : 'loose'; @endphp
+              <label class="photos-kind-scope-wrap" id="photos-kind-scope-wrap">
+                <span class="visually-hidden">{{ __('すべて（表示範囲）') }}</span>
+                <select id="photos-scope-select" class="photos-kind-scope-select" aria-label="{{ __('すべて（表示範囲）') }}">
+                  <option value="loose" @selected($photosScope === 'loose')>{{ __('アルバム以外') }}</option>
+                  <option value="library" @selected($photosScope === 'library')>{{ __('アルバム含む') }}</option>
+                </select>
+              </label>
+            @endif
           </div>
           <label class="photos-toolbar-select photos-ops-full-only">
             <span class="visually-hidden">{{ __('並び替え') }}</span>
@@ -2212,6 +2224,8 @@
           return takenAtHintFromFile(file)
         }
 
+        const photosScopeSelect = document.getElementById('photos-scope-select')
+
         function applyPhotosListQuery(patch = {}) {
           if (pageJob?.isBusy() && !pageJob.requestLeave()) return
           const url = new URL(window.location.href)
@@ -2220,18 +2234,26 @@
             sort: photosSortSelect?.value || 'taken_desc',
             year: photosYearSelect?.value || '',
             library: url.searchParams.get('library') === 'archived' ? 'archived' : 'active',
+            scope: photosScopeSelect?.value === 'library' ? 'library' : 'loose',
             ...patch,
           }
-          ;['album', 'sort', 'year', 'library'].forEach((key) => url.searchParams.delete(key))
+          ;['album', 'sort', 'year', 'library', 'scope'].forEach((key) => url.searchParams.delete(key))
           if (next.album) url.searchParams.set('album', next.album)
           if (next.sort && next.sort !== 'taken_desc') url.searchParams.set('sort', next.sort)
           if (next.year) url.searchParams.set('year', next.year)
           if (next.library === 'archived') url.searchParams.set('library', 'archived')
+          // ルートの既定は loose（クエリ省略）。library のときだけ明示
+          if (!next.album && next.library !== 'archived' && next.scope === 'library') {
+            url.searchParams.set('scope', 'library')
+          }
           window.location.assign(url.pathname + url.search + url.hash)
         }
 
         photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
+        photosScopeSelect?.addEventListener('change', () => {
+          applyPhotosListQuery({ scope: photosScopeSelect.value === 'library' ? 'library' : 'loose' })
+        })
 
         const SUPPORTED_VIDEO_EXT = /\.(mp4|mov|avi)$/i
         const SUPPORTED_VIDEO_MIME = /^(video\/(mp4|quicktime|x-msvideo|avi|msvideo)|application\/mp4)$/i

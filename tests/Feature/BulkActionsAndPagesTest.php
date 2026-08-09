@@ -278,6 +278,56 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertDatabaseHas('photos', ['id' => $photoKeep->id]);
     }
 
+    public function test_photos_root_scope_hides_album_photos_by_default(): void
+    {
+        $album = PhotoAlbum::create([
+            'user_id' => $this->user->id,
+            'name' => 'Scoped Album',
+            'sort_order' => 1,
+        ]);
+
+        Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => null,
+            'path' => 'photos/loose-only.jpg',
+            'thumb_path' => 'photos/loose-only-thumb.jpg',
+            'original_name' => 'loose-only.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+        ]);
+        Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => $album->id,
+            'path' => 'photos/in-album.jpg',
+            'thumb_path' => 'photos/in-album-thumb.jpg',
+            'original_name' => 'in-album.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 2,
+            'taken_at' => now(),
+        ]);
+
+        $loose = $this->actingAs($this->user)->get('/photos');
+        $loose->assertOk();
+        $loose->assertSee('loose-only.jpg', false);
+        $this->assertStringNotContainsString('in-album.jpg', $loose->getContent());
+        $loose->assertSee('id="photos-scope-select"', false);
+        $loose->assertSee('アルバム以外', false);
+
+        $library = $this->actingAs($this->user)->get('/photos?scope=library');
+        $library->assertOk();
+        $library->assertSee('loose-only.jpg', false);
+        $library->assertSee('in-album.jpg', false);
+        $library->assertSee('value="library"', false);
+        $library->assertSee(__('アルバム含む'), false);
+    }
+
     public function test_photos_bulk_archive_and_restore(): void
     {
         $photo = Photo::create([

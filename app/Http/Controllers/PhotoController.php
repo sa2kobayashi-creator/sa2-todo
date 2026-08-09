@@ -27,6 +27,11 @@ class PhotoController extends Controller
             $sort = 'taken_desc';
         }
         $library = $request->query('library') === 'archived' ? 'archived' : 'active';
+        // ルート（アルバム未選択）: loose=アルバム外のみ（既定） / library=アーカイブ以外すべて
+        $scope = $request->query('scope') === 'library' ? 'library' : 'loose';
+        if ($albumId !== null || $library === 'archived') {
+            $scope = 'library';
+        }
         $revealHidden = (bool) session('photos_reveal_hidden_'.$userId, false);
         $albums = $this->photos->listAlbums($userId, $revealHidden);
         $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
@@ -49,8 +54,8 @@ class PhotoController extends Controller
             ? (int) $yearRaw
             : null;
 
-        $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId, $library);
-        $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library);
+        $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId, $library, $scope);
+        $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library, $scope);
         $autoYearScoped = false;
         $autoYearThreshold = 120;
         if (! $albumLocked && ! $explicitAllYears && $year === null && $totalInScope > $autoYearThreshold && $photoYears !== []) {
@@ -58,7 +63,7 @@ class PhotoController extends Controller
             $autoYearScoped = true;
         }
 
-        $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year, null, $library);
+        $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year, null, $library, $scope);
         $photosForJs = array_map(static function (array $p): array {
             return [
                 'id' => $p['id'] ?? null,
@@ -98,6 +103,9 @@ class PhotoController extends Controller
         if ($library === 'archived') {
             $queryBase['library'] = 'archived';
         }
+        if ($albumId === null && $library === 'active' && $scope === 'library') {
+            $queryBase['scope'] = 'library';
+        }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
         $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);
 
@@ -115,6 +123,7 @@ class PhotoController extends Controller
             'photosYearAutoScoped' => $autoYearScoped,
             'photosTotalInScope' => $totalInScope,
             'photosLibrary' => $library,
+            'photosScope' => $scope,
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
             'albumLocked' => $albumLocked,

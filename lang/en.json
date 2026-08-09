@@ -2295,5 +2295,8 @@
     "＋ 加算": "+ Add",
     "＋ 口座を追加": "+ Add account",
     "＋ 登録": "+ Add",
-    "－ 減算": "- Subtract"
+    "－ 減算": "- Subtract",
+    "すべて（表示範囲）": "All (scope)",
+    "アルバム以外": "Outside albums",
+    "アルバム含む": "Including albums"
 }

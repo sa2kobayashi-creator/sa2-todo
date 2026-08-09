@@ -813,9 +813,32 @@ class PhotoService
         return $query;
     }
 
-    /** 年フィルタ用。全件ロードせず DISTINCT で取得する。 @return list<int> */
-    public function listPhotoYears(int $userId, ?int $albumId = null, string $library = 'active'): array
+    /**
+     * ルート表示の所属範囲。
+     * - loose: アルバム未所属のみ（既定）
+     * - library: アルバム所属も含む（アーカイブ除外は library=active 側）
+     *
+     * @param  'loose'|'library'  $scope
+     */
+    private function applyRootAlbumScope($query, ?int $albumId, string $scope)
     {
+        if ($albumId !== null) {
+            return $query;
+        }
+        if ($scope !== 'library') {
+            $query->whereNull('album_id');
+        }
+
+        return $query;
+    }
+
+    /** 年フィルタ用。全件ロードせず DISTINCT で取得する。 @return list<int> */
+    public function listPhotoYears(
+        int $userId,
+        ?int $albumId = null,
+        string $library = 'active',
+        string $scope = 'loose',
+    ): array {
         $query = Photo::query();
         if ($albumId !== null) {
             $album = $this->findViewableAlbum($userId, $albumId);
@@ -827,6 +850,7 @@ class PhotoService
             $query->where('user_id', $userId);
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
+        $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);
 
         $driver = $query->getConnection()->getDriverName();
         $yearExpr = match ($driver) {
@@ -846,8 +870,12 @@ class PhotoService
             ->all();
     }
 
-    public function countPhotos(int $userId, ?int $albumId = null, string $library = 'active'): int
-    {
+    public function countPhotos(
+        int $userId,
+        ?int $albumId = null,
+        string $library = 'active',
+        string $scope = 'loose',
+    ): int {
         $query = Photo::query();
         if ($albumId !== null) {
             $album = $this->findViewableAlbum($userId, $albumId);
@@ -859,6 +887,7 @@ class PhotoService
             $query->where('user_id', $userId);
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
+        $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);
 
         return (int) $query->count();
     }
@@ -871,6 +900,7 @@ class PhotoService
         ?int $year = null,
         ?int $limit = null,
         string $library = 'active',
+        string $scope = 'loose',
     ): array {
         $query = Photo::query();
         if ($albumId !== null) {
@@ -883,6 +913,7 @@ class PhotoService
             $query->where('user_id', $userId);
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
+        $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);
 
         if ($year !== null && $year >= 1970 && $year <= 2100) {
             $query->whereYear('taken_at', $year);
