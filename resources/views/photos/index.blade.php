@@ -97,7 +97,20 @@
               directory
               multiple
             />
-            <button type="button" class="photos-secondary-btn" id="photos-folder-watch-btn" hidden>{{ __('フォルダを監視') }}</button>
+            <button
+              type="button"
+              class="photos-secondary-btn"
+              id="photos-folder-watch-btn"
+              hidden
+              title="{{ __('任意のフォルダを選び、あとから入った写真・動画を自動追加します（PCの Chrome など）') }}"
+            >{{ __('フォルダを監視') }}</button>
+            <button
+              type="button"
+              class="photos-secondary-btn"
+              id="photos-gallery-watch-btn"
+              hidden
+              title="{{ __('端末のギャラリー（Pictures）フォルダを監視し、新規を自動追加します。通常の1回追加は「写真・動画を追加」から。') }}"
+            >{{ __('ギャラリーを監視') }}</button>
             <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
             <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
@@ -1904,6 +1917,7 @@
         const cameraInput = document.getElementById('photos-camera-input')
         const cameraVideoInput = document.getElementById('photos-camera-video-input')
         const folderWatchBtn = document.getElementById('photos-folder-watch-btn')
+        const galleryWatchBtn = document.getElementById('photos-gallery-watch-btn')
         const folderWatchStop = document.getElementById('photos-folder-watch-stop')
         const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
@@ -2093,6 +2107,17 @@
           seen: new Set(),
           added: 0,
           name: '',
+          kind: 'folder', // 'folder' | 'gallery'
+        }
+
+        function canUseDirectoryWatch() {
+          return typeof window.showDirectoryPicker === 'function'
+        }
+
+        function setDirectoryWatchButtonsVisible(visible) {
+          const show = !!visible && canUseDirectoryWatch()
+          if (folderWatchBtn) folderWatchBtn.hidden = !show
+          if (galleryWatchBtn) galleryWatchBtn.hidden = !show
         }
 
         const takeoutTakenAtByFile = new WeakMap()
@@ -2851,7 +2876,8 @@
             folderWatch.timer = null
           }
           folderWatch.handle = null
-          if (folderWatchBtn) folderWatchBtn.hidden = !(typeof window.showDirectoryPicker === 'function')
+          folderWatch.kind = 'folder'
+          setDirectoryWatchButtonsVisible(true)
           if (folderWatchStop) folderWatchStop.hidden = true
           setFolderWatchStatus('', false)
         }
@@ -2907,12 +2933,12 @@
                 if (next !== 'granted') {
                   setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')));
                   stopFolderWatch()
-                  if (folderWatchBtn) folderWatchBtn.hidden = false
                   return
                 }
               }
             }
-            const newcomers = await collectNewFilesFromDir(folderWatch.handle, { markSeen: false })
+            const maxDepth = folderWatch.kind === 'gallery' ? 6 : 4
+            const newcomers = await collectNewFilesFromDir(folderWatch.handle, { markSeen: false, maxDepth })
             if (!newcomers.length) {
               setFolderWatchStatus(
                 @json(__('監視中: :name（追加 :count 件）'))
@@ -2940,22 +2966,41 @@
           }
         }
 
-        async function startFolderWatch() {
-          if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」を使ってください。')));
+        /**
+         * @param {{ startIn?: string, kind?: 'folder'|'gallery' }} [options]
+         * kind=gallery は Pictures 起点。端末のギャラリーフォルダを選んでもらう。
+         */
+        async function startFolderWatch(options = {}) {
+          if (!canUseDirectoryWatch()) {
+            window.alert(@json(__('このブラウザではフォルダ／ギャラリー監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」→「ギャラリーから選ぶ」を使ってください。')));
             return
           }
+          const kind = options.kind === 'gallery' ? 'gallery' : 'folder'
+          const pickerOpts = { mode: 'read' }
+          if (kind === 'gallery') {
+            // よくあるギャラリー置き場へ誘導（ユーザーが別フォルダを選んでもよい）
+            pickerOpts.startIn = options.startIn || 'pictures'
+          } else if (options.startIn) {
+            pickerOpts.startIn = options.startIn
+          }
           try {
-            const handle = await window.showDirectoryPicker({ mode: 'read' })
+            const handle = await window.showDirectoryPicker(pickerOpts)
             folderWatch.handle = handle
-            folderWatch.name = handle.name || 'folder'
+            folderWatch.kind = kind
+            folderWatch.name = kind === 'gallery'
+              ? (handle.name || @json(__('ギャラリー')))
+              : (handle.name || 'folder')
             folderWatch.added = 0
             folderWatch.seen = new Set()
-            await collectNewFilesFromDir(handle, { markSeen: true })
-            if (folderWatchBtn) folderWatchBtn.hidden = true
+            // ギャラリーは Camera / Screenshots など直下が浅いことが多い
+            const maxDepth = kind === 'gallery' ? 6 : 4
+            await collectNewFilesFromDir(handle, { markSeen: true, maxDepth })
+            setDirectoryWatchButtonsVisible(false)
             if (folderWatchStop) folderWatchStop.hidden = false
             setFolderWatchStatus(
-              @json(__('監視中: :name（サブフォルダ含む・追加 :count 件）'))
+              (kind === 'gallery'
+                ? @json(__('ギャラリー監視中: :name（サブフォルダ含む・追加 :count 件）'))
+                : @json(__('監視中: :name（サブフォルダ含む・追加 :count 件）')))
                 .replace(':name', folderWatch.name)
                 .replace(':count', '0')
             )
@@ -2964,7 +3009,11 @@
             void pollFolderWatch()
           } catch (err) {
             if (err && err.name === 'AbortError') return
-            window.alert(@json(__('フォルダを開けませんでした。')))
+            window.alert(
+              kind === 'gallery'
+                ? @json(__('ギャラリーフォルダを開けませんでした。Pictures や DCIM を選んでください。'))
+                : @json(__('フォルダを開けませんでした。'))
+            )
           }
         }
 
@@ -3419,15 +3468,13 @@
           setUploadProgress(@json(__('写真・動画を追加')))
         })
 
-        if (typeof window.showDirectoryPicker === 'function' && folderWatchBtn) {
-          folderWatchBtn.hidden = false
-          folderWatchBtn.addEventListener('click', () => { void startFolderWatch() })
+        if (canUseDirectoryWatch()) {
+          setDirectoryWatchButtonsVisible(true)
+          folderWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'folder' }) })
+          galleryWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'gallery', startIn: 'pictures' }) })
         }
         folderWatchStop?.addEventListener('click', () => {
           stopFolderWatch()
-          if (folderWatchBtn && typeof window.showDirectoryPicker === 'function') {
-            folderWatchBtn.hidden = false
-          }
           setUploadProgress(@json(__('写真・動画を追加')))
         })
 
