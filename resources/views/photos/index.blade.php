@@ -2966,10 +2966,8 @@
           }
         }
 
-        /**
-         * @param {{ startIn?: string, kind?: 'folder'|'gallery' }} [options]
-         * kind=gallery は Pictures 起点。端末のギャラリーフォルダを選んでもらう。
-         */
+        // options.kind: 'folder' | 'gallery'（gallery は Pictures 起点）
+        // options.startIn: showDirectoryPicker の startIn（任意）
         async function startFolderWatch(options = {}) {
           if (!canUseDirectoryWatch()) {
             window.alert(@json(__('このブラウザではフォルダ／ギャラリー監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」→「ギャラリーから選ぶ」を使ってください。')));
