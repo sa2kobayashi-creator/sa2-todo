@@ -8,6 +8,7 @@ use App\Models\PhotoAlbum;
 use App\Models\Todo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -327,5 +328,24 @@ class BulkActionsAndPagesTest extends TestCase
         $this->post('/photos/bulk/move', ['ids' => [1], 'album_id' => 1])->assertRedirect('/login');
         $this->post('/photos/bulk/archive', ['ids' => [1]])->assertRedirect('/login');
         $this->post('/photos/bulk/restore', ['ids' => [1]])->assertRedirect('/login');
+    }
+
+    public function test_photos_upload_succeeds_when_gd_full_decode_is_skipped(): void
+    {
+        // 超高解像度スマホ写真は GD フルデコードを避けて保存する（OOM 防止）
+        config(['photos.gd_max_source_pixels' => 1]);
+
+        $this->actingAs($this->user)
+            ->post('/photos', [
+                'photos' => [UploadedFile::fake()->image('hd-phone.jpg', 640, 480)],
+                'allow_duplicates' => 1,
+                'returnTo' => '/photos',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('photos', [
+            'user_id' => $this->user->id,
+            'original_name' => 'hd-phone.jpg',
+        ]);
     }
 }

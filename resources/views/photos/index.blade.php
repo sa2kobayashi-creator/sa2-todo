@@ -97,22 +97,23 @@
               directory
               multiple
             />
+            {{-- PC専用: File System Access API。スマホのカメラロール監視ではない（スマホは「ギャラリーから選ぶ」） --}}
             <button
               type="button"
-              class="photos-secondary-btn"
+              class="photos-secondary-btn photos-dir-watch-only"
               id="photos-folder-watch-btn"
               hidden
-              title="{{ __('任意のフォルダを選び、あとから入った写真・動画を自動追加します（PCの Chrome など）') }}"
-            >{{ __('フォルダを監視') }}</button>
+              title="{{ __('【PC専用】任意のフォルダを選び、あとから入った写真・動画を自動追加します（Chrome など）') }}"
+            >{{ __('フォルダ監視（PC）') }}</button>
             <button
               type="button"
-              class="photos-secondary-btn"
+              class="photos-secondary-btn photos-dir-watch-only"
               id="photos-gallery-watch-btn"
               hidden
-              title="{{ __('端末のギャラリー（Pictures）フォルダを監視し、新規を自動追加します。通常の1回追加は「写真・動画を追加」から。') }}"
-            >{{ __('ギャラリーを監視') }}</button>
-            <button type="button" class="photos-secondary-btn" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
-            <span class="photos-folder-watch-status" id="photos-folder-watch-status" hidden></span>
+              title="{{ __('【PC専用】Windows の Pictures などPC上のフォルダを監視します。スマホのギャラリー（カメラロール）ではありません。') }}"
+            >{{ __('Pictures監視（PC）') }}</button>
+            <button type="button" class="photos-secondary-btn photos-dir-watch-only" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
+            <span class="photos-folder-watch-status photos-dir-watch-only" id="photos-folder-watch-status" hidden></span>
             <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
           @endif
           <div class="photos-hero-album-actions">
@@ -199,6 +200,7 @@
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-folders">{{ __('フォルダごとアルバムにする') }}</button>
           <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('親フォルダを選ぶと、その直下のフォルダ1つが1アルバムになります。複数のフォルダをこの画面にドラッグ＆ドロップしても同じです。') }}</p>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('ギャラリーから選ぶ') }}</button>
+          <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('スマホのカメラロールから選ぶときはこちらです。PCの「Pictures監視」とは別機能です。') }}</p>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-video">{{ __('動画を撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-cancel">{{ __('キャンセル') }}</button>
@@ -2110,8 +2112,13 @@
           kind: 'folder', // 'folder' | 'gallery'
         }
 
+        function isPhotosMobileViewport() {
+          return window.matchMedia('(max-width: 768px)').matches
+        }
+
         function canUseDirectoryWatch() {
-          return typeof window.showDirectoryPicker === 'function'
+          // Web（PC幅）専用。スマホのカメラロール監視ではないので出さない
+          return typeof window.showDirectoryPicker === 'function' && !isPhotosMobileViewport()
         }
 
         function setDirectoryWatchButtonsVisible(visible) {
@@ -2970,7 +2977,7 @@
         // options.startIn: showDirectoryPicker の startIn（任意）
         async function startFolderWatch(options = {}) {
           if (!canUseDirectoryWatch()) {
-            window.alert(@json(__('このブラウザではフォルダ／ギャラリー監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」→「ギャラリーから選ぶ」を使ってください。')));
+            window.alert(@json(__('フォルダ監視はPC（Web）専用です。スマホでは「写真・動画を追加」→「ギャラリーから選ぶ」を使ってください。')));
             return
           }
           const kind = options.kind === 'gallery' ? 'gallery' : 'folder'
@@ -3470,7 +3477,15 @@
           setDirectoryWatchButtonsVisible(true)
           folderWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'folder' }) })
           galleryWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'gallery', startIn: 'pictures' }) })
+        } else {
+          setDirectoryWatchButtonsVisible(false)
+          if (folderWatchStop) folderWatchStop.hidden = true
+          setFolderWatchStatus('', false)
         }
+        window.addEventListener('resize', () => {
+          if (folderWatch.handle) return
+          setDirectoryWatchButtonsVisible(canUseDirectoryWatch())
+        })
         folderWatchStop?.addEventListener('click', () => {
           stopFolderWatch()
           setUploadProgress(@json(__('写真・動画を追加')))

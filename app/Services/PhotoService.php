@@ -2412,7 +2412,7 @@ class PhotoService
         }
 
         if (function_exists('ini_set')) {
-            @ini_set('memory_limit', '512M');
+            @ini_set('memory_limit', '1024M');
         }
 
         $writeDisk = Storage::disk($diskName ?: $this->diskName());
@@ -2444,41 +2444,20 @@ class PhotoService
 
         $width = null;
         $height = null;
-        $thumbPath = null;
-        $src = $this->createImageResource($sourcePath, $mime);
+        $meta = @getimagesize($sourcePath);
+        if (is_array($meta)) {
+            $width = isset($meta[0]) ? (int) $meta[0] : null;
+            $height = isset($meta[1]) ? (int) $meta[1] : null;
+        }
+
         $thumbEdge = max(240, (int) config('photos.thumb_long_edge', 720));
         $quality = max(40, min(95, (int) config('photos.jpeg_quality', 82)));
-
-        if ($src) {
-            $sw = imagesx($src);
-            $sh = imagesy($src);
-            if ($sw >= 1 && $sh >= 1) {
-                $width = $sw;
-                $height = $sh;
-                [$tw, $th] = $this->scaledSize($sw, $sh, $thumbEdge);
-                $thumb = imagecreatetruecolor($tw, $th);
-                $this->fillWhite($thumb);
-                imagecopyresampled($thumb, $src, 0, 0, 0, 0, $tw, $th, $sw, $sh);
-                $thumbTmp = tempnam(sys_get_temp_dir(), 'pht');
-                if ($thumbTmp !== false) {
-                    imagejpeg($thumb, $thumbTmp, $quality);
-                    try {
-                        // 原本が B2 でも、一覧サムネは常に主ディスク（R2）へ
-                        $this->putFileContents($thumbRel, (string) file_get_contents($thumbTmp), 'image/jpeg');
-                        $thumbPath = $thumbRel;
-                    } finally {
-                        @unlink($thumbTmp);
-                    }
-                }
-                imagedestroy($thumb);
-            }
-            imagedestroy($src);
-        } else {
-            $size = @getimagesize($sourcePath);
-            if (is_array($size)) {
-                $width = $size[0] ?? null;
-                $height = $size[1] ?? null;
-            }
+        // サムネ失敗でアップロード全体を落とさない（高解像度スマホ写真対策）
+        $thumbPath = null;
+        try {
+            $thumbPath = $this->writeImageThumbnail($sourcePath, $mime, $thumbRel, $thumbEdge, $quality, $width, $height);
+        } catch (\Throwable $e) {
+            report($e);
         }
 
         try {
@@ -2495,6 +2474,165 @@ class PhotoService
             'width' => $width,
             'height' => $height,
         ];
+    }
+
+    /**
+     * 超高解像度は GD フルデコードすると OOM するため、Imagick → EXIF サムネ → GD（安全な画素数のみ）の順で作る。
+     */
+    private function writeImageThumbnail(
+        string $sourcePath,
+        string $mime,
+        string $thumbRel,
+        int $thumbEdge,
+        int $quality,
+        ?int $width,
+        ?int $height,
+    ): ?string {
+        if ($this->writeThumbWithImagick($sourcePath, $thumbRel, $thumbEdge, $quality)) {
+            return $thumbRel;
+        }
+
+        if ($this->writeThumbFromExif($sourcePath, $thumbRel, $thumbEdge, $quality)) {
+            return $thumbRel;
+        }
+
+        $pixels = max(0, (int) $width) * max(0, (int) $height);
+        $gdMax = max(1_000_000, (int) config('photos.gd_max_source_pixels', 36_000_000));
+        if ($pixels > 0 && $pixels > $gdMax) {
+            return null;
+        }
+
+        if ($this->writeThumbWithGd($sourcePath, $mime, $thumbRel, $thumbEdge, $quality)) {
+            return $thumbRel;
+        }
+
+        return null;
+    }
+
+    private function writeThumbWithImagick(string $sourcePath, string $thumbRel, int $thumbEdge, int $quality): bool
+    {
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            return false;
+        }
+
+        try {
+            $img = new \Imagick($sourcePath);
+            if (method_exists($img, 'autoOrient')) {
+                $img->autoOrient();
+            }
+            $img->thumbnailImage($thumbEdge, $thumbEdge, true);
+            $img->setImageFormat('jpeg');
+            $img->setImageCompressionQuality($quality);
+            $blob = $img->getImageBlob();
+            $img->clear();
+            $img->destroy();
+            if (! is_string($blob) || $blob === '') {
+                return false;
+            }
+            $this->putFileContents($thumbRel, $blob, 'image/jpeg');
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    private function writeThumbFromExif(string $sourcePath, string $thumbRel, int $thumbEdge, int $quality): bool
+    {
+        if (! function_exists('exif_thumbnail')) {
+            return false;
+        }
+
+        try {
+            $tw = 0;
+            $th = 0;
+            $tt = 0;
+            $data = @exif_thumbnail($sourcePath, $tw, $th, $tt);
+            if (! is_string($data) || $data === '') {
+                return false;
+            }
+
+            $src = @imagecreatefromstring($data);
+            if ($src === false) {
+                // EXIF サムネをそのまま保存
+                $this->putFileContents($thumbRel, $data, 'image/jpeg');
+
+                return true;
+            }
+
+            $sw = imagesx($src);
+            $sh = imagesy($src);
+            if ($sw < 1 || $sh < 1) {
+                imagedestroy($src);
+
+                return false;
+            }
+
+            [$dw, $dh] = $this->scaledSize($sw, $sh, $thumbEdge);
+            $dst = imagecreatetruecolor($dw, $dh);
+            $this->fillWhite($dst);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $dw, $dh, $sw, $sh);
+            imagedestroy($src);
+            $tmp = tempnam(sys_get_temp_dir(), 'phe');
+            if ($tmp === false) {
+                imagedestroy($dst);
+
+                return false;
+            }
+            try {
+                imagejpeg($dst, $tmp, $quality);
+                $this->putFileContents($thumbRel, (string) file_get_contents($tmp), 'image/jpeg');
+            } finally {
+                imagedestroy($dst);
+                @unlink($tmp);
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    private function writeThumbWithGd(string $sourcePath, string $mime, string $thumbRel, int $thumbEdge, int $quality): bool
+    {
+        $src = $this->createImageResource($sourcePath, $mime);
+        if (! $src) {
+            return false;
+        }
+
+        try {
+            $sw = imagesx($src);
+            $sh = imagesy($src);
+            if ($sw < 1 || $sh < 1) {
+                return false;
+            }
+            [$tw, $th] = $this->scaledSize($sw, $sh, $thumbEdge);
+            $thumb = imagecreatetruecolor($tw, $th);
+            $this->fillWhite($thumb);
+            imagecopyresampled($thumb, $src, 0, 0, 0, 0, $tw, $th, $sw, $sh);
+            $thumbTmp = tempnam(sys_get_temp_dir(), 'pht');
+            if ($thumbTmp === false) {
+                imagedestroy($thumb);
+
+                return false;
+            }
+            try {
+                imagejpeg($thumb, $thumbTmp, $quality);
+                // 原本が B2 でも、一覧サムネは常に主ディスク（R2）へ
+                $this->putFileContents($thumbRel, (string) file_get_contents($thumbTmp), 'image/jpeg');
+            } finally {
+                imagedestroy($thumb);
+                @unlink($thumbTmp);
+            }
+
+            return true;
+        } finally {
+            imagedestroy($src);
+        }
     }
 
     private function imageStorageExtension(UploadedFile $file, string $mime): string

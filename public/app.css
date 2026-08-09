@@ -11367,6 +11367,21 @@ label.photos-camera-btn span {
   align-self: center;
 }
 
+/* フォルダ／Pictures監視は Web（PC幅）のみ。スマホには出さない */
+.photos-dir-watch-only {
+  display: none !important;
+}
+
+@media (min-width: 769px) {
+  button.photos-dir-watch-only:not([hidden]) {
+    display: inline-flex !important;
+  }
+
+  span.photos-dir-watch-only:not([hidden]) {
+    display: inline !important;
+  }
+}
+
 .photos-secondary-btn:disabled {
   opacity: 0.6;
   cursor: wait;

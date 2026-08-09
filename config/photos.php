@@ -136,6 +136,12 @@ return [
      */
     'max_long_edge' => (int) env('PHOTO_MAX_LONG_EDGE', 0),
 
+    /**
+     * GD でフルデコードしてサムネを作る上限（画素数）。
+     * スマホ HD（例: 12240×16320 ≈ 2億画素）はこれを超え、Imagick / EXIF サムネへフォールバックする。
+     */
+    'gd_max_source_pixels' => (int) env('PHOTO_GD_MAX_SOURCE_PIXELS', 36_000_000),
+
     /** サムネイル長辺（px） */
     'thumb_long_edge' => (int) env('PHOTO_THUMB_LONG_EDGE', 720),
 
