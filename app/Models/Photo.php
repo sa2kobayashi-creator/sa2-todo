@@ -28,6 +28,7 @@ class Photo extends Model
         'caption',
         'edit_label',
         'taken_at',
+        'archived_at',
         'sort_order',
     ];
 
@@ -39,6 +40,7 @@ class Photo extends Model
             'height' => 'integer',
             'sort_order' => 'integer',
             'taken_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

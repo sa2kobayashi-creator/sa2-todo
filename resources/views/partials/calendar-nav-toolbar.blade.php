@@ -1,6 +1,7 @@
 {{-- 共通カレンダーナビ: 1行目 ‹ 年月 › / 2行目 今日 月週日年 （メモ/Todo） --}}
 @php
   $showMemoTodoActions = $showMemoTodoActions ?? false;
+  $showVoiceToggle = $showVoiceToggle ?? false;
   $navPrevUrl = $prevUrl;
   $navNextUrl = $nextUrl;
   $navTodayUrl = $todayUrl;
@@ -30,6 +31,21 @@
         >{{ $viewLabel }}</a>
       @endforeach
     </div>
+    @if($showVoiceToggle)
+      <button
+        type="button"
+        class="calendar-voice-toggle"
+        id="todos-voice-toggle"
+        aria-expanded="false"
+        aria-controls="todos-voice-panel"
+        title="{{ __('音声入力') }}"
+        aria-label="{{ __('音声入力') }}"
+      >
+        <svg class="calendar-voice-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </button>
+    @endif
     @if($showMemoTodoActions)
       <div class="calendar-toolbar-actions">
         <a class="button-link secondary calendar-action-btn" href="/notes" title="{{ __('メモ') }}" aria-label="{{ __('メモ') }}">

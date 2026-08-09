@@ -120,22 +120,6 @@
               @if(!empty($canGroups))
                 <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
               @endif
-              @if(!empty($canSettings) || !empty($canAdminUsers))
-                <div class="user-dropdown-divider mobile-only" role="separator"></div>
-                @if(!empty($canSettings))
-                  <a href="/settings?section=nav" class="mobile-only {{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
-                  <a href="/settings?section=holidays" class="mobile-only {{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
-                  <a href="/settings?section=ai" class="mobile-only {{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
-                  <a href="/settings?section=storage" class="mobile-only {{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
-                  <a href="/settings?section=enhance" class="mobile-only {{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
-                  <a href="/settings?section=integration" class="mobile-only {{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
-                  <a href="/settings?section=notifications" class="mobile-only {{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
-                @endif
-                @if(!empty($canAdminUsers))
-                  <a href="/admin/users" class="mobile-only {{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
-                  <a href="/admin/groups" class="mobile-only {{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
-                @endif
-              @endif
               <form method="post" action="/logout" class="logout-form">
                 @csrf
                 <button type="submit" role="menuitem">{{ __('ログアウト') }}</button>
@@ -143,7 +127,7 @@
             </div>
           </div>
         </div>
-        @if(count($moreNav) > 0 || !empty($canSettings))
+        @if(count($moreNav) > 0 || !empty($canSettings) || !empty($canAdminUsers))
           <div class="nav-dropdown header-more-menu mobile-only-flex" id="more-nav-dropdown">
             <button
               type="button"
@@ -167,11 +151,44 @@
                   {{ $moreItem['label'] }}
                 </a>
               @endforeach
-              @if(!empty($canSettings))
+              @if(!empty($canSettings) || !empty($canAdminUsers))
                 @if(count($moreNav) > 0)
                   <div class="user-dropdown-divider" role="separator"></div>
                 @endif
-                <a href="/settings?section=nav" role="menuitem">{{ __('表示メニュー管理') }}</a>
+                <div class="header-more-submenu" id="more-settings-submenu">
+                  <button
+                    type="button"
+                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups'], true) ? ' active' : '' }}"
+                    id="more-settings-toggle"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                    aria-controls="more-settings-panel"
+                  >
+                    <span class="header-more-icon" aria-hidden="true">⚙</span>
+                    <span class="header-more-submenu-label">{{ !empty($canSettings) ? __('設定') : __('管理') }}</span>
+                    <span class="nav-dropdown-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div
+                    class="header-more-submenu-panel"
+                    id="more-settings-panel"
+                    role="menu"
+                    hidden
+                  >
+                    @if(!empty($canSettings))
+                      <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
+                      <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
+                      <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
+                      <a href="/settings?section=storage" class="{{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
+                      <a href="/settings?section=enhance" class="{{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
+                      <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
+                      <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
+                    @endif
+                    @if(!empty($canAdminUsers))
+                      <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
+                      <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
+                    @endif
+                  </div>
+                </div>
               @endif
             </div>
           </div>
@@ -188,6 +205,16 @@
     const moreToggle = document.getElementById('more-nav-toggle')
     const userDropdown = document.getElementById('user-dropdown')
     const userToggle = document.getElementById('user-menu-toggle')
+    const moreSettings = document.getElementById('more-settings-submenu')
+    const moreSettingsToggle = document.getElementById('more-settings-toggle')
+    const moreSettingsPanel = document.getElementById('more-settings-panel')
+
+    function setMoreSettingsOpen(open) {
+      if (!moreSettings || !moreSettingsToggle || !moreSettingsPanel) return
+      moreSettings.classList.toggle('is-open', open)
+      moreSettingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+      moreSettingsPanel.hidden = !open
+    }
 
     function closeAll(except) {
       if (except !== 'settings') {
@@ -197,6 +224,7 @@
       if (except !== 'more') {
         moreDropdown?.classList.remove('is-open')
         moreToggle?.setAttribute('aria-expanded', 'false')
+        setMoreSettingsOpen(false)
       }
       if (except !== 'user') {
         userDropdown?.classList.remove('is-open')
@@ -220,8 +248,21 @@
         e.stopPropagation()
         const open = moreDropdown.classList.toggle('is-open')
         moreToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+        // ⋮を開く／閉じるたびに設定サブは必ず閉じる（押したときだけ展開）
+        setMoreSettingsOpen(false)
         if (open) closeAll('more')
       })
+    }
+
+    if (moreSettingsToggle && moreSettings) {
+      moreSettingsToggle.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const open = !moreSettings.classList.contains('is-open')
+        setMoreSettingsOpen(open)
+      })
+      // サブメニュー内クリックで⋮全体が閉じないようにする
+      moreSettings.addEventListener('click', (e) => e.stopPropagation())
     }
 
     if (userDropdown && userToggle) {

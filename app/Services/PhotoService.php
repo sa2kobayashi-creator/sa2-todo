@@ -801,8 +801,20 @@ class PhotoService
         return $album;
     }
 
+    /** @param 'active'|'archived' $library */
+    private function applyLibraryScope($query, string $library)
+    {
+        if ($library === 'archived') {
+            $query->whereNotNull('archived_at');
+        } else {
+            $query->whereNull('archived_at');
+        }
+
+        return $query;
+    }
+
     /** 年フィルタ用。全件ロードせず DISTINCT で取得する。 @return list<int> */
-    public function listPhotoYears(int $userId, ?int $albumId = null): array
+    public function listPhotoYears(int $userId, ?int $albumId = null, string $library = 'active'): array
     {
         $query = Photo::query();
         if ($albumId !== null) {
@@ -814,6 +826,7 @@ class PhotoService
         } else {
             $query->where('user_id', $userId);
         }
+        $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
 
         $driver = $query->getConnection()->getDriverName();
         $yearExpr = match ($driver) {
@@ -833,7 +846,7 @@ class PhotoService
             ->all();
     }
 
-    public function countPhotos(int $userId, ?int $albumId = null): int
+    public function countPhotos(int $userId, ?int $albumId = null, string $library = 'active'): int
     {
         $query = Photo::query();
         if ($albumId !== null) {
@@ -845,6 +858,7 @@ class PhotoService
         } else {
             $query->where('user_id', $userId);
         }
+        $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
 
         return (int) $query->count();
     }
@@ -856,6 +870,7 @@ class PhotoService
         string $sort = 'taken_desc',
         ?int $year = null,
         ?int $limit = null,
+        string $library = 'active',
     ): array {
         $query = Photo::query();
         if ($albumId !== null) {
@@ -867,6 +882,7 @@ class PhotoService
         } else {
             $query->where('user_id', $userId);
         }
+        $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
 
         if ($year !== null && $year >= 1970 && $year <= 2100) {
             $query->whereYear('taken_at', $year);
@@ -1865,6 +1881,36 @@ class PhotoService
     public function deletePhoto(int $userId, int $photoId): bool
     {
         return $this->bulkDeletePhotos($userId, [$photoId]) === 1;
+    }
+
+    /** @param list<int> $ids */
+    public function bulkArchivePhotos(int $userId, array $ids): int
+    {
+        $idSet = $this->parseIdList($ids);
+        if ($idSet === []) {
+            return 0;
+        }
+
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->whereNull('archived_at')
+            ->update(['archived_at' => now()]);
+    }
+
+    /** @param list<int> $ids */
+    public function bulkRestorePhotos(int $userId, array $ids): int
+    {
+        $idSet = $this->parseIdList($ids);
+        if ($idSet === []) {
+            return 0;
+        }
+
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->whereNotNull('archived_at')
+            ->update(['archived_at' => null]);
     }
 
     /** @param list<int> $ids */
@@ -3185,9 +3231,12 @@ class PhotoService
             'mediaKind' => $mediaKind,
             'width' => $photo->width,
             'height' => $photo->height,
+            'sizeBytes' => (int) ($photo->size_bytes ?? 0),
             'takenAt' => $takenAt,
             'takenDate' => $takenDate,
             'takenAtLocal' => $takenAtLocal,
+            'archived' => $photo->archived_at !== null,
+            'archivedAt' => $photo->archived_at?->toIso8601String(),
             'createdAt' => $photo->created_at?->toIso8601String(),
             'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
             'fileUrl' => $fileUrl,

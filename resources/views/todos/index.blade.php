@@ -8,7 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('Todo') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ @filemtime(public_path('app.css')) ?: time() }}" />
-    <script src="{{ asset('voice-entry.js') }}" defer></script>
+    <script src="{{ asset('voice-entry.js') }}?v={{ @filemtime(public_path('voice-entry.js')) ?: time() }}" defer></script>
   </head>
   <body>
     @include('partials.header', ['active' => 'todos'])
@@ -156,13 +156,6 @@
             <button type="submit">{{ __('追加') }}</button>
           </div>
         </form>
-
-        @include('partials.voice-entry', [
-          'idPrefix' => 'todo',
-          'voiceAiReady' => $voiceAiReady ?? false,
-          'voiceAiProvider' => $voiceAiProvider ?? null,
-          'placeholder' => __('例: 明日買い物に行く、重要'),
-        ])
       </div>
         </details>
         @endif
@@ -296,10 +289,27 @@
               {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
             @endif
           </h2>
-          <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
+          <div class="list-toolbar-title-actions">
+            <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
               <a href="{{ $buildTodosQuery(['display' => 'list']) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
               <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
             </div>
+            @if(($displayMode ?? 'calendar') === 'list')
+              <button
+                type="button"
+                class="calendar-voice-toggle"
+                id="todos-voice-toggle"
+                aria-expanded="false"
+                aria-controls="todos-voice-panel"
+                title="{{ __('音声入力') }}"
+                aria-label="{{ __('音声入力') }}"
+              >
+                <svg class="calendar-voice-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              </button>
+            @endif
+          </div>
           </div>
           @if(($displayMode ?? 'list') === 'list' && ($pagination['total'] ?? 0) > 0)
             <span class="todo-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
@@ -317,9 +327,29 @@
           @endif
         </div>
 
+        @if(($displayMode ?? 'calendar') === 'list')
+          <div class="todos-voice-panel" id="todos-voice-panel" hidden>
+            @include('partials.voice-entry', [
+              'idPrefix' => 'todo',
+              'voiceAiReady' => $voiceAiReady ?? false,
+              'voiceAiProvider' => $voiceAiProvider ?? null,
+              'placeholder' => __('例: 明日買い物に行く、重要'),
+            ])
+          </div>
+        @endif
+
         @if(($displayMode ?? 'calendar') === 'calendar')
           <div class="todos-calendar-panel calendar-shell" data-calendar-view="{{ $view ?? 'month' }}">
-            @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => false])
+            @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => false, 'showVoiceToggle' => true])
+
+            <div class="todos-voice-panel" id="todos-voice-panel" hidden>
+              @include('partials.voice-entry', [
+                'idPrefix' => 'todo',
+                'voiceAiReady' => $voiceAiReady ?? false,
+                'voiceAiProvider' => $voiceAiProvider ?? null,
+                'placeholder' => __('例: 明日買い物に行く、重要'),
+              ])
+            </div>
 
             @if(($view ?? 'month') === 'day')
               @include('dashboard.partials.calendar-day')
@@ -1563,6 +1593,19 @@
         const modal = document.getElementById('todo-voice-confirm-modal')
         const form = document.getElementById('todo-voice-confirm-form')
         const endWrap = document.getElementById('todo-voice-end-wrap')
+        const voiceToggle = document.getElementById('todos-voice-toggle')
+        const voicePanel = document.getElementById('todos-voice-panel')
+        voiceToggle?.addEventListener('click', () => {
+          if (!voicePanel) return
+          const open = voicePanel.hasAttribute('hidden')
+          if (open) voicePanel.removeAttribute('hidden')
+          else voicePanel.setAttribute('hidden', '')
+          voiceToggle.classList.toggle('is-active', !!open)
+          voiceToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+          if (open) {
+            document.getElementById('todo-voice-mic-btn')?.focus()
+          }
+        })
         function syncVoiceDateMode() {
           const mode = form?.querySelector('input[name="dateMode"]:checked')?.value || 'single'
           if (endWrap) endWrap.hidden = mode === 'single'

@@ -26,6 +26,7 @@ class PhotoController extends Controller
         if (! in_array($sort, ['taken_desc', 'taken_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc'], true)) {
             $sort = 'taken_desc';
         }
+        $library = $request->query('library') === 'archived' ? 'archived' : 'active';
         $revealHidden = (bool) session('photos_reveal_hidden_'.$userId, false);
         $albums = $this->photos->listAlbums($userId, $revealHidden);
         $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
@@ -48,8 +49,8 @@ class PhotoController extends Controller
             ? (int) $yearRaw
             : null;
 
-        $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId);
-        $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId);
+        $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId, $library);
+        $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library);
         $autoYearScoped = false;
         $autoYearThreshold = 120;
         if (! $albumLocked && ! $explicitAllYears && $year === null && $totalInScope > $autoYearThreshold && $photoYears !== []) {
@@ -57,7 +58,7 @@ class PhotoController extends Controller
             $autoYearScoped = true;
         }
 
-        $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year);
+        $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year, null, $library);
         $photosForJs = array_map(static function (array $p): array {
             return [
                 'id' => $p['id'] ?? null,
@@ -70,9 +71,11 @@ class PhotoController extends Controller
                 'mediaKind' => $p['mediaKind'] ?? 'image',
                 'width' => $p['width'] ?? null,
                 'height' => $p['height'] ?? null,
+                'sizeBytes' => $p['sizeBytes'] ?? 0,
                 'takenAt' => $p['takenAt'] ?? null,
                 'takenDate' => $p['takenDate'] ?? null,
                 'takenAtLocal' => $p['takenAtLocal'] ?? null,
+                'archived' => $p['archived'] ?? false,
                 'canEdit' => $p['canEdit'] ?? false,
                 'fileUrl' => $p['fileUrl'] ?? null,
                 'editLabel' => $p['editLabel'] ?? null,
@@ -92,6 +95,9 @@ class PhotoController extends Controller
         } elseif ($year) {
             $queryBase['year'] = $year;
         }
+        if ($library === 'archived') {
+            $queryBase['library'] = 'archived';
+        }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
         $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);
 
@@ -108,6 +114,7 @@ class PhotoController extends Controller
             'photosYearExplicitAll' => $explicitAllYears,
             'photosYearAutoScoped' => $autoYearScoped,
             'photosTotalInScope' => $totalInScope,
+            'photosLibrary' => $library,
             'selectedAlbumId' => $albumId,
             'selectedAlbum' => $selectedAlbum,
             'albumLocked' => $albumLocked,
@@ -986,6 +993,38 @@ class PhotoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __(':count件のメディアを移動しました', ['count' => $count]));
+    }
+
+    public function bulkArchive(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $count = $this->photos->bulkArchivePhotos(
+            (int) $request->user()->id,
+            $this->photos->parseIdList($request->input('ids'))
+        );
+        $message = __(':count件をアーカイブしました。アーカイブ表示から確認・復元できます。', ['count' => $count]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['ok' => true, 'count' => $count, 'message' => $message]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
+    }
+
+    public function bulkRestore(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $count = $this->photos->bulkRestorePhotos(
+            (int) $request->user()->id,
+            $this->photos->parseIdList($request->input('ids'))
+        );
+        $message = __(':count件をライブラリに戻しました', ['count' => $count]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['ok' => true, 'count' => $count, 'message' => $message]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 
     public function destroyAlbum(Request $request, int $id)

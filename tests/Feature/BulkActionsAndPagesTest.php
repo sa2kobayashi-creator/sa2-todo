@@ -136,11 +136,74 @@ class BulkActionsAndPagesTest extends TestCase
 
         $response = $this->actingAs($this->user)->get('/photos');
         $response->assertOk();
+        $html = $response->getContent();
+
         $response->assertSee('data-photos-mode="normal"', false);
         $response->assertSee('data-photos-mode="select"', false);
         $response->assertSee('data-photos-mode="list"', false);
+        $response->assertSee('data-photos-mode="archive"', false);
+        $response->assertSee('id="photos-bulk-archive"', false);
+        $response->assertSee('id="photos-bulk-restore"', false);
         $response->assertSee('photos-lightbox', false);
-        $response->assertSee('photos-zoom-in', false);
+        $response->assertSee('photos-lb-detail-open', false);
+        $response->assertDontSee('photos-zoom-in', false);
+
+        // 操作UIの契約（ボタン無反応の再発防止用マーカー）
+        foreach ([
+            'id="photos-ops-open"',
+            'id="photos-ops-panel"',
+            'id="photos-ops-backdrop"',
+            'id="photos-ops-close"',
+            'id="photos-toolbar"',
+            'id="photos-select-actions"',
+            'id="photos-range-mode"',
+            'id="photos-dock-select-all"',
+            'id="photos-dock-select-none"',
+            'id="photos-dock-range-mode"',
+            'id="photos-year-dock-select-actions"',
+            'id="photos-bulk-bar"',
+            'function setPhotosOpsOpen',
+            'function hidePhotosOpsBackdrop',
+            'function showPhotosOpsBackdrop',
+            'function isPhotosOpsPanelOpen',
+            'function readPhotosMode',
+            'function applyRangeBetweenWraps',
+            'function resetRangeSelect',
+            "opsBackdrop.style.pointerEvents = 'none'",
+        ] as $marker) {
+            $this->assertStringContainsString($marker, $html, "Missing photos UI contract: {$marker}");
+        }
+
+        // CSS: 表示中でも backdrop がクリックを奪わない
+        $css = file_get_contents(public_path('app.css'));
+        $this->assertNotFalse($css);
+        $this->assertMatchesRegularExpression(
+            '/\.photos-ops-backdrop:not\(\[hidden\]\)\s*\{[^}]*pointer-events:\s*none\s*!important/s',
+            $css,
+            'photos-ops-backdrop must keep pointer-events:none while visible'
+        );
+
+        // Blade @json の直後改行が PHP に消されると構文エラーになるのでセミコロン付き割り当てを維持
+        $this->assertStringContainsString('function syncRangeModeButtons', $html);
+        $this->assertDoesNotMatchRegularExpression(
+            '/"[^"]*"\s+if\s*\(/',
+            $html,
+            'Missing semicolon after @json before next if (PHP strips newline after ?>)'
+        );
+        $this->assertMatchesRegularExpression(
+            '/active\s*\?\s*"[^"]*"\s*:\s*"[^"]*";/',
+            $html
+        );
+
+        // モバイル選択バーが下ナビに隠れないこと（CSS 契約）
+        $this->assertStringContainsString(
+            '/* .mobile-bottom-nav と同じ高さ帯の上。bottom:0 だと全選択/範囲選択がナビ裏に隠れる */',
+            $css
+        );
+        $this->assertStringContainsString(
+            'bottom: calc(64px + env(safe-area-inset-bottom, 0px));',
+            $css
+        );
     }
 
     public function test_photos_bulk_delete_and_move(): void
@@ -214,9 +277,55 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertDatabaseHas('photos', ['id' => $photoKeep->id]);
     }
 
+    public function test_photos_bulk_archive_and_restore(): void
+    {
+        $photo = Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => null,
+            'path' => 'photos/archive-me.jpg',
+            'thumb_path' => 'photos/archive-me-thumb.jpg',
+            'original_name' => 'archive-me.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post('/photos/bulk/archive', [
+                'ids' => [$photo->id],
+                'returnTo' => '/photos',
+            ])
+            ->assertRedirect();
+
+        $this->assertNotNull($photo->fresh()->archived_at);
+
+        $active = $this->actingAs($this->user)->get('/photos');
+        $active->assertOk();
+        $this->assertStringNotContainsString('archive-me.jpg', $active->getContent());
+
+        $archived = $this->actingAs($this->user)->get('/photos?library=archived');
+        $archived->assertOk();
+        $archived->assertSee('archive-me.jpg', false);
+        $archived->assertSee('data-photos-library="archived"', false);
+
+        $this->actingAs($this->user)
+            ->post('/photos/bulk/restore', [
+                'ids' => [$photo->id],
+                'returnTo' => '/photos?library=archived',
+            ])
+            ->assertRedirect();
+
+        $this->assertNull($photo->fresh()->archived_at);
+    }
+
     public function test_photos_bulk_routes_forbid_guest(): void
     {
         $this->post('/photos/bulk/delete', ['ids' => [1]])->assertRedirect('/login');
         $this->post('/photos/bulk/move', ['ids' => [1], 'album_id' => 1])->assertRedirect('/login');
+        $this->post('/photos/bulk/archive', ['ids' => [1]])->assertRedirect('/login');
+        $this->post('/photos/bulk/restore', ['ids' => [1]])->assertRedirect('/login');
     }
 }

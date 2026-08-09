@@ -717,7 +717,7 @@
             </form>
           </div>
         </div>
-      @elseif(count($photos) === 0)
+      @elseif(count($photos) === 0 && ($photosLibrary ?? 'active') !== 'archived')
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
             <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
@@ -729,15 +729,21 @@
               <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-add">
                 {{ __('写真・動画を追加') }}
               </button>
+              <a class="photos-secondary-btn" href="{{ request()->fullUrlWithQuery(['library' => 'archived', 'year' => null]) }}">{{ __('アーカイブを見る') }}</a>
             </div>
           </div>
         </div>
       @else
+        @php
+          $photosLibrary = ($photosLibrary ?? 'active') === 'archived' ? 'archived' : 'active';
+          $initialPhotosMode = $photosLibrary === 'archived' ? 'archive' : 'normal';
+        @endphp
         <div class="photos-toolbar" id="photos-toolbar" role="toolbar" aria-label="{{ __('表示モード') }}">
           <div class="photos-mode-toggle photos-mode-toggle-view" role="group" aria-label="{{ __('表示モード') }}">
-            <button type="button" class="photos-mode-btn is-active" data-photos-mode="normal" aria-pressed="true">{{ __('通常') }}</button>
-            <button type="button" class="photos-mode-btn" data-photos-mode="select" aria-pressed="false">{{ __('選択') }}</button>
-            <button type="button" class="photos-mode-btn" data-photos-mode="list" aria-pressed="false">{{ __('一覧') }}</button>
+            <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'normal' ? ' is-active' : '' }}" data-photos-mode="normal" aria-pressed="{{ $initialPhotosMode === 'normal' ? 'true' : 'false' }}">{{ __('通常') }}</button>
+            <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'select' ? ' is-active' : '' }}" data-photos-mode="select" aria-pressed="{{ $initialPhotosMode === 'select' ? 'true' : 'false' }}">{{ __('選択') }}</button>
+            <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'list' ? ' is-active' : '' }}" data-photos-mode="list" aria-pressed="{{ $initialPhotosMode === 'list' ? 'true' : 'false' }}">{{ __('一覧') }}</button>
+            <button type="button" class="photos-mode-btn{{ $initialPhotosMode === 'archive' ? ' is-active' : '' }}" data-photos-mode="archive" aria-pressed="{{ $initialPhotosMode === 'archive' ? 'true' : 'false' }}">{{ __('アーカイブ') }}</button>
           </div>
           <div class="photos-mode-toggle photos-mode-toggle-kind photos-ops-full-only" role="group" aria-label="{{ __('フィルター') }}">
             <button type="button" class="photos-mode-btn is-active" data-photos-kind="all" aria-pressed="true">{{ __('すべて') }}</button>
@@ -825,33 +831,55 @@
             </button>
             <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">3</span>
           </div>
-          <div class="photos-select-actions" id="photos-select-actions" hidden>
-            <button type="button" class="photos-secondary-btn" id="photos-select-all">{{ __('全選択') }}</button>
-            <button type="button" class="photos-secondary-btn" id="photos-select-none">{{ __('全解除') }}</button>
-          </div>
-          <div class="photos-pager" id="photos-pager" hidden>
-            <button type="button" class="photos-pager-btn" id="photos-pager-prev">{{ __('前へ') }}</button>
-            <span class="photos-pager-status" id="photos-pager-status"></span>
-            <button type="button" class="photos-pager-btn" id="photos-pager-next">{{ __('次へ') }}</button>
-          </div>
-          <div class="photos-bulk-bar photos-ops-full-only" id="photos-bulk-bar" hidden>
-            <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
-            <button type="button" class="photos-secondary-btn" id="photos-bulk-download">{{ __('ダウンロード') }}</button>
-            <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
-            <label class="photos-bulk-move" id="photos-bulk-move-wrap" hidden>
-              <span>{{ __('アルバムへ移動') }}</span>
-              <select id="photos-bulk-move-album">
-                <option value="">{{ __('アルバムなし') }}</option>
-                @foreach($ownedAlbums ?? $albums as $album)
-                  <option value="{{ $album['id'] }}">{{ $album['name'] }}</option>
-                @endforeach
-              </select>
-              <button type="button" class="photos-secondary-btn" id="photos-bulk-move">{{ __('移動') }}</button>
-            </label>
+          <div class="photos-toolbar-select-row" id="photos-toolbar-select-row" hidden>
+            <div class="photos-select-actions" id="photos-select-actions">
+              <button type="button" class="photos-secondary-btn" id="photos-select-all">{{ __('全選択') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-select-none">{{ __('全解除') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-range-mode" aria-pressed="false">{{ __('範囲選択') }}</button>
+              <span class="hint photos-range-hint" id="photos-range-hint">{{ __('通常タップで1枚ずつ。範囲選択後に始点→終点。') }}</span>
+            </div>
+            <div class="photos-pager" id="photos-pager" hidden>
+              <button type="button" class="photos-pager-btn" id="photos-pager-prev">{{ __('前へ') }}</button>
+              <span class="photos-pager-status" id="photos-pager-status"></span>
+              <button type="button" class="photos-pager-btn" id="photos-pager-next">{{ __('次へ') }}</button>
+            </div>
+            <div class="photos-bulk-bar" id="photos-bulk-bar" hidden>
+              <span class="photos-bulk-count" id="photos-bulk-count">0{{ __('件選択') }}</span>
+              <button type="button" class="photos-secondary-btn" id="photos-bulk-download">{{ __('ダウンロード') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-bulk-archive" @if($photosLibrary === 'archived') hidden @endif>{{ __('アーカイブ') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-bulk-restore" @if($photosLibrary !== 'archived') hidden @endif>{{ __('元に戻す') }}</button>
+              <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
+              <label class="photos-bulk-move" id="photos-bulk-move-wrap" hidden>
+                <span>{{ __('アルバムへ移動') }}</span>
+                <select id="photos-bulk-move-album">
+                  <option value="">{{ __('アルバムなし') }}</option>
+                  @foreach($ownedAlbums ?? $albums as $album)
+                    <option value="{{ $album['id'] }}">{{ $album['name'] }}</option>
+                  @endforeach
+                </select>
+                <button type="button" class="photos-secondary-btn" id="photos-bulk-move">{{ __('移動') }}</button>
+              </label>
+            </div>
           </div>
         </div>
 
-        <div class="photos-timeline" id="photos-gallery" data-photos-mode="normal" data-cols="3" style="--photos-cols: 3">
+        @if(count($photos) === 0)
+          <div class="photos-empty photos-empty-archive" id="photos-archive-empty">
+            <div class="photos-empty-frame">
+              <p class="photos-empty-title">{{ __('アーカイブは空です') }}</p>
+              <p class="photos-empty-text">{{ __('選択モードで写真を選び、「アーカイブ」するとここに入ります。ファイルは残ります。') }}</p>
+            </div>
+          </div>
+        @endif
+        <div
+          class="photos-timeline"
+          id="photos-gallery"
+          data-photos-mode="{{ $initialPhotosMode }}"
+          data-photos-library="{{ $photosLibrary }}"
+          data-cols="3"
+          style="--photos-cols: 3"
+          @if(count($photos) === 0) hidden @endif
+        >
           @php $flatIndex = 0; @endphp
           @foreach($photoGroups as $group)
             <section class="photos-day-group" data-year="{{ substr((string) ($group['date'] ?? ''), 0, 4) }}">
@@ -916,20 +944,27 @@
         </div>
 
         <div class="photos-year-dock is-hiding" id="photos-year-dock" aria-label="{{ __('年へ移動') }}" hidden>
-          @if(count($yearNavYears ?? []) > 1)
-            <label class="photos-year-dock-field">
-              <span class="visually-hidden">{{ __('年へ移動') }}</span>
-              <select id="photos-year-dock-select" aria-label="{{ __('年へ移動') }}">
-                @foreach($yearNavYears as $jumpYear)
-                  <option value="{{ $jumpYear }}">{{ __(':year年', ['year' => $jumpYear]) }}</option>
-                @endforeach
-              </select>
-            </label>
-          @endif
-          <button type="button" class="photos-year-dock-top" id="photos-year-dock-top" title="{{ __('先頭へ戻る') }}">
-            <span aria-hidden="true">↑</span>
-            <span>{{ __('TOP') }}</span>
-          </button>
+          <div class="photos-year-dock-select" id="photos-year-dock-select-actions" hidden>
+            <button type="button" class="photos-year-dock-btn" id="photos-dock-select-all">{{ __('全選択') }}</button>
+            <button type="button" class="photos-year-dock-btn" id="photos-dock-select-none">{{ __('全解除') }}</button>
+            <button type="button" class="photos-year-dock-btn photos-year-dock-range" id="photos-dock-range-mode" aria-pressed="false">{{ __('範囲選択') }}</button>
+          </div>
+          <div class="photos-year-dock-nav">
+            @if(count($yearNavYears ?? []) > 1)
+              <label class="photos-year-dock-field">
+                <span class="visually-hidden">{{ __('年へ移動') }}</span>
+                <select id="photos-year-dock-select" aria-label="{{ __('年へ移動') }}">
+                  @foreach($yearNavYears as $jumpYear)
+                    <option value="{{ $jumpYear }}">{{ __(':year年', ['year' => $jumpYear]) }}</option>
+                  @endforeach
+                </select>
+              </label>
+            @endif
+            <button type="button" class="photos-year-dock-top" id="photos-year-dock-top" title="{{ __('先頭へ戻る') }}">
+              <span aria-hidden="true">↑</span>
+              <span>{{ __('TOP') }}</span>
+            </button>
+          </div>
         </div>
       @endif
     </main>
@@ -959,19 +994,10 @@
           </svg>
         </button>
         <div class="photos-lightbox-meta">
-          <div class="photos-lightbox-info">
-            <span class="photos-lightbox-caption" id="photos-lightbox-caption"></span>
-            <span class="photos-lightbox-date" id="photos-lightbox-date"></span>
-          </div>
           <div class="photos-lightbox-toolbar">
-            <div class="photos-lightbox-zoom" role="group" aria-label="{{ __('拡大') }}">
-              <button type="button" id="photos-zoom-out" aria-label="{{ __('縮小') }}">−</button>
-              <button type="button" id="photos-zoom-reset" aria-label="{{ __('リセット') }}">100%</button>
-              <button type="button" id="photos-zoom-in" aria-label="{{ __('拡大') }}">＋</button>
-            </div>
+            <span class="photos-lightbox-date" id="photos-lightbox-date"></span>
             <div class="photos-lightbox-actions" id="photos-lb-main-actions">
               <button type="button" class="photos-secondary-btn" id="photos-lightbox-fs-action">{{ __('全画面') }}</button>
-              <button type="button" class="photos-secondary-btn" id="photos-lightbox-slideshow">{{ __('スライドショー') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-share-btn">{{ __('共有') }}</button>
               @if($selectedAlbumId && !empty($canManageSelected))
                 <form method="post" action="/photos/albums/{{ $selectedAlbumId }}/cover" id="photos-cover-form">
@@ -982,6 +1008,7 @@
                 </form>
               @endif
               <button type="button" class="photos-secondary-btn" id="photos-lb-edit-open" hidden>{{ __('編集') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-lb-detail-open">{{ __('詳細') }}</button>
             </div>
             <div class="photos-lightbox-actions photos-lb-edit-actions" id="photos-lb-edit-actions" hidden>
               <button type="button" class="photos-secondary-btn" id="photos-lb-edit-back">{{ __('戻る') }}</button>
@@ -1682,6 +1709,53 @@
       </div>
     </div>
 
+    <div class="modal modal-centered" id="photos-detail-modal" hidden>
+      <div class="modal-backdrop" data-close-photo-detail></div>
+      <div class="modal-dialog photos-detail-dialog" role="dialog" aria-labelledby="photos-detail-modal-title">
+        <div class="modal-header">
+          <h2 id="photos-detail-modal-title">{{ __('詳細') }}</h2>
+          <button type="button" class="modal-close" data-close-photo-detail aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <dl class="photos-detail-list">
+          <div class="photos-detail-row" data-detail="originalName">
+            <dt>{{ __('ファイル名') }}</dt>
+            <dd id="photos-detail-original-name"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="caption">
+            <dt>{{ __('キャプション') }}</dt>
+            <dd id="photos-detail-caption"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="takenAt">
+            <dt>{{ __('登録日') }}</dt>
+            <dd id="photos-detail-taken-at"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="mediaKind">
+            <dt>{{ __('種別') }}</dt>
+            <dd id="photos-detail-media-kind"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="resolution">
+            <dt>{{ __('解像度') }}</dt>
+            <dd id="photos-detail-resolution"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="size">
+            <dt>{{ __('容量') }}</dt>
+            <dd id="photos-detail-size"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="mime">
+            <dt>{{ __('形式') }}</dt>
+            <dd id="photos-detail-mime"></dd>
+          </div>
+          <div class="photos-detail-row" data-detail="editLabel">
+            <dt>{{ __('編集内容') }}</dt>
+            <dd id="photos-detail-edit-label"></dd>
+          </div>
+        </dl>
+        <div class="modal-actions">
+          <button type="button" class="secondary" data-close-photo-detail>{{ __('閉じる') }}</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal modal-centered" id="photos-crop-modal" hidden>
       <div class="modal-backdrop" data-close-crop-modal></div>
       <div class="modal-dialog photos-crop-dialog" role="dialog" aria-labelledby="photos-crop-modal-title">
@@ -1818,8 +1892,7 @@
         const lightboxVideo = document.getElementById('photos-lightbox-video')
         const lightboxUnplayable = document.getElementById('photos-lightbox-unplayable')
         const lightboxUnplayableLink = document.getElementById('photos-lightbox-unplayable-link')
-        const lightboxCaption = document.getElementById('photos-lightbox-caption')
-        const lightboxDate = document.getElementById('photos-lightbox-date')
+        const photoDetailModal = document.getElementById('photos-detail-modal')
         const deleteForm = document.getElementById('photos-delete-form')
         const coverForm = document.getElementById('photos-cover-form')
         const coverPhotoInput = document.getElementById('photos-cover-photo-id')
@@ -1867,38 +1940,72 @@
         function isPhotosMobileOps() {
           return window.matchMedia('(max-width: 768px)').matches
         }
+        function readPhotosMode() {
+          const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
+          return ['normal', 'select', 'list', 'archive'].includes(mode) ? mode : 'normal'
+        }
+        function readPhotosLibrary() {
+          return document.getElementById('photos-gallery')?.dataset.photosLibrary === 'archived'
+            ? 'archived'
+            : 'active'
+        }
+        function isSelectingMode(mode = readPhotosMode()) {
+          return mode === 'select' || mode === 'list' || mode === 'archive'
+        }
         function syncPhotosOpsCompact(mode) {
           if (!opsPanel) return
-          const compact = (mode === 'select' || mode === 'list') ? mode : ''
+          const compact = isSelectingMode(mode) ? (mode === 'archive' ? 'select' : mode) : ''
           if (compact) opsPanel.setAttribute('data-ops-compact', compact)
           else opsPanel.removeAttribute('data-ops-compact')
+        }
+        function hidePhotosOpsBackdrop() {
+          if (!opsBackdrop) return
+          opsBackdrop.hidden = true
+          opsBackdrop.setAttribute('hidden', '')
+        }
+        function showPhotosOpsBackdrop() {
+          if (!opsBackdrop) return
+          // 見た目だけの暗転。pointer-events は常に none（操作ボタンを塞がない）
+          opsBackdrop.hidden = false
+          opsBackdrop.removeAttribute('hidden')
+          opsBackdrop.style.pointerEvents = 'none'
+        }
+        function isPhotosOpsPanelOpen() {
+          return !!(opsPanel && !opsPanel.hidden && !opsPanel.hasAttribute('hidden'))
         }
         function setPhotosOpsOpen(open) {
           if (!opsPanel) return
           if (!isPhotosMobileOps()) {
             opsPanel.hidden = false
+            opsPanel.removeAttribute('hidden')
             opsPanel.removeAttribute('data-ops-compact')
-            if (opsBackdrop) opsBackdrop.hidden = true
+            hidePhotosOpsBackdrop()
             if (photosToolbar && toolbarHome && photosToolbar.parentElement !== toolbarHome) {
               toolbarHome.insertBefore(photosToolbar, toolbarHome.firstChild?.nextSibling || null)
             }
             opsOpenBtn?.setAttribute('aria-expanded', 'false')
             return
           }
+          const mode = readPhotosMode()
+          const compact = isSelectingMode(mode)
           if (open) {
+            syncPhotosOpsCompact(mode)
             if (photosToolbar && opsToolbarSlot && photosToolbar.parentElement !== opsToolbarSlot) {
               opsToolbarSlot.appendChild(photosToolbar)
             }
             opsPanel.hidden = false
-            if (opsBackdrop) opsBackdrop.hidden = false
+            opsPanel.removeAttribute('hidden')
+            if (compact) hidePhotosOpsBackdrop()
+            else showPhotosOpsBackdrop()
           } else {
             opsPanel.hidden = true
-            opsPanel.removeAttribute('data-ops-compact')
-            if (opsBackdrop) opsBackdrop.hidden = true
+            opsPanel.setAttribute('hidden', '')
+            syncPhotosOpsCompact(mode)
+            hidePhotosOpsBackdrop()
             if (photosToolbar && toolbarHome && photosToolbar.parentElement !== toolbarHome) {
-              const gallery = document.getElementById('photos-gallery')
-              if (gallery?.parentElement) {
-                gallery.parentElement.insertBefore(photosToolbar, gallery)
+              const galleryEl = document.getElementById('photos-gallery')
+              if (galleryEl?.parentElement) {
+                galleryEl.parentElement.insertBefore(photosToolbar, galleryEl)
               } else {
                 toolbarHome.appendChild(photosToolbar)
               }
@@ -1906,19 +2013,44 @@
           }
           opsOpenBtn?.setAttribute('aria-expanded', open ? 'true' : 'false')
         }
-        opsOpenBtn?.addEventListener('click', () => {
-          syncPhotosOpsCompact('normal')
-          setPhotosOpsOpen(true)
+        opsOpenBtn?.addEventListener('click', (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          try {
+            syncPhotosOpsCompact(readPhotosMode())
+            setPhotosOpsOpen(!isPhotosOpsPanelOpen())
+          } catch (err) {
+            console.error('photos ops open failed', err)
+            hidePhotosOpsBackdrop()
+            if (opsPanel) {
+              opsPanel.hidden = false
+              opsPanel.removeAttribute('hidden')
+            }
+          }
         })
-        opsCloseBtn?.addEventListener('click', () => setPhotosOpsOpen(false))
-        opsBackdrop?.addEventListener('click', () => setPhotosOpsOpen(false))
+        opsCloseBtn?.addEventListener('click', (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setPhotosOpsOpen(false)
+        })
+        // backdrop はクリックを受けないため、パネル外タップで閉じる
+        document.addEventListener('click', (e) => {
+          if (!isPhotosMobileOps() || !isPhotosOpsPanelOpen()) return
+          if (e.target.closest('#photos-ops-panel, #photos-ops-open')) return
+          setPhotosOpsOpen(false)
+        })
         window.addEventListener('resize', () => {
           if (!isPhotosMobileOps()) setPhotosOpsOpen(false)
         })
-        // Desktop: keep panel contents visible (not a modal)
-        if (!isPhotosMobileOps() && opsPanel) {
+        hidePhotosOpsBackdrop()
+        if (isPhotosMobileOps()) {
+          if (opsPanel && readPhotosMode() === 'normal') {
+            opsPanel.hidden = true
+            opsPanel.setAttribute('hidden', '')
+          }
+        } else if (opsPanel) {
           opsPanel.hidden = false
-          if (opsBackdrop) opsBackdrop.hidden = true
+          opsPanel.removeAttribute('hidden')
         }
 
         albumsToggle?.addEventListener('click', () => {
@@ -2055,12 +2187,14 @@
             album: url.searchParams.get('album') || '',
             sort: photosSortSelect?.value || 'taken_desc',
             year: photosYearSelect?.value || '',
+            library: url.searchParams.get('library') === 'archived' ? 'archived' : 'active',
             ...patch,
           }
-          ;['album', 'sort', 'year'].forEach((key) => url.searchParams.delete(key))
+          ;['album', 'sort', 'year', 'library'].forEach((key) => url.searchParams.delete(key))
           if (next.album) url.searchParams.set('album', next.album)
           if (next.sort && next.sort !== 'taken_desc') url.searchParams.set('sort', next.sort)
           if (next.year) url.searchParams.set('year', next.year)
+          if (next.library === 'archived') url.searchParams.set('library', 'archived')
           window.location.assign(url.pathname + url.search + url.hash)
         }
 
@@ -2771,7 +2905,7 @@
               if (permission !== 'granted') {
                 const next = await folderWatch.handle.requestPermission({ mode: 'read' })
                 if (next !== 'granted') {
-                  setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')))
+                  setFolderWatchStatus(@json(__('フォルダ権限が切れました。監視を停止しました。')));
                   stopFolderWatch()
                   if (folderWatchBtn) folderWatchBtn.hidden = false
                   return
@@ -2808,7 +2942,7 @@
 
         async function startFolderWatch() {
           if (typeof window.showDirectoryPicker !== 'function') {
-            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」を使ってください。')))
+            window.alert(@json(__('このブラウザではフォルダ監視に対応していません。Chrome などの PC ブラウザでお試しください。スマホでは「写真・動画を追加」を使ってください。')));
             return
           }
           try {
@@ -3419,13 +3553,10 @@
               lightboxImage.alt = photo.caption || photo.originalName || photosT('photo')
             }
           }
-          lightboxCaption.textContent = photo.caption || photo.originalName || ''
-          lightboxDate.textContent = (isVideo ? photosT('videoPrefix') : '') + (photo.takenAt || '')
-          if (photo.editLabel) {
-            lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + photo.editLabel
-          }
-          if (photo.width && photo.height) {
-            lightboxDate.textContent += (lightboxDate.textContent ? ' · ' : '') + `${photo.width}×${photo.height}`
+          const lightboxDate = document.getElementById('photos-lightbox-date')
+          if (lightboxDate) {
+            lightboxDate.textContent = photo.takenAt || ''
+            lightboxDate.hidden = !photo.takenAt
           }
           if (deleteForm) deleteForm.action = `/photos/${photo.id}/delete`
           const editForm = document.getElementById('photos-edit-image-form')
@@ -3475,6 +3606,9 @@
           }
           if (editOpenBtn) editOpenBtn.hidden = !canEdit
           setLightboxEditMode(false)
+          if (photoDetailModal && !photoDetailModal.hasAttribute('hidden')) {
+            fillPhotoDetailModal(photo)
+          }
           if (coverPhotoInput) coverPhotoInput.value = String(photo.id)
           if (coverBtn && selectedAlbumId) {
             const isCover = coverPhotoId && Number(coverPhotoId) === Number(photo.id)
@@ -3494,6 +3628,7 @@
           stopLightboxVideo()
           exitPhotosFullscreen(lightbox)
           setLightboxEditMode(false)
+          closePhotoDetailModal()
           lightbox.classList.remove('is-fullscreen')
           lightbox.hidden = true
           if (lightboxImage) lightboxImage.src = ''
@@ -3515,22 +3650,123 @@
         document.getElementById('photos-lb-edit-open')?.addEventListener('click', () => setLightboxEditMode(true))
         document.getElementById('photos-lb-edit-back')?.addEventListener('click', () => setLightboxEditMode(false))
 
+        function formatPhotoBytes(bytes) {
+          const n = Number(bytes) || 0
+          if (n <= 0) return ''
+          if (n < 1024) return `${n} B`
+          if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+          if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+          return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
+        }
+
+        function setDetailRow(key, value) {
+          const row = photoDetailModal?.querySelector(`[data-detail="${key}"]`)
+          const text = String(value || '').trim()
+          if (!row) return
+          if (text) {
+            row.removeAttribute('hidden')
+            const dd = row.querySelector('dd')
+            if (dd) dd.textContent = text
+          } else {
+            row.setAttribute('hidden', '')
+          }
+        }
+
+        function fillPhotoDetailModal(photo) {
+          if (!photo || !photoDetailModal) return
+          const isVideo = photo.mediaKind === 'video'
+          setDetailRow('originalName', photo.originalName || '')
+          setDetailRow('caption', photo.caption || '')
+          setDetailRow('takenAt', photo.takenAt || '')
+          setDetailRow('mediaKind', isVideo ? @json(__('動画')) : @json(__('写真')));
+          setDetailRow(
+            'resolution',
+            photo.width && photo.height ? `${photo.width}×${photo.height}` : ''
+          )
+          setDetailRow('size', formatPhotoBytes(photo.sizeBytes))
+          setDetailRow('mime', photo.mime || '')
+          setDetailRow('editLabel', photo.editLabel || '')
+        }
+
+        function openPhotoDetailModal() {
+          const photo = photos[currentIndex]
+          if (!photo || !photoDetailModal) return
+          fillPhotoDetailModal(photo)
+          photoDetailModal.removeAttribute('hidden')
+        }
+
+        function closePhotoDetailModal() {
+          photoDetailModal?.setAttribute('hidden', '')
+        }
+
+        document.getElementById('photos-lb-detail-open')?.addEventListener('click', () => {
+          setLightboxEditMode(false)
+          openPhotoDetailModal()
+        })
+        document.querySelectorAll('[data-close-photo-detail]').forEach((el) => {
+          el.addEventListener('click', () => closePhotoDetailModal())
+        })
+
         let lightboxZoom = 1
         const lightboxMedia = document.getElementById('photos-lightbox-media')
-        const zoomResetBtn = document.getElementById('photos-zoom-reset')
+        let lightboxPinchStartDist = 0
+        let lightboxPinchStartZoom = 1
+        let lightboxLastTapAt = 0
+
         function setLightboxZoom(next) {
           lightboxZoom = Math.max(1, Math.min(4, Number(next) || 1))
           if (lightboxMedia) lightboxMedia.style.transform = `scale(${lightboxZoom})`
-          if (zoomResetBtn) zoomResetBtn.textContent = `${Math.round(lightboxZoom * 100)}%`
         }
-        document.getElementById('photos-zoom-in')?.addEventListener('click', () => setLightboxZoom(lightboxZoom + 0.25))
-        document.getElementById('photos-zoom-out')?.addEventListener('click', () => setLightboxZoom(lightboxZoom - 0.25))
-        zoomResetBtn?.addEventListener('click', () => setLightboxZoom(1))
+
+        function lightboxTouchDistance(touches) {
+          const a = touches[0]
+          const b = touches[1]
+          if (!a || !b) return 0
+          return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+        }
+
+        // Web: マウスホイール / キーボード +/-
         lightboxMedia?.addEventListener('wheel', (e) => {
           if (lightbox?.hidden) return
           e.preventDefault()
           setLightboxZoom(lightboxZoom + (e.deltaY < 0 ? 0.15 : -0.15))
         }, { passive: false })
+
+        // スマホ: ピンチで拡大縮小、ダブルタップでリセット
+        lightboxMedia?.addEventListener('touchstart', (e) => {
+          if (lightbox?.hidden) return
+          if (e.touches.length === 2) {
+            lightboxPinchStartDist = lightboxTouchDistance(e.touches)
+            lightboxPinchStartZoom = lightboxZoom
+            lightboxLastTapAt = 0
+            return
+          }
+          if (e.touches.length === 1) {
+            const now = Date.now()
+            if (now - lightboxLastTapAt < 280) {
+              setLightboxZoom(1)
+              lightboxLastTapAt = 0
+            } else {
+              lightboxLastTapAt = now
+            }
+          }
+        }, { passive: true })
+
+        lightboxMedia?.addEventListener('touchmove', (e) => {
+          if (lightbox?.hidden || e.touches.length !== 2 || lightboxPinchStartDist <= 0) return
+          e.preventDefault()
+          const dist = lightboxTouchDistance(e.touches)
+          if (dist <= 0) return
+          setLightboxZoom(lightboxPinchStartZoom * (dist / lightboxPinchStartDist))
+        }, { passive: false })
+
+        lightboxMedia?.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) lightboxPinchStartDist = 0
+        })
+
+        lightboxMedia?.addEventListener('touchcancel', () => {
+          lightboxPinchStartDist = 0
+        })
 
         function photosFullscreenElement() {
           return document.fullscreenElement || document.webkitFullscreenElement || null
@@ -3759,17 +3995,166 @@
           }
           yearAnchorsDirty = true
         }
+        const selectRow = document.getElementById('photos-toolbar-select-row')
+        const rangeModeBtn = document.getElementById('photos-range-mode')
+        const dockRangeModeBtn = document.getElementById('photos-dock-range-mode')
+        const dockSelectActions = document.getElementById('photos-year-dock-select-actions')
+        const rangeHint = document.getElementById('photos-range-hint')
+        let lastPhotoCheckIndex = null
+        /** @type {'off'|'start'|'end'} */
+        let rangeStep = 'off'
+        /** @type {HTMLElement|null} */
+        let rangeStartWrap = null
+
+        function syncRangeModeButtons() {
+          const active = rangeStep !== 'off'
+          const label = active ? @json(__('範囲解除')) : @json(__('範囲選択'));
+          ;[rangeModeBtn, dockRangeModeBtn].forEach((btn) => {
+            if (!btn) return
+            btn.textContent = label
+            btn.classList.toggle('is-active', active)
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false')
+          })
+        }
+
+        function visiblePhotoWraps() {
+          return photoTileWraps().filter((wrap) => (
+            !wrap.hidden
+            && !wrap.classList.contains('is-page-hidden')
+            && wrap.style.display !== 'none'
+          ))
+        }
+
+        function visiblePhotoChecks() {
+          return visiblePhotoWraps()
+            .map((wrap) => wrap.querySelector('.photo-check'))
+            .filter(Boolean)
+        }
+
+        function applyRangeBetweenWraps(wrapA, wrapB) {
+          const wraps = visiblePhotoWraps()
+          const i = wraps.indexOf(wrapA)
+          const j = wraps.indexOf(wrapB)
+          if (i < 0 || j < 0) return 0
+          const start = Math.min(i, j)
+          const end = Math.max(i, j)
+          let count = 0
+          for (let k = start; k <= end; k += 1) {
+            const check = wraps[k]?.querySelector('.photo-check')
+            if (!check) continue
+            check.checked = true
+            count += 1
+          }
+          return count
+        }
+
+        const rangeAnchorLabel = @json(__('始点'));
+
+        function clearRangeAnchorClass() {
+          document.querySelectorAll('.photos-tile-wrap.is-range-anchor').forEach((el) => {
+            el.classList.remove('is-range-anchor')
+            el.removeAttribute('data-range-anchor-label')
+          })
+        }
+
+        function markRangeAnchor(wrap) {
+          clearRangeAnchorClass()
+          if (!wrap) return
+          wrap.classList.add('is-range-anchor')
+          wrap.setAttribute('data-range-anchor-label', rangeAnchorLabel)
+        }
+
+        function resetRangeSelect() {
+          rangeStep = 'off'
+          rangeStartWrap = null
+          clearRangeAnchorClass()
+          syncRangeModeButtons()
+          if (rangeHint) {
+            rangeHint.textContent = @json(__('通常タップで1枚ずつ。範囲選択後に始点→終点。'));
+          }
+        }
+
+        function setRangeStart(wrap) {
+          const check = wrap?.querySelector('.photo-check')
+          if (!wrap || !check) return false
+          check.checked = true
+          rangeStartWrap = wrap
+          rangeStep = 'end'
+          markRangeAnchor(wrap)
+          const wraps = visiblePhotoWraps()
+          const index = wraps.indexOf(wrap)
+          if (index >= 0) lastPhotoCheckIndex = index
+          syncRangeModeButtons()
+          if (rangeHint) {
+            rangeHint.textContent = @json(__('② 終点の写真をタップ（始点〜終点がまとめて選択されます）'));
+          }
+          updatePhotosBulkUi()
+          return true
+        }
+
+        function beginRangeSelect() {
+          // すでに1枚だけ選んでから「範囲選択」を押した場合は、それを始点にする
+          const selected = visiblePhotoWraps().filter((wrap) => wrap.querySelector('.photo-check')?.checked)
+          if (selected.length === 1) {
+            setRangeStart(selected[0])
+            return
+          }
+          rangeStep = 'start'
+          rangeStartWrap = null
+          clearRangeAnchorClass()
+          syncRangeModeButtons()
+          if (rangeHint) {
+            rangeHint.textContent = @json(__('① 始点の写真をタップ'));
+          }
+        }
+
+        function toggleRangeSelect() {
+          if (rangeStep === 'off') beginRangeSelect()
+          else resetRangeSelect()
+        }
+
+        rangeModeBtn?.addEventListener('click', toggleRangeSelect)
+        dockRangeModeBtn?.addEventListener('click', toggleRangeSelect)
+
+        const bulkArchiveBtn = document.getElementById('photos-bulk-archive')
+        const bulkRestoreBtn = document.getElementById('photos-bulk-restore')
+
         function updatePhotosBulkUi() {
           const mode = currentPhotosMode()
           const ids = selectedPhotoIds()
+          const selecting = isSelectingMode(mode)
+          const archivedLib = readPhotosLibrary() === 'archived'
           if (bulkCount) bulkCount.textContent = @json(__(':count件選択')).replace(':count', String(ids.length));
           if (bulkBar) bulkBar.hidden = mode === 'normal' || ids.length === 0
-          if (bulkMoveWrap) bulkMoveWrap.hidden = mode !== 'list'
+          // 選択・一覧・アーカイブのどれでも移動できるようにする
+          if (bulkMoveWrap) bulkMoveWrap.hidden = mode === 'normal' || ids.length === 0
           if (colsControl) colsControl.hidden = mode === 'list'
+          if (selectRow) selectRow.hidden = mode === 'normal'
           if (selectActions) selectActions.hidden = mode === 'normal'
+          if (dockSelectActions) dockSelectActions.hidden = !selecting
+          if (bulkArchiveBtn) bulkArchiveBtn.hidden = archivedLib || ids.length === 0
+          if (bulkRestoreBtn) bulkRestoreBtn.hidden = !archivedLib || ids.length === 0
+          photoTileWraps().forEach((wrap) => {
+            const check = wrap.querySelector('.photo-check')
+            wrap.classList.toggle('is-selected', !!(check && check.checked))
+          })
+          if (typeof queueYearDockRefresh === 'function') queueYearDockRefresh()
         }
-        function setPhotosMode(mode) {
-          const next = ['normal', 'select', 'list'].includes(mode) ? mode : 'normal'
+        function setPhotosMode(mode, { skipNavigate = false } = {}) {
+          const next = ['normal', 'select', 'list', 'archive'].includes(mode) ? mode : 'normal'
+          const library = readPhotosLibrary()
+
+          // アーカイブはサーバー側ライブラリ切替（通常一覧から隠す／見せる）
+          if (!skipNavigate && next === 'archive' && library !== 'archived') {
+            applyPhotosListQuery({ library: 'archived', year: '' })
+            return
+          }
+          if (!skipNavigate && next !== 'archive' && library === 'archived') {
+            try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
+            applyPhotosListQuery({ library: 'active' })
+            return
+          }
+
           if (gallery) gallery.dataset.photosMode = next
           document.querySelectorAll('.photos-mode-btn[data-photos-mode]').forEach((btn) => {
             const active = btn.dataset.photosMode === next
@@ -3778,8 +4163,12 @@
           })
           if (next === 'normal') {
             photoChecks().forEach((cb) => { cb.checked = false })
+            lastPhotoCheckIndex = null
+            resetRangeSelect()
           }
-          try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
+          if (next !== 'archive') {
+            try { localStorage.setItem(PHOTOS_MODE_KEY, next) } catch (_) {}
+          }
           if (next !== 'list') {
             setPhotosCols(colsSlider?.value || gallery?.dataset.cols || PHOTOS_COLS_DEFAULT, { persist: false })
           } else if (gallery) {
@@ -3790,11 +4179,13 @@
           setPhotosPage(next === 'list' ? 1 : photosPage)
           updatePhotosBulkUi()
           if (isPhotosMobileOps()) {
-            if (next === 'select' || next === 'list') {
+            if (isSelectingMode(next)) {
               syncPhotosOpsCompact(next)
-              setPhotosOpsOpen(true)
+              // 写真を選ぶ邪魔にならないよう操作シートは閉じ、選択バーだけ残す
+              setPhotosOpsOpen(false)
             } else {
               syncPhotosOpsCompact('normal')
+              setPhotosOpsOpen(false)
             }
           }
         }
@@ -3811,18 +4202,22 @@
             setPhotosCols(current + (Number(btn.dataset.colsStep) || 0))
           })
         })
-        document.getElementById('photos-select-all')?.addEventListener('click', () => {
-          photoTileWraps().forEach((wrap) => {
-            if (wrap.hidden || wrap.classList.contains('is-page-hidden')) return
-            const check = wrap.querySelector('.photo-check')
-            if (check) check.checked = true
-          })
+        function selectAllVisiblePhotos() {
+          const list = visiblePhotoChecks()
+          list.forEach((check) => { check.checked = true })
+          lastPhotoCheckIndex = list.length ? list.length - 1 : null
           updatePhotosBulkUi()
-        })
-        document.getElementById('photos-select-none')?.addEventListener('click', () => {
+        }
+        function clearAllPhotoSelection() {
           photoChecks().forEach((cb) => { cb.checked = false })
+          lastPhotoCheckIndex = null
+          if (rangeStep !== 'off') beginRangeSelect()
           updatePhotosBulkUi()
-        })
+        }
+        document.getElementById('photos-select-all')?.addEventListener('click', selectAllVisiblePhotos)
+        document.getElementById('photos-dock-select-all')?.addEventListener('click', selectAllVisiblePhotos)
+        document.getElementById('photos-select-none')?.addEventListener('click', clearAllPhotoSelection)
+        document.getElementById('photos-dock-select-none')?.addEventListener('click', clearAllPhotoSelection)
         pagerPrev?.addEventListener('click', () => setPhotosPage(photosPage - 1, { scroll: true }))
         pagerNext?.addEventListener('click', () => setPhotosPage(photosPage + 1, { scroll: true }))
 
@@ -3915,7 +4310,12 @@
         function refreshYearDock() {
           yearDockFrame = 0
           if (!yearDock) return
-          const show = window.scrollY > YEAR_DOCK_SHOW_AT
+          const mode = currentPhotosMode()
+          const selecting = isSelectingMode(mode)
+          // 選択中はツールバーがすぐ隠れるので、少し早めに右下ドックを出す
+          const showAt = selecting ? 120 : YEAR_DOCK_SHOW_AT
+          const show = window.scrollY > showAt
+          if (dockSelectActions) dockSelectActions.hidden = !selecting
           setYearDockVisible(show)
           if (!show) return
           const year = yearInView()
@@ -3946,10 +4346,15 @@
           setPhotosCols(PHOTOS_COLS_DEFAULT, { persist: false })
         }
         try {
-          const savedMode = localStorage.getItem(PHOTOS_MODE_KEY)
-          setPhotosMode(savedMode || 'normal')
+          if (readPhotosLibrary() === 'archived') {
+            setPhotosMode('archive', { skipNavigate: true })
+          } else {
+            const savedMode = localStorage.getItem(PHOTOS_MODE_KEY)
+            const bootMode = ['normal', 'select', 'list'].includes(savedMode) ? savedMode : 'normal'
+            setPhotosMode(bootMode, { skipNavigate: true })
+          }
         } catch (_) {
-          setPhotosMode('normal')
+          setPhotosMode(readPhotosLibrary() === 'archived' ? 'archive' : 'normal', { skipNavigate: true })
         }
         try {
           const savedKind = localStorage.getItem(PHOTOS_KIND_KEY)
@@ -3999,28 +4404,118 @@
           form.submit()
         }
         document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
-          if (!window.confirm(@json(__('選択したメディアを削除しますか？')))) return
+          if (!window.confirm(@json(__('選択したメディアを削除しますか？完全に削除され、元に戻せません。')))) return
           submitPhotosBulk('/photos/bulk/delete')
+        })
+        document.getElementById('photos-bulk-archive')?.addEventListener('click', () => {
+          if (!window.confirm(@json(__('選択したメディアをアーカイブしますか？通常の一覧からは隠れますが、ファイルは残り、「アーカイブ」表示から復元できます。')))) return
+          submitPhotosBulk('/photos/bulk/archive')
+        })
+        document.getElementById('photos-bulk-restore')?.addEventListener('click', () => {
+          if (!window.confirm(@json(__('選択したメディアをライブラリに戻しますか？')))) return
+          submitPhotosBulk('/photos/bulk/restore')
         })
         document.getElementById('photos-bulk-move')?.addEventListener('click', () => {
           const albumId = document.getElementById('photos-bulk-move-album')?.value ?? ''
           submitPhotosBulk('/photos/bulk/move', { album_id: albumId })
         })
 
+        // 選択モードではチェックもタイルクリックと同じ経路へ（範囲選択の始点/終点が進む）
+        document.querySelectorAll('.photos-tile-check').forEach((label) => {
+          label.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
+            const wrap = label.closest('.photos-tile-wrap')
+            const tile = wrap?.querySelector('.photos-tile')
+            if (isSelectingMode(mode)) {
+              tile?.click()
+              return
+            }
+          })
+        })
+        document.querySelectorAll('.photo-check').forEach((check) => {
+          check.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          })
+          check.addEventListener('change', () => {
+            if (rangeStep !== 'off') return
+            const list = visiblePhotoChecks()
+            const index = list.indexOf(check)
+            if (index >= 0) lastPhotoCheckIndex = index
+            updatePhotosBulkUi()
+          })
+        })
+
         document.querySelectorAll('.photos-tile').forEach((tile) => {
           tile.addEventListener('click', (e) => {
-            const mode = currentPhotosMode()
-            if (mode === 'select' || mode === 'list') {
+            const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
+            if (isSelectingMode(mode)) {
               e.preventDefault()
+              e.stopPropagation()
               const wrap = tile.closest('.photos-tile-wrap')
               const check = wrap?.querySelector('.photo-check')
-              if (check) {
-                check.checked = !check.checked
+              if (!check) return
+              // スマホで click が二重発火して ON→すぐ OFF になるのを防ぐ
+              const now = Date.now()
+              const prev = Number(tile.dataset.selLockAt || 0)
+              if (now - prev < 350) return
+              tile.dataset.selLockAt = String(now)
+
+              const wraps = visiblePhotoWraps()
+              const index = wraps.indexOf(wrap)
+
+              // PC: Shift＋クリック＝直前に触った写真〜ここを一括選択
+              if (e.shiftKey && lastPhotoCheckIndex != null && index >= 0 && lastPhotoCheckIndex !== index) {
+                const startWrap = wraps[lastPhotoCheckIndex]
+                if (startWrap) applyRangeBetweenWraps(startWrap, wrap)
+                lastPhotoCheckIndex = index
+                resetRangeSelect()
                 updatePhotosBulkUi()
+                return
               }
+
+              // 範囲選択ボタン: 始点 → 終点
+              if (rangeStep === 'start') {
+                setRangeStart(wrap)
+                return
+              }
+              if (rangeStep === 'end') {
+                const startWrap = rangeStartWrap && document.body.contains(rangeStartWrap)
+                  ? rangeStartWrap
+                  : wrap
+                const count = applyRangeBetweenWraps(startWrap, wrap)
+                if (index >= 0) lastPhotoCheckIndex = index
+                resetRangeSelect()
+                if (rangeHint) {
+                  rangeHint.textContent = @json(__(':count件を範囲選択しました')).replace(':count', String(count))
+                }
+                updatePhotosBulkUi()
+                return
+              }
+
+              // 通常: 1枚ずつ
+              check.checked = !check.checked
+              if (index >= 0) lastPhotoCheckIndex = index
+              updatePhotosBulkUi()
               return
             }
             openLightbox(Number(tile.dataset.photoIndex || 0))
+          })
+        })
+
+        // 一覧行の文字部分タップでも選択
+        document.querySelectorAll('#photos-gallery .photos-list-meta').forEach((meta) => {
+          meta.addEventListener('click', (e) => {
+            const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
+            if (!isSelectingMode(mode)) return
+            if (e.target.closest('.photos-list-download')) return
+            e.preventDefault()
+            e.stopPropagation()
+            const wrap = meta.closest('.photos-tile-wrap')
+            const tile = wrap?.querySelector('.photos-tile')
+            tile?.click()
           })
         })
         document.querySelectorAll('[data-close-lightbox]').forEach((el) => {
@@ -4084,13 +4579,13 @@
         async function downloadPhotosByIds(ids, triggerBtn = null) {
           const idList = (ids || []).map((id) => String(id)).filter(Boolean)
           if (!idList.length) {
-            window.alert(@json(__('ダウンロードする写真を選択してください。')))
+            window.alert(@json(__('ダウンロードする写真を選択してください。')));
             return
           }
           const originalText = triggerBtn?.textContent
           if (triggerBtn) {
             triggerBtn.disabled = true
-            triggerBtn.textContent = @json(__('ダウンロード中…'))
+            triggerBtn.textContent = @json(__('ダウンロード中…'));
           }
           let ok = 0
           let failed = 0
@@ -4436,7 +4931,7 @@
         function openSlideshow(startPhotoIndex = 0) {
           ssState.queue = ssQueue()
           if (!ssState.queue.length) {
-            window.alert(@json(__('スライドショーで表示できる写真がありません。')))
+            window.alert(@json(__('スライドショーで表示できる写真がありません。')));
             return
           }
           let start = ssState.queue.findIndex(({ index }) => index === startPhotoIndex)
@@ -4551,7 +5046,6 @@
         setSsChromeHidden(false)
 
         document.getElementById('photos-slideshow-open')?.addEventListener('click', () => openSlideshow(0))
-        document.getElementById('photos-lightbox-slideshow')?.addEventListener('click', () => openSlideshow(currentIndex))
         document.getElementById('photos-ss-close')?.addEventListener('click', closeSlideshow)
         document.getElementById('photos-ss-prev')?.addEventListener('click', () => {
           setSsPlaying(false)
@@ -5800,13 +6294,13 @@
                 })
                 const data = await res.json().catch(() => ({}))
                 if (data.cancelled || res.status === 499) {
-                  window.alert(data.message || @json(__('鮮明化を中止しました。')))
+                  window.alert(data.message || @json(__('鮮明化を中止しました。')));
                   return
                 }
                 if (!res.ok || data.ok === false) {
-                  throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')))
+                  throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')));
                 }
-                window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')))
+                window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')));
                 const newId = data.photo && data.photo.id
                 if (newId) {
                   const url = new URL(window.location.href)

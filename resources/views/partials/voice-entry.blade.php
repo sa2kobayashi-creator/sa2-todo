@@ -37,7 +37,7 @@
     />
     <button
       type="button"
-      class="button-link"
+      class="button-link finance-voice-parse-btn"
       id="{{ $idPrefix }}-voice-parse-btn"
       @disabled(empty($voiceAiReady))
     >{{ __('解析') }}</button>

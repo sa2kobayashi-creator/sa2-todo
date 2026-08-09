@@ -158,6 +158,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
     Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
+    Route::post('/photos/bulk/archive', [PhotoController::class, 'bulkArchive']);
+    Route::post('/photos/bulk/restore', [PhotoController::class, 'bulkRestore']);
 
     Route::middleware(EnsureFeature::class.':music')->group(function () {
         Route::get('/music', [MusicController::class, 'index']);
