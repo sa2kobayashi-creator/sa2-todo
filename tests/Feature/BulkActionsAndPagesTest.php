@@ -448,10 +448,10 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertDatabaseMissing('photos', ['id' => $photo->id]);
     }
 
-    public function test_bulk_delete_json_processes_in_chunks_of_forty(): void
+    public function test_bulk_delete_json_processes_in_chunks_of_one_hundred(): void
     {
         $ids = [];
-        for ($i = 0; $i < 45; $i++) {
+        for ($i = 0; $i < 105; $i++) {
             $photo = Photo::create([
                 'user_id' => $this->user->id,
                 'album_id' => null,
@@ -473,9 +473,10 @@ class BulkActionsAndPagesTest extends TestCase
             ->assertOk()
             ->assertJson([
                 'ok' => true,
-                'count' => 40,
-                'requested' => 40,
+                'count' => 100,
+                'requested' => 100,
                 'remaining' => 5,
+                'deferred_cleanup' => true,
             ]);
 
         $this->assertSame(5, Photo::query()->where('user_id', $this->user->id)->count());

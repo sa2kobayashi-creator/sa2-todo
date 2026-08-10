@@ -975,22 +975,23 @@ class PhotoController extends Controller
 
     public function bulkDestroy(Request $request)
     {
-        // 分割削除向け。1リクエストは短時間で終わらせ、フロントがチャンクを繰り返す
+        // DB だけ同期削除。ファイル掃除は afterResponse なので短時間で返す
         if (function_exists('set_time_limit')) {
-            @set_time_limit(90);
+            @set_time_limit(60);
         }
 
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
         $ids = $this->photos->parseIdList($request->input('ids'));
-        // プロキシ／PHP タイムアウトを避けるため、1回あたりの上限
-        $maxPerRequest = 40;
+        // DB のみなので多めにまとめてよい
+        $maxPerRequest = 100;
         $chunk = array_slice($ids, 0, $maxPerRequest);
         $remaining = max(0, count($ids) - count($chunk));
 
         $count = $this->photos->bulkDeletePhotos(
             (int) $request->user()->id,
             $chunk,
-            false
+            false,
+            true
         );
         $message = __(':count件のメディアを削除しました', ['count' => $count]);
         $ok = $count > 0 || $chunk === [];
@@ -1001,6 +1002,7 @@ class PhotoController extends Controller
                 'count' => $count,
                 'requested' => count($chunk),
                 'remaining' => $remaining,
+                'deferred_cleanup' => true,
                 'message' => $ok
                     ? $message
                     : __('削除対象が見つかりませんでした'),

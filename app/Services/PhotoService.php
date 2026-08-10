@@ -1990,7 +1990,8 @@ class PhotoService
 
     public function deletePhoto(int $userId, int $photoId): bool
     {
-        return $this->bulkDeletePhotos($userId, [$photoId], true) === 1;
+        // ストレージ掃除はレスポンス後。単枚削除も待たせない
+        return $this->bulkDeletePhotos($userId, [$photoId], true, true) === 1;
     }
 
     /** @param list<int> $ids */
@@ -2030,9 +2031,14 @@ class PhotoService
     /**
      * @param  list<int>  $ids
      * @param  bool  $purgeCloudinary  一括削除では false 推奨（件数×API待ちでタイムアウトしやすい）
+     * @param  bool  $deferStorageCleanup  true なら DB 削除後すぐ返し、ファイル掃除は afterResponse
      */
-    public function bulkDeletePhotos(int $userId, array $ids, bool $purgeCloudinary = false): int
-    {
+    public function bulkDeletePhotos(
+        int $userId,
+        array $ids,
+        bool $purgeCloudinary = false,
+        bool $deferStorageCleanup = true
+    ): int {
         $idSet = $this->parseIdList($ids);
         if ($idSet === []) {
             return 0;
@@ -2056,8 +2062,9 @@ class PhotoService
         }
 
         $photoIds = $photos->pluck('id')->map(static fn ($id) => (int) $id)->all();
+        $assets = $this->collectDeletedPhotoAssets($photos);
 
-        // DB を先に消す。ストレージ API が遅くても一覧からは消える
+        // DB を先に消す。ストレージ API は待たない（一覧からすぐ消える）
         PhotoAlbum::query()
             ->where('user_id', $userId)
             ->whereIn('cover_photo_id', $photoIds)
@@ -2070,7 +2077,35 @@ class PhotoService
 
         $this->forgetStorageStatsCache($userId);
 
+        if ($deferStorageCleanup) {
+            dispatch(function () use ($assets, $purgeCloudinary) {
+                try {
+                    app(self::class)->purgeDeletedPhotoAssets($assets, $purgeCloudinary);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            })->afterResponse();
+        } else {
+            $this->purgeDeletedPhotoAssets($assets, $purgeCloudinary);
+        }
+
+        return count($photoIds);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Photo>  $photos
+     * @return array{
+     *   paths: list<string>,
+     *   cold: list<array{disk: string, path: string}>,
+     *   cloudinary: list<array{public_id: string, resource_type: ?string}>
+     * }
+     */
+    private function collectDeletedPhotoAssets($photos): array
+    {
         $paths = [];
+        $cold = [];
+        $cloudinary = [];
+
         foreach ($photos as $photo) {
             if (is_string($photo->path) && $photo->path !== '') {
                 $paths[] = $photo->path;
@@ -2078,28 +2113,74 @@ class PhotoService
             if (is_string($photo->thumb_path) && $photo->thumb_path !== '' && $photo->thumb_path !== $photo->path) {
                 $paths[] = $photo->thumb_path;
             }
-            if ($purgeCloudinary && is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
+            if (is_string($photo->cold_path) && $photo->cold_path !== '' && is_string($photo->cold_disk) && $photo->cold_disk !== '') {
+                $cold[] = [
+                    'disk' => $photo->cold_disk,
+                    'path' => $photo->cold_path,
+                ];
+            }
+            if (is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
+                $cloudinary[] = [
+                    'public_id' => $photo->cloudinary_public_id,
+                    'resource_type' => is_string($photo->cloudinary_resource_type)
+                        ? $photo->cloudinary_resource_type
+                        : null,
+                ];
+            }
+        }
+
+        return [
+            'paths' => array_values(array_unique($paths)),
+            'cold' => $cold,
+            'cloudinary' => $cloudinary,
+        ];
+    }
+
+    /**
+     * DB 削除済みメディアのファイル掃除（レスポンス後実行向け）
+     *
+     * @param  array{
+     *   paths?: list<string>,
+     *   cold?: list<array{disk: string, path: string}>,
+     *   cloudinary?: list<array{public_id: string, resource_type: ?string}>
+     * }  $assets
+     */
+    public function purgeDeletedPhotoAssets(array $assets, bool $purgeCloudinary = false): void
+    {
+        if ($purgeCloudinary) {
+            foreach ($assets['cloudinary'] ?? [] as $item) {
+                $publicId = $item['public_id'] ?? null;
+                if (! is_string($publicId) || $publicId === '') {
+                    continue;
+                }
                 try {
                     $this->cloudinary->deletePhoto(
-                        $photo->cloudinary_public_id,
-                        $photo->cloudinary_resource_type
+                        $publicId,
+                        $item['resource_type'] ?? null
                     );
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            }
-            if (is_string($photo->cold_path) && $photo->cold_path !== '' && is_string($photo->cold_disk) && $photo->cold_disk !== '') {
-                try {
-                    Storage::disk($photo->cold_disk)->delete($photo->cold_path);
                 } catch (\Throwable $e) {
                     report($e);
                 }
             }
         }
 
-        $this->deleteStoragePaths(array_values(array_unique($paths)));
+        foreach ($assets['cold'] ?? [] as $item) {
+            $disk = $item['disk'] ?? null;
+            $path = $item['path'] ?? null;
+            if (! is_string($disk) || $disk === '' || ! is_string($path) || $path === '') {
+                continue;
+            }
+            try {
+                Storage::disk($disk)->delete($path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
-        return count($photoIds);
+        $this->deleteStoragePaths(array_values(array_filter(
+            $assets['paths'] ?? [],
+            static fn ($p) => is_string($p) && $p !== ''
+        )));
     }
 
     /** @param list<string> $paths */

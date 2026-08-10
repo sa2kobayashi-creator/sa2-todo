@@ -10990,6 +10990,44 @@ body.photos-is-busy .photos-main {
   to { transform: rotate(360deg); }
 }
 
+.photos-delete-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 20px;
+  z-index: 8800;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 360px);
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(23, 27, 31, 0.92);
+  color: #f5f7f8;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+}
+
+.photos-delete-toast[hidden] {
+  display: none !important;
+}
+
+.photos-delete-toast-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: photos-busy-spin 0.8s linear infinite;
+}
+
+.photos-delete-toast-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
 .photos-hero {
   display: flex;
   flex-wrap: wrap;

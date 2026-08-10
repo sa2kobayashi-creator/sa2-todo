@@ -30,6 +30,10 @@
           <p class="photos-busy-hint">{{ __('完了するまでお待ちください') }}</p>
         </div>
       </div>
+      <div class="photos-delete-toast" id="photos-delete-toast" hidden aria-live="polite">
+        <div class="photos-delete-toast-spinner" aria-hidden="true"></div>
+        <p class="photos-delete-toast-message" id="photos-delete-toast-message">{{ __('削除中…') }}</p>
+      </div>
 
       <section class="photos-hero">
         <div class="photos-hero-copy">
@@ -4567,33 +4571,43 @@
           if (!window.confirm(@json(__('選択したメディアを削除しますか？完全に削除され、元に戻せません。')))) return
 
           const total = ids.length
-          const chunkSize = 25
+          // DB のみ同期・ファイルは裏掃除なので大きめにまとめる
+          const chunkSize = 100
           let deleted = 0
-          let cancelled = false
-          const progressTpl = @json(__('削除中… :done / :total 件'));
-          const updateProgress = () => {
-            setPhotosBusy(
-              true,
-              progressTpl.replace(':done', String(deleted)).replace(':total', String(total)),
-              'delete'
-            )
-            // 離脱時にループを止める
-            pageJob?.start('delete', () => { cancelled = true })
+          const progressTpl = @json(__('削除中… :done / :total 件（他の操作もできます）'));
+          const toast = document.getElementById('photos-delete-toast')
+          const toastMsg = document.getElementById('photos-delete-toast-message')
+          const setToast = (visible, message = '') => {
+            if (toastMsg && message) toastMsg.textContent = message
+            if (toast) toast.hidden = !visible
           }
+          const updateProgress = () => {
+            setToast(
+              true,
+              progressTpl.replace(':done', String(deleted)).replace(':total', String(total))
+            )
+          }
+
+          // 画面ロックしない（B2アーカイブと同様、他作業を続ける）
           updateProgress()
+          // 選択タイルは先に外して体感を速くする
+          ids.forEach((id) => {
+            const check = Array.from(document.querySelectorAll('.photo-check'))
+              .find((cb) => String(cb.value) === String(id))
+            const wrap = check?.closest('.photos-tile-wrap')
+            if (wrap) wrap.remove()
+            else if (check) check.closest('li, article, .photos-list-row')?.remove()
+          })
+          updatePhotosBulkUi()
 
           try {
             for (let i = 0; i < ids.length; i += chunkSize) {
-              if (cancelled) {
-                throw new Error('aborted')
-              }
               const chunk = ids.slice(i, i + chunkSize)
               const fd = new FormData()
               fd.append('returnTo', photosReturnTo || '/photos')
               chunk.forEach((id) => fd.append('ids[]', id))
-              // 重複削除と同じ FormData 経路（JSON body は環境によって空になることがある）
               const res = await postUploadFormDataWithRetry('/photos/bulk/delete', fd, {
-                timeoutMs: 90 * 1000,
+                timeoutMs: 60 * 1000,
               }, 2)
               const count = Number(res.data?.count) || 0
               if (count <= 0) {
@@ -4602,19 +4616,10 @@
               deleted += count
               updateProgress()
             }
-            setPhotosBusy(true, @json(__('削除完了。画面を更新しています…')), 'delete')
+            setToast(true, @json(__('削除完了。画面を更新しています…')))
             window.location.assign(photosReturnTo || '/photos')
           } catch (err) {
-            setPhotosBusy(false, '', 'delete')
-            if (String(err && err.message) === 'aborted') {
-              window.alert(
-                @json(__('削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。'))
-                  .replace(':done', String(deleted))
-                  .replace(':total', String(total))
-              )
-              window.location.reload()
-              return
-            }
+            setToast(false)
             window.alert(
               @json(__('削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。'))
                 .replace(':done', String(deleted))
