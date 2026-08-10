@@ -375,12 +375,7 @@
       const RETURN_TO = {!! \Illuminate\Support\Js::from($returnTo) !!};
       const CALENDAR_VIEW = {!! \Illuminate\Support\Js::from($view) !!};
 
-      const timedScroll = document.querySelector('.cal-timed-scroll')
-      if (timedScroll) {
-        const host = timedScroll.closest('.calendar-day-view, .calendar-week-view') || timedScroll
-        const hourHeight = parseFloat(getComputedStyle(host).getPropertyValue('--cal-hour-height')) || 48
-        timedScroll.scrollTop = hourHeight * 8
-      }
+      // 初期スクロールは partials.calendar-timed-scroll-script で 8:00 に合わせる
 
       let quickAddDate = null
       const todoModal = document.getElementById('todo-modal')
@@ -1255,6 +1250,7 @@
       })
     </script>
     @include('partials.calendar-height-resizer-script')
+    @include('partials.calendar-timed-scroll-script')
     @include('partials.accordion-state')
   </body>
 </html>

@@ -1667,6 +1667,7 @@
       })
     </script>
     @include('partials.calendar-height-resizer-script')
+    @include('partials.calendar-timed-scroll-script')
     @include('partials.accordion-state')
   </body>
 </html>

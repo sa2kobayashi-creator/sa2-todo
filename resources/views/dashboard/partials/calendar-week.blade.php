@@ -17,6 +17,7 @@
     <div class="cal-week-allday-cols">
       @foreach($weekView['days'] as $day)
         <div class="cal-week-allday-col" data-date="{{ $day['date'] }}">
+          <button type="button" class="day-add-btn" data-date="{{ $day['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
           @foreach($day['allDay'] as $todo)
             <button
               type="button"
@@ -43,7 +44,6 @@
               <span class="event-title">📝 {{ $truncateTitle($getNoteDisplayTitle($note), 14) }}</span>
             </button>
           @endforeach
-          <button type="button" class="day-add-btn" data-date="{{ $day['date'] }}" title="{{ __('ToDo を追加') }}">+</button>
         </div>
       @endforeach
     </div>

@@ -3267,23 +3267,41 @@ a.filter-clear-btn {
   white-space: nowrap;
 }
 
-.cal-week-allday {
-  grid-template-columns: 56px 1fr;
+.cal-allday-row.cal-week-allday {
+  /* ヘッダー／時間グリッドと同じ 8 列にして列ずれを防ぐ */
+  grid-template-columns: 56px repeat(7, minmax(0, 1fr));
+  gap: 0;
+  padding: 6px 0;
+  align-items: start;
+}
+
+.cal-week-allday > .cal-allday-label {
+  padding: 4px 4px 0;
+  box-sizing: border-box;
 }
 
 .cal-week-allday-cols {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  display: contents;
 }
 
 .cal-week-allday-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  align-items: stretch;
+  justify-content: flex-start;
   min-height: 36px;
-  padding: 0 2px;
+  min-width: 0;
+  padding: 2px;
   border-left: 1px solid #f1f3f4;
+  box-sizing: border-box;
+}
+
+.cal-week-allday-col .day-add-btn {
+  align-self: flex-start;
+  margin: 0;
+  flex: 0 0 auto;
+  order: -1; /* 念のため常に最上段 */
 }
 
 /* Year view */
@@ -3413,30 +3431,75 @@ a.filter-clear-btn {
     flex: 0 0 auto !important;
   }
 
-  .cal-allday-row,
-  .cal-week-allday {
-    grid-template-columns: 40px 1fr;
+  .cal-allday-row:not(.cal-week-allday) {
+    grid-template-columns: 32px 1fr;
   }
 
-  .cal-timed-grid,
+  .cal-allday-row.cal-week-allday {
+    grid-template-columns: 32px repeat(7, minmax(0, 1fr)) !important;
+    padding: 4px 0;
+    gap: 0;
+  }
+
+  /* 日表示のみ。週表示は下で7列を維持 */
+  .cal-timed-grid:not(.cal-week-timed-grid) {
+    grid-template-columns: 32px 1fr;
+  }
+
+  /* スマホ週表示: 横スクロールせず7日を画面幅に収める */
+  .calendar-week-view {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .cal-week-timed-grid,
   .cal-week-header {
-    grid-template-columns: 40px 1fr;
-  }
-
-  .cal-week-timed-grid {
-    grid-template-columns: 40px repeat(7, minmax(72px, 1fr));
-    min-width: 640px;
-  }
-
-  .cal-week-header {
-    grid-template-columns: 40px repeat(7, minmax(72px, 1fr));
-    min-width: 640px;
+    grid-template-columns: 32px repeat(7, minmax(0, 1fr)) !important;
+    min-width: 0 !important;
+    width: 100%;
   }
 
   .calendar-week-view .cal-timed-scroll,
-  .calendar-week-view .cal-week-header,
-  .calendar-week-view .cal-week-allday-cols {
-    overflow-x: auto;
+  .calendar-week-view .cal-week-header {
+    overflow-x: hidden;
+  }
+
+  .cal-week-day-head {
+    padding: 8px 1px;
+    min-width: 0;
+  }
+
+  .cal-week-weekday {
+    font-size: 10px;
+  }
+
+  .cal-week-daynum {
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+  }
+
+  .cal-week-allday-col {
+    padding: 2px 1px;
+    min-width: 0;
+  }
+
+  .cal-week-allday-col .event-chip {
+    font-size: 8px;
+    padding: 1px 2px;
+  }
+
+  .cal-week-allday-col .day-add-btn {
+    min-width: 24px;
+    min-height: 24px;
+    font-size: 16px;
+  }
+
+  .cal-time-label {
+    right: 2px;
+    font-size: 9px;
   }
 }
 
