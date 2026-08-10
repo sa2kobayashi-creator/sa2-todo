@@ -1691,7 +1691,7 @@
 
     <div class="modal modal-centered" id="photos-album-modal" hidden>
       <div class="modal-backdrop" data-close-album-modal></div>
-      <div class="modal-dialog" role="dialog" aria-labelledby="photos-album-modal-title">
+      <div class="modal-dialog photos-album-modal-dialog" role="dialog" aria-labelledby="photos-album-modal-title">
         <div class="modal-header">
           <h2 id="photos-album-modal-title">{{ __('アルバムを作成') }}</h2>
           <button type="button" class="modal-close" data-close-album-modal aria-label="{{ __('閉じる') }}">×</button>
@@ -1743,25 +1743,40 @@
               <strong>{{ __('表紙') }}</strong>
               <span class="hint">{{ __('タップして選択') }}</span>
             </div>
+            <div class="photos-album-cover-preview" id="photos-album-cover-preview" hidden>
+              <img src="" alt="" id="photos-album-cover-preview-img" />
+              <p class="photos-album-cover-preview-meta" id="photos-album-cover-preview-meta"></p>
+            </div>
             <input type="hidden" name="cover_photo_id" id="photos-album-cover-photo-id" value="" disabled />
             <div class="photos-album-cover-grid" id="photos-album-cover-grid" role="listbox" aria-label="{{ __('表紙候補') }}">
               @forelse(($albumCoverCandidates ?? []) as $candidate)
+                @php
+                  $candidateSrc = $candidate['thumbUrl'] ?: ($candidate['url'] ?? '');
+                  $candidateLabel = $candidate['takenDate'] ?? ($candidate['originalName'] ?? '');
+                @endphp
                 <button
                   type="button"
                   class="photos-album-cover-option"
                   role="option"
                   data-photo-id="{{ $candidate['id'] }}"
+                  data-thumb-src="{{ $candidateSrc }}"
+                  data-label="{{ $candidateLabel }}"
                   aria-selected="false"
-                  title="{{ __('表紙に設定') }}"
+                  title="{{ $candidateLabel !== '' ? $candidateLabel : __('表紙に設定') }}"
                 >
-                  <img
-                    src="{{ $candidate['thumbUrl'] ?: $candidate['url'] }}"
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  @if(($candidate['mediaKind'] ?? '') === 'video')
-                    <span class="photos-album-cover-play" aria-hidden="true">▶</span>
+                  <span class="photos-album-cover-thumb">
+                    <img
+                      src="{{ $candidateSrc }}"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    @if(($candidate['mediaKind'] ?? '') === 'video')
+                      <span class="photos-album-cover-play" aria-hidden="true">▶</span>
+                    @endif
+                  </span>
+                  @if($candidateLabel !== '')
+                    <span class="photos-album-cover-caption">{{ $candidateLabel }}</span>
                   @endif
                 </button>
               @empty
@@ -5323,6 +5338,9 @@
         const albumCoverPicker = document.getElementById('photos-album-cover-picker')
         const albumCoverPhotoId = document.getElementById('photos-album-cover-photo-id')
         const albumCoverGrid = document.getElementById('photos-album-cover-grid')
+        const albumCoverPreview = document.getElementById('photos-album-cover-preview')
+        const albumCoverPreviewImg = document.getElementById('photos-album-cover-preview-img')
+        const albumCoverPreviewMeta = document.getElementById('photos-album-cover-preview-meta')
         const selectedAlbum = @json($selectedAlbum);
         const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
         const albumDeleteConfirmPrefix = @json(__('このアルバムを削除しますか？'));
@@ -5331,11 +5349,28 @@
         function setAlbumCoverSelection(photoId) {
           const id = photoId ? String(photoId) : ''
           if (albumCoverPhotoId) albumCoverPhotoId.value = id
+          let previewSrc = ''
+          let previewLabel = ''
           albumCoverGrid?.querySelectorAll('.photos-album-cover-option').forEach((btn) => {
             const selected = id !== '' && btn.dataset.photoId === id
             btn.classList.toggle('is-selected', selected)
             btn.setAttribute('aria-selected', selected ? 'true' : 'false')
+            if (selected) {
+              previewSrc = btn.dataset.thumbSrc || btn.querySelector('img')?.getAttribute('src') || ''
+              previewLabel = btn.dataset.label || ''
+            }
           })
+          if (albumCoverPreview && albumCoverPreviewImg) {
+            if (previewSrc) {
+              albumCoverPreview.hidden = false
+              albumCoverPreviewImg.src = previewSrc
+              if (albumCoverPreviewMeta) albumCoverPreviewMeta.textContent = previewLabel
+            } else {
+              albumCoverPreview.hidden = true
+              albumCoverPreviewImg.removeAttribute('src')
+              if (albumCoverPreviewMeta) albumCoverPreviewMeta.textContent = ''
+            }
+          }
         }
 
         albumCoverGrid?.addEventListener('click', (e) => {
@@ -5405,6 +5440,12 @@
             if (albumCoverPicker) albumCoverPicker.hidden = false
             if (albumCoverPhotoId) albumCoverPhotoId.disabled = false
             setAlbumCoverSelection(selectedAlbum.coverPhotoId || '')
+            requestAnimationFrame(() => {
+              albumCoverGrid?.querySelector('.photos-album-cover-option.is-selected')?.scrollIntoView({
+                block: 'nearest',
+                inline: 'nearest',
+              })
+            })
             hideNow(albumHiddenHint, 'hintTimer')
           } else {
             albumModalTitle.textContent = @json(__('アルバムを作成'));

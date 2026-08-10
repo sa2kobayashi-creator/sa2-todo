@@ -1361,6 +1361,8 @@ class PhotoService
                     'thumbUrl' => $arr['thumbUrl'] ?? null,
                     'url' => $arr['url'] ?? null,
                     'mediaKind' => $arr['mediaKind'] ?? 'image',
+                    'takenDate' => $arr['takenDate'] ?? null,
+                    'originalName' => $arr['originalName'] ?? null,
                 ];
             })
             ->values()
