@@ -159,4 +159,36 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertDontSee('最新の 2026 年のみ表示')
             ->assertSee('data-year="2024"', false);
     }
+
+    public function test_year_filter_outside_current_scope_is_dropped_instead_of_empty_gallery(): void
+    {
+        $user = $this->makeUser('yearswitch@example.com');
+        $album = \App\Models\PhotoAlbum::create([
+            'user_id' => $user->id,
+            'name' => 'Travel',
+            'visibility' => 'private',
+        ]);
+        $this->makePhoto($user, 'a2012.jpg', 'image/jpeg', '2012-04-05 10:00:00')
+            ->forceFill(['album_id' => $album->id])
+            ->save();
+        $other = \App\Models\PhotoAlbum::create([
+            'user_id' => $user->id,
+            'name' => 'Other',
+            'visibility' => 'private',
+        ]);
+        $this->makePhoto($user, 'b2024.jpg', 'image/jpeg', '2024-06-01 10:00:00')
+            ->forceFill(['album_id' => $other->id])
+            ->save();
+
+        // 別アルバムで選んだ年を持ち込むと、その年が無いので year を外してリダイレクト
+        $this->actingAs($user)
+            ->get('/photos?album='.$other->id.'&year=2012')
+            ->assertRedirect('/photos?album='.$other->id);
+
+        $this->actingAs($user)
+            ->get('/photos?album='.$other->id)
+            ->assertOk()
+            ->assertSee('data-year="2024"', false)
+            ->assertDontSee('まだメディアがありません');
+    }
 }

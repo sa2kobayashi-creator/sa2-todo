@@ -55,6 +55,13 @@ class PhotoController extends Controller
             : null;
 
         $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId, $library, $scope);
+        // 別アルバムで選んだ年が、今の範囲に無いときはフィルタを外す（空表示を防ぐ）
+        if ($year !== null && ! in_array($year, $photoYears, true)) {
+            $query = $request->query();
+            unset($query['year']);
+
+            return redirect()->to('/photos'.($query !== [] ? '?'.http_build_query($query) : ''));
+        }
         $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library, $scope);
         $autoYearScoped = false;
         $autoYearThreshold = 120;

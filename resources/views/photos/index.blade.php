@@ -711,7 +711,7 @@
 
       <section class="photos-album-covers" id="photos-album-covers" aria-label="{{ __('アルバム') }}" hidden>
         <a
-          href="/photos{{ request()->filled('sort') || request()->filled('year') ? '?'.http_build_query(array_filter(['sort' => request('sort'), 'year' => request('year')])) : '' }}"
+          href="/photos{{ request()->filled('sort') ? '?'.http_build_query(array_filter(['sort' => request('sort')])) : '' }}"
           @class(['photos-cover-card', 'is-all', 'is-active' => !$selectedAlbumId])
         >
           <span class="photos-cover-all-label">{{ __('すべて') }}</span>
@@ -719,10 +719,10 @@
         </a>
         @foreach($albums as $album)
           @php
+            // アルバム切替時は年フィルタを引き継がない（別アルバムに無い年で空表示になるため）
             $albumQuery = array_filter([
               'album' => $album['id'],
               'sort' => request('sort'),
-              'year' => request('year'),
             ], fn ($v) => $v !== null && $v !== '');
           @endphp
           <a
@@ -2271,7 +2271,11 @@
         photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosScopeSelect?.addEventListener('change', () => {
-          applyPhotosListQuery({ scope: photosScopeSelect.value === 'library' ? 'library' : 'loose' })
+          // 表示範囲が変わると有効な年も変わるので、年フィルタはリセット
+          applyPhotosListQuery({
+            scope: photosScopeSelect.value === 'library' ? 'library' : 'loose',
+            year: '',
+          })
         })
 
         const SUPPORTED_VIDEO_EXT = /\.(mp4|mov|avi)$/i
