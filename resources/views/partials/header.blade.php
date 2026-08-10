@@ -6,7 +6,7 @@
 <header class="site-header">
   <div class="site-header-inner">
     <a href="/dashboard" class="site-logo">
-      <img src="{{ asset('icons/app-icon.png') }}?v=8" alt="" class="site-logo-icon" width="36" height="36" />
+      <img src="{{ asset('icons/app-icon.png') }}?v=9" alt="" class="site-logo-icon" width="36" height="36" />
       <span>{{ config('app.name', 'Sa2 Studio') }}</span>
     </a>
     <nav class="site-nav" aria-label="{{ __('メインメニュー') }}">
