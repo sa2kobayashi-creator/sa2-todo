@@ -23,6 +23,14 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      <div class="photos-busy-overlay" id="photos-busy-overlay" hidden aria-live="assertive" aria-busy="true">
+        <div class="photos-busy-card" role="status">
+          <div class="photos-busy-spinner" aria-hidden="true"></div>
+          <p class="photos-busy-message" id="photos-busy-message">{{ __('処理中です…') }}</p>
+          <p class="photos-busy-hint">{{ __('完了するまでお待ちください') }}</p>
+        </div>
+      </div>
+
       <section class="photos-hero">
         <div class="photos-hero-copy">
           <div class="photos-hero-title-row">
@@ -377,11 +385,13 @@
           const i18n = {
             leaveUpload: @json(__('取り込み処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ')),
             leaveArchive: @json(__('B2へのアーカイブ処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ')),
+            leaveDelete: @json(__('削除処理中です。このまま離れると処理が中断されることがあります。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ')),
           }
 
           function message() {
             if (kind === 'upload') return i18n.leaveUpload
             if (kind === 'archive') return i18n.leaveArchive
+            if (kind === 'delete') return i18n.leaveDelete
             return @json(__('処理中です。このまま離れると処理が中断されます。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ'))
           }
 
@@ -904,7 +914,7 @@
           <div class="photos-empty photos-empty-archive" id="photos-archive-empty">
             <div class="photos-empty-frame">
               <p class="photos-empty-title">{{ __('アーカイブは空です') }}</p>
-              <p class="photos-empty-text">{{ __('選択モードで写真を選び、「アーカイブ」するとここに入ります。ファイルは残ります。') }}</p>
+              <p class="photos-empty-text">{{ __('チェックで選んで「一括削除」または「元に戻す」。写真をタップすると拡大表示できます。') }}</p>
             </div>
           </div>
         @endif
@@ -1045,6 +1055,7 @@
                 </form>
               @endif
               <button type="button" class="photos-secondary-btn" id="photos-lb-edit-open" hidden>{{ __('編集') }}</button>
+              <button type="button" class="photos-delete-btn" id="photos-lb-delete-quick" hidden>{{ __('削除') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-lb-detail-open">{{ __('詳細') }}</button>
             </div>
             <div class="photos-lightbox-actions photos-lb-edit-actions" id="photos-lb-edit-actions" hidden>
@@ -1093,7 +1104,7 @@
                 <label>{{ __('終了秒') }} <input type="number" name="end" id="photos-trim-end" min="0.1" step="0.1" value="5" /></label>
                 <button type="submit" class="photos-secondary-btn">{{ __('動画をトリム') }}</button>
               </form>
-              <form method="post" action="" id="photos-delete-form" onsubmit='return confirm(@json(__('このメディアを削除しますか？')))'>
+              <form method="post" action="" id="photos-delete-form">
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
                 <button type="submit" class="photos-delete-btn">{{ __('削除') }}</button>
@@ -3738,6 +3749,8 @@
           if (deleteForm) {
             deleteForm.hidden = !canEdit
           }
+          const deleteQuickBtn = document.getElementById('photos-lb-delete-quick')
+          if (deleteQuickBtn) deleteQuickBtn.hidden = !canEdit
           if (editOpenBtn) editOpenBtn.hidden = !canEdit
           setLightboxEditMode(false)
           if (photoDetailModal && !photoDetailModal.hasAttribute('hidden')) {
@@ -3783,6 +3796,24 @@
 
         document.getElementById('photos-lb-edit-open')?.addEventListener('click', () => setLightboxEditMode(true))
         document.getElementById('photos-lb-edit-back')?.addEventListener('click', () => setLightboxEditMode(false))
+        document.getElementById('photos-lb-delete-quick')?.addEventListener('click', () => {
+          const form = document.getElementById('photos-delete-form')
+          if (!form || form.hidden) return
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit()
+            return
+          }
+          if (!window.confirm(@json(__('このメディアを削除しますか？')))) return
+          setPhotosBusy(true, @json(__('削除しています…')), 'delete')
+          form.submit()
+        })
+        document.getElementById('photos-delete-form')?.addEventListener('submit', (e) => {
+          if (!window.confirm(@json(__('このメディアを削除しますか？')))) {
+            e.preventDefault()
+            return
+          }
+          setPhotosBusy(true, @json(__('削除しています…')), 'delete')
+        })
 
         function formatPhotoBytes(bytes) {
           const n = Number(bytes) || 0
@@ -4500,12 +4531,31 @@
         queueYearDockRefresh()
         photoChecks().forEach((cb) => cb.addEventListener('change', updatePhotosBulkUi))
 
-        function submitPhotosBulk(url, extra = {}) {
+        function setPhotosBusy(visible, message = '', kind = 'delete') {
+          const overlay = document.getElementById('photos-busy-overlay')
+          const msgEl = document.getElementById('photos-busy-message')
+          if (msgEl && message) msgEl.textContent = message
+          if (overlay) {
+            overlay.hidden = !visible
+            if (visible) overlay.removeAttribute('hidden')
+            else overlay.setAttribute('hidden', '')
+          }
+          document.body.classList.toggle('photos-is-busy', !!visible)
+          if (visible) {
+            pageJob?.start(kind)
+            ;['photos-bulk-delete', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick'].forEach((id) => {
+              const btn = document.getElementById(id)
+              if (btn) btn.disabled = true
+            })
+          }
+        }
+        function submitPhotosBulk(url, extra = {}, busy = null) {
           const ids = selectedPhotoIds()
           if (ids.length === 0) {
             window.alert(@json(__('対象が選択されていません')));
             return
           }
+          if (busy?.message) setPhotosBusy(true, busy.message, busy.kind || 'delete')
           const form = document.createElement('form')
           form.method = 'POST'
           form.action = url
@@ -4539,22 +4589,38 @@
         }
         document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアを削除しますか？完全に削除され、元に戻せません。')))) return
-          submitPhotosBulk('/photos/bulk/delete')
+          const count = selectedPhotoIds().length
+          submitPhotosBulk('/photos/bulk/delete', {}, {
+            kind: 'delete',
+            message: @json(__(':count件を削除しています…')).replace(':count', String(count)),
+          })
         })
         document.getElementById('photos-bulk-archive')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをアーカイブしますか？通常の一覧からは隠れますが、ファイルは残り、「アーカイブ」表示から復元できます。')))) return
-          submitPhotosBulk('/photos/bulk/archive')
+          const count = selectedPhotoIds().length
+          submitPhotosBulk('/photos/bulk/archive', {}, {
+            kind: 'bulk',
+            message: @json(__(':count件をアーカイブしています…')).replace(':count', String(count)),
+          })
         })
         document.getElementById('photos-bulk-restore')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをライブラリに戻しますか？')))) return
-          submitPhotosBulk('/photos/bulk/restore')
+          const count = selectedPhotoIds().length
+          submitPhotosBulk('/photos/bulk/restore', {}, {
+            kind: 'bulk',
+            message: @json(__(':count件を復元しています…')).replace(':count', String(count)),
+          })
         })
         document.getElementById('photos-bulk-move')?.addEventListener('click', () => {
           const albumId = document.getElementById('photos-bulk-move-album')?.value ?? ''
-          submitPhotosBulk('/photos/bulk/move', { album_id: albumId })
+          const count = selectedPhotoIds().length
+          submitPhotosBulk('/photos/bulk/move', { album_id: albumId }, {
+            kind: 'bulk',
+            message: @json(__(':count件を移動しています…')).replace(':count', String(count)),
+          })
         })
 
-        // 選択モードではチェックもタイルクリックと同じ経路へ（範囲選択の始点/終点が進む）
+        // 選択/一覧: チェック操作もタイルと同じ選択経路へ。アーカイブはチェックで選択・タイルで拡大
         document.querySelectorAll('.photos-tile-check').forEach((label) => {
           label.addEventListener('click', (e) => {
             e.preventDefault()
@@ -4562,6 +4628,16 @@
             const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
             const wrap = label.closest('.photos-tile-wrap')
             const tile = wrap?.querySelector('.photos-tile')
+            const check = wrap?.querySelector('.photo-check')
+            if (mode === 'archive') {
+              if (!check) return
+              check.checked = !check.checked
+              const wraps = visiblePhotoWraps()
+              const index = wraps.indexOf(wrap)
+              if (index >= 0) lastPhotoCheckIndex = index
+              updatePhotosBulkUi()
+              return
+            }
             if (isSelectingMode(mode)) {
               tile?.click()
               return
@@ -4585,6 +4661,11 @@
         document.querySelectorAll('.photos-tile').forEach((tile) => {
           tile.addEventListener('click', (e) => {
             const mode = document.getElementById('photos-gallery')?.dataset.photosMode || 'normal'
+            // アーカイブ: 通常は拡大表示。範囲選択中／Shift 時だけ選択操作
+            if (mode === 'archive' && rangeStep === 'off' && !e.shiftKey) {
+              openLightbox(Number(tile.dataset.photoIndex || 0))
+              return
+            }
             if (isSelectingMode(mode)) {
               e.preventDefault()
               e.stopPropagation()

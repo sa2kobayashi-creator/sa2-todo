@@ -2038,7 +2038,15 @@ class PhotoService
         $photos = Photo::query()
             ->where('user_id', $userId)
             ->whereIn('id', $idSet)
-            ->get(['id', 'path', 'thumb_path', 'cloudinary_public_id', 'cold_disk', 'cold_path']);
+            ->get([
+                'id',
+                'path',
+                'thumb_path',
+                'cloudinary_public_id',
+                'cloudinary_resource_type',
+                'cold_disk',
+                'cold_path',
+            ]);
 
         if ($photos->isEmpty()) {
             return 0;
@@ -2053,10 +2061,14 @@ class PhotoService
                 $paths[] = $photo->thumb_path;
             }
             if (is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
-                $this->cloudinary->deletePhoto(
-                    $photo->cloudinary_public_id,
-                    $photo->cloudinary_resource_type
-                );
+                try {
+                    $this->cloudinary->deletePhoto(
+                        $photo->cloudinary_public_id,
+                        $photo->cloudinary_resource_type
+                    );
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
             if (is_string($photo->cold_path) && $photo->cold_path !== '' && is_string($photo->cold_disk) && $photo->cold_disk !== '') {
                 try {

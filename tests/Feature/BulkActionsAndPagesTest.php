@@ -420,6 +420,60 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertNull($photo->fresh()->archived_at);
     }
 
+    public function test_archived_photos_can_be_bulk_deleted(): void
+    {
+        $photo = Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => null,
+            'path' => 'photos/delete-archived.jpg',
+            'thumb_path' => 'photos/delete-archived-thumb.jpg',
+            'original_name' => 'delete-archived.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+            'archived_at' => now(),
+        ]);
+
+        $this->actingAs($this->user)
+            ->from('/photos?library=archived')
+            ->post('/photos/bulk/delete', [
+                'ids' => [$photo->id],
+                'returnTo' => '/photos?library=archived',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('photos', ['id' => $photo->id]);
+    }
+
+    public function test_archived_photo_can_be_deleted_individually(): void
+    {
+        $photo = Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => null,
+            'path' => 'photos/delete-one-archived.jpg',
+            'thumb_path' => 'photos/delete-one-archived-thumb.jpg',
+            'original_name' => 'delete-one-archived.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+            'archived_at' => now(),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post('/photos/'.$photo->id.'/delete', [
+                'returnTo' => '/photos?library=archived',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('photos', ['id' => $photo->id]);
+    }
+
     public function test_photos_bulk_restore_clears_album_membership(): void
     {
         $album = PhotoAlbum::create([

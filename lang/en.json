@@ -2309,5 +2309,14 @@
     "タップして選択": "Tap to select",
     "表紙候補": "Cover candidates",
     "表紙に設定": "Set as cover",
-    "アルバム内の写真から選べます。写真を追加してから編集してください。": "Choose from photos in the album. Add photos first, then edit."
+    "アルバム内の写真から選べます。写真を追加してから編集してください。": "Choose from photos in the album. Add photos first, then edit.",
+    "チェックで選んで「一括削除」または「元に戻す」。写真をタップすると拡大表示できます。": "Check items to bulk delete or restore. Tap a photo to open it.",
+    "処理中です…": "Working…",
+    "完了するまでお待ちください": "Please wait until it finishes.",
+    "削除しています…": "Deleting…",
+    ":count件を削除しています…": "Deleting :count items…",
+    ":count件をアーカイブしています…": "Archiving :count items…",
+    ":count件を復元しています…": "Restoring :count items…",
+    ":count件を移動しています…": "Moving :count items…",
+    "削除処理中です。このまま離れると処理が中断されることがあります。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ": "Delete is in progress. Leaving now may interrupt it.\n\nOK = Leave anyway\nCancel = Wait until it finishes"
 }

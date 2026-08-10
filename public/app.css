@@ -10927,9 +10927,67 @@ body.map-page {
   min-height: 100vh;
 }
 
-.photos-page .page-main.photos-main {
-  max-width: 1180px;
-  margin: 0 auto;
+.photos-page .photos-busy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.photos-page .photos-busy-overlay[hidden] {
+  display: none !important;
+}
+
+.photos-busy-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: min(100%, 260px);
+  max-width: 360px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+  text-align: center;
+}
+
+.photos-busy-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(47, 111, 126, 0.2);
+  border-top-color: var(--photos-accent, #2f6f7e);
+  border-radius: 50%;
+  animation: photos-busy-spin 0.8s linear infinite;
+}
+
+.photos-busy-message {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #171b1f;
+}
+
+.photos-busy-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #5f6b76;
+}
+
+body.photos-is-busy {
+  cursor: wait;
+}
+
+body.photos-is-busy .photos-main {
+  pointer-events: none;
+}
+
+@keyframes photos-busy-spin {
+  to { transform: rotate(360deg); }
 }
 
 .photos-hero {
