@@ -115,6 +115,10 @@ class PhotoController extends Controller
         }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
         $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);
+        $canManageSelected = ! empty($selectedAlbum['canManage']);
+        $albumCoverCandidates = ($selectedAlbum && ! $albumLocked && $canManageSelected && $albumId)
+            ? $this->photos->listAlbumCoverCandidates($userId, $albumId)
+            : [];
 
         return view('photos.index', [
             'albums' => $albums,
@@ -135,7 +139,8 @@ class PhotoController extends Controller
             'selectedAlbum' => $selectedAlbum,
             'albumLocked' => $albumLocked,
             'revealHiddenAlbums' => $revealHidden,
-            'canManageSelected' => ! empty($selectedAlbum['canManage']),
+            'canManageSelected' => $canManageSelected,
+            'albumCoverCandidates' => $albumCoverCandidates,
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'storageStats' => $this->photos->storageStats($userId),
             'returnTo' => '/photos'.$returnQuery,
@@ -209,7 +214,8 @@ class PhotoController extends Controller
                 $request->input('group_id'),
                 $request->input('password'),
                 $request->boolean('clear_password'),
-                $request->boolean('is_hidden')
+                $request->boolean('is_hidden'),
+                $request->filled('cover_photo_id') ? (int) $request->input('cover_photo_id') : null
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');

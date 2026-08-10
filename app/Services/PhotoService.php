@@ -1223,6 +1223,7 @@ class PhotoService
         ?string $password = null,
         bool $clearPassword = false,
         ?bool $isHidden = null,
+        ?int $coverPhotoId = null,
     ): array {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
         if (! $album) {
@@ -1258,6 +1259,18 @@ class PhotoService
             }
             $album->password_hash = \Illuminate\Support\Facades\Hash::make($password);
         }
+        if ($coverPhotoId !== null) {
+            $cover = Photo::query()
+                ->where('user_id', $userId)
+                ->where('id', $coverPhotoId)
+                ->where('album_id', $albumId)
+                ->whereNull('archived_at')
+                ->first();
+            if (! $cover) {
+                throw new \InvalidArgumentException(__('このアルバム内の写真のみ表紙に設定できます'));
+            }
+            $album->cover_photo_id = $cover->id;
+        }
         $album->save();
 
         return $this->albumToArray($album->load(['group', 'user'])->loadCount('activePhotos'), $userId);
@@ -1289,6 +1302,7 @@ class PhotoService
             ->where('user_id', $userId)
             ->where('id', $photoId)
             ->where('album_id', $albumId)
+            ->whereNull('archived_at')
             ->first();
         if (! $photo) {
             throw new \InvalidArgumentException('このアルバム内の写真のみ表紙に設定できます');
@@ -1298,6 +1312,59 @@ class PhotoService
         $album->save();
 
         return $this->albumToArray($album->loadCount('activePhotos'), $userId);
+    }
+
+    /**
+     * アルバム編集の表紙候補（通常表示の写真のみ）。現在の表紙を先頭に含める。
+     *
+     * @return list<array{id: int, thumbUrl: ?string, url: ?string, mediaKind: string}>
+     */
+    public function listAlbumCoverCandidates(int $userId, int $albumId, int $limit = 48): array
+    {
+        $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
+        if (! $album) {
+            return [];
+        }
+
+        $limit = max(1, min(96, $limit));
+        $base = Photo::query()
+            ->where('user_id', $userId)
+            ->where('album_id', $albumId)
+            ->whereNull('archived_at');
+
+        $picked = collect();
+        if ($album->cover_photo_id) {
+            $cover = (clone $base)->where('id', (int) $album->cover_photo_id)->first();
+            if ($cover) {
+                $picked->push($cover);
+            }
+        }
+
+        $restLimit = max(0, $limit - $picked->count());
+        if ($restLimit > 0) {
+            $excludeIds = $picked->pluck('id')->all();
+            $rest = (clone $base)
+                ->when($excludeIds !== [], fn ($q) => $q->whereNotIn('id', $excludeIds))
+                ->orderByDesc('taken_at')
+                ->orderByDesc('id')
+                ->limit($restLimit)
+                ->get();
+            $picked = $picked->concat($rest);
+        }
+
+        return $picked
+            ->map(function (Photo $photo) use ($userId): array {
+                $arr = $this->photoToArray($photo, $userId);
+
+                return [
+                    'id' => (int) $photo->id,
+                    'thumbUrl' => $arr['thumbUrl'] ?? null,
+                    'url' => $arr['url'] ?? null,
+                    'mediaKind' => $arr['mediaKind'] ?? 'image',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

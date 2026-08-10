@@ -155,33 +155,50 @@ class PhotoUploadAlbumTest extends TestCase
         $this->assertDatabaseMissing('photo_albums', ['id' => $album->id]);
     }
 
-    public function test_album_cover_count_excludes_archived_photos(): void
+    public function test_album_cover_can_be_chosen_while_editing(): void
     {
-        $user = $this->makeUser('archive-count@example.com');
-        $album = $this->makeAlbum($user, '整理前の写真');
-        Photo::create([
+        config(['photos.disk' => 'public']);
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $user = $this->makeUser('cover-edit@example.com');
+        $album = $this->makeAlbum($user, '表紙編集');
+        $first = Photo::create([
             'user_id' => $user->id,
             'album_id' => $album->id,
-            'path' => "photos/{$user->id}/active.jpg",
+            'path' => "photos/{$user->id}/first.jpg",
+            'thumb_path' => "photos/{$user->id}/first-thumb.jpg",
             'mime' => 'image/jpeg',
             'size_bytes' => 1024,
             'storage_tier' => 'hot',
             'taken_at' => '2024-06-01 10:00:00',
         ]);
-        Photo::create([
+        $second = Photo::create([
             'user_id' => $user->id,
             'album_id' => $album->id,
-            'path' => "photos/{$user->id}/archived.jpg",
+            'path' => "photos/{$user->id}/second.jpg",
+            'thumb_path' => "photos/{$user->id}/second-thumb.jpg",
             'mime' => 'image/jpeg',
             'size_bytes' => 1024,
             'storage_tier' => 'hot',
             'taken_at' => '2024-06-02 10:00:00',
-            'archived_at' => '2024-07-01 10:00:00',
         ]);
+        $album->cover_photo_id = $first->id;
+        $album->save();
 
-        $albums = app(\App\Services\PhotoService::class)->listAlbums((int) $user->id);
-        $row = collect($albums)->firstWhere('id', $album->id);
-        $this->assertNotNull($row);
-        $this->assertSame(1, $row['photoCount']);
+        $this->actingAs($user)->get('/photos?album='.$album->id)
+            ->assertOk()
+            ->assertSee('id="photos-album-cover-picker"', false)
+            ->assertSee('data-photo-id="'.$second->id.'"', false);
+
+        $this->actingAs($user)
+            ->post('/photos/albums/'.$album->id.'/update', [
+                'name' => '表紙編集',
+                'visibility' => 'private',
+                'cover_photo_id' => $second->id,
+                'returnTo' => '/photos?album='.$album->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame($second->id, (int) $album->fresh()->cover_photo_id);
     }
 }

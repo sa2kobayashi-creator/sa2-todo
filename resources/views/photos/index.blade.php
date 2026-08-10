@@ -1738,6 +1738,37 @@
             <span>{{ __('隠しアルバム（一覧に出さない・本人のみ）') }}</span>
           </label>
           <p class="hint" id="photos-album-hidden-hint" hidden>{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
+          <div class="photos-album-cover-picker" id="photos-album-cover-picker" hidden>
+            <div class="photos-album-cover-picker-head">
+              <strong>{{ __('表紙') }}</strong>
+              <span class="hint">{{ __('タップして選択') }}</span>
+            </div>
+            <input type="hidden" name="cover_photo_id" id="photos-album-cover-photo-id" value="" disabled />
+            <div class="photos-album-cover-grid" id="photos-album-cover-grid" role="listbox" aria-label="{{ __('表紙候補') }}">
+              @forelse(($albumCoverCandidates ?? []) as $candidate)
+                <button
+                  type="button"
+                  class="photos-album-cover-option"
+                  role="option"
+                  data-photo-id="{{ $candidate['id'] }}"
+                  aria-selected="false"
+                  title="{{ __('表紙に設定') }}"
+                >
+                  <img
+                    src="{{ $candidate['thumbUrl'] ?: $candidate['url'] }}"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  @if(($candidate['mediaKind'] ?? '') === 'video')
+                    <span class="photos-album-cover-play" aria-hidden="true">▶</span>
+                  @endif
+                </button>
+              @empty
+                <p class="hint photos-album-cover-empty" id="photos-album-cover-empty">{{ __('アルバム内の写真から選べます。写真を追加してから編集してください。') }}</p>
+              @endforelse
+            </div>
+          </div>
           <div class="modal-actions photos-album-modal-actions">
             <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
             <button type="button" class="photos-danger-btn" id="photos-album-delete-btn" hidden>{{ __('削除') }}</button>
@@ -5289,10 +5320,29 @@
         const albumSubmit = document.getElementById('photos-album-submit')
         const albumDeleteBtn = document.getElementById('photos-album-delete-btn')
         const albumDeleteForm = document.getElementById('photos-album-delete-form')
+        const albumCoverPicker = document.getElementById('photos-album-cover-picker')
+        const albumCoverPhotoId = document.getElementById('photos-album-cover-photo-id')
+        const albumCoverGrid = document.getElementById('photos-album-cover-grid')
         const selectedAlbum = @json($selectedAlbum);
         const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
         const albumDeleteConfirmPrefix = @json(__('このアルバムを削除しますか？'));
         const albumDeleteNotEmptyMessage = @json(__('通常の写真・動画が残っているため削除できません。先に移動または削除してください（アーカイブのみなら削除できます）。'));
+
+        function setAlbumCoverSelection(photoId) {
+          const id = photoId ? String(photoId) : ''
+          if (albumCoverPhotoId) albumCoverPhotoId.value = id
+          albumCoverGrid?.querySelectorAll('.photos-album-cover-option').forEach((btn) => {
+            const selected = id !== '' && btn.dataset.photoId === id
+            btn.classList.toggle('is-selected', selected)
+            btn.setAttribute('aria-selected', selected ? 'true' : 'false')
+          })
+        }
+
+        albumCoverGrid?.addEventListener('click', (e) => {
+          const btn = e.target.closest('.photos-album-cover-option')
+          if (!btn || !albumCoverGrid.contains(btn)) return
+          setAlbumCoverSelection(btn.dataset.photoId || '')
+        })
 
         /** 補足文は読めるだけ出して、あとは画面から引っ込める */
         const AUTO_HIDE_MS = 10000
@@ -5352,6 +5402,9 @@
             if (albumSubmit) albumSubmit.textContent = @json(__('保存'));
             if (albumDeleteBtn) albumDeleteBtn.hidden = false
             if (albumDeleteForm) albumDeleteForm.action = `/photos/albums/${selectedAlbum.id}/delete`
+            if (albumCoverPicker) albumCoverPicker.hidden = false
+            if (albumCoverPhotoId) albumCoverPhotoId.disabled = false
+            setAlbumCoverSelection(selectedAlbum.coverPhotoId || '')
             hideNow(albumHiddenHint, 'hintTimer')
           } else {
             albumModalTitle.textContent = @json(__('アルバムを作成'));
@@ -5367,6 +5420,12 @@
             if (albumHidden) albumHidden.checked = false
             if (albumSubmit) albumSubmit.textContent = @json(__('作成'));
             if (albumDeleteBtn) albumDeleteBtn.hidden = true
+            if (albumCoverPicker) albumCoverPicker.hidden = true
+            if (albumCoverPhotoId) {
+              albumCoverPhotoId.disabled = true
+              albumCoverPhotoId.value = ''
+            }
+            setAlbumCoverSelection('')
             hideNow(albumHiddenHint, 'hintTimer')
           }
           syncAlbumGroupVisibility()
