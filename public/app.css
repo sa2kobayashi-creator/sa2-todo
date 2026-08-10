@@ -10962,13 +10962,39 @@ body.map-page {
   letter-spacing: -0.02em;
 }
 
+.photos-hero-copy {
+  flex: 1 1 100%;
+  min-width: 0;
+  width: 100%;
+}
+
 .photos-lead {
-  margin: 10px 0 0;
-  max-width: 36rem;
+  margin: 0;
+  max-width: min(100%, 22rem);
   font-family: 'Outfit', sans-serif;
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.35;
   color: var(--photos-muted);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photos-hero-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 14px;
+  margin-left: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  padding-bottom: 0.12em;
+}
+
+.photos-hero-meta .photos-cols-control {
+  flex: 0 0 auto;
 }
 
 .photos-hero-actions {
@@ -11612,7 +11638,7 @@ label.photos-camera-btn span {
   align-self: center;
 }
 
-/* フォルダ／Pictures監視は Web（PC幅）のみ。スマホには出さない */
+/* フォルダ監視は Web（PC幅）のみ。スマホには出さない */
 .photos-dir-watch-only {
   display: none !important;
 }
@@ -11633,13 +11659,27 @@ label.photos-camera-btn span {
 }
 
 .photos-album-delete-form {
-  display: inline-flex;
+  display: none;
   margin: 0;
+}
+
+.photos-album-modal-actions {
+  justify-content: flex-end;
+}
+
+.photos-album-modal-actions [data-close-album-modal] {
+  margin-right: auto;
 }
 
 .photos-danger-btn {
   color: #9b2c2c;
   border-color: rgba(155, 44, 44, 0.28);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .photos-danger-btn:hover {
@@ -11681,45 +11721,47 @@ label.photos-camera-btn span {
   display: none;
 }
 
-.photos-hero-album-actions {
+.photos-hero-title-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.photos-current-album {
+  display: inline-block;
+  max-width: min(100%, 28rem);
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+  font-weight: 600;
+  color: var(--photos-accent, #2f6f7e);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photos-storage-panel-total {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.photos-storage-toggle {
-  display: inline-flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 6px 10px;
-  flex: 0 1 auto;
-  max-width: none;
-  text-align: left;
-  white-space: nowrap;
-  line-height: 1.35;
-}
-
-.photos-storage-toggle strong {
-  font-weight: 600;
-  color: var(--photos-ink);
-  flex: 0 0 auto;
-}
-
-.photos-storage-toggle-total {
+  align-items: baseline;
+  gap: 4px 6px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--photos-muted);
-  white-space: nowrap;
+  color: var(--photos-muted, #5f6b76);
+  line-height: 1.35;
+  max-width: min(100%, 36rem);
 }
 
-.photos-storage-toggle-used {
-  font-weight: 600;
-  color: var(--photos-ink);
+.photos-storage-panel-total-used {
+  font-weight: 700;
+  color: var(--photos-ink, #171b1f);
 }
 
-.photos-storage-toggle.is-over .photos-storage-toggle-used {
-  color: #dc2626;
+.photos-storage-panel-total.is-over .photos-storage-panel-total-used {
+  color: #c62828;
 }
 
 .photos-add-sheet-dup {
@@ -13662,17 +13704,29 @@ label.photos-camera-btn span {
   }
   .photos-upload-btn,
   .photos-secondary-btn { flex: 1 1 auto; }
-  .photos-hero-album-actions {
-    width: 100%;
-  }
-  .photos-hero-album-actions .photos-secondary-btn {
+  .photos-storage-toggle {
     flex: 1 1 auto;
   }
-  .photos-storage-toggle {
-    flex: 1 1 100%;
-    white-space: normal;
+  .photos-current-album {
+    max-width: min(100%, 14rem);
+    font-size: 1.05rem;
   }
-  .photos-storage-toggle-total {
+  .photos-hero-meta {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+  .photos-hero-title-row .photos-ops-open {
+    margin-left: auto;
+  }
+  .photos-lead {
+    white-space: normal;
+    max-width: min(100%, 16rem);
+    font-size: 13px;
+  }
+  .photos-storage-panel-total {
+    flex: 1 1 100%;
     white-space: normal;
   }
   .photos-cols-control {
@@ -16638,11 +16692,18 @@ body.video-page .media-player-stage-spacer {
 
 .photos-hero-title-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  width: 100%;
   position: relative;
   z-index: 450;
+}
+
+.photos-hero-title-row .photos-hero-title-group {
+  flex: 0 1 auto;
+  align-self: flex-end;
 }
 
 .photos-ops-open {

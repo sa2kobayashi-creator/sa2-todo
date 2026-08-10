@@ -2299,5 +2299,9 @@
     "すべて（表示範囲）": "All (scope)",
     "アルバム以外": "Outside albums",
     "アルバム含む": "Including albums",
-    "上下にドラッグして高さを変更": "Drag up or down to change height"
+    "上下にドラッグして高さを変更": "Drag up or down to change height",
+    "使用状況表示": "Show usage",
+    "使用状況閉じる": "Hide usage",
+    "スマホのカメラロールから選ぶときはこちらです。PCのフォルダ監視とは別機能です。": "Use this to pick from the phone camera roll. This is separate from PC folder watching.",
+    "アルバム編集削除": "Edit / Delete album"
 }

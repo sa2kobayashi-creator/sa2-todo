@@ -26,26 +26,76 @@
       <section class="photos-hero">
         <div class="photos-hero-copy">
           <div class="photos-hero-title-row">
-            <h1
-              class="photos-title"
-              id="photos-title-tap"
-              title="{{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}"
-            >{{ $selectedAlbum['name'] ?? __('Photos') }}</h1>
+            <div class="photos-hero-title-group">
+              <h1
+                class="photos-title"
+                id="photos-title-tap"
+                title="{{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}"
+              >{{ __('Photos') }}</h1>
+              @if($selectedAlbum)
+                <span class="photos-current-album" title="{{ $selectedAlbum['name'] }}">{{ $selectedAlbum['name'] }}</span>
+              @endif
+            </div>
+            <div class="photos-hero-meta">
+              @if($selectedAlbum)
+                <p class="photos-lead">
+                  {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }}
+                  @if(!empty($selectedAlbum['hasPassword']))
+                    · {{ __('鍵付き') }}
+                  @endif
+                  @if(!empty($selectedAlbum['isHidden']))
+                    · {{ __('隠し') }}
+                  @endif
+                </p>
+              @endif
+              <div class="photos-cols-control photos-ops-full-only" id="photos-cols-control" title="{{ __('列数') }}">
+                <button
+                  type="button"
+                  class="photos-cols-icon photos-cols-step"
+                  id="photos-cols-less"
+                  data-cols-step="-1"
+                  aria-label="{{ __('1列減らす') }}"
+                  title="{{ __('1列減らす') }}"
+                >
+                  <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
+                </button>
+                <input
+                  type="range"
+                  id="photos-cols-slider"
+                  class="photos-cols-slider"
+                  min="1"
+                  max="7"
+                  step="1"
+                  value="3"
+                  aria-label="{{ __('1行の枚数') }}"
+                />
+                <button
+                  type="button"
+                  class="photos-cols-icon is-dense photos-cols-step"
+                  id="photos-cols-more"
+                  data-cols-step="1"
+                  aria-label="{{ __('1列増やす') }}"
+                  title="{{ __('1列増やす') }}"
+                >
+                  <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <rect x="1.5" y="1.5" width="5" height="5" rx="1"/>
+                    <rect x="7.5" y="1.5" width="5" height="5" rx="1"/>
+                    <rect x="13.5" y="1.5" width="5" height="5" rx="1"/>
+                    <rect x="1.5" y="7.5" width="5" height="5" rx="1"/>
+                    <rect x="7.5" y="7.5" width="5" height="5" rx="1"/>
+                    <rect x="13.5" y="7.5" width="5" height="5" rx="1"/>
+                    <rect x="1.5" y="13.5" width="5" height="5" rx="1"/>
+                    <rect x="7.5" y="13.5" width="5" height="5" rx="1"/>
+                    <rect x="13.5" y="13.5" width="5" height="5" rx="1"/>
+                  </svg>
+                </button>
+                <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">3</span>
+              </div>
+            </div>
             <button type="button" class="photos-ops-open" id="photos-ops-open" aria-expanded="false" aria-controls="photos-ops-panel">{{ __('操作') }}</button>
           </div>
           @if(!empty($revealHiddenAlbums))
             <p class="photos-hidden-reveal-note" id="photos-hidden-reveal-note">{{ __('隠しアルバムを表示中（タイトルを7回タップで非表示）') }}</p>
-          @endif
-          @if($selectedAlbum)
-            <p class="photos-lead">
-              {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }} · {{ __('表紙を選んでアルバムらしく') }}
-              @if(!empty($selectedAlbum['hasPassword']))
-                · {{ __('鍵付き') }}
-              @endif
-              @if(!empty($selectedAlbum['isHidden']))
-                · {{ __('隠し') }}
-              @endif
-            </p>
           @endif
         </div>
         <div class="photos-ops-backdrop" id="photos-ops-backdrop" hidden></div>
@@ -105,54 +155,26 @@
               hidden
               title="{{ __('【PC専用】任意のフォルダを選び、あとから入った写真・動画を自動追加します（Chrome など）') }}"
             >{{ __('フォルダ監視（PC）') }}</button>
-            <button
-              type="button"
-              class="photos-secondary-btn photos-dir-watch-only"
-              id="photos-gallery-watch-btn"
-              hidden
-              title="{{ __('【PC専用】Windows の Pictures などPC上のフォルダを監視します。スマホのギャラリー（カメラロール）ではありません。') }}"
-            >{{ __('Pictures監視（PC）') }}</button>
             <button type="button" class="photos-secondary-btn photos-dir-watch-only" id="photos-folder-watch-stop" hidden>{{ __('監視を停止') }}</button>
             <span class="photos-folder-watch-status photos-dir-watch-only" id="photos-folder-watch-status" hidden></span>
             <button type="button" class="photos-secondary-btn" id="photos-dup-scan-open">{{ __('重複チェック') }}</button>
           @endif
-          <div class="photos-hero-album-actions">
-            <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
-            <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
-            <button
-              type="button"
-              class="photos-secondary-btn photos-storage-toggle{{ !empty($storageStats['overFreeTier']) ? ' is-over' : '' }}"
-              id="photos-storage-toggle"
-              aria-expanded="false"
-              aria-controls="photos-storage-panel"
-              @if(!empty($storageStats['overFreeTier']))
-                title="{{ __('無料枠超過（無料枠 :free）', ['free' => $storageStats['formattedCombinedQuota']]) }}"
-              @endif
-            >
-              <strong>{{ __('保存容量表示') }}</strong>
-              <span class="photos-storage-toggle-total">
-                {{ __('合計') }}
-                <span class="photos-storage-toggle-used">{{ $storageStats['formattedTotalUsed'] }}</span>
-                / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
-                {{ __('（写真 :images枚 · 動画 :videos本）', [
-                  'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
-                  'videos' => $storageStats['videoCount'] ?? 0,
-                ]) }}
-              </span>
-            </button>
-          </div>
+          <button type="button" class="photos-secondary-btn" id="photos-album-open">{{ __('アルバム作成') }}</button>
+          <button type="button" class="photos-secondary-btn" id="photos-albums-toggle" aria-expanded="false" aria-controls="photos-album-covers">{{ __('アルバム表示') }}</button>
+          <button
+            type="button"
+            class="photos-secondary-btn photos-storage-toggle{{ !empty($storageStats['overFreeTier']) ? ' is-over' : '' }}"
+            id="photos-storage-toggle"
+            aria-expanded="false"
+            aria-controls="photos-storage-panel"
+            @if(!empty($storageStats['overFreeTier']))
+              title="{{ __('無料枠超過（無料枠 :free）', ['free' => $storageStats['formattedCombinedQuota']]) }}"
+            @endif
+          >
+            <strong>{{ __('使用状況表示') }}</strong>
+          </button>
           @if($selectedAlbum && !empty($canManageSelected))
-            <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('名前変更') }}</button>
-            <form
-              method="post"
-              action="/photos/albums/{{ $selectedAlbumId }}/delete"
-              class="photos-album-delete-form"
-              onsubmit="return confirm({{ json_encode(__('このアルバムを削除しますか？') . "\n" . $selectedAlbum['name'] . "\n" . __('アルバム内の写真・動画もすべて削除されます。'), JSON_UNESCAPED_UNICODE) }})"
-            >
-              @csrf
-              <input type="hidden" name="returnTo" value="/photos" />
-              <button type="submit" class="photos-secondary-btn photos-danger-btn">{{ __('アルバム削除') }}</button>
-            </form>
+            <button type="button" class="photos-secondary-btn" id="photos-album-edit">{{ __('アルバム編集削除') }}</button>
           @endif
         </div>
         <div class="photos-ops-toolbar-slot" id="photos-ops-toolbar-slot"></div>
@@ -200,7 +222,7 @@
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-folders">{{ __('フォルダごとアルバムにする') }}</button>
           <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('親フォルダを選ぶと、その直下のフォルダ1つが1アルバムになります。複数のフォルダをこの画面にドラッグ＆ドロップしても同じです。') }}</p>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-pick">{{ __('ギャラリーから選ぶ') }}</button>
-          <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('スマホのカメラロールから選ぶときはこちらです。PCの「Pictures監視」とは別機能です。') }}</p>
+          <p class="photos-add-sheet-hint photos-add-sheet-note">{{ __('スマホのカメラロールから選ぶときはこちらです。PCのフォルダ監視とは別機能です。') }}</p>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-camera">{{ __('カメラで撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-video">{{ __('動画を撮る') }}</button>
           <button type="button" class="photos-secondary-btn photos-add-sheet-action" id="photos-add-sheet-cancel">{{ __('キャンセル') }}</button>
@@ -255,7 +277,32 @@
                 id="photos-archive-cold-cancel"
                 hidden
               >{{ __('アーカイブ中止') }}</button>
+              <span
+                class="photos-storage-panel-total{{ !empty($storageStats['overFreeTier']) ? ' is-over' : '' }}"
+                id="photos-storage-panel-total"
+              >
+                {{ __('合計') }}
+                <span class="photos-storage-panel-total-used">{{ $storageStats['formattedTotalUsed'] }}</span>
+                / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
+                {{ __('（写真 :images枚 · 動画 :videos本）', [
+                  'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
+                  'videos' => $storageStats['videoCount'] ?? 0,
+                ]) }}
+              </span>
               <span class="hint" id="photos-archive-cold-status" aria-live="polite"></span>
+            @else
+              <span
+                class="photos-storage-panel-total{{ !empty($storageStats['overFreeTier']) ? ' is-over' : '' }}"
+                id="photos-storage-panel-total"
+              >
+                {{ __('合計') }}
+                <span class="photos-storage-panel-total-used">{{ $storageStats['formattedTotalUsed'] }}</span>
+                / {{ $storageStats['formattedDisplayCapacity'] ?? $storageStats['formattedCombinedQuota'] }}
+                {{ __('（写真 :images枚 · 動画 :videos本）', [
+                  'images' => $storageStats['imageCount'] ?? $storageStats['photoCount'],
+                  'videos' => $storageStats['videoCount'] ?? 0,
+                ]) }}
+              </span>
             @endif
           </span>
         </div>
@@ -494,6 +541,8 @@
             const hotCount = document.getElementById('photos-storage-hot-count')
             const coldUsed = document.getElementById('photos-storage-cold-used')
             const coldCount = document.getElementById('photos-storage-cold-count')
+            const panelTotal = document.getElementById('photos-storage-panel-total')
+            const panelTotalUsed = panelTotal?.querySelector('.photos-storage-panel-total-used')
             if (hotUsed && stats.formattedHotUsed) hotUsed.textContent = stats.formattedHotUsed
             if (coldUsed && stats.formattedColdUsed) coldUsed.textContent = stats.formattedColdUsed
             if (hotCount && typeof stats.hotCount !== 'undefined') {
@@ -501,6 +550,10 @@
             }
             if (coldCount && typeof stats.coldCount !== 'undefined') {
               coldCount.textContent = i18n.countLabel.replace(':count', String(stats.coldCount))
+            }
+            if (panelTotal && panelTotalUsed && stats.formattedTotalUsed) {
+              panelTotalUsed.textContent = stats.formattedTotalUsed
+              panelTotal.classList.toggle('is-over', !!stats.overFreeTier)
             }
           }
 
@@ -815,49 +868,6 @@
             </label>
           @endif
           <button type="button" class="photos-secondary-btn photos-ops-full-only" id="photos-slideshow-open">{{ __('スライドショー') }}</button>
-          <div class="photos-cols-control photos-ops-full-only" id="photos-cols-control" title="{{ __('列数') }}">
-            <button
-              type="button"
-              class="photos-cols-icon photos-cols-step"
-              id="photos-cols-less"
-              data-cols-step="-1"
-              aria-label="{{ __('1列減らす') }}"
-              title="{{ __('1列減らす') }}"
-            >
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="2" y="2" width="16" height="16" rx="2.5"/></svg>
-            </button>
-            <input
-              type="range"
-              id="photos-cols-slider"
-              class="photos-cols-slider"
-              min="1"
-              max="7"
-              step="1"
-              value="3"
-              aria-label="{{ __('1行の枚数') }}"
-            />
-            <button
-              type="button"
-              class="photos-cols-icon is-dense photos-cols-step"
-              id="photos-cols-more"
-              data-cols-step="1"
-              aria-label="{{ __('1列増やす') }}"
-              title="{{ __('1列増やす') }}"
-            >
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <rect x="1.5" y="1.5" width="5" height="5" rx="1"/>
-                <rect x="7.5" y="1.5" width="5" height="5" rx="1"/>
-                <rect x="13.5" y="1.5" width="5" height="5" rx="1"/>
-                <rect x="1.5" y="7.5" width="5" height="5" rx="1"/>
-                <rect x="7.5" y="7.5" width="5" height="5" rx="1"/>
-                <rect x="13.5" y="7.5" width="5" height="5" rx="1"/>
-                <rect x="1.5" y="13.5" width="5" height="5" rx="1"/>
-                <rect x="7.5" y="13.5" width="5" height="5" rx="1"/>
-                <rect x="13.5" y="13.5" width="5" height="5" rx="1"/>
-              </svg>
-            </button>
-            <span class="photos-cols-value" id="photos-cols-value" aria-live="polite">3</span>
-          </div>
           <div class="photos-toolbar-select-row" id="photos-toolbar-select-row" hidden>
             <div class="photos-select-actions" id="photos-select-actions">
               <button type="button" class="photos-secondary-btn" id="photos-select-all">{{ __('全選択') }}</button>
@@ -1728,10 +1738,21 @@
             <span>{{ __('隠しアルバム（一覧に出さない・本人のみ）') }}</span>
           </label>
           <p class="hint" id="photos-album-hidden-hint" hidden>{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
-          <div class="modal-actions">
+          <div class="modal-actions photos-album-modal-actions">
             <button type="button" class="secondary" data-close-album-modal>{{ __('キャンセル') }}</button>
+            <button type="button" class="photos-danger-btn" id="photos-album-delete-btn" hidden>{{ __('削除') }}</button>
             <button type="submit" id="photos-album-submit">{{ __('作成') }}</button>
           </div>
+        </form>
+        <form
+          method="post"
+          action="#"
+          class="photos-album-delete-form"
+          id="photos-album-delete-form"
+          hidden
+        >
+          @csrf
+          <input type="hidden" name="returnTo" value="/photos" />
         </form>
       </div>
     </div>
@@ -1931,7 +1952,6 @@
         const cameraInput = document.getElementById('photos-camera-input')
         const cameraVideoInput = document.getElementById('photos-camera-video-input')
         const folderWatchBtn = document.getElementById('photos-folder-watch-btn')
-        const galleryWatchBtn = document.getElementById('photos-gallery-watch-btn')
         const folderWatchStop = document.getElementById('photos-folder-watch-stop')
         const folderWatchStatus = document.getElementById('photos-folder-watch-status')
         const uploadLabel = document.querySelector('.photos-hero-actions .photos-upload-btn-label')
@@ -2098,7 +2118,7 @@
             storageToggle.setAttribute('aria-expanded', visible ? 'true' : 'false')
           }
           if (storageToggleLabel) {
-            storageToggleLabel.textContent = visible ? @json(__('保存容量を隠す')) : @json(__('保存容量表示'));
+            storageToggleLabel.textContent = visible ? @json(__('使用状況閉じる')) : @json(__('使用状況表示'));
           }
         }
         storageToggle?.addEventListener('click', () => {
@@ -2136,7 +2156,6 @@
         function setDirectoryWatchButtonsVisible(visible) {
           const show = !!visible && canUseDirectoryWatch()
           if (folderWatchBtn) folderWatchBtn.hidden = !show
-          if (galleryWatchBtn) galleryWatchBtn.hidden = !show
         }
 
         const takeoutTakenAtByFile = new WeakMap()
@@ -2966,7 +2985,7 @@
                 }
               }
             }
-            const maxDepth = folderWatch.kind === 'gallery' ? 6 : 4
+            const maxDepth = 6
             const newcomers = await collectNewFilesFromDir(folderWatch.handle, { markSeen: false, maxDepth })
             if (!newcomers.length) {
               setFolderWatchStatus(
@@ -2995,39 +3014,27 @@
           }
         }
 
-        // options.kind: 'folder' | 'gallery'（gallery は Pictures 起点）
         // options.startIn: showDirectoryPicker の startIn（任意）
         async function startFolderWatch(options = {}) {
           if (!canUseDirectoryWatch()) {
             window.alert(@json(__('フォルダ監視はPC（Web）専用です。スマホでは「写真・動画を追加」→「ギャラリーから選ぶ」を使ってください。')));
             return
           }
-          const kind = options.kind === 'gallery' ? 'gallery' : 'folder'
           const pickerOpts = { mode: 'read' }
-          if (kind === 'gallery') {
-            // よくあるギャラリー置き場へ誘導（ユーザーが別フォルダを選んでもよい）
-            pickerOpts.startIn = options.startIn || 'pictures'
-          } else if (options.startIn) {
-            pickerOpts.startIn = options.startIn
-          }
+          if (options.startIn) pickerOpts.startIn = options.startIn
           try {
             const handle = await window.showDirectoryPicker(pickerOpts)
             folderWatch.handle = handle
-            folderWatch.kind = kind
-            folderWatch.name = kind === 'gallery'
-              ? (handle.name || @json(__('ギャラリー')))
-              : (handle.name || 'folder')
+            folderWatch.kind = 'folder'
+            folderWatch.name = handle.name || 'folder'
             folderWatch.added = 0
             folderWatch.seen = new Set()
-            // ギャラリーは Camera / Screenshots など直下が浅いことが多い
-            const maxDepth = kind === 'gallery' ? 6 : 4
+            const maxDepth = 6
             await collectNewFilesFromDir(handle, { markSeen: true, maxDepth })
             setDirectoryWatchButtonsVisible(false)
             if (folderWatchStop) folderWatchStop.hidden = false
             setFolderWatchStatus(
-              (kind === 'gallery'
-                ? @json(__('ギャラリー監視中: :name（サブフォルダ含む・追加 :count 件）'))
-                : @json(__('監視中: :name（サブフォルダ含む・追加 :count 件）')))
+              @json(__('監視中: :name（サブフォルダ含む・追加 :count 件）'))
                 .replace(':name', folderWatch.name)
                 .replace(':count', '0')
             )
@@ -3036,11 +3043,7 @@
             void pollFolderWatch()
           } catch (err) {
             if (err && err.name === 'AbortError') return
-            window.alert(
-              kind === 'gallery'
-                ? @json(__('ギャラリーフォルダを開けませんでした。Pictures や DCIM を選んでください。'))
-                : @json(__('フォルダを開けませんでした。'))
-            )
+            window.alert(@json(__('フォルダを開けませんでした。')))
           }
         }
 
@@ -3497,8 +3500,7 @@
 
         if (canUseDirectoryWatch()) {
           setDirectoryWatchButtonsVisible(true)
-          folderWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'folder' }) })
-          galleryWatchBtn?.addEventListener('click', () => { void startFolderWatch({ kind: 'gallery', startIn: 'pictures' }) })
+          folderWatchBtn?.addEventListener('click', () => { void startFolderWatch() })
         } else {
           setDirectoryWatchButtonsVisible(false)
           if (folderWatchStop) folderWatchStop.hidden = true
@@ -5281,8 +5283,12 @@
         const albumHidden = document.getElementById('photos-album-hidden')
         const albumHiddenHint = document.getElementById('photos-album-hidden-hint')
         const albumSubmit = document.getElementById('photos-album-submit')
+        const albumDeleteBtn = document.getElementById('photos-album-delete-btn')
+        const albumDeleteForm = document.getElementById('photos-album-delete-form')
         const selectedAlbum = @json($selectedAlbum);
         const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
+        const albumDeleteConfirmPrefix = @json(__('このアルバムを削除しますか？'));
+        const albumDeleteConfirmSuffix = @json(__('アルバム内の写真・動画もすべて削除されます。'));
 
         /** 補足文は読めるだけ出して、あとは画面から引っ込める */
         const AUTO_HIDE_MS = 10000
@@ -5340,6 +5346,8 @@
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = !!selectedAlbum.isHidden
             if (albumSubmit) albumSubmit.textContent = @json(__('保存'));
+            if (albumDeleteBtn) albumDeleteBtn.hidden = false
+            if (albumDeleteForm) albumDeleteForm.action = `/photos/albums/${selectedAlbum.id}/delete`
             hideNow(albumHiddenHint, 'hintTimer')
           } else {
             albumModalTitle.textContent = @json(__('アルバムを作成'));
@@ -5354,6 +5362,7 @@
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = false
             if (albumSubmit) albumSubmit.textContent = @json(__('作成'));
+            if (albumDeleteBtn) albumDeleteBtn.hidden = true
             hideNow(albumHiddenHint, 'hintTimer')
           }
           syncAlbumGroupVisibility()
@@ -5363,6 +5372,12 @@
 
         document.getElementById('photos-album-open')?.addEventListener('click', () => openAlbumModal('create'))
         document.getElementById('photos-album-edit')?.addEventListener('click', () => openAlbumModal('edit'))
+        albumDeleteBtn?.addEventListener('click', () => {
+          if (!selectedAlbum || !albumDeleteForm) return
+          const message = `${albumDeleteConfirmPrefix}\n${selectedAlbum.name || ''}\n${albumDeleteConfirmSuffix}`
+          if (!window.confirm(message)) return
+          albumDeleteForm.submit()
+        })
         document.querySelectorAll('[data-close-album-modal]').forEach((el) => {
           el.addEventListener('click', () => {
             if (albumModal) albumModal.hidden = true
