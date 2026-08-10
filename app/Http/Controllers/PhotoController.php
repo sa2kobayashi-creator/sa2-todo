@@ -993,15 +993,18 @@ class PhotoController extends Controller
             false
         );
         $message = __(':count件のメディアを削除しました', ['count' => $count]);
+        $ok = $count > 0 || $chunk === [];
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
-                'ok' => true,
+                'ok' => $ok,
                 'count' => $count,
                 'requested' => count($chunk),
                 'remaining' => $remaining,
-                'message' => $message,
-            ]);
+                'message' => $ok
+                    ? $message
+                    : __('削除対象が見つかりませんでした'),
+            ], $ok ? 200 : 422);
         }
 
         return $this->redirectWithMessage($returnTo, $message);

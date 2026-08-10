@@ -2320,6 +2320,7 @@
     ":count件を移動しています…": "Moving :count items…",
     "削除中… :done / :total 件": "Deleting… :done / :total",
     "削除完了。画面を更新しています…": "Delete finished. Refreshing…",
+    "削除対象が見つかりませんでした": "Nothing was found to delete",
     "削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。": "Delete stopped partway (:done / :total done). Reload and delete the rest.",
     "削除処理中です。このまま離れると処理が中断されることがあります。\n\nOK = 中断して離れる\nキャンセル = 完了まで待つ": "Delete is in progress. Leaving now may interrupt it.\n\nOK = Leave anyway\nCancel = Wait until it finishes"
 }

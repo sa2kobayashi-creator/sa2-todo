@@ -449,7 +449,8 @@
           document.addEventListener('submit', function (e) {
             if (!isBusy()) return
             const form = e.target
-            if (!form || form.id === 'photos-upload-form') return
+            // アップロード／削除フォーム自体は処理の一部なのでブロックしない
+            if (!form || form.id === 'photos-upload-form' || form.id === 'photos-delete-form') return
             e.preventDefault()
             e.stopPropagation()
             if (requestLeave()) {
@@ -4543,7 +4544,8 @@
           document.body.classList.toggle('photos-is-busy', !!visible)
           const actionIds = ['photos-bulk-delete', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick']
           if (visible) {
-            if (!pageJob?.isBusy()) pageJob?.start(kind)
+            // 既存ジョブがあっても削除を優先して上書きする
+            pageJob?.start(kind)
             actionIds.forEach((id) => {
               const btn = document.getElementById(id)
               if (btn) btn.disabled = true
@@ -4556,21 +4558,6 @@
             })
           }
         }
-        function photosBulkAuthHeaders() {
-          const headers = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': csrfToken,
-          }
-          const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)
-          if (match) {
-            try { headers['X-XSRF-TOKEN'] = decodeURIComponent(match[1]) } catch (_) {
-              headers['X-XSRF-TOKEN'] = match[1]
-            }
-          }
-          return headers
-        }
         async function bulkDeleteSelectedChunked() {
           const ids = selectedPhotoIds()
           if (ids.length === 0) {
@@ -4582,6 +4569,7 @@
           const total = ids.length
           const chunkSize = 25
           let deleted = 0
+          let cancelled = false
           const progressTpl = @json(__('削除中… :done / :total 件'));
           const updateProgress = () => {
             setPhotosBusy(
@@ -4589,40 +4577,44 @@
               progressTpl.replace(':done', String(deleted)).replace(':total', String(total)),
               'delete'
             )
+            // 離脱時にループを止める
+            pageJob?.start('delete', () => { cancelled = true })
           }
           updateProgress()
 
           try {
             for (let i = 0; i < ids.length; i += chunkSize) {
-              if (!pageJob?.isBusy()) {
+              if (cancelled) {
                 throw new Error('aborted')
               }
               const chunk = ids.slice(i, i + chunkSize)
-              const res = await fetch('/photos/bulk/delete', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: photosBulkAuthHeaders(),
-                body: JSON.stringify({
-                  ids: chunk,
-                  returnTo: photosReturnTo || '/photos',
-                }),
-              })
-              let data = null
-              try { data = await res.json() } catch (_) { data = null }
-              if (!res.ok || !data || data.ok === false) {
-                throw new Error((data && data.message) || ('HTTP ' + res.status))
+              const fd = new FormData()
+              fd.append('returnTo', photosReturnTo || '/photos')
+              chunk.forEach((id) => fd.append('ids[]', id))
+              // 重複削除と同じ FormData 経路（JSON body は環境によって空になることがある）
+              const res = await postUploadFormDataWithRetry('/photos/bulk/delete', fd, {
+                timeoutMs: 90 * 1000,
+              }, 2)
+              const count = Number(res.data?.count) || 0
+              if (count <= 0) {
+                throw new Error(res.data?.message || @json(__('削除に失敗しました。')))
               }
-              deleted += Number(data.count || 0)
+              deleted += count
               updateProgress()
             }
             setPhotosBusy(true, @json(__('削除完了。画面を更新しています…')), 'delete')
             window.location.assign(photosReturnTo || '/photos')
           } catch (err) {
+            setPhotosBusy(false, '', 'delete')
             if (String(err && err.message) === 'aborted') {
-              setPhotosBusy(false, '', 'delete')
+              window.alert(
+                @json(__('削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。'))
+                  .replace(':done', String(deleted))
+                  .replace(':total', String(total))
+              )
+              window.location.reload()
               return
             }
-            setPhotosBusy(false, '', 'delete')
             window.alert(
               @json(__('削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。'))
                 .replace(':done', String(deleted))

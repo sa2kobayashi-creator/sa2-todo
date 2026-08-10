@@ -2055,6 +2055,21 @@ class PhotoService
             return 0;
         }
 
+        $photoIds = $photos->pluck('id')->map(static fn ($id) => (int) $id)->all();
+
+        // DB を先に消す。ストレージ API が遅くても一覧からは消える
+        PhotoAlbum::query()
+            ->where('user_id', $userId)
+            ->whereIn('cover_photo_id', $photoIds)
+            ->update(['cover_photo_id' => null]);
+
+        Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $photoIds)
+            ->delete();
+
+        $this->forgetStorageStatsCache($userId);
+
         $paths = [];
         foreach ($photos as $photo) {
             if (is_string($photo->path) && $photo->path !== '') {
@@ -2083,20 +2098,6 @@ class PhotoService
         }
 
         $this->deleteStoragePaths(array_values(array_unique($paths)));
-
-        $photoIds = $photos->pluck('id')->map(static fn ($id) => (int) $id)->all();
-
-        PhotoAlbum::query()
-            ->where('user_id', $userId)
-            ->whereIn('cover_photo_id', $photoIds)
-            ->update(['cover_photo_id' => null]);
-
-        Photo::query()
-            ->where('user_id', $userId)
-            ->whereIn('id', $photoIds)
-            ->delete();
-
-        $this->forgetStorageStatsCache($userId);
 
         return count($photoIds);
     }
