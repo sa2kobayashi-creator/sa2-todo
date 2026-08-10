@@ -1990,7 +1990,7 @@ class PhotoService
 
     public function deletePhoto(int $userId, int $photoId): bool
     {
-        return $this->bulkDeletePhotos($userId, [$photoId]) === 1;
+        return $this->bulkDeletePhotos($userId, [$photoId], true) === 1;
     }
 
     /** @param list<int> $ids */
@@ -2027,8 +2027,11 @@ class PhotoService
             ]);
     }
 
-    /** @param list<int> $ids */
-    public function bulkDeletePhotos(int $userId, array $ids): int
+    /**
+     * @param  list<int>  $ids
+     * @param  bool  $purgeCloudinary  一括削除では false 推奨（件数×API待ちでタイムアウトしやすい）
+     */
+    public function bulkDeletePhotos(int $userId, array $ids, bool $purgeCloudinary = false): int
     {
         $idSet = $this->parseIdList($ids);
         if ($idSet === []) {
@@ -2060,7 +2063,7 @@ class PhotoService
             if (is_string($photo->thumb_path) && $photo->thumb_path !== '' && $photo->thumb_path !== $photo->path) {
                 $paths[] = $photo->thumb_path;
             }
-            if (is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
+            if ($purgeCloudinary && is_string($photo->cloudinary_public_id) && $photo->cloudinary_public_id !== '') {
                 try {
                     $this->cloudinary->deletePhoto(
                         $photo->cloudinary_public_id,

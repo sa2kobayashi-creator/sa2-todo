@@ -448,6 +448,39 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertDatabaseMissing('photos', ['id' => $photo->id]);
     }
 
+    public function test_bulk_delete_json_processes_in_chunks_of_forty(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 45; $i++) {
+            $photo = Photo::create([
+                'user_id' => $this->user->id,
+                'album_id' => null,
+                'path' => "photos/chunk-{$i}.jpg",
+                'thumb_path' => "photos/chunk-{$i}-thumb.jpg",
+                'original_name' => "chunk-{$i}.jpg",
+                'mime' => 'image/jpeg',
+                'size_bytes' => 100,
+                'width' => 10,
+                'height' => 10,
+                'sort_order' => $i,
+                'taken_at' => now(),
+            ]);
+            $ids[] = $photo->id;
+        }
+
+        $this->actingAs($this->user)
+            ->postJson('/photos/bulk/delete', ['ids' => $ids])
+            ->assertOk()
+            ->assertJson([
+                'ok' => true,
+                'count' => 40,
+                'requested' => 40,
+                'remaining' => 5,
+            ]);
+
+        $this->assertSame(5, Photo::query()->where('user_id', $this->user->id)->count());
+    }
+
     public function test_archived_photo_can_be_deleted_individually(): void
     {
         $photo = Photo::create([

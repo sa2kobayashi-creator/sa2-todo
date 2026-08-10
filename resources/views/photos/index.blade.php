@@ -4541,12 +4541,94 @@
             else overlay.setAttribute('hidden', '')
           }
           document.body.classList.toggle('photos-is-busy', !!visible)
+          const actionIds = ['photos-bulk-delete', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick']
           if (visible) {
-            pageJob?.start(kind)
-            ;['photos-bulk-delete', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick'].forEach((id) => {
+            if (!pageJob?.isBusy()) pageJob?.start(kind)
+            actionIds.forEach((id) => {
               const btn = document.getElementById(id)
               if (btn) btn.disabled = true
             })
+          } else {
+            pageJob?.end(kind)
+            actionIds.forEach((id) => {
+              const btn = document.getElementById(id)
+              if (btn) btn.disabled = false
+            })
+          }
+        }
+        function photosBulkAuthHeaders() {
+          const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken,
+          }
+          const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)
+          if (match) {
+            try { headers['X-XSRF-TOKEN'] = decodeURIComponent(match[1]) } catch (_) {
+              headers['X-XSRF-TOKEN'] = match[1]
+            }
+          }
+          return headers
+        }
+        async function bulkDeleteSelectedChunked() {
+          const ids = selectedPhotoIds()
+          if (ids.length === 0) {
+            window.alert(@json(__('対象が選択されていません')));
+            return
+          }
+          if (!window.confirm(@json(__('選択したメディアを削除しますか？完全に削除され、元に戻せません。')))) return
+
+          const total = ids.length
+          const chunkSize = 25
+          let deleted = 0
+          const progressTpl = @json(__('削除中… :done / :total 件'));
+          const updateProgress = () => {
+            setPhotosBusy(
+              true,
+              progressTpl.replace(':done', String(deleted)).replace(':total', String(total)),
+              'delete'
+            )
+          }
+          updateProgress()
+
+          try {
+            for (let i = 0; i < ids.length; i += chunkSize) {
+              if (!pageJob?.isBusy()) {
+                throw new Error('aborted')
+              }
+              const chunk = ids.slice(i, i + chunkSize)
+              const res = await fetch('/photos/bulk/delete', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: photosBulkAuthHeaders(),
+                body: JSON.stringify({
+                  ids: chunk,
+                  returnTo: photosReturnTo || '/photos',
+                }),
+              })
+              let data = null
+              try { data = await res.json() } catch (_) { data = null }
+              if (!res.ok || !data || data.ok === false) {
+                throw new Error((data && data.message) || ('HTTP ' + res.status))
+              }
+              deleted += Number(data.count || 0)
+              updateProgress()
+            }
+            setPhotosBusy(true, @json(__('削除完了。画面を更新しています…')), 'delete')
+            window.location.assign(photosReturnTo || '/photos')
+          } catch (err) {
+            if (String(err && err.message) === 'aborted') {
+              setPhotosBusy(false, '', 'delete')
+              return
+            }
+            setPhotosBusy(false, '', 'delete')
+            window.alert(
+              @json(__('削除が途中で止まりました（:done / :total 件まで完了）。ページを再読み込みし、残りを再度削除してください。'))
+                .replace(':done', String(deleted))
+                .replace(':total', String(total))
+            )
+            window.location.reload()
           }
         }
         function submitPhotosBulk(url, extra = {}, busy = null) {
@@ -4588,12 +4670,7 @@
           form.submit()
         }
         document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
-          if (!window.confirm(@json(__('選択したメディアを削除しますか？完全に削除され、元に戻せません。')))) return
-          const count = selectedPhotoIds().length
-          submitPhotosBulk('/photos/bulk/delete', {}, {
-            kind: 'delete',
-            message: @json(__(':count件を削除しています…')).replace(':count', String(count)),
-          })
+          void bulkDeleteSelectedChunked()
         })
         document.getElementById('photos-bulk-archive')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをアーカイブしますか？通常の一覧からは隠れますが、ファイルは残り、「アーカイブ」表示から復元できます。')))) return

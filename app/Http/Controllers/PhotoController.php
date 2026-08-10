@@ -975,15 +975,22 @@ class PhotoController extends Controller
 
     public function bulkDestroy(Request $request)
     {
-        // 多数件＋オブジェクトストレージ削除向け（デフォルト 30s を超えないよう余裕を持たせる）
+        // 分割削除向け。1リクエストは短時間で終わらせ、フロントがチャンクを繰り返す
         if (function_exists('set_time_limit')) {
-            @set_time_limit(120);
+            @set_time_limit(90);
         }
 
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $ids = $this->photos->parseIdList($request->input('ids'));
+        // プロキシ／PHP タイムアウトを避けるため、1回あたりの上限
+        $maxPerRequest = 40;
+        $chunk = array_slice($ids, 0, $maxPerRequest);
+        $remaining = max(0, count($ids) - count($chunk));
+
         $count = $this->photos->bulkDeletePhotos(
             (int) $request->user()->id,
-            $this->photos->parseIdList($request->input('ids'))
+            $chunk,
+            false
         );
         $message = __(':count件のメディアを削除しました', ['count' => $count]);
 
@@ -991,6 +998,8 @@ class PhotoController extends Controller
             return response()->json([
                 'ok' => true,
                 'count' => $count,
+                'requested' => count($chunk),
+                'remaining' => $remaining,
                 'message' => $message,
             ]);
         }
