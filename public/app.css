@@ -3953,7 +3953,7 @@ a.filter-clear-btn {
   -webkit-user-select: none;
   touch-action: none;
   -webkit-touch-callout: none;
-  padding: 5px 12px 7px;
+  padding: 2px 12px 10px;
   text-align: center;
   border-top: 1px solid #e8eaed;
   background: #fff;
@@ -3966,22 +3966,41 @@ a.filter-clear-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 14px;
+  /* 見た目は丸でも、指で掴める領域は約44px確保 */
+  width: 56px;
+  min-width: 56px;
+  height: 44px;
+  min-height: 44px;
   margin: 0 auto;
-  max-width: 160px;
   cursor: ns-resize;
   touch-action: none;
   border: none;
   background: transparent;
-  padding: 4px 16px;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.calendar-height-resizer-bar {
+.calendar-height-resizer-knob {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #9aa0a6;
+  box-shadow: 0 1px 3px rgba(23, 27, 31, 0.18);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.calendar-height-resizer-knob-grip {
   display: block;
-  width: 44px;
-  height: 5px;
+  width: 10px;
+  height: 2px;
   border-radius: 999px;
   background: #9aa0a6;
+  box-shadow: 0 3px 0 #9aa0a6, 0 -3px 0 #9aa0a6;
 }
 
 .calendar-height-resizer.is-dragging,
@@ -3989,9 +4008,16 @@ a.filter-clear-btn {
   background: transparent;
 }
 
-.calendar-height-resizer.is-dragging .calendar-height-resizer-bar,
-.calendar-height-resizer-handle.is-dragging .calendar-height-resizer-bar {
+.calendar-height-resizer.is-dragging .calendar-height-resizer-knob,
+.calendar-height-resizer-handle.is-dragging .calendar-height-resizer-knob {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2), 0 1px 3px rgba(23, 27, 31, 0.18);
+}
+
+.calendar-height-resizer.is-dragging .calendar-height-resizer-knob-grip,
+.calendar-height-resizer-handle.is-dragging .calendar-height-resizer-knob-grip {
   background: #1a73e8;
+  box-shadow: 0 3px 0 #1a73e8, 0 -3px 0 #1a73e8;
 }
 
 body.cal-height-dragging {
