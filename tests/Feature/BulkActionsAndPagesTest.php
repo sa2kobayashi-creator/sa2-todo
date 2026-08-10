@@ -420,6 +420,40 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertNull($photo->fresh()->archived_at);
     }
 
+    public function test_photos_bulk_restore_clears_album_membership(): void
+    {
+        $album = PhotoAlbum::create([
+            'user_id' => $this->user->id,
+            'name' => '元アルバム',
+            'visibility' => 'private',
+        ]);
+        $photo = Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => $album->id,
+            'path' => 'photos/restore-to-all.jpg',
+            'thumb_path' => 'photos/restore-to-all-thumb.jpg',
+            'original_name' => 'restore-to-all.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'sort_order' => 1,
+            'taken_at' => now(),
+            'archived_at' => now(),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post('/photos/bulk/restore', [
+                'ids' => [$photo->id],
+                'returnTo' => '/photos?library=archived',
+            ])
+            ->assertRedirect();
+
+        $fresh = $photo->fresh();
+        $this->assertNull($fresh->archived_at);
+        $this->assertNull($fresh->album_id);
+    }
+
     public function test_photos_bulk_routes_forbid_guest(): void
     {
         $this->post('/photos/bulk/delete', ['ids' => [1]])->assertRedirect('/login');

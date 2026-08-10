@@ -55,6 +55,12 @@ class PhotoAlbum extends Model
         return $this->hasMany(Photo::class, 'album_id');
     }
 
+    /** 通常表示と同じく、アーカイブ済みを除いた枚数用 */
+    public function activePhotos(): HasMany
+    {
+        return $this->hasMany(Photo::class, 'album_id')->whereNull('archived_at');
+    }
+
     public function coverPhoto(): BelongsTo
     {
         return $this->belongsTo(Photo::class, 'cover_photo_id');

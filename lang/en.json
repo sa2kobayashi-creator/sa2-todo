@@ -2303,5 +2303,7 @@
     "使用状況表示": "Show usage",
     "使用状況閉じる": "Hide usage",
     "スマホのカメラロールから選ぶときはこちらです。PCのフォルダ監視とは別機能です。": "Use this to pick from the phone camera roll. This is separate from PC folder watching.",
-    "アルバム編集削除": "Edit / Delete album"
+    "アルバム編集削除": "Edit / Delete album",
+    "アルバム内に写真・動画が残っているため削除できません。先に移動または削除してください。": "This album still has photos or videos, so it cannot be deleted. Move or delete them first.",
+    "通常の写真・動画が残っているため削除できません。先に移動または削除してください（アーカイブのみなら削除できます）。": "This album still has active photos or videos, so it cannot be deleted. Move or delete them first (albums with only archived items can be deleted)."
 }

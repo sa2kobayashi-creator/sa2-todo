@@ -36,7 +36,7 @@ class PhotoController extends Controller
         $albums = $this->photos->listAlbums($userId, $revealHidden);
         $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
         $selectedAlbum = $selectedAlbumModel
-            ? $this->photos->albumToArray($selectedAlbumModel->loadCount('photos'), $userId)
+            ? $this->photos->albumToArray($selectedAlbumModel->loadCount('activePhotos'), $userId)
             : null;
 
         // 一覧に出ていない隠しアルバムへ直接アクセスした場合も配列に載せる
@@ -1046,10 +1046,16 @@ class PhotoController extends Controller
     public function destroyAlbum(Request $request, int $id)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
-        if (! $this->photos->deleteAlbum((int) $request->user()->id, $id)) {
-            return $this->redirectWithMessage($returnTo, __('アルバムが見つかりません'), 'error');
-        }
+        $result = $this->photos->deleteAlbum((int) $request->user()->id, $id);
 
-        return $this->redirectWithMessage('/photos', __('アルバムを削除しました'));
+        return match ($result) {
+            'deleted' => $this->redirectWithMessage('/photos', __('アルバムを削除しました')),
+            'not_empty' => $this->redirectWithMessage(
+                $returnTo,
+                __('通常の写真・動画が残っているため削除できません。先に移動または削除してください（アーカイブのみなら削除できます）。'),
+                'error'
+            ),
+            default => $this->redirectWithMessage($returnTo, __('アルバムが見つかりません'), 'error'),
+        };
     }
 }

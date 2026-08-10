@@ -5292,7 +5292,7 @@
         const selectedAlbum = @json($selectedAlbum);
         const revealHiddenAlbums = @json(!empty($revealHiddenAlbums));
         const albumDeleteConfirmPrefix = @json(__('このアルバムを削除しますか？'));
-        const albumDeleteConfirmSuffix = @json(__('アルバム内の写真・動画もすべて削除されます。'));
+        const albumDeleteNotEmptyMessage = @json(__('通常の写真・動画が残っているため削除できません。先に移動または削除してください（アーカイブのみなら削除できます）。'));
 
         /** 補足文は読めるだけ出して、あとは画面から引っ込める */
         const AUTO_HIDE_MS = 10000
@@ -5378,7 +5378,11 @@
         document.getElementById('photos-album-edit')?.addEventListener('click', () => openAlbumModal('edit'))
         albumDeleteBtn?.addEventListener('click', () => {
           if (!selectedAlbum || !albumDeleteForm) return
-          const message = `${albumDeleteConfirmPrefix}\n${selectedAlbum.name || ''}\n${albumDeleteConfirmSuffix}`
+          if ((Number(selectedAlbum.photoCount) || 0) > 0) {
+            window.alert(albumDeleteNotEmptyMessage)
+            return
+          }
+          const message = `${albumDeleteConfirmPrefix}\n${selectedAlbum.name || ''}`
           if (!window.confirm(message)) return
           albumDeleteForm.submit()
         })

@@ -633,7 +633,7 @@ class PhotoService
 
         $albums = PhotoAlbum::query()
             ->with(['group', 'user'])
-            ->withCount('photos')
+            ->withCount('activePhotos')
             ->where(function ($q) use ($userId, $groupIds) {
                 $q->where('user_id', $userId)
                     ->orWhere('visibility', AlbumVisibility::Public->value);
@@ -1172,7 +1172,7 @@ class PhotoService
             'sort_order' => $max + 10,
         ]);
 
-        return $this->albumToArray($album->load(['group', 'user'])->loadCount('photos'), $userId);
+        return $this->albumToArray($album->load(['group', 'user'])->loadCount('activePhotos'), $userId);
     }
 
     /**
@@ -1260,7 +1260,7 @@ class PhotoService
         }
         $album->save();
 
-        return $this->albumToArray($album->load(['group', 'user'])->loadCount('photos'), $userId);
+        return $this->albumToArray($album->load(['group', 'user'])->loadCount('activePhotos'), $userId);
     }
 
     /** @return array{0: \App\Enums\AlbumVisibility, 1: ?int} */
@@ -1297,7 +1297,7 @@ class PhotoService
         $album->cover_photo_id = $photo->id;
         $album->save();
 
-        return $this->albumToArray($album->loadCount('photos'), $userId);
+        return $this->albumToArray($album->loadCount('activePhotos'), $userId);
     }
 
     /**
@@ -1951,7 +1951,11 @@ class PhotoService
             ->where('user_id', $userId)
             ->whereIn('id', $idSet)
             ->whereNotNull('archived_at')
-            ->update(['archived_at' => null]);
+            ->update([
+                'archived_at' => null,
+                // 復元先は元アルバムではなく「すべて」（アルバム未所属）
+                'album_id' => null,
+            ]);
     }
 
     /** @param list<int> $ids */
@@ -2221,27 +2225,27 @@ class PhotoService
         )));
     }
 
-    public function deleteAlbum(int $userId, int $albumId): bool
+    public function deleteAlbum(int $userId, int $albumId): string
     {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
         if (! $album) {
-            return false;
+            return 'not_found';
         }
 
-        $photoIds = Photo::query()
+        // 削除可否は通常表示と同じく、アーカイブ済みは数えない
+        $photoCount = Photo::query()
             ->where('user_id', $userId)
             ->where('album_id', $albumId)
-            ->pluck('id')
-            ->map(static fn ($id) => (int) $id)
-            ->all();
+            ->whereNull('archived_at')
+            ->count();
 
-        if ($photoIds !== []) {
-            $this->bulkDeletePhotos($userId, $photoIds);
+        if ($photoCount > 0) {
+            return 'not_empty';
         }
 
         $album->delete();
 
-        return true;
+        return 'deleted';
     }
 
     private function assertValidUpload(UploadedFile $file): void
@@ -3340,7 +3344,7 @@ class PhotoService
                 ! $album->hasPassword() || $this->isAlbumUnlocked($viewerUserId, (int) $album->id)
             ),
             'coverPhotoId' => $album->cover_photo_id,
-            'photoCount' => (int) ($album->photos_count ?? $album->photos()->count()),
+            'photoCount' => (int) ($album->active_photos_count ?? $album->activePhotos()->count()),
             'coverUrl' => $coverArr
                 ? ($coverArr['thumbUrl'] ?? $coverArr['url'] ?? null)
                 : null,
