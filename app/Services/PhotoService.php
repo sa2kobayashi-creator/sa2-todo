@@ -1990,8 +1990,8 @@ class PhotoService
 
     public function deletePhoto(int $userId, int $photoId): bool
     {
-        // ストレージ掃除はレスポンス後。単枚削除も待たせない
-        return $this->bulkDeletePhotos($userId, [$photoId], true, true) === 1;
+        // ストレージ／Cloudinary 掃除はレスポンス後。ライトボックス削除を待たせない
+        return $this->bulkDeletePhotos($userId, [$photoId], false, true) === 1;
     }
 
     /** @param list<int> $ids */
@@ -2353,28 +2353,28 @@ class PhotoService
             }
         }
 
-        $photos = Photo::query()
+        // 表紙解除が必要な写真（別アルバムの表紙だったもの）
+        $coverPhotoIds = Photo::query()
             ->where('user_id', $userId)
             ->whereIn('id', $idSet)
-            ->get();
+            ->whereNotNull('album_id')
+            ->when($albumId !== null, fn ($q) => $q->where('album_id', '!=', $albumId))
+            ->when($albumId === null, fn ($q) => $q->whereNotNull('album_id'))
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
 
-        $moved = 0;
-        foreach ($photos as $photo) {
-            $oldAlbumId = $photo->album_id ? (int) $photo->album_id : null;
-            $photo->album_id = $albumId;
-            $photo->save();
-            $moved++;
-
-            if ($oldAlbumId && $oldAlbumId !== $albumId) {
-                PhotoAlbum::query()
-                    ->where('user_id', $userId)
-                    ->where('id', $oldAlbumId)
-                    ->where('cover_photo_id', $photo->id)
-                    ->update(['cover_photo_id' => null]);
-            }
+        if ($coverPhotoIds !== []) {
+            PhotoAlbum::query()
+                ->where('user_id', $userId)
+                ->whereIn('cover_photo_id', $coverPhotoIds)
+                ->update(['cover_photo_id' => null]);
         }
 
-        return $moved;
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->update(['album_id' => $albumId]);
     }
 
     /** @param mixed $raw @return list<int> */

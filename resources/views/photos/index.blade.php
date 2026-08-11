@@ -3830,23 +3830,49 @@
 
         document.getElementById('photos-lb-edit-open')?.addEventListener('click', () => setLightboxEditMode(true))
         document.getElementById('photos-lb-edit-back')?.addEventListener('click', () => setLightboxEditMode(false))
-        document.getElementById('photos-lb-delete-quick')?.addEventListener('click', () => {
-          const form = document.getElementById('photos-delete-form')
-          if (!form || form.hidden) return
-          if (typeof form.requestSubmit === 'function') {
-            form.requestSubmit()
-            return
-          }
+
+        async function deleteCurrentLightboxPhoto() {
+          const photo = photos[currentIndex]
+          if (!photo?.id || !photo.canEdit) return
           if (!window.confirm(@json(__('このメディアを削除しますか？')))) return
-          setPhotosBusy(true, @json(__('削除しています…')), 'delete')
-          form.submit()
+
+          const photoId = photo.id
+          const toast = document.getElementById('photos-delete-toast')
+          const toastMsg = document.getElementById('photos-delete-toast-message')
+          const setToast = (visible, message = '') => {
+            if (toastMsg && message) toastMsg.textContent = message
+            if (toast) toast.hidden = !visible
+          }
+
+          // 動画のダウンロード／再生を止めてから消す（接続占有で削除POSTが詰まるのを防ぐ）
+          stopLightboxVideo()
+          closeLightbox()
+          setToast(true, @json(__('削除しています…')))
+
+          try {
+            const fd = new FormData()
+            fd.append('returnTo', photosReturnTo || '/photos')
+            const res = await postUploadFormDataWithRetry(`/photos/${photoId}/delete`, fd, {
+              timeoutMs: 30 * 1000,
+            }, 2)
+            if (!res?.data?.ok && res?.ok === false) {
+              throw new Error(res?.data?.message || @json(__('削除に失敗しました。')))
+            }
+            setToast(true, @json(__('削除完了。画面を更新しています…')))
+            window.location.assign(photosReturnTo || '/photos')
+          } catch (err) {
+            setToast(false)
+            window.alert(err?.message || @json(__('削除に失敗しました。')))
+            window.location.reload()
+          }
+        }
+
+        document.getElementById('photos-lb-delete-quick')?.addEventListener('click', () => {
+          void deleteCurrentLightboxPhoto()
         })
         document.getElementById('photos-delete-form')?.addEventListener('submit', (e) => {
-          if (!window.confirm(@json(__('このメディアを削除しますか？')))) {
-            e.preventDefault()
-            return
-          }
-          setPhotosBusy(true, @json(__('削除しています…')), 'delete')
+          e.preventDefault()
+          void deleteCurrentLightboxPhoto()
         })
 
         function formatPhotoBytes(bytes) {
@@ -4657,43 +4683,39 @@
             window.location.reload()
           }
         }
-        function submitPhotosBulk(url, extra = {}, busy = null) {
+        async function runPhotosBulkJson(url, extra = {}, busyMessage = '') {
           const ids = selectedPhotoIds()
           if (ids.length === 0) {
             window.alert(@json(__('対象が選択されていません')));
             return
           }
-          if (busy?.message) setPhotosBusy(true, busy.message, busy.kind || 'delete')
-          const form = document.createElement('form')
-          form.method = 'POST'
-          form.action = url
-          form.style.display = 'none'
-          const token = document.createElement('input')
-          token.type = 'hidden'
-          token.name = '_token'
-          token.value = csrfToken
-          form.appendChild(token)
-          const returnTo = document.createElement('input')
-          returnTo.type = 'hidden'
-          returnTo.name = 'returnTo'
-          returnTo.value = photosReturnTo || '/photos'
-          form.appendChild(returnTo)
-          ids.forEach((id) => {
-            const input = document.createElement('input')
-            input.type = 'hidden'
-            input.name = 'ids[]'
-            input.value = id
-            form.appendChild(input)
-          })
-          Object.entries(extra).forEach(([name, value]) => {
-            const input = document.createElement('input')
-            input.type = 'hidden'
-            input.name = name
-            input.value = value
-            form.appendChild(input)
-          })
-          document.body.appendChild(form)
-          form.submit()
+          const toast = document.getElementById('photos-delete-toast')
+          const toastMsg = document.getElementById('photos-delete-toast-message')
+          const setToast = (visible, message = '') => {
+            if (toastMsg && message) toastMsg.textContent = message
+            if (toast) toast.hidden = !visible
+          }
+          setToast(true, busyMessage || @json(__('処理中です…')))
+          try {
+            const fd = new FormData()
+            fd.append('returnTo', photosReturnTo || '/photos')
+            ids.forEach((id) => fd.append('ids[]', id))
+            Object.entries(extra).forEach(([name, value]) => {
+              fd.append(name, value == null ? '' : String(value))
+            })
+            const res = await postUploadFormDataWithRetry(url, fd, {
+              timeoutMs: 60 * 1000,
+            }, 2)
+            if (!res?.data?.ok && res?.ok === false) {
+              throw new Error(res?.data?.message || @json(__('処理に失敗しました。')))
+            }
+            setToast(true, @json(__('完了。画面を更新しています…')))
+            window.location.assign(photosReturnTo || '/photos')
+          } catch (err) {
+            setToast(false)
+            window.alert(err?.message || @json(__('処理に失敗しました。')))
+            window.location.reload()
+          }
         }
         document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
           void bulkDeleteSelectedChunked()
@@ -4701,26 +4723,29 @@
         document.getElementById('photos-bulk-archive')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをアーカイブしますか？通常の一覧からは隠れますが、ファイルは残り、「アーカイブ」表示から復元できます。')))) return
           const count = selectedPhotoIds().length
-          submitPhotosBulk('/photos/bulk/archive', {}, {
-            kind: 'bulk',
-            message: @json(__(':count件をアーカイブしています…')).replace(':count', String(count)),
-          })
+          void runPhotosBulkJson(
+            '/photos/bulk/archive',
+            {},
+            @json(__(':count件をアーカイブしています…')).replace(':count', String(count))
+          )
         })
         document.getElementById('photos-bulk-restore')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをライブラリに戻しますか？')))) return
           const count = selectedPhotoIds().length
-          submitPhotosBulk('/photos/bulk/restore', {}, {
-            kind: 'bulk',
-            message: @json(__(':count件を復元しています…')).replace(':count', String(count)),
-          })
+          void runPhotosBulkJson(
+            '/photos/bulk/restore',
+            {},
+            @json(__(':count件を復元しています…')).replace(':count', String(count))
+          )
         })
         document.getElementById('photos-bulk-move')?.addEventListener('click', () => {
           const albumId = document.getElementById('photos-bulk-move-album')?.value ?? ''
           const count = selectedPhotoIds().length
-          submitPhotosBulk('/photos/bulk/move', { album_id: albumId }, {
-            kind: 'bulk',
-            message: @json(__(':count件を移動しています…')).replace(':count', String(count)),
-          })
+          void runPhotosBulkJson(
+            '/photos/bulk/move',
+            { album_id: albumId },
+            @json(__(':count件を移動しています…')).replace(':count', String(count))
+          )
         })
 
         // 選択/一覧: チェック操作もタイルと同じ選択経路へ。アーカイブはチェックで選択・タイルで拡大

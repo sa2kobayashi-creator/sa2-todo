@@ -268,6 +268,19 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertSame($albumB->id, (int) $photoMove->fresh()->album_id);
 
         $this->actingAs($this->user)
+            ->postJson('/photos/bulk/move', [
+                'ids' => [$photoMove->id],
+                'album_id' => null,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'ok' => true,
+                'count' => 1,
+            ]);
+
+        $this->assertNull($photoMove->fresh()->album_id);
+
+        $this->actingAs($this->user)
             ->post('/photos/bulk/delete', [
                 'ids' => [$photoDelete->id],
                 'returnTo' => '/photos',

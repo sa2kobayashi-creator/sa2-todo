@@ -973,6 +973,14 @@ class PhotoController extends Controller
 
     public function destroy(Request $request, int $id)
     {
+        // 削除中にセッションロックで他リクエストが詰まらないよう解放
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (function_exists('session_status') && session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
         $wantsJson = $request->expectsJson() || $request->ajax();
         if (! $this->photos->deletePhoto((int) $request->user()->id, $id)) {
@@ -1034,6 +1042,7 @@ class PhotoController extends Controller
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
         $albumRaw = $request->input('album_id');
         $albumId = ($albumRaw === null || $albumRaw === '') ? null : (int) $albumRaw;
+        $wantsJson = $request->expectsJson() || $request->ajax();
 
         try {
             $count = $this->photos->bulkMovePhotos(
@@ -1042,10 +1051,24 @@ class PhotoController extends Controller
                 $albumId
             );
         } catch (\InvalidArgumentException $e) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, __(':count件のメディアを移動しました', ['count' => $count]));
+        $message = __(':count件のメディアを移動しました', ['count' => $count]);
+
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'count' => $count,
+                'message' => $message,
+            ]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 
     public function bulkArchive(Request $request)
