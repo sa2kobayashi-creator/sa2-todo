@@ -17423,3 +17423,319 @@ body.video-page .media-player-stage-spacer {
     color: #1f2937 !important;
   }
 }
+
+/* ===== Dashboard today hub ===== */
+.dash-home {
+  --dash-home-line: rgba(32, 33, 36, 0.12);
+  --dash-home-muted: #5f6368;
+  --dash-home-text: #202124;
+  --dash-home-accent: #1a73e8;
+  --dash-home-warn: #b45309;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash-home-greeting {
+  padding: 18px 20px;
+  border: 1px solid var(--dash-home-line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 70%);
+}
+
+.dash-home-date {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--dash-home-muted);
+  letter-spacing: 0.02em;
+}
+
+.dash-home-hello {
+  margin: 0 0 14px;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--dash-home-text);
+}
+
+.dash-home-counts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.dash-home-counts li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--dash-home-text);
+}
+
+.dash-home-counts li.is-attention {
+  color: var(--dash-home-warn);
+  font-weight: 600;
+}
+
+.dash-home-count-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.dash-home-count-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-home-count-label {
+  color: var(--dash-home-muted);
+}
+
+.dash-home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dash-home-card {
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--dash-home-line);
+  border-radius: 14px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-home-photos {
+  grid-column: 1 / -1;
+}
+
+.dash-home-card-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--dash-home-text);
+}
+
+.dash-home-card-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--dash-home-muted);
+}
+
+.dash-home-card-note {
+  color: var(--dash-home-muted);
+  font-size: 12px;
+}
+
+.dash-home-countdown {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-home-accent);
+}
+
+.dash-home-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dash-home-muted);
+}
+
+.dash-home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-home-list li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.dash-home-list li.is-overdue .dash-home-list-time,
+.dash-home-list li.is-overdue .dash-home-list-title {
+  color: var(--dash-home-warn);
+}
+
+.dash-home-list li.is-next .dash-home-list-title {
+  font-weight: 700;
+}
+
+.dash-home-list-time {
+  color: var(--dash-home-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.dash-home-list-title {
+  color: var(--dash-home-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.dash-home-list-title:hover {
+  color: var(--dash-home-accent);
+  text-decoration: underline;
+}
+
+.dash-home-card-foot {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.dash-home-action,
+.dash-home-more {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-home-accent);
+  text-decoration: none;
+}
+
+.dash-home-action:hover,
+.dash-home-more:hover {
+  text-decoration: underline;
+}
+
+.dash-home-photo-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dash-home-photo-link {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f3f4;
+}
+
+.dash-home-photo-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dash-home-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 4px 2px 0;
+  font-size: 13px;
+}
+
+.dash-home-pins {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.dash-home-pins-label {
+  color: var(--dash-home-muted);
+  font-weight: 600;
+  flex: none;
+}
+
+.dash-home-pins-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.dash-home-pins-list a {
+  color: var(--dash-home-text);
+  text-decoration: none;
+}
+
+.dash-home-pins-list a:hover {
+  color: var(--dash-home-accent);
+  text-decoration: underline;
+}
+
+.dash-home-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--dash-home-muted);
+}
+
+.dash-home-links a {
+  color: var(--dash-home-muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.dash-home-links a:hover {
+  color: var(--dash-home-accent);
+  text-decoration: underline;
+}
+
+.dash-calendar-accordion {
+  margin-top: 8px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--dash-home-line, rgba(32, 33, 36, 0.12));
+  border-radius: 14px;
+  background: #fff;
+}
+
+.dash-calendar-summary {
+  padding: 2px 0;
+}
+
+.dash-calendar-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.dash-calendar-accordion > .app-accordion-body {
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .dash-home-greeting {
+    padding: 14px 16px;
+  }
+
+  .dash-home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-home-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-home-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

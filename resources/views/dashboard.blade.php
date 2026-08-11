@@ -26,6 +26,8 @@
         </div>
       @endif
 
+      @include('dashboard.partials.home')
+
       <div class="dash-quick-panels" id="dash-quick-panels">
         @include('dashboard.partials.ai-usage')
         @include('dashboard.partials.travel')
@@ -76,6 +78,13 @@
         })()
       </script>
 
+      <details class="app-accordion dash-calendar-accordion" data-accordion-key="dash-calendar">
+        <summary class="app-accordion-summary dash-calendar-summary">
+          <h2 class="dash-calendar-title">{{ __('カレンダー') }}</h2>
+          <span class="app-accordion-note">{{ $periodLabel ?? '' }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
       <div class="calendar-shell" data-calendar-view="{{ $view }}">
         @include('partials.calendar-nav-toolbar', ['showMemoTodoActions' => true])
 
@@ -272,6 +281,8 @@
           </ul>
         </div>
       @endif
+        </div>
+      </details>
     </main>
 
     <div id="event-tooltip" class="event-hover-tooltip" hidden aria-hidden="true"></div>

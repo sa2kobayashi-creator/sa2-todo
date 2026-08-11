@@ -6,6 +6,7 @@ use App\Enums\AppContext;
 use App\Services\AppContextService;
 use App\Services\CalendarService;
 use App\Services\DashboardAiUsageService;
+use App\Services\DashboardHomeService;
 use App\Services\DisplayService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
@@ -27,6 +28,7 @@ class DashboardController extends Controller
         private HolidayService $holidays,
         private DisplayService $display,
         private DashboardAiUsageService $aiUsage,
+        private DashboardHomeService $home,
         private TravelService $travel,
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
@@ -62,6 +64,7 @@ class DashboardController extends Controller
         $userId = (int) $user->id;
         $context = $this->contexts->current($user, $request);
         $allTodos = $this->todos->listTodos($userId, $context)->all();
+        $home = $this->home->build($user, $allTodos);
         $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
 
         if ($context === AppContext::Work) {
@@ -128,12 +131,12 @@ class DashboardController extends Controller
             'todosForJs' => $allTodos,
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
+            'home' => $home,
             'aiUsage' => $this->aiUsage->summary($userId),
             'travelSummary' => $user->canAccess('travel')
                 ? $this->travel->dashboardSummary($userId)
                 : null,
-            'googleCalendarConnected' => $context === AppContext::Work
-                && $this->googleCalendar->connectionFor($user) !== null,
+            'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             ...$this->flashFromQuery($request),
         ]);
