@@ -1033,7 +1033,7 @@
         </button>
         <div class="photos-lightbox-media" id="photos-lightbox-media">
           <img src="" alt="" id="photos-lightbox-image" />
-          <video src="" id="photos-lightbox-video" controls playsinline preload="metadata" hidden></video>
+          <video src="" id="photos-lightbox-video" controls playsinline preload="auto" hidden></video>
           {{-- AVI などブラウザが解けない形式は再生できない。原本は無傷なので落として見てもらう --}}
           <p class="photos-lightbox-unplayable" id="photos-lightbox-unplayable" hidden>
             {{ __('この形式はブラウザで再生できません。原本はそのまま保存されています。') }}

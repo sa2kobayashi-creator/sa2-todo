@@ -2975,15 +2975,239 @@ class PhotoService
         return null;
     }
 
-    /** @return array{contents: string, mime: string, name: string} */
+    /**
+     * @return array{contents: string, mime: string, name: string}
+     */
     public function readPhotoFile(Photo $photo, string $variant = 'original'): array
+    {
+        $ref = $this->resolvePhotoFileRef($photo, $variant);
+        if (isset($ref['contents'])) {
+            return [
+                'contents' => $ref['contents'],
+                'mime' => $ref['mime'],
+                'name' => $ref['name'],
+            ];
+        }
+
+        $contents = $ref['disk']->get($ref['path']);
+        if ($ref['diskName'] === 'backblaze') {
+            $bytes = is_string($contents) ? strlen($contents) : (int) ($photo->size_bytes ?? 0);
+            $this->mediaConfig->recordB2Usage($bytes, 1, 0);
+        }
+
+        return [
+            'contents' => $contents,
+            'mime' => $ref['mime'],
+            'name' => $ref['name'],
+        ];
+    }
+
+    /**
+     * 画像・動画をストリーム配信（HTTP Range 対応）。大きな動画をメモリに載せない。
+     */
+    public function streamPhotoFile(Photo $photo, string $variant = 'original', ?string $rangeHeader = null): \Symfony\Component\HttpFoundation\Response
+    {
+        $ref = $this->resolvePhotoFileRef($photo, $variant);
+
+        $dispositionName = $this->contentDispositionFilename($ref['name']);
+        $baseHeaders = [
+            'Content-Type' => $ref['mime'],
+            'Content-Disposition' => 'inline; filename="'.$dispositionName.'"',
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'private, max-age=3600',
+        ];
+
+        if (isset($ref['contents'])) {
+            $bytes = $ref['contents'];
+            $size = strlen($bytes);
+            $parsed = $this->parseByteRange($rangeHeader, $size);
+            if ($parsed === null) {
+                return response('Requested Range Not Satisfiable', 416, [
+                    'Content-Range' => 'bytes */'.$size,
+                    'Accept-Ranges' => 'bytes',
+                ]);
+            }
+            [$start, $end, $status] = $parsed;
+            $slice = substr($bytes, $start, $end - $start + 1);
+            $headers = $baseHeaders;
+            $headers['Content-Length'] = (string) strlen($slice);
+            if ($status === 206) {
+                $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+            }
+
+            return response($slice, $status, $headers);
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = $ref['disk'];
+        $path = $ref['path'];
+        $diskName = $ref['diskName'];
+
+        try {
+            $size = (int) $disk->size($path);
+        } catch (\Throwable) {
+            throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
+        }
+
+        if ($size < 0) {
+            $size = 0;
+        }
+
+        $parsed = $this->parseByteRange($rangeHeader, $size);
+        if ($parsed === null) {
+            return response('Requested Range Not Satisfiable', 416, [
+                'Content-Range' => 'bytes */'.$size,
+                'Accept-Ranges' => 'bytes',
+            ]);
+        }
+        [$start, $end, $status] = $parsed;
+        $length = $end - $start + 1;
+
+        $headers = $baseHeaders;
+        $headers['Content-Length'] = (string) $length;
+        if ($status === 206) {
+            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+        }
+
+        if ($diskName === 'backblaze') {
+            $this->mediaConfig->recordB2Usage($length, 1, 0);
+        }
+
+        $driver = (string) config('filesystems.disks.'.$diskName.'.driver', 'local');
+
+        // ローカルは BinaryFileResponse が Range を処理できるが、部分指定済みなら自前で切る
+        if ($driver !== 's3' && method_exists($disk, 'path')) {
+            $absolute = $disk->path($path);
+            if (! is_string($absolute) || $absolute === '' || ! is_file($absolute)) {
+                throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
+            }
+
+            return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($absolute, $start, $length) {
+                $fh = fopen($absolute, 'rb');
+                if ($fh === false) {
+                    return;
+                }
+                try {
+                    if ($start > 0) {
+                        fseek($fh, $start);
+                    }
+                    $remaining = $length;
+                    while ($remaining > 0 && ! feof($fh)) {
+                        $chunk = fread($fh, min(256 * 1024, $remaining));
+                        if ($chunk === false || $chunk === '') {
+                            break;
+                        }
+                        echo $chunk;
+                        $remaining -= strlen($chunk);
+                        if (connection_aborted()) {
+                            break;
+                        }
+                    }
+                } finally {
+                    fclose($fh);
+                }
+            }, $status, $headers);
+        }
+
+        // S3 互換（R2 / B2）は GetObject Range で部分取得
+        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($disk, $diskName, $path, $start, $end, $size) {
+            try {
+                $client = $disk->getClient();
+            } catch (\Throwable) {
+                // フォールバック: 全体をストリーム（メモリへ載せない）
+                $stream = $disk->readStream($path);
+                if (! is_resource($stream)) {
+                    return;
+                }
+                try {
+                    if ($start > 0) {
+                        if (fseek($stream, $start) !== 0) {
+                            // seek 不可なら先頭から捨て読み
+                            $skipped = 0;
+                            while ($skipped < $start && ! feof($stream)) {
+                                $junk = fread($stream, min(256 * 1024, $start - $skipped));
+                                if ($junk === false || $junk === '') {
+                                    break;
+                                }
+                                $skipped += strlen($junk);
+                            }
+                        }
+                    }
+                    $remaining = $end - $start + 1;
+                    while ($remaining > 0 && ! feof($stream)) {
+                        $chunk = fread($stream, min(256 * 1024, $remaining));
+                        if ($chunk === false || $chunk === '') {
+                            break;
+                        }
+                        echo $chunk;
+                        $remaining -= strlen($chunk);
+                        if (connection_aborted()) {
+                            break;
+                        }
+                    }
+                } finally {
+                    fclose($stream);
+                }
+
+                return;
+            }
+
+            $bucket = (string) config('filesystems.disks.'.$diskName.'.bucket', '');
+            $key = $this->objectStorageKey($diskName, $path);
+            if ($bucket === '' || ! is_object($client) || ! method_exists($client, 'getObject')) {
+                return;
+            }
+
+            $params = [
+                'Bucket' => $bucket,
+                'Key' => $key,
+            ];
+            if (! ($start === 0 && $end === max(0, $size - 1))) {
+                $params['Range'] = "bytes={$start}-{$end}";
+            }
+
+            $result = $client->getObject($params);
+            $body = $result['Body'] ?? null;
+            if (is_object($body) && method_exists($body, 'eof') && method_exists($body, 'read')) {
+                while (! $body->eof()) {
+                    echo $body->read(256 * 1024);
+                    if (connection_aborted()) {
+                        break;
+                    }
+                }
+
+                return;
+            }
+            if (is_string($body)) {
+                echo $body;
+            }
+        }, $status, $headers);
+    }
+
+    /**
+     * @return array{
+     *   disk?: \Illuminate\Contracts\Filesystem\Filesystem,
+     *   diskName?: string,
+     *   path?: string,
+     *   mime: string,
+     *   name: string,
+     *   contents?: string
+     * }
+     */
+    private function resolvePhotoFileRef(Photo $photo, string $variant = 'original'): array
     {
         $wantThumb = $variant === 'thumb';
         $hasThumb = is_string($photo->thumb_path) && $photo->thumb_path !== '';
         $isVideo = $this->isVideoMime((string) ($photo->mime ?? ''), pathinfo((string) $photo->path, PATHINFO_EXTENSION));
 
         if ($wantThumb && ! $hasThumb && $isVideo) {
-            return $this->videoMissingThumbPayload($photo);
+            $payload = $this->videoMissingThumbPayload($photo);
+
+            return [
+                'contents' => $payload['contents'],
+                'mime' => $payload['mime'],
+                'name' => $payload['name'],
+            ];
         }
 
         $path = $wantThumb && $hasThumb
@@ -3011,15 +3235,15 @@ class PhotoService
 
         if (! $disk->exists($path)) {
             if ($wantThumb && $isVideo) {
-                return $this->videoMissingThumbPayload($photo);
+                $payload = $this->videoMissingThumbPayload($photo);
+
+                return [
+                    'contents' => $payload['contents'],
+                    'mime' => $payload['mime'],
+                    'name' => $payload['name'],
+                ];
             }
             throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
-        }
-
-        $contents = $disk->get($path);
-        if ($diskName === 'backblaze') {
-            $bytes = is_string($contents) ? strlen($contents) : (int) ($photo->size_bytes ?? 0);
-            $this->mediaConfig->recordB2Usage($bytes, 1, 0);
         }
 
         $mime = $wantThumb && $path === (string) $photo->thumb_path
@@ -3030,10 +3254,74 @@ class PhotoService
             : (string) ($photo->original_name ?: basename($path));
 
         return [
-            'contents' => $contents,
+            'disk' => $disk,
+            'diskName' => $diskName,
+            'path' => $path,
             'mime' => $mime,
             'name' => $name,
         ];
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: int}|null null = 416
+     */
+    private function parseByteRange(?string $rangeHeader, int $size): ?array
+    {
+        if ($size <= 0) {
+            return [0, 0, 200];
+        }
+
+        $header = trim((string) $rangeHeader);
+        if ($header === '' || ! preg_match('/^bytes=/i', $header)) {
+            return [0, $size - 1, 200];
+        }
+
+        // 単一レンジのみ対応（ブラウザの video/audio は通常これ）
+        if (! preg_match('/^bytes=(\d*)-(\d*)$/i', $header, $m)) {
+            return null;
+        }
+
+        $startRaw = $m[1];
+        $endRaw = $m[2];
+
+        if ($startRaw === '' && $endRaw === '') {
+            return null;
+        }
+
+        if ($startRaw === '') {
+            // suffix: bytes=-500
+            $suffix = (int) $endRaw;
+            if ($suffix <= 0) {
+                return null;
+            }
+            $start = max(0, $size - $suffix);
+            $end = $size - 1;
+        } else {
+            $start = (int) $startRaw;
+            $end = $endRaw === '' ? ($size - 1) : (int) $endRaw;
+        }
+
+        if ($start > $end || $start >= $size) {
+            return null;
+        }
+
+        $end = min($end, $size - 1);
+
+        return [$start, $end, 206];
+    }
+
+    private function objectStorageKey(string $diskName, string $path): string
+    {
+        $prefix = (string) config('filesystems.disks.'.$diskName.'.root', '');
+
+        return ($prefix !== '' ? rtrim($prefix, '/').'/' : '').ltrim($path, '/');
+    }
+
+    private function contentDispositionFilename(string $name): string
+    {
+        $safe = str_replace(['"', "\r", "\n"], '', $name);
+
+        return $safe !== '' ? $safe : 'file';
     }
 
     /** @return array{contents: string, mime: string, name: string} */

@@ -849,16 +849,15 @@ class PhotoController extends Controller
             if (! in_array($variant, ['original', 'thumb'], true)) {
                 $variant = 'original';
             }
-            $file = $this->photos->readPhotoFile($photo, $variant);
+
+            return $this->photos->streamPhotoFile(
+                $photo,
+                $variant,
+                $request->header('Range')
+            );
         } catch (\InvalidArgumentException $e) {
             abort(404, $e->getMessage());
         }
-
-        return response($file['contents'], 200, [
-            'Content-Type' => $file['mime'],
-            'Content-Disposition' => 'inline; filename="'.addslashes($file['name']).'"',
-            'Cache-Control' => 'private, max-age=3600',
-        ]);
     }
 
     public function trimVideo(Request $request, int $id)

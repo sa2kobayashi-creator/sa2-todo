@@ -88,6 +88,66 @@ class FinanceIsolationAndPhotoFileTest extends TestCase
         $this->actingAs($user)
             ->get('/photos/'.$photo->id.'/file')
             ->assertOk()
-            ->assertHeader('Content-Type', 'image/jpeg');
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertHeader('Accept-Ranges', 'bytes');
+    }
+
+    public function test_photo_file_endpoint_supports_http_range_for_video(): void
+    {
+        config(['photos.disk' => 'public']);
+        Storage::fake('public');
+        $user = $this->makeUser('photo-range@example.com');
+        $bytes = 'ABCDEFGHIJKLMNOP'; // 16 bytes
+        Storage::disk('public')->put('photos/1/clip.mp4', $bytes);
+
+        $photo = Photo::create([
+            'user_id' => $user->id,
+            'album_id' => null,
+            'path' => 'photos/1/clip.mp4',
+            'thumb_path' => null,
+            'original_name' => 'clip.mp4',
+            'mime' => 'video/mp4',
+            'size_bytes' => strlen($bytes),
+            'sort_order' => 0,
+        ]);
+
+        $full = $this->actingAs($user)->get('/photos/'.$photo->id.'/file');
+        $full->assertOk()
+            ->assertHeader('Accept-Ranges', 'bytes')
+            ->assertHeader('Content-Type', 'video/mp4');
+        $this->assertSame($bytes, $full->streamedContent());
+
+        $partial = $this->actingAs($user)
+            ->withHeaders(['Range' => 'bytes=4-7'])
+            ->get('/photos/'.$photo->id.'/file');
+        $partial->assertStatus(206)
+            ->assertHeader('Content-Range', 'bytes 4-7/16')
+            ->assertHeader('Accept-Ranges', 'bytes');
+        $this->assertSame('EFGH', $partial->streamedContent());
+    }
+
+    public function test_photo_file_endpoint_rejects_unsatisfiable_range(): void
+    {
+        config(['photos.disk' => 'public']);
+        Storage::fake('public');
+        $user = $this->makeUser('photo-range-bad@example.com');
+        Storage::disk('public')->put('photos/1/clip.mp4', '0123456789');
+
+        $photo = Photo::create([
+            'user_id' => $user->id,
+            'album_id' => null,
+            'path' => 'photos/1/clip.mp4',
+            'thumb_path' => null,
+            'original_name' => 'clip.mp4',
+            'mime' => 'video/mp4',
+            'size_bytes' => 10,
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($user)
+            ->withHeaders(['Range' => 'bytes=99-120'])
+            ->get('/photos/'.$photo->id.'/file')
+            ->assertStatus(416)
+            ->assertHeader('Content-Range', 'bytes */10');
     }
 }
