@@ -132,7 +132,7 @@ class DashboardController extends Controller
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'home' => $home,
-            'aiUsage' => $this->aiUsage->summary($userId),
+            'aiUsage' => $user->isAdmin() ? $this->aiUsage->summary($userId) : null,
             'travelSummary' => $user->canAccess('travel')
                 ? $this->travel->dashboardSummary($userId)
                 : null,

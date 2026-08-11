@@ -16,25 +16,13 @@
       <li>
         <span class="dash-home-count-icon" aria-hidden="true">📅</span>
         <span class="dash-home-count-num">{{ (int) ($counts['events'] ?? 0) }}</span>
-        <span class="dash-home-count-label">{{ __('予定') }}</span>
+        <span class="dash-home-count-label">{{ __('今日の予定') }}</span>
       </li>
       <li>
         <span class="dash-home-count-icon" aria-hidden="true">✓</span>
         <span class="dash-home-count-num">{{ (int) ($counts['todos'] ?? 0) }}</span>
-        <span class="dash-home-count-label">{{ __('Todo') }}</span>
+        <span class="dash-home-count-label">{{ __('今日のTodo') }}</span>
       </li>
-      <li @class(['is-attention' => ((int) ($counts['attention'] ?? 0)) > 0])>
-        <span class="dash-home-count-icon" aria-hidden="true">⚠</span>
-        <span class="dash-home-count-num">{{ (int) ($counts['attention'] ?? 0) }}</span>
-        <span class="dash-home-count-label">{{ __('注意') }}</span>
-      </li>
-      @if(((int) ($counts['photosToday'] ?? 0)) > 0)
-        <li>
-          <span class="dash-home-count-icon" aria-hidden="true">📷</span>
-          <span class="dash-home-count-num">{{ (int) $counts['photosToday'] }}</span>
-          <span class="dash-home-count-label">{{ __('写真') }}</span>
-        </li>
-      @endif
     </ul>
   </header>
 
@@ -71,12 +59,12 @@
       @if(empty($calendar['connected']))
         <p class="dash-home-empty">{{ __('Googleカレンダーは未連携です') }}</p>
         <div class="dash-home-card-foot">
-          <a class="dash-home-action" href="{{ $links['googleCalendar'] ?? '/settings?section=integration#google-calendar' }}">{{ __('Googleカレンダーを連携') }}</a>
+          <a class="dash-home-action" href="{{ $links['googleCalendarConnect'] ?? '/settings?section=integration#google-calendar' }}">{{ __('Googleカレンダーを連携') }}</a>
         </div>
       @elseif(count($calendar['events'] ?? []) === 0)
         <p class="dash-home-empty">{{ __('今日の予定はありません') }}</p>
         <div class="dash-home-card-foot">
-          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? '/settings?section=integration#google-calendar' }}">Google Calendar →</a>
+          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? 'https://calendar.google.com/calendar/r/day' }}" target="_blank" rel="noopener noreferrer">Google Calendar →</a>
         </div>
       @else
         <ul class="dash-home-list">
@@ -92,7 +80,7 @@
           @endforeach
         </ul>
         <div class="dash-home-card-foot">
-          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? '/settings?section=integration#google-calendar' }}">Google Calendar →</a>
+          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? 'https://calendar.google.com/calendar/r/day' }}" target="_blank" rel="noopener noreferrer">Google Calendar →</a>
         </div>
       @endif
     </section>

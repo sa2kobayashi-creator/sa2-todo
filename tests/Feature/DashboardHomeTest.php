@@ -75,5 +75,47 @@ class DashboardHomeTest extends TestCase
         $response->assertOk();
         $response->assertSee('Googleカレンダーは未連携です', false);
         $response->assertSee('Googleカレンダーを連携', false);
+        $response->assertDontSee('⚠', false);
+    }
+
+    public function test_dashboard_google_calendar_link_opens_calendar_when_connected(): void
+    {
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('connectionFor')->andReturn(new \App\Models\GoogleCalendarConnection([
+            'user_id' => $this->user->id,
+            'google_user_id' => 'g-1',
+            'google_email' => 'g@example.com',
+        ]));
+        $google->shouldReceive('listEventsAsTodos')->andReturn([]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $response = $this->actingAs($this->user)->get('/dashboard');
+
+        $response->assertOk();
+        $response->assertSee('https://calendar.google.com/calendar/r/day', false);
+        $response->assertDontSee('href="/settings?section=integration#google-calendar">Google Calendar', false);
+    }
+
+    public function test_ai_usage_panel_is_hidden_from_standard_users(): void
+    {
+        $this->actingAs($this->user)->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee('AI使用料・翻訳使用料', false)
+            ->assertDontSee('dash-ai-usage', false);
+    }
+
+    public function test_ai_usage_panel_is_visible_to_admins(): void
+    {
+        $admin = User::create([
+            'email' => 'dashadmin@example.com',
+            'display_name' => '管理者',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+        ]);
+
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('AI使用料・翻訳使用料', false)
+            ->assertSee('dash-ai-usage', false);
     }
 }

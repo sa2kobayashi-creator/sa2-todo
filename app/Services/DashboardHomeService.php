@@ -35,8 +35,7 @@ class DashboardHomeService
         $greeting = $this->greetingForHour((int) $now->format('G'));
         $displayName = trim((string) ($user->display_name ?: ''));
 
-        $nextActions = $this->nextActions($localTodos, $today, 5);
-        $overdueCount = $this->overdueCount($localTodos, $today);
+        $nextActions = $this->nextActions($localTodos, $now, 5);
         $todayTodoCount = $this->todayPendingCount($localTodos, $today);
 
         $gcal = $this->todayGoogleEvents($user, $now);
@@ -59,8 +58,6 @@ class DashboardHomeService
             'counts' => [
                 'events' => count($gcal['events']),
                 'todos' => $todayTodoCount,
-                'attention' => $overdueCount,
-                'photosToday' => $photos['addedToday'],
             ],
             'nextActions' => $nextActions,
             'calendar' => $gcal,
@@ -75,7 +72,8 @@ class DashboardHomeService
                 'map' => '/map',
                 'transit' => '/transit',
                 'aiSettings' => '/settings?section=ai',
-                'googleCalendar' => '/settings?section=integration#google-calendar',
+                'googleCalendarConnect' => '/settings?section=integration#google-calendar',
+                'googleCalendar' => 'https://calendar.google.com/calendar/r/day',
             ],
         ];
     }
@@ -96,11 +94,14 @@ class DashboardHomeService
     }
 
     /**
+     * これからやる ToDo のみ（期限超過・時刻経過済みは出さない）。
+     *
      * @param  list<array<string, mixed>>  $todos
      * @return list<array<string, mixed>>
      */
-    private function nextActions(array $todos, string $today, int $limit): array
+    private function nextActions(array $todos, Carbon $now, int $limit): array
     {
+        $today = $now->toDateString();
         $pending = array_values(array_filter(
             $todos,
             static fn (array $t) => empty($t['completed']) && empty($t['googleEventId'])
@@ -109,39 +110,51 @@ class DashboardHomeService
         $scored = [];
         foreach ($pending as $todo) {
             $range = $this->todos->getTodoRange($todo);
-            $isOverdue = false;
             $isToday = false;
             $sortDate = '9999-12-31';
             $sortTime = '99:99';
 
             if ($range) {
-                $sortDate = $range['start'];
                 $end = $range['end'] ?? $range['start'];
-                $isOverdue = $end < $today;
-                $isToday = $this->todos->dateInRange($today, $todo);
-                if (! $isOverdue && ! $isToday && $range['start'] > $today) {
-                    // 未来の予定も「次」として少し含める
-                } elseif (! $isOverdue && ! $isToday && $range['start'] < $today) {
+                // 過去（期限超過）は出さない
+                if ($end < $today) {
                     continue;
                 }
-                $sortTime = $this->normalizeTime($todo['startTime'] ?? null) ?? '99:99';
+
+                $isToday = $this->todos->dateInRange($today, $todo);
+                $startTime = $this->normalizeTime($todo['startTime'] ?? null);
+
+                if ($isToday) {
+                    // 今日の分で開始時刻を過ぎたものは出さない
+                    if ($startTime !== null) {
+                        $startAt = Carbon::parse($today.' '.$startTime, $now->getTimezone());
+                        if ($startAt->lt($now)) {
+                            continue;
+                        }
+                        $sortTime = $startTime;
+                    }
+                    $sortDate = $today;
+                } elseif ($range['start'] > $today) {
+                    $days = (int) Carbon::parse($today)->diffInDays(Carbon::parse($range['start']));
+                    if ($days > 7) {
+                        continue;
+                    }
+                    $sortDate = $range['start'];
+                    $sortTime = $startTime ?? '99:99';
+                } else {
+                    // 開始日は過去だが終了日は今日以降で、かつ今日に含まれないケースは除外
+                    continue;
+                }
             } else {
-                // 未設定は後ろめ
+                // 日付未設定は後ろめに残す
                 $sortDate = '9999-12-30';
             }
 
-            // 今日・期限超過を優先。遠い未来は後回し
             $priority = 2;
-            if ($isOverdue) {
+            if ($isToday) {
                 $priority = 0;
-            } elseif ($isToday || ! $range) {
+            } elseif (! $range) {
                 $priority = 1;
-            } elseif ($range && $range['start'] > $today) {
-                $days = (int) Carbon::parse($today)->diffInDays(Carbon::parse($range['start']));
-                if ($days > 7) {
-                    continue;
-                }
-                $priority = 2;
             }
 
             $scored[] = [
@@ -149,9 +162,8 @@ class DashboardHomeService
                 'priority' => $priority,
                 'sortDate' => $sortDate,
                 'sortTime' => $sortTime,
-                'isOverdue' => $isOverdue,
                 'isToday' => $isToday,
-                'timeLabel' => $this->formatTodoTimeLabel($todo),
+                'timeLabel' => $this->formatTodoTimeLabel($todo, $today),
             ];
         }
 
@@ -174,7 +186,7 @@ class DashboardHomeService
                 'id' => $todo['id'],
                 'title' => $todo['title'] ?? '',
                 'timeLabel' => $row['timeLabel'],
-                'isOverdue' => $row['isOverdue'],
+                'isOverdue' => false,
                 'isToday' => $row['isToday'],
                 'importance' => $todo['importance'] ?? 'medium',
                 'url' => '/todos?today=1#todo-list-panel',
@@ -182,29 +194,6 @@ class DashboardHomeService
         }
 
         return $out;
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $todos
-     */
-    private function overdueCount(array $todos, string $today): int
-    {
-        $count = 0;
-        foreach ($todos as $todo) {
-            if (! empty($todo['completed']) || ! empty($todo['googleEventId'])) {
-                continue;
-            }
-            $range = $this->todos->getTodoRange($todo);
-            if (! $range) {
-                continue;
-            }
-            $end = $range['end'] ?? $range['start'];
-            if ($end < $today) {
-                $count++;
-            }
-        }
-
-        return $count;
     }
 
     /**
@@ -386,7 +375,7 @@ class DashboardHomeService
     }
 
     /** @param array<string, mixed> $todo */
-    private function formatTodoTimeLabel(array $todo): string
+    private function formatTodoTimeLabel(array $todo, ?string $today = null): string
     {
         $start = $this->normalizeTime($todo['startTime'] ?? null);
         if ($start) {
@@ -394,12 +383,8 @@ class DashboardHomeService
         }
         $range = $this->todos->getTodoRange($todo);
         if ($range) {
-            $today = $this->todos->getTodayDateString();
-            $end = $range['end'] ?? $range['start'];
-            if ($end < $today) {
-                return __('期限超過');
-            }
-            if ($range['start'] === $today) {
+            $today ??= $this->todos->getTodayDateString();
+            if ($this->todos->dateInRange($today, $todo)) {
                 return __('今日');
             }
 

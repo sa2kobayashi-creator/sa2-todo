@@ -74,6 +74,16 @@ class DashboardHomeServiceTest extends TestCase
         ]);
         Todo::create([
             'user_id' => $this->user->id,
+            'title' => '午前の予定',
+            'completed' => false,
+            'start_date' => '2026-08-11',
+            'end_date' => '2026-08-11',
+            'start_time' => '09:00',
+            'importance' => 'medium',
+            'category' => 'task',
+        ]);
+        Todo::create([
+            'user_id' => $this->user->id,
             'title' => '期限切れ',
             'completed' => false,
             'start_date' => '2026-08-01',
@@ -95,14 +105,45 @@ class DashboardHomeServiceTest extends TestCase
 
         $this->assertStringContainsString('8', $data['dateLabel']);
         $this->assertStringContainsString('小林', $data['greetingLine']);
-        $this->assertSame(1, $data['counts']['todos']);
-        $this->assertSame(1, $data['counts']['attention']);
+        $this->assertSame(2, $data['counts']['todos']);
+        $this->assertArrayNotHasKey('attention', $data['counts']);
+        $this->assertArrayNotHasKey('photosToday', $data['counts']);
         $this->assertSame(0, $data['counts']['events']);
-        $this->assertCount(2, $data['nextActions']);
-        $this->assertSame('期限切れ', $data['nextActions'][0]['title']);
-        $this->assertTrue($data['nextActions'][0]['isOverdue']);
-        $this->assertSame('今日の仕事', $data['nextActions'][1]['title']);
+        $this->assertCount(1, $data['nextActions']);
+        $this->assertSame('今日の仕事', $data['nextActions'][0]['title']);
+        $this->assertSame('https://calendar.google.com/calendar/r/day', $data['links']['googleCalendar']);
         $this->assertFalse($data['calendar']['connected']);
+    }
+
+    public function test_next_actions_skip_past_and_overdue(): void
+    {
+        $this->google->shouldReceive('connectionFor')->andReturn(null);
+
+        Todo::create([
+            'user_id' => $this->user->id,
+            'title' => '過去の通院',
+            'completed' => false,
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-08-20',
+            'start_time' => '09:00',
+            'importance' => 'medium',
+            'category' => 'task',
+        ]);
+        Todo::create([
+            'user_id' => $this->user->id,
+            'title' => '午後の通院',
+            'completed' => false,
+            'start_date' => '2026-08-11',
+            'end_date' => '2026-08-11',
+            'start_time' => '13:00',
+            'importance' => 'medium',
+            'category' => 'task',
+        ]);
+
+        $data = $this->home->build($this->user);
+
+        $this->assertCount(1, $data['nextActions']);
+        $this->assertSame('午後の通院', $data['nextActions'][0]['title']);
     }
 
     public function test_google_calendar_events_and_countdown(): void
