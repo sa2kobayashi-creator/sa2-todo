@@ -95,14 +95,15 @@
           @endif
         </p>
       </div>
-      @if(count($photos['items'] ?? []) === 0)
+        @if(count($photos['items'] ?? []) === 0)
         <p class="dash-home-empty">{{ __('まだ写真がありません') }}</p>
       @else
         @php
-          $photoPool = $photos['pool'] ?? $photos['items'];
-          $photoVisible = max(1, (int) ($photos['visible'] ?? 4));
-          $photoRotateMs = max(10_000, (int) ($photos['rotateMs'] ?? 60_000));
+          $photoPool = array_values($photos['pool'] ?? $photos['items']);
+          $photoVisible = max(1, min((int) ($photos['visible'] ?? 4), count($photoPool)));
+          $photoRotateMs = max(5_000, (int) ($photos['rotateMs'] ?? 60_000));
           $photosHref = $links['photos'] ?? '/photos';
+          $canRotate = count($photoPool) > $photoVisible;
         @endphp
         <ul
           class="dash-home-photo-grid"
@@ -110,7 +111,7 @@
           data-photos-href="{{ $photosHref }}"
           data-visible="{{ $photoVisible }}"
           data-rotate-ms="{{ $photoRotateMs }}"
-          data-photo-pool-id="dash-home-photo-pool"
+          data-can-rotate="{{ $canRotate ? '1' : '0' }}"
         >
           @foreach(array_slice($photoPool, 0, $photoVisible) as $photo)
             <li>
@@ -118,15 +119,15 @@
                 <img
                   src="{{ $photo['thumbUrl'] ?? ($photo['url'] ?? '') }}"
                   alt=""
-                  loading="lazy"
+                  loading="eager"
                   decoding="async"
                 />
               </a>
             </li>
           @endforeach
         </ul>
-        @if(count($photoPool) > $photoVisible)
-          <script type="application/json" id="dash-home-photo-pool">@json($photoPool)</script>
+        <script type="application/json" id="dash-home-photo-pool">{!! json_encode($photoPool, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS) !!}</script>
+        @if($canRotate)
           <script>
             (function () {
               const grid = document.getElementById('dash-home-photo-grid')
@@ -139,7 +140,7 @@
                 return
               }
               const visible = Math.max(1, parseInt(grid.getAttribute('data-visible') || '4', 10) || 4)
-              const rotateMs = Math.max(10000, parseInt(grid.getAttribute('data-rotate-ms') || '60000', 10) || 60000)
+              const rotateMs = Math.max(5000, parseInt(grid.getAttribute('data-rotate-ms') || '60000', 10) || 60000)
               const href = grid.getAttribute('data-photos-href') || '/photos'
               if (!Array.isArray(pool) || pool.length <= visible) return
 
@@ -151,25 +152,33 @@
                   .replace(/</g, '&lt;')
                   .replace(/>/g, '&gt;')
               }
-              function render() {
+              function paint(slice) {
+                grid.innerHTML = slice.map((photo) => {
+                  const src = escapeAttr(photo.thumbUrl || photo.url || '')
+                  const title = escapeAttr(photo.originalName || '')
+                  return (
+                    '<li><a href="' + escapeAttr(href) + '" class="dash-home-photo-link" title="' + title + '">' +
+                    '<img src="' + src + '" alt="" loading="eager" decoding="async" />' +
+                    '</a></li>'
+                  )
+                }).join('')
+              }
+              function nextSlice() {
+                // 先に進めてから描画（以前は1分後も同じ4枚のままだった）
+                offset = (offset + visible) % pool.length
                 const slice = []
                 for (let i = 0; i < visible; i++) {
                   slice.push(pool[(offset + i) % pool.length])
                 }
+                return slice
+              }
+              function render() {
+                const slice = nextSlice()
                 grid.classList.add('is-rotating')
                 window.setTimeout(() => {
-                  grid.innerHTML = slice.map((photo) => {
-                    const src = escapeAttr(photo.thumbUrl || photo.url || '')
-                    const title = escapeAttr(photo.originalName || '')
-                    return (
-                      '<li><a href="' + escapeAttr(href) + '" class="dash-home-photo-link" title="' + title + '">' +
-                      '<img src="' + src + '" alt="" loading="lazy" decoding="async" />' +
-                      '</a></li>'
-                    )
-                  }).join('')
+                  paint(slice)
                   grid.classList.remove('is-rotating')
                 }, 220)
-                offset = (offset + 1) % pool.length
               }
               window.setInterval(render, rotateMs)
             })()

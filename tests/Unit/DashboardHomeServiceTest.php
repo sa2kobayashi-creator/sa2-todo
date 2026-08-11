@@ -208,8 +208,8 @@ class DashboardHomeServiceTest extends TestCase
 
         $this->assertSame('on_this_day', $data['photos']['mode']);
         $this->assertStringContainsString('年前の今日', $data['photos']['title']);
-        $this->assertCount(1, $data['photos']['items']);
-        $this->assertCount(1, $data['photos']['pool']);
+        $this->assertGreaterThanOrEqual(1, count($data['photos']['items']));
+        $this->assertGreaterThanOrEqual(1, count($data['photos']['pool']));
         $this->assertSame(60_000, $data['photos']['rotateMs']);
         $this->assertSame('old.jpg', $data['photos']['items'][0]['originalName']);
     }
@@ -235,6 +235,37 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertSame(4, $data['photos']['visible']);
         $this->assertCount(4, $data['photos']['items']);
         $this->assertCount(6, $data['photos']['pool']);
+    }
+
+    public function test_on_this_day_pool_is_filled_with_recent_photos_for_rotation(): void
+    {
+        $this->google->shouldReceive('connectionFor')->andReturn(null);
+
+        Photo::create([
+            'user_id' => $this->user->id,
+            'path' => 'photos/old.jpg',
+            'original_name' => 'old.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2024-08-11 12:00:00',
+        ]);
+        foreach (range(1, 5) as $i) {
+            Photo::create([
+                'user_id' => $this->user->id,
+                'path' => "photos/fill-{$i}.jpg",
+                'original_name' => "fill-{$i}.jpg",
+                'mime' => 'image/jpeg',
+                'size_bytes' => 100,
+                'album_id' => null,
+                'taken_at' => sprintf('2026-07-%02d 12:00:00', $i),
+            ]);
+        }
+
+        $data = $this->home->build($this->user);
+
+        $this->assertSame('on_this_day', $data['photos']['mode']);
+        $this->assertGreaterThan(4, count($data['photos']['pool']));
+        $this->assertSame('old.jpg', $data['photos']['pool'][0]['originalName']);
     }
 
     public function test_pinned_notes_appear_in_home(): void

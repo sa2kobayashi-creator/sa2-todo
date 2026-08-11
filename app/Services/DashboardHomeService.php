@@ -324,12 +324,25 @@ class DashboardHomeService
             ->limit($poolSize)
             ->get();
 
+        // アルバム内も含めて回転用プールを確保（loose だと枚数が足りず止まっていた）
+        $recentRows = $this->photos->listPhotos($userId, null, 'taken_desc', null, $poolSize, 'active', 'library');
+        $recentPool = array_map(
+            fn (array $photo) => [
+                'id' => $photo['id'] ?? null,
+                'thumbUrl' => (string) ($photo['thumbUrl'] ?? ($photo['url'] ?? '')),
+                'url' => (string) ($photo['url'] ?? ''),
+                'originalName' => (string) ($photo['originalName'] ?? ''),
+            ],
+            $recentRows
+        );
+
         if ($onThisDay->isNotEmpty()) {
             $yearsAgo = (int) $now->format('Y') - (int) $onThisDay->first()->taken_at->format('Y');
-            $pool = $onThisDay
+            $memoryPool = $onThisDay
                 ->map(fn (Photo $photo) => $this->photoCardPayload($photo, $userId))
                 ->values()
                 ->all();
+            $pool = $this->mergePhotoPools($memoryPool, $recentPool, $poolSize);
 
             return [
                 'mode' => 'on_this_day',
@@ -338,21 +351,12 @@ class DashboardHomeService
                 'addedToday' => $addedToday,
                 'visible' => $visible,
                 'rotateMs' => 60_000,
-                'items' => array_slice($pool, 0, $visible),
+                'items' => array_slice($pool, 0, min($visible, count($pool))),
                 'pool' => $pool,
             ];
         }
 
-        $recent = $this->photos->listPhotos($userId, null, 'taken_desc', null, $poolSize, 'active', 'loose');
-        $pool = array_map(
-            static fn (array $photo) => [
-                'id' => $photo['id'] ?? null,
-                'thumbUrl' => $photo['thumbUrl'] ?? ($photo['url'] ?? ''),
-                'url' => $photo['url'] ?? '',
-                'originalName' => $photo['originalName'] ?? '',
-            ],
-            $recent
-        );
+        $pool = array_slice($recentPool, 0, $poolSize);
 
         return [
             'mode' => 'recent',
@@ -363,9 +367,35 @@ class DashboardHomeService
             'addedToday' => $addedToday,
             'visible' => $visible,
             'rotateMs' => 60_000,
-            'items' => array_slice($pool, 0, $visible),
+            'items' => array_slice($pool, 0, min($visible, count($pool))),
             'pool' => $pool,
         ];
+    }
+
+    /**
+     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>  $primary
+     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>  $secondary
+     * @return list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>
+     */
+    private function mergePhotoPools(array $primary, array $secondary, int $limit): array
+    {
+        $out = [];
+        $seen = [];
+        foreach (array_merge($primary, $secondary) as $photo) {
+            $id = (int) ($photo['id'] ?? 0);
+            if ($id > 0) {
+                if (isset($seen[$id])) {
+                    continue;
+                }
+                $seen[$id] = true;
+            }
+            $out[] = $photo;
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+
+        return $out;
     }
 
     /** @return array{id: int|null, thumbUrl: string, url: string, originalName: string} */
