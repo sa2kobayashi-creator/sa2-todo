@@ -2976,6 +2976,62 @@ class PhotoService
     }
 
     /**
+     * 動画原本の再生用。R2/B2 なら署名付き URL を返し、ブラウザがストレージへ直接 Range 取得する。
+     * 未対応ディスクや失敗時は null（呼び出し側がアプリ経由ストリームへフォールバック）。
+     */
+    public function temporaryVideoPlayUrl(Photo $photo): ?string
+    {
+        if (! (bool) config('photos.video_signed_redirect', true)) {
+            return null;
+        }
+
+        $ext = pathinfo((string) $photo->path, PATHINFO_EXTENSION);
+        if (! $this->isVideoMime((string) ($photo->mime ?? ''), $ext)) {
+            return null;
+        }
+
+        try {
+            $ref = $this->resolvePhotoFileRef($photo, 'original');
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        if (isset($ref['contents']) || empty($ref['disk']) || empty($ref['path']) || empty($ref['diskName'])) {
+            return null;
+        }
+
+        $driver = (string) config('filesystems.disks.'.$ref['diskName'].'.driver', 'local');
+        if ($driver !== 's3') {
+            return null;
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = $ref['disk'];
+        if (! method_exists($disk, 'temporaryUrl')) {
+            return null;
+        }
+
+        $ttl = max(5, (int) config('photos.video_signed_ttl_minutes', 60));
+        $mime = $ref['mime'] ?: 'video/mp4';
+        $filename = $this->contentDispositionFilename($ref['name'] ?: 'video.mp4');
+
+        try {
+            return $disk->temporaryUrl(
+                $ref['path'],
+                now()->addMinutes($ttl),
+                [
+                    'ResponseContentType' => $mime,
+                    'ResponseContentDisposition' => 'inline; filename="'.$filename.'"',
+                ]
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+    }
+
+    /**
      * @return array{contents: string, mime: string, name: string}
      */
     public function readPhotoFile(Photo $photo, string $variant = 'original'): array

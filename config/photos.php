@@ -156,6 +156,15 @@ return [
      */
     'disk' => env('PHOTO_DISK', 'public'),
 
+    /**
+     * 動画原本をアプリ経由せず R2/B2 の署名付き URL へ 302 する（再生開始が大幅に速い）。
+     * ローカル public ディスクでは自動フォールバック。無効化: PHOTO_VIDEO_SIGNED_REDIRECT=false
+     */
+    'video_signed_redirect' => filter_var(env('PHOTO_VIDEO_SIGNED_REDIRECT', true), FILTER_VALIDATE_BOOL),
+
+    /** 動画署名 URL の有効期限（分） */
+    'video_signed_ttl_minutes' => max(5, min(240, (int) env('PHOTO_VIDEO_SIGNED_TTL_MINUTES', 60))),
+
     /** Cloudinary（表示用変換）。詳細は設定メニュー / media_storage_settings */
     'cloudinary' => [
         'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),

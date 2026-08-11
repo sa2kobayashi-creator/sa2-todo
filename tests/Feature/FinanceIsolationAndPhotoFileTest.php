@@ -150,4 +150,96 @@ class FinanceIsolationAndPhotoFileTest extends TestCase
             ->assertStatus(416)
             ->assertHeader('Content-Range', 'bytes */10');
     }
+
+    public function test_video_file_falls_back_to_stream_on_local_disk_even_when_signed_redirect_enabled(): void
+    {
+        config([
+            'photos.disk' => 'public',
+            'photos.video_signed_redirect' => true,
+        ]);
+        Storage::fake('public');
+        $user = $this->makeUser('photo-signed-fallback@example.com');
+        Storage::disk('public')->put('photos/1/clip.mp4', '0123456789abcdef');
+
+        $photo = Photo::create([
+            'user_id' => $user->id,
+            'album_id' => null,
+            'path' => 'photos/1/clip.mp4',
+            'thumb_path' => null,
+            'original_name' => 'clip.mp4',
+            'mime' => 'video/mp4',
+            'size_bytes' => 16,
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/photos/'.$photo->id.'/file')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'video/mp4');
+    }
+
+    public function test_video_file_redirects_to_signed_url_when_available(): void
+    {
+        config(['photos.video_signed_redirect' => true]);
+        Storage::fake('public');
+        $user = $this->makeUser('photo-signed-redirect@example.com');
+
+        $photo = Photo::create([
+            'user_id' => $user->id,
+            'album_id' => null,
+            'path' => 'photos/1/clip.mp4',
+            'thumb_path' => null,
+            'original_name' => 'clip.mp4',
+            'mime' => 'video/mp4',
+            'size_bytes' => 16,
+            'sort_order' => 0,
+        ]);
+
+        $real = app(\App\Services\PhotoService::class);
+        $mock = \Mockery::mock($real)->makePartial();
+        $mock->shouldReceive('findViewablePhoto')
+            ->once()
+            ->andReturn($photo);
+        $mock->shouldReceive('temporaryVideoPlayUrl')
+            ->once()
+            ->with(\Mockery::on(fn ($p) => (int) $p->id === (int) $photo->id))
+            ->andReturn('https://cdn.example.test/signed-clip.mp4');
+        $this->app->instance(\App\Services\PhotoService::class, $mock);
+
+        $this->actingAs($user)
+            ->get('/photos/'.$photo->id.'/file')
+            ->assertRedirect('https://cdn.example.test/signed-clip.mp4');
+    }
+
+    public function test_video_file_can_force_proxy_stream_even_when_signed_url_exists(): void
+    {
+        config([
+            'photos.disk' => 'public',
+            'photos.video_signed_redirect' => true,
+        ]);
+        Storage::fake('public');
+        $user = $this->makeUser('photo-force-proxy@example.com');
+        Storage::disk('public')->put('photos/1/clip.mp4', 'force-proxy-bytes');
+
+        $photo = Photo::create([
+            'user_id' => $user->id,
+            'album_id' => null,
+            'path' => 'photos/1/clip.mp4',
+            'thumb_path' => null,
+            'original_name' => 'clip.mp4',
+            'mime' => 'video/mp4',
+            'size_bytes' => 16,
+            'sort_order' => 0,
+        ]);
+
+        $real = app(\App\Services\PhotoService::class);
+        $mock = \Mockery::mock($real)->makePartial();
+        $mock->shouldReceive('findViewablePhoto')->andReturn($photo);
+        $mock->shouldReceive('temporaryVideoPlayUrl')->never();
+        $this->app->instance(\App\Services\PhotoService::class, $mock);
+
+        $this->actingAs($user)
+            ->get('/photos/'.$photo->id.'/file?proxy=1')
+            ->assertOk();
+    }
 }

@@ -860,6 +860,14 @@ class PhotoController extends Controller
                 $variant = 'original';
             }
 
+            // 動画原本は署名付き URL へ直リンク（ロリポップ経由の dual-hop を避ける）
+            if ($variant === 'original' && ! $request->boolean('proxy')) {
+                $signed = $this->photos->temporaryVideoPlayUrl($photo);
+                if (is_string($signed) && $signed !== '') {
+                    return redirect()->away($signed);
+                }
+            }
+
             return $this->photos->streamPhotoFile(
                 $photo,
                 $variant,
