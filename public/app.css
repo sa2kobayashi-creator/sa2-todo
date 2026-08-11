@@ -17680,6 +17680,7 @@ a.dash-home-list-title:hover {
 .dash-home-lightbox-stage video {
   max-width: 100%;
   max-height: 72vh;
+  min-height: min(40vh, 280px);
   border-radius: 12px;
   background: #111;
   object-fit: contain;

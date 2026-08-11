@@ -204,52 +204,86 @@
               }).join('')
             }
 
-            function showPhoto(index) {
+            function showPhoto(index, warmSrc) {
               if (!pool.length) return
               const photo = pool[(index + pool.length) % pool.length]
               if (!photo) return
               const isVideo = photo.mediaKind === 'video'
-              const src = photo.fileUrl || photo.url || (photo.id ? ('/photos/' + photo.id + '/file') : '')
-              if (!src) return
+              const thumb = photo.thumbUrl || warmSrc || ''
+              const full = photo.fileUrl || photo.url || (photo.id ? ('/photos/' + photo.id + '/file') : '')
+              const instant = thumb || full
+              if (!instant) return
+
               stopVideo()
-              if (isVideo) {
-                if (lbImage) {
-                  lbImage.hidden = true
-                  lbImage.removeAttribute('src')
-                }
-                if (lbVideo) {
-                  lbVideo.hidden = false
-                  lbVideo.src = src
-                  lbVideo.load()
-                }
-              } else {
-                if (lbVideo) lbVideo.hidden = true
-                if (lbImage) {
-                  lbImage.hidden = false
-                  lbImage.onerror = () => {
-                    const fallback = photo.thumbUrl || photo.url || ''
-                    if (fallback && lbImage.src !== fallback) {
-                      lbImage.onerror = null
-                      lbImage.src = fallback
-                    }
-                  }
-                  lbImage.src = src
-                  lbImage.alt = photo.originalName || ''
-                }
-              }
               if (lbMeta) {
                 const label = [photo.takenAt, photo.originalName].filter(Boolean).join(' · ')
                 lbMeta.textContent = label
                 lbMeta.hidden = !label
               }
               if (lbOpen) lbOpen.href = photo.href || ('/photos?photo=' + (photo.id || ''))
+
+              // 先に開いて、グリッドで既に読まれたサムネを即表示する
               lightbox.hidden = false
               document.body.classList.add('dash-home-lightbox-open')
+
+              if (isVideo) {
+                if (lbImage) {
+                  if (thumb) {
+                    lbImage.hidden = false
+                    lbImage.src = thumb
+                    lbImage.alt = photo.originalName || ''
+                  } else {
+                    lbImage.hidden = true
+                    lbImage.removeAttribute('src')
+                  }
+                }
+                if (lbVideo) {
+                  lbVideo.onloadeddata = () => {
+                    if (lightbox.hidden) return
+                    if (lbImage) {
+                      lbImage.hidden = true
+                      lbImage.removeAttribute('src')
+                    }
+                  }
+                  lbVideo.hidden = false
+                  lbVideo.src = full || instant
+                  lbVideo.load()
+                }
+                return
+              }
+
+              if (lbVideo) lbVideo.hidden = true
+              if (!lbImage) return
+              lbImage.hidden = false
+              lbImage.alt = photo.originalName || ''
+              lbImage.onerror = () => {
+                const fallback = full && full !== lbImage.getAttribute('src') ? full : ''
+                if (fallback) {
+                  lbImage.onerror = null
+                  lbImage.src = fallback
+                }
+              }
+              // キャッシュ済みサムネを先に出し、フル画像は裏で差し替え
+              lbImage.src = instant
+              if (full && full !== instant) {
+                const upgrade = new Image()
+                upgrade.decoding = 'async'
+                upgrade.onload = () => {
+                  if (lightbox.hidden) return
+                  lbImage.onerror = null
+                  lbImage.src = full
+                }
+                upgrade.src = full
+              }
             }
 
             function closeLightbox() {
               stopVideo()
-              if (lbImage) lbImage.removeAttribute('src')
+              if (lbImage) {
+                lbImage.onerror = null
+                lbImage.removeAttribute('src')
+              }
+              if (lbVideo) lbVideo.onloadeddata = null
               lightbox.hidden = true
               document.body.classList.remove('dash-home-lightbox-open')
             }
@@ -258,7 +292,9 @@
               const btn = e.target.closest('[data-photo-index]')
               if (!btn || !grid.contains(btn)) return
               e.preventDefault()
-              showPhoto(Number(btn.getAttribute('data-photo-index') || 0))
+              const thumbImg = btn.querySelector('img')
+              const warmSrc = thumbImg ? (thumbImg.currentSrc || thumbImg.src || '') : ''
+              showPhoto(Number(btn.getAttribute('data-photo-index') || 0), warmSrc)
             })
 
             lightbox.querySelectorAll('[data-dash-lb-close]').forEach((el) => {
