@@ -98,10 +98,23 @@
       @if(count($photos['items'] ?? []) === 0)
         <p class="dash-home-empty">{{ __('まだ写真がありません') }}</p>
       @else
-        <ul class="dash-home-photo-grid">
-          @foreach($photos['items'] as $photo)
+        @php
+          $photoPool = $photos['pool'] ?? $photos['items'];
+          $photoVisible = max(1, (int) ($photos['visible'] ?? 4));
+          $photoRotateMs = max(10_000, (int) ($photos['rotateMs'] ?? 60_000));
+          $photosHref = $links['photos'] ?? '/photos';
+        @endphp
+        <ul
+          class="dash-home-photo-grid"
+          id="dash-home-photo-grid"
+          data-photos-href="{{ $photosHref }}"
+          data-visible="{{ $photoVisible }}"
+          data-rotate-ms="{{ $photoRotateMs }}"
+          data-photo-pool-id="dash-home-photo-pool"
+        >
+          @foreach(array_slice($photoPool, 0, $photoVisible) as $photo)
             <li>
-              <a href="{{ $links['photos'] ?? '/photos' }}" class="dash-home-photo-link" title="{{ $photo['originalName'] ?? '' }}">
+              <a href="{{ $photosHref }}" class="dash-home-photo-link" title="{{ $photo['originalName'] ?? '' }}">
                 <img
                   src="{{ $photo['thumbUrl'] ?? ($photo['url'] ?? '') }}"
                   alt=""
@@ -112,6 +125,56 @@
             </li>
           @endforeach
         </ul>
+        @if(count($photoPool) > $photoVisible)
+          <script type="application/json" id="dash-home-photo-pool">@json($photoPool)</script>
+          <script>
+            (function () {
+              const grid = document.getElementById('dash-home-photo-grid')
+              const poolEl = document.getElementById('dash-home-photo-pool')
+              if (!grid || !poolEl) return
+              let pool = []
+              try {
+                pool = JSON.parse(poolEl.textContent || '[]')
+              } catch (_) {
+                return
+              }
+              const visible = Math.max(1, parseInt(grid.getAttribute('data-visible') || '4', 10) || 4)
+              const rotateMs = Math.max(10000, parseInt(grid.getAttribute('data-rotate-ms') || '60000', 10) || 60000)
+              const href = grid.getAttribute('data-photos-href') || '/photos'
+              if (!Array.isArray(pool) || pool.length <= visible) return
+
+              let offset = 0
+              function escapeAttr(value) {
+                return String(value || '')
+                  .replace(/&/g, '&amp;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+              }
+              function render() {
+                const slice = []
+                for (let i = 0; i < visible; i++) {
+                  slice.push(pool[(offset + i) % pool.length])
+                }
+                grid.classList.add('is-rotating')
+                window.setTimeout(() => {
+                  grid.innerHTML = slice.map((photo) => {
+                    const src = escapeAttr(photo.thumbUrl || photo.url || '')
+                    const title = escapeAttr(photo.originalName || '')
+                    return (
+                      '<li><a href="' + escapeAttr(href) + '" class="dash-home-photo-link" title="' + title + '">' +
+                      '<img src="' + src + '" alt="" loading="lazy" decoding="async" />' +
+                      '</a></li>'
+                    )
+                  }).join('')
+                  grid.classList.remove('is-rotating')
+                }, 220)
+                offset = (offset + 1) % pool.length
+              }
+              window.setInterval(render, rotateMs)
+            })()
+          </script>
+        @endif
       @endif
       <div class="dash-home-card-foot">
         @if(((int) ($photos['addedToday'] ?? 0)) > 0)

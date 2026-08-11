@@ -17619,6 +17619,11 @@ a.dash-home-list-title:hover {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  transition: opacity 0.22s ease;
+}
+
+.dash-home-photo-grid.is-rotating {
+  opacity: 0.35;
 }
 
 .dash-home-photo-link {

@@ -209,7 +209,32 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertSame('on_this_day', $data['photos']['mode']);
         $this->assertStringContainsString('年前の今日', $data['photos']['title']);
         $this->assertCount(1, $data['photos']['items']);
+        $this->assertCount(1, $data['photos']['pool']);
+        $this->assertSame(60_000, $data['photos']['rotateMs']);
         $this->assertSame('old.jpg', $data['photos']['items'][0]['originalName']);
+    }
+
+    public function test_photos_pool_is_larger_than_visible_slot_for_rotation(): void
+    {
+        $this->google->shouldReceive('connectionFor')->andReturn(null);
+
+        foreach (range(1, 6) as $i) {
+            Photo::create([
+                'user_id' => $this->user->id,
+                'path' => "photos/recent-{$i}.jpg",
+                'original_name' => "recent-{$i}.jpg",
+                'mime' => 'image/jpeg',
+                'size_bytes' => 100,
+                'taken_at' => sprintf('2026-08-%02d 12:00:00', $i),
+            ]);
+        }
+
+        $data = $this->home->build($this->user);
+
+        $this->assertSame('recent', $data['photos']['mode']);
+        $this->assertSame(4, $data['photos']['visible']);
+        $this->assertCount(4, $data['photos']['items']);
+        $this->assertCount(6, $data['photos']['pool']);
     }
 
     public function test_pinned_notes_appear_in_home(): void

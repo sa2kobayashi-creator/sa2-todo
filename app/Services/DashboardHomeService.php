@@ -304,6 +304,9 @@ class DashboardHomeService
      */
     private function photosMemories(int $userId, Carbon $now): array
     {
+        $poolSize = 24;
+        $visible = 4;
+
         $addedToday = (int) Photo::query()
             ->where('user_id', $userId)
             ->whereNull('archived_at')
@@ -318,13 +321,14 @@ class DashboardHomeService
             ->whereDay('taken_at', (int) $now->format('j'))
             ->whereYear('taken_at', '<', (int) $now->format('Y'))
             ->orderByDesc('taken_at')
-            ->limit(4)
+            ->limit($poolSize)
             ->get();
 
         if ($onThisDay->isNotEmpty()) {
             $yearsAgo = (int) $now->format('Y') - (int) $onThisDay->first()->taken_at->format('Y');
-            $items = $onThisDay
-                ->map(fn (Photo $photo) => $this->photos->photoToArray($photo, $userId))
+            $pool = $onThisDay
+                ->map(fn (Photo $photo) => $this->photoCardPayload($photo, $userId))
+                ->values()
                 ->all();
 
             return [
@@ -332,11 +336,23 @@ class DashboardHomeService
                 'title' => __(':years年前の今日', ['years' => $yearsAgo]),
                 'subtitle' => __('思い出'),
                 'addedToday' => $addedToday,
-                'items' => $items,
+                'visible' => $visible,
+                'rotateMs' => 60_000,
+                'items' => array_slice($pool, 0, $visible),
+                'pool' => $pool,
             ];
         }
 
-        $recent = $this->photos->listPhotos($userId, null, 'taken_desc', null, 4, 'active', 'loose');
+        $recent = $this->photos->listPhotos($userId, null, 'taken_desc', null, $poolSize, 'active', 'loose');
+        $pool = array_map(
+            static fn (array $photo) => [
+                'id' => $photo['id'] ?? null,
+                'thumbUrl' => $photo['thumbUrl'] ?? ($photo['url'] ?? ''),
+                'url' => $photo['url'] ?? '',
+                'originalName' => $photo['originalName'] ?? '',
+            ],
+            $recent
+        );
 
         return [
             'mode' => 'recent',
@@ -345,7 +361,23 @@ class DashboardHomeService
                 ? __('今日追加 :count枚', ['count' => $addedToday])
                 : null,
             'addedToday' => $addedToday,
-            'items' => $recent,
+            'visible' => $visible,
+            'rotateMs' => 60_000,
+            'items' => array_slice($pool, 0, $visible),
+            'pool' => $pool,
+        ];
+    }
+
+    /** @return array{id: int|null, thumbUrl: string, url: string, originalName: string} */
+    private function photoCardPayload(Photo $photo, int $userId): array
+    {
+        $row = $this->photos->photoToArray($photo, $userId);
+
+        return [
+            'id' => $row['id'] ?? $photo->id,
+            'thumbUrl' => (string) ($row['thumbUrl'] ?? ($row['url'] ?? '')),
+            'url' => (string) ($row['url'] ?? ''),
+            'originalName' => (string) ($row['originalName'] ?? ''),
         ];
     }
 
