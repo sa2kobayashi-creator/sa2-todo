@@ -1036,7 +1036,7 @@
           <video src="" id="photos-lightbox-video" controls playsinline preload="auto" hidden></video>
           {{-- AVI などブラウザが解けない形式は再生できない。原本は無傷なので落として見てもらう --}}
           <p class="photos-lightbox-unplayable" id="photos-lightbox-unplayable" hidden>
-            {{ __('この形式はブラウザで再生できません。原本はそのまま保存されています。') }}
+            <span data-unplayable-msg>{{ __('この形式はブラウザで再生できません。原本はそのまま保存されています。') }}</span>
             <a href="#" id="photos-lightbox-unplayable-link" download>{{ __('ダウンロードして再生') }}</a>
           </p>
         </div>
@@ -3622,19 +3622,36 @@
         function stopLightboxVideo() {
           if (lightboxUnplayable) lightboxUnplayable.hidden = true
           if (!lightboxVideo) return
+          lightboxVideo.onerror = null
           lightboxVideo.pause()
           lightboxVideo.removeAttribute('src')
+          while (lightboxVideo.firstChild) lightboxVideo.removeChild(lightboxVideo.firstChild)
           lightboxVideo.load()
           lightboxVideo.hidden = true
         }
 
-        lightboxVideo?.addEventListener('error', () => {
-          const src = lightboxVideo.getAttribute('src')
-          if (lightboxVideo.hidden || !src) return
-          lightboxVideo.hidden = true
-          if (lightboxUnplayableLink) lightboxUnplayableLink.href = src
+        function showLightboxUnplayable(src, message) {
+          if (lightboxVideo) lightboxVideo.hidden = true
+          if (lightboxUnplayableLink) lightboxUnplayableLink.href = src || '#'
+          const msgEl = lightboxUnplayable?.querySelector('[data-unplayable-msg]')
+          if (msgEl && message) msgEl.textContent = message
           if (lightboxUnplayable) lightboxUnplayable.hidden = false
-        })
+        }
+
+        function bindLightboxVideoError(src, photo) {
+          if (!lightboxVideo) return
+          lightboxVideo.onerror = () => {
+            if (lightboxVideo.hidden) return
+            const current = lightboxVideo.currentSrc || lightboxVideo.getAttribute('src') || src
+            const knownBad = photo?.browserPlayable === false
+            showLightboxUnplayable(
+              current,
+              knownBad
+                ? @json(__('この形式はブラウザで再生できません。原本はそのまま保存されています。'))
+                : @json(__('動画の読み込みに失敗しました。通信状況を確認するか、ダウンロードして再生してください。'))
+            )
+          }
+        }
 
         let photosOverlayKind = null
         let photosOverlayIgnorePop = false
@@ -3692,9 +3709,21 @@
           if (isVideo) {
             lightboxImage.hidden = true
             lightboxImage.removeAttribute('src')
-            if (lightboxVideo) {
+            const src = photo.fileUrl || photo.url || (`/photos/${photo.id}/file`)
+            if (photo.browserPlayable === false) {
+              showLightboxUnplayable(
+                src,
+                @json(__('この形式はブラウザで再生できません。原本はそのまま保存されています。'))
+              )
+            } else if (lightboxVideo) {
               lightboxVideo.hidden = false
-              lightboxVideo.src = photo.fileUrl || photo.url || (`/photos/${photo.id}/file`)
+              while (lightboxVideo.firstChild) lightboxVideo.removeChild(lightboxVideo.firstChild)
+              const source = document.createElement('source')
+              source.src = src
+              source.type = photo.mime || 'video/mp4'
+              lightboxVideo.appendChild(source)
+              bindLightboxVideoError(src, photo)
+              lightboxVideo.load()
             }
           } else {
             if (lightboxImage) {

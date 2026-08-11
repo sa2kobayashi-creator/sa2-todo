@@ -3015,6 +3015,9 @@ class PhotoService
             'Content-Disposition' => 'inline; filename="'.$dispositionName.'"',
             'Accept-Ranges' => 'bytes',
             'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+            // 共有ホストの gzip / バッファが動画を壊さないようにする
+            'X-Accel-Buffering' => 'no',
         ];
 
         if (isset($ref['contents'])) {
@@ -3083,6 +3086,7 @@ class PhotoService
             }
 
             return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($absolute, $start, $length) {
+                $this->clearOutputBuffersForMediaStream();
                 $fh = fopen($absolute, 'rb');
                 if ($fh === false) {
                     return;
@@ -3099,9 +3103,6 @@ class PhotoService
                         }
                         echo $chunk;
                         $remaining -= strlen($chunk);
-                        if (connection_aborted()) {
-                            break;
-                        }
                     }
                 } finally {
                     fclose($fh);
@@ -3110,19 +3111,16 @@ class PhotoService
         }
 
         // S3 互換（R2 / B2）は GetObject Range で部分取得
-        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($disk, $diskName, $path, $start, $end, $size) {
-            try {
-                $client = $disk->getClient();
-            } catch (\Throwable) {
-                // フォールバック: 全体をストリーム（メモリへ載せない）
-                $stream = $disk->readStream($path);
+        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($disk, $diskName, $path, $start, $end, $status) {
+            $this->clearOutputBuffersForMediaStream();
+
+            $emitStream = function ($stream) use ($start, $end): void {
                 if (! is_resource($stream)) {
                     return;
                 }
                 try {
                     if ($start > 0) {
                         if (fseek($stream, $start) !== 0) {
-                            // seek 不可なら先頭から捨て読み
                             $skipped = 0;
                             while ($skipped < $start && ! feof($stream)) {
                                 $junk = fread($stream, min(256 * 1024, $start - $skipped));
@@ -3141,13 +3139,16 @@ class PhotoService
                         }
                         echo $chunk;
                         $remaining -= strlen($chunk);
-                        if (connection_aborted()) {
-                            break;
-                        }
                     }
                 } finally {
                     fclose($stream);
                 }
+            };
+
+            try {
+                $client = $disk->getClient();
+            } catch (\Throwable) {
+                $emitStream($disk->readStream($path));
 
                 return;
             }
@@ -3155,6 +3156,8 @@ class PhotoService
             $bucket = (string) config('filesystems.disks.'.$diskName.'.bucket', '');
             $key = $this->objectStorageKey($diskName, $path);
             if ($bucket === '' || ! is_object($client) || ! method_exists($client, 'getObject')) {
+                $emitStream($disk->readStream($path));
+
                 return;
             }
 
@@ -3162,19 +3165,30 @@ class PhotoService
                 'Bucket' => $bucket,
                 'Key' => $key,
             ];
-            if (! ($start === 0 && $end === max(0, $size - 1))) {
+            // 206 のときは必ず Range を付ける（フル取得との食い違いを避ける）
+            if ($status === 206) {
                 $params['Range'] = "bytes={$start}-{$end}";
             }
 
-            $result = $client->getObject($params);
+            try {
+                $result = $client->getObject($params);
+            } catch (\Throwable $e) {
+                report($e);
+                $emitStream($disk->readStream($path));
+
+                return;
+            }
+
             $body = $result['Body'] ?? null;
             if (is_object($body) && method_exists($body, 'eof') && method_exists($body, 'read')) {
                 while (! $body->eof()) {
                     echo $body->read(256 * 1024);
-                    if (connection_aborted()) {
-                        break;
-                    }
                 }
+
+                return;
+            }
+            if (is_resource($body)) {
+                $emitStream($body);
 
                 return;
             }
@@ -3249,6 +3263,9 @@ class PhotoService
         $mime = $wantThumb && $path === (string) $photo->thumb_path
             ? 'image/jpeg'
             : (string) ($photo->mime ?: 'application/octet-stream');
+        if (! $wantThumb || $path !== (string) $photo->thumb_path) {
+            $mime = $this->playbackMimeForPhoto($photo, $mime);
+        }
         $name = $wantThumb && $path === (string) $photo->thumb_path
             ? (pathinfo((string) ($photo->original_name ?: 'thumb'), PATHINFO_FILENAME).'_thumb.jpg')
             : (string) ($photo->original_name ?: basename($path));
@@ -3263,6 +3280,35 @@ class PhotoService
     }
 
     /**
+     * ブラウザ再生用の Content-Type。octet-stream や誤 MIME でも拡張子から補正する。
+     */
+    private function playbackMimeForPhoto(Photo $photo, string $fallback): string
+    {
+        $ext = strtolower(pathinfo((string) ($photo->original_name ?: $photo->path), PATHINFO_EXTENSION));
+        $mapped = match ($ext) {
+            'mp4', 'm4v' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            'avi' => 'video/x-msvideo',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            default => null,
+        };
+        if (is_string($mapped)) {
+            return $mapped;
+        }
+
+        $fallback = strtolower(trim($fallback));
+        if ($fallback !== '' && $fallback !== 'application/octet-stream') {
+            return $fallback;
+        }
+
+        return $this->isVideoMime($fallback, $ext) ? 'video/mp4' : 'application/octet-stream';
+    }
+
+    /**
      * @return array{0: int, 1: int, 2: int}|null null = 416
      */
     private function parseByteRange(?string $rangeHeader, int $size): ?array
@@ -3272,7 +3318,16 @@ class PhotoService
         }
 
         $header = trim((string) $rangeHeader);
-        if ($header === '' || ! preg_match('/^bytes=/i', $header)) {
+        if ($header === '') {
+            return [0, $size - 1, 200];
+        }
+
+        // 複数レンジは先頭だけ使う（bytes=0-1,2-3 → 0-1）
+        if (stripos($header, 'bytes=') === 0) {
+            $header = 'bytes='.preg_split('/\s*,\s*/', substr($header, 6), 2)[0];
+        }
+
+        if (! preg_match('/^bytes=/i', $header)) {
             return [0, $size - 1, 200];
         }
 
@@ -3310,6 +3365,20 @@ class PhotoService
         return [$start, $end, 206];
     }
 
+    private function clearOutputBuffersForMediaStream(): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+        $levels = ob_get_level();
+        for ($i = 0; $i < $levels; $i++) {
+            if (ob_get_level() === 0) {
+                break;
+            }
+            @ob_end_clean();
+        }
+    }
+
     private function objectStorageKey(string $diskName, string $path): string
     {
         $prefix = (string) config('filesystems.disks.'.$diskName.'.root', '');
@@ -3319,9 +3388,13 @@ class PhotoService
 
     private function contentDispositionFilename(string $name): string
     {
-        $safe = str_replace(['"', "\r", "\n"], '', $name);
+        // 非ASCIIは一部ブラウザの動画再生を壊すことがあるので ASCII に落とす
+        $base = basename(str_replace(['\\', '/'], '-', $name));
+        $ascii = preg_replace('/[^\x20-\x7E]/', '_', $base) ?? '';
+        $ascii = str_replace(['"', "\r", "\n"], '', $ascii);
+        $ascii = trim($ascii, " ._");
 
-        return $safe !== '' ? $safe : 'file';
+        return $ascii !== '' ? $ascii : 'file';
     }
 
     /** @return array{contents: string, mime: string, name: string} */
@@ -3817,6 +3890,9 @@ class PhotoService
         $mediaKind = $this->isVideoMime($mime, pathinfo((string) $photo->path, PATHINFO_EXTENSION))
             ? 'video'
             : 'image';
+        $ext = strtolower(pathinfo((string) ($photo->original_name ?: $photo->path), PATHINFO_EXTENSION));
+        $browserPlayable = $mediaKind !== 'video'
+            || ! in_array($ext, self::UNPLAYABLE_VIDEO_EXTENSIONS, true);
 
         $fileUrl = '/photos/'.$photo->id.'/file';
         $thumbFileUrl = '/photos/'.$photo->id.'/file?variant=thumb';
@@ -3866,6 +3942,7 @@ class PhotoService
             'caption' => $photo->caption,
             'mime' => $mime,
             'mediaKind' => $mediaKind,
+            'browserPlayable' => $browserPlayable,
             'width' => $photo->width,
             'height' => $photo->height,
             'sizeBytes' => (int) ($photo->size_bytes ?? 0),

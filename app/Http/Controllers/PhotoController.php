@@ -81,6 +81,7 @@ class PhotoController extends Controller
                 'caption' => $p['caption'] ?? null,
                 'mime' => $p['mime'] ?? null,
                 'mediaKind' => $p['mediaKind'] ?? 'image',
+                'browserPlayable' => $p['browserPlayable'] ?? true,
                 'width' => $p['width'] ?? null,
                 'height' => $p['height'] ?? null,
                 'sizeBytes' => $p['sizeBytes'] ?? 0,
@@ -842,6 +843,15 @@ class PhotoController extends Controller
         $photo = $this->photos->findViewablePhoto((int) $request->user()->id, $id);
         if (! $photo) {
             abort(404);
+        }
+
+        // 認証後にセッションロックを解放する。
+        // 動画はブラウザが Range を並列で投げるため、ロックが残ると再生が失敗しやすい。
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (function_exists('session_status') && session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
         }
 
         try {
