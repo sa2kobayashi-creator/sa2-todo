@@ -32,6 +32,29 @@ class PhotoController extends Controller
         if ($albumId !== null || $library === 'archived') {
             $scope = 'library';
         }
+
+        // ダッシュボード等からの ?photo=ID で対象が一覧に出るよう範囲を合わせる
+        $focusPhotoId = $request->filled('photo') && is_numeric($request->query('photo'))
+            ? (int) $request->query('photo')
+            : 0;
+        if ($focusPhotoId > 0) {
+            $focusPhoto = $this->photos->findViewablePhoto($userId, $focusPhotoId);
+            if ($focusPhoto) {
+                if ($focusPhoto->archived_at !== null) {
+                    $library = 'archived';
+                    $scope = 'library';
+                } else {
+                    $library = 'active';
+                }
+                if ($albumId === null && $focusPhoto->album_id) {
+                    $albumId = (int) $focusPhoto->album_id;
+                    $scope = 'library';
+                } elseif ($albumId === null) {
+                    $scope = 'library';
+                }
+            }
+        }
+
         $revealHidden = (bool) session('photos_reveal_hidden_'.$userId, false);
         $albums = $this->photos->listAlbums($userId, $revealHidden);
         $selectedAlbumModel = $albumId ? $this->photos->findViewableAlbum($userId, $albumId) : null;
@@ -54,13 +77,27 @@ class PhotoController extends Controller
             ? (int) $yearRaw
             : null;
 
+        // フォーカス写真の撮影年に合わせて自動年絞り込みを外す／合わせる
+        if ($focusPhotoId > 0 && isset($focusPhoto) && $focusPhoto && ! $explicitAllYears && $year === null) {
+            if ($focusPhoto->taken_at) {
+                $year = (int) $focusPhoto->taken_at->format('Y');
+            } else {
+                $explicitAllYears = true;
+            }
+        }
+
         $photoYears = $albumLocked ? [] : $this->photos->listPhotoYears($userId, $albumId, $library, $scope);
         // 別アルバムで選んだ年が、今の範囲に無いときはフィルタを外す（空表示を防ぐ）
         if ($year !== null && ! in_array($year, $photoYears, true)) {
-            $query = $request->query();
-            unset($query['year']);
+            if ($focusPhotoId > 0) {
+                $year = null;
+                $explicitAllYears = true;
+            } else {
+                $query = $request->query();
+                unset($query['year']);
 
-            return redirect()->to('/photos'.($query !== [] ? '?'.http_build_query($query) : ''));
+                return redirect()->to('/photos'.($query !== [] ? '?'.http_build_query($query) : ''));
+            }
         }
         $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library, $scope);
         $autoYearScoped = false;
@@ -68,6 +105,15 @@ class PhotoController extends Controller
         if (! $albumLocked && ! $explicitAllYears && $year === null && $totalInScope > $autoYearThreshold && $photoYears !== []) {
             $year = $photoYears[0];
             $autoYearScoped = true;
+        }
+
+        // フォーカス対象が年絞り込みで落ちる場合は全件表示へ
+        if ($focusPhotoId > 0 && isset($focusPhoto) && $focusPhoto && $year !== null && ! $explicitAllYears) {
+            $focusYear = $focusPhoto->taken_at ? (int) $focusPhoto->taken_at->format('Y') : null;
+            if ($focusYear !== null && $focusYear !== $year) {
+                $year = $focusYear;
+                $autoYearScoped = false;
+            }
         }
 
         $photoList = $albumLocked ? [] : $this->photos->listPhotos($userId, $albumId, $sort, $year, null, $library, $scope);

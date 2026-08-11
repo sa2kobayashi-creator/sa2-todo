@@ -327,12 +327,7 @@ class DashboardHomeService
         // アルバム内も含めて回転用プールを確保（loose だと枚数が足りず止まっていた）
         $recentRows = $this->photos->listPhotos($userId, null, 'taken_desc', null, $poolSize, 'active', 'library');
         $recentPool = array_map(
-            fn (array $photo) => [
-                'id' => $photo['id'] ?? null,
-                'thumbUrl' => (string) ($photo['thumbUrl'] ?? ($photo['url'] ?? '')),
-                'url' => (string) ($photo['url'] ?? ''),
-                'originalName' => (string) ($photo['originalName'] ?? ''),
-            ],
+            fn (array $photo) => $this->photoCardFromArray($photo),
             $recentRows
         );
 
@@ -373,9 +368,9 @@ class DashboardHomeService
     }
 
     /**
-     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>  $primary
-     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>  $secondary
-     * @return list<array{id: int|null, thumbUrl: string, url: string, originalName: string}>
+     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string, href: string}>  $primary
+     * @param  list<array{id: int|null, thumbUrl: string, url: string, originalName: string, href: string}>  $secondary
+     * @return list<array{id: int|null, thumbUrl: string, url: string, originalName: string, href: string}>
      */
     private function mergePhotoPools(array $primary, array $secondary, int $limit): array
     {
@@ -398,17 +393,67 @@ class DashboardHomeService
         return $out;
     }
 
-    /** @return array{id: int|null, thumbUrl: string, url: string, originalName: string} */
+    /**
+     * @return array{id: int|null, thumbUrl: string, url: string, originalName: string, href: string}
+     */
     private function photoCardPayload(Photo $photo, int $userId): array
     {
-        $row = $this->photos->photoToArray($photo, $userId);
+        return $this->photoCardFromArray($this->photos->photoToArray($photo, $userId));
+    }
+
+    /**
+     * @param  array<string, mixed>  $photo
+     * @return array{
+     *   id: int|null,
+     *   thumbUrl: string,
+     *   url: string,
+     *   fileUrl: string,
+     *   originalName: string,
+     *   mediaKind: string,
+     *   browserPlayable: bool,
+     *   takenAt: string,
+     *   href: string
+     * }
+     */
+    private function photoCardFromArray(array $photo): array
+    {
+        $id = isset($photo['id']) ? (int) $photo['id'] : 0;
+        $fileUrl = (string) ($photo['fileUrl'] ?? '');
+        if ($fileUrl === '' && $id > 0) {
+            $fileUrl = '/photos/'.$id.'/file';
+        }
 
         return [
-            'id' => $row['id'] ?? $photo->id,
-            'thumbUrl' => (string) ($row['thumbUrl'] ?? ($row['url'] ?? '')),
-            'url' => (string) ($row['url'] ?? ''),
-            'originalName' => (string) ($row['originalName'] ?? ''),
+            'id' => $id > 0 ? $id : null,
+            'thumbUrl' => (string) ($photo['thumbUrl'] ?? ($photo['url'] ?? '')),
+            'url' => (string) ($photo['url'] ?? $fileUrl),
+            'fileUrl' => $fileUrl,
+            'originalName' => (string) ($photo['originalName'] ?? ''),
+            'mediaKind' => (string) ($photo['mediaKind'] ?? 'image'),
+            'browserPlayable' => ($photo['browserPlayable'] ?? true) !== false,
+            'takenAt' => (string) ($photo['takenAt'] ?? ''),
+            'href' => $this->photoOpenHref($id, $photo['albumId'] ?? null, ! empty($photo['archived'])),
         ];
+    }
+
+    private function photoOpenHref(int $photoId, mixed $albumId = null, bool $archived = false): string
+    {
+        if ($photoId <= 0) {
+            return '/photos';
+        }
+
+        $query = ['photo' => $photoId];
+        if ($archived) {
+            $query['library'] = 'archived';
+        }
+        $album = is_numeric($albumId) ? (int) $albumId : 0;
+        if ($album > 0) {
+            $query['album'] = $album;
+        } else {
+            $query['scope'] = 'library';
+        }
+
+        return '/photos?'.http_build_query($query);
     }
 
     /** @return list<array<string, mixed>> */

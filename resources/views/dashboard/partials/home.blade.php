@@ -113,77 +113,175 @@
           data-rotate-ms="{{ $photoRotateMs }}"
           data-can-rotate="{{ $canRotate ? '1' : '0' }}"
         >
-          @foreach(array_slice($photoPool, 0, $photoVisible) as $photo)
+          @foreach(array_slice($photoPool, 0, $photoVisible) as $index => $photo)
             <li>
-              <a href="{{ $photosHref }}" class="dash-home-photo-link" title="{{ $photo['originalName'] ?? '' }}">
+              <button
+                type="button"
+                class="dash-home-photo-link"
+                data-photo-index="{{ $index }}"
+                title="{{ $photo['originalName'] ?? '' }}"
+                aria-label="{{ __('写真を表示') }}"
+              >
                 <img
                   src="{{ $photo['thumbUrl'] ?? ($photo['url'] ?? '') }}"
                   alt=""
                   loading="eager"
                   decoding="async"
                 />
-              </a>
+              </button>
             </li>
           @endforeach
         </ul>
-        <script type="application/json" id="dash-home-photo-pool">{!! json_encode($photoPool, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS) !!}</script>
-        @if($canRotate)
-          <script>
-            (function () {
-              const grid = document.getElementById('dash-home-photo-grid')
-              const poolEl = document.getElementById('dash-home-photo-pool')
-              if (!grid || !poolEl) return
-              let pool = []
-              try {
-                pool = JSON.parse(poolEl.textContent || '[]')
-              } catch (_) {
-                return
-              }
-              const visible = Math.max(1, parseInt(grid.getAttribute('data-visible') || '4', 10) || 4)
-              const rotateMs = Math.max(5000, parseInt(grid.getAttribute('data-rotate-ms') || '60000', 10) || 60000)
-              const href = grid.getAttribute('data-photos-href') || '/photos'
-              if (!Array.isArray(pool) || pool.length <= visible) return
 
-              let offset = 0
-              function escapeAttr(value) {
-                return String(value || '')
-                  .replace(/&/g, '&amp;')
-                  .replace(/"/g, '&quot;')
-                  .replace(/</g, '&lt;')
-                  .replace(/>/g, '&gt;')
+        <div class="dash-home-lightbox" id="dash-home-lightbox" hidden>
+          <div class="dash-home-lightbox-backdrop" data-dash-lb-close></div>
+          <button type="button" class="dash-home-lightbox-close" data-dash-lb-close aria-label="{{ __('閉じる') }}">×</button>
+          <div class="dash-home-lightbox-stage">
+            <img src="" alt="" id="dash-home-lb-image" />
+            <video src="" id="dash-home-lb-video" controls playsinline preload="metadata" hidden></video>
+            <p class="dash-home-lightbox-meta" id="dash-home-lb-meta" hidden></p>
+            <a class="dash-home-lightbox-open" id="dash-home-lb-open" href="/photos">{{ __('Photosで開く') }} →</a>
+          </div>
+        </div>
+
+        <script type="application/json" id="dash-home-photo-pool">{!! json_encode($photoPool, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS) !!}</script>
+        <script>
+          (function () {
+            const grid = document.getElementById('dash-home-photo-grid')
+            const poolEl = document.getElementById('dash-home-photo-pool')
+            const lightbox = document.getElementById('dash-home-lightbox')
+            const lbImage = document.getElementById('dash-home-lb-image')
+            const lbVideo = document.getElementById('dash-home-lb-video')
+            const lbMeta = document.getElementById('dash-home-lb-meta')
+            const lbOpen = document.getElementById('dash-home-lb-open')
+            if (!grid || !poolEl || !lightbox) return
+
+            let pool = []
+            try {
+              pool = JSON.parse(poolEl.textContent || '[]')
+            } catch (_) {
+              return
+            }
+            if (!Array.isArray(pool) || pool.length === 0) return
+
+            const visible = Math.max(1, parseInt(grid.getAttribute('data-visible') || '4', 10) || 4)
+            const rotateMs = Math.max(5000, parseInt(grid.getAttribute('data-rotate-ms') || '60000', 10) || 60000)
+            const canRotate = grid.getAttribute('data-can-rotate') === '1' && pool.length > visible
+            let offset = 0
+            const openLabel = @json(__('写真を表示'))
+
+            function escapeAttr(value) {
+              return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+            }
+
+            function stopVideo() {
+              if (!lbVideo) return
+              lbVideo.pause()
+              lbVideo.removeAttribute('src')
+              while (lbVideo.firstChild) lbVideo.removeChild(lbVideo.firstChild)
+              lbVideo.load()
+              lbVideo.hidden = true
+            }
+
+            function paintGrid() {
+              const slice = []
+              for (let i = 0; i < Math.min(visible, pool.length); i++) {
+                const idx = (offset + i) % pool.length
+                slice.push({ photo: pool[idx], index: idx })
               }
-              function paint(slice) {
-                grid.innerHTML = slice.map((photo) => {
-                  const src = escapeAttr(photo.thumbUrl || photo.url || '')
-                  const title = escapeAttr(photo.originalName || '')
-                  return (
-                    '<li><a href="' + escapeAttr(href) + '" class="dash-home-photo-link" title="' + title + '">' +
-                    '<img src="' + src + '" alt="" loading="eager" decoding="async" />' +
-                    '</a></li>'
-                  )
-                }).join('')
-              }
-              function nextSlice() {
-                // 先に進めてから描画（以前は1分後も同じ4枚のままだった）
-                offset = (offset + visible) % pool.length
-                const slice = []
-                for (let i = 0; i < visible; i++) {
-                  slice.push(pool[(offset + i) % pool.length])
+              grid.innerHTML = slice.map(({ photo, index }) => {
+                const src = escapeAttr(photo.thumbUrl || photo.url || '')
+                const title = escapeAttr(photo.originalName || '')
+                return (
+                  '<li><button type="button" class="dash-home-photo-link" data-photo-index="' + index + '" title="' + title + '" aria-label="' + escapeAttr(openLabel) + '">' +
+                  '<img src="' + src + '" alt="" loading="eager" decoding="async" />' +
+                  '</button></li>'
+                )
+              }).join('')
+            }
+
+            function showPhoto(index) {
+              if (!pool.length) return
+              const photo = pool[(index + pool.length) % pool.length]
+              if (!photo) return
+              const isVideo = photo.mediaKind === 'video'
+              const src = photo.fileUrl || photo.url || (photo.id ? ('/photos/' + photo.id + '/file') : '')
+              if (!src) return
+              stopVideo()
+              if (isVideo) {
+                if (lbImage) {
+                  lbImage.hidden = true
+                  lbImage.removeAttribute('src')
                 }
-                return slice
+                if (lbVideo) {
+                  lbVideo.hidden = false
+                  lbVideo.src = src
+                  lbVideo.load()
+                }
+              } else {
+                if (lbVideo) lbVideo.hidden = true
+                if (lbImage) {
+                  lbImage.hidden = false
+                  lbImage.onerror = () => {
+                    const fallback = photo.thumbUrl || photo.url || ''
+                    if (fallback && lbImage.src !== fallback) {
+                      lbImage.onerror = null
+                      lbImage.src = fallback
+                    }
+                  }
+                  lbImage.src = src
+                  lbImage.alt = photo.originalName || ''
+                }
               }
-              function render() {
-                const slice = nextSlice()
+              if (lbMeta) {
+                const label = [photo.takenAt, photo.originalName].filter(Boolean).join(' · ')
+                lbMeta.textContent = label
+                lbMeta.hidden = !label
+              }
+              if (lbOpen) lbOpen.href = photo.href || ('/photos?photo=' + (photo.id || ''))
+              lightbox.hidden = false
+              document.body.classList.add('dash-home-lightbox-open')
+            }
+
+            function closeLightbox() {
+              stopVideo()
+              if (lbImage) lbImage.removeAttribute('src')
+              lightbox.hidden = true
+              document.body.classList.remove('dash-home-lightbox-open')
+            }
+
+            grid.addEventListener('click', (e) => {
+              const btn = e.target.closest('[data-photo-index]')
+              if (!btn || !grid.contains(btn)) return
+              e.preventDefault()
+              showPhoto(Number(btn.getAttribute('data-photo-index') || 0))
+            })
+
+            lightbox.querySelectorAll('[data-dash-lb-close]').forEach((el) => {
+              el.addEventListener('click', closeLightbox)
+            })
+            document.addEventListener('keydown', (e) => {
+              if (lightbox.hidden) return
+              if (e.key === 'Escape') closeLightbox()
+            })
+
+            if (canRotate) {
+              window.setInterval(() => {
+                if (!lightbox.hidden) return
+                offset = (offset + visible) % pool.length
                 grid.classList.add('is-rotating')
                 window.setTimeout(() => {
-                  paint(slice)
+                  paintGrid()
                   grid.classList.remove('is-rotating')
                 }, 220)
-              }
-              window.setInterval(render, rotateMs)
-            })()
-          </script>
-        @endif
+              }, rotateMs)
+            }
+          })()
+        </script>
       @endif
       <div class="dash-home-card-foot">
         @if(((int) ($photos['addedToday'] ?? 0)) > 0)

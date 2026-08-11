@@ -212,6 +212,8 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertGreaterThanOrEqual(1, count($data['photos']['pool']));
         $this->assertSame(60_000, $data['photos']['rotateMs']);
         $this->assertSame('old.jpg', $data['photos']['items'][0]['originalName']);
+        $this->assertStringContainsString('photo=', (string) ($data['photos']['items'][0]['href'] ?? ''));
+        $this->assertArrayHasKey('fileUrl', $data['photos']['items'][0]);
     }
 
     public function test_photos_pool_is_larger_than_visible_slot_for_rotation(): void

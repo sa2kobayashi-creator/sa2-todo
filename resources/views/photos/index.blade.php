@@ -3816,6 +3816,11 @@
           document.body.style.overflow = ''
           setLightboxZoom(1)
           releasePhotosOverlay('lightbox', opts)
+          if (!opts.skipReturn && lightboxCloseReturnTo) {
+            const target = lightboxCloseReturnTo
+            lightboxCloseReturnTo = null
+            window.location.assign(target)
+          }
         }
 
         let lightboxEditMode = false
@@ -3846,7 +3851,7 @@
 
           // 動画のダウンロード／再生を止めてから消す（接続占有で削除POSTが詰まるのを防ぐ）
           stopLightboxVideo()
-          closeLightbox()
+          closeLightbox({ skipReturn: true })
           setToast(true, @json(__('削除しています…')))
 
           try {
@@ -4866,18 +4871,24 @@
         })
         document.getElementById('photos-lightbox-prev')?.addEventListener('click', () => stepLightbox(-1))
         document.getElementById('photos-lightbox-next')?.addEventListener('click', () => stepLightbox(1))
+        let lightboxCloseReturnTo = null
         ;(function openPhotoFromQuery() {
           const params = new URLSearchParams(window.location.search)
           const focusId = Number(params.get('photo') || 0)
           const zoom = Number(params.get('zoom') || 0)
+          const returnTo = String(params.get('return') || '')
           if (!focusId || !Array.isArray(photos)) return
           const idx = photos.findIndex((p) => Number(p.id) === focusId)
           if (idx < 0) return
+          if (returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+            lightboxCloseReturnTo = returnTo
+          }
           openLightbox(idx)
           if (zoom > 1) setLightboxZoom(zoom)
           const url = new URL(window.location.href)
           url.searchParams.delete('photo')
           url.searchParams.delete('zoom')
+          url.searchParams.delete('return')
           window.history.replaceState({}, '', url.pathname + url.search + url.hash)
         })()
 
