@@ -201,4 +201,55 @@ class PhotoUploadAlbumTest extends TestCase
 
         $this->assertSame($second->id, (int) $album->fresh()->cover_photo_id);
     }
+
+    public function test_album_create_and_edit_can_hide_from_dashboard(): void
+    {
+        $user = $this->makeUser('dash-album@example.com');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('id="photos-album-show-dashboard"', false)
+            ->assertSee('id="photos-add-sheet-dashboard"', false);
+
+        $this->actingAs($user)->post('/photos/albums', [
+            'name' => '非表示アルバム',
+            'visibility' => 'private',
+            'show_on_dashboard' => '0',
+        ])->assertRedirect();
+
+        $album = PhotoAlbum::query()->where('user_id', $user->id)->firstOrFail();
+        $this->assertFalse((bool) $album->show_on_dashboard);
+
+        $this->actingAs($user)->post('/photos/albums/'.$album->id.'/update', [
+            'name' => '非表示アルバム',
+            'visibility' => 'private',
+            'show_on_dashboard' => '1',
+            'returnTo' => '/photos?album='.$album->id,
+        ])->assertRedirect();
+
+        $this->assertTrue((bool) $album->fresh()->show_on_dashboard);
+    }
+
+    public function test_upload_can_hide_photo_from_dashboard(): void
+    {
+        config(['photos.disk' => 'public']);
+        Storage::fake('public');
+
+        $user = $this->makeUser('dash-photo@example.com');
+
+        $this->actingAs($user)->post('/photos', [
+            'show_on_dashboard' => '0',
+            'photos' => [UploadedFile::fake()->image('private.jpg', 40, 40)],
+        ])->assertRedirect();
+
+        $photo = Photo::query()->where('user_id', $user->id)->firstOrFail();
+        $this->assertFalse((bool) $photo->show_on_dashboard);
+
+        $this->actingAs($user)->post('/photos/'.$photo->id.'/dashboard', [
+            'show_on_dashboard' => '1',
+            'returnTo' => '/photos',
+        ])->assertRedirect();
+
+        $this->assertTrue((bool) $photo->fresh()->show_on_dashboard);
+    }
 }

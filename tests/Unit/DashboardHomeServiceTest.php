@@ -2,9 +2,11 @@
 
 namespace Tests\Unit;
 
+use App\Enums\AppContext;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Note;
 use App\Models\Photo;
+use App\Models\PhotoAlbum;
 use App\Models\Todo;
 use App\Models\User;
 use App\Services\DashboardHomeService;
@@ -108,11 +110,38 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertSame(2, $data['counts']['todos']);
         $this->assertArrayNotHasKey('attention', $data['counts']);
         $this->assertArrayNotHasKey('photosToday', $data['counts']);
-        $this->assertSame(0, $data['counts']['events']);
         $this->assertCount(1, $data['nextActions']);
         $this->assertSame('今日の仕事', $data['nextActions'][0]['title']);
-        $this->assertSame('https://calendar.google.com/calendar/r/day', $data['links']['googleCalendar']);
-        $this->assertFalse($data['calendar']['connected']);
+        $this->assertSame('/todos?view=day&date=2026-08-11#todo-list-panel', $data['links']['googleCalendar']);
+        $this->assertFalse($data['links']['calendarExternal']);
+        $this->assertSame('app', $data['calendar']['source']);
+        $this->assertTrue($data['calendar']['connected']);
+        $this->assertSame(2, $data['counts']['events']);
+        $this->assertSame('午前の予定', $data['calendar']['events'][0]['title']);
+        $this->assertSame('今日の仕事', $data['calendar']['events'][1]['title']);
+    }
+
+    public function test_personal_mode_does_not_load_google_events(): void
+    {
+        $this->google->shouldReceive('connectionFor')->never();
+        $this->google->shouldReceive('listEventsAsTodos')->never();
+
+        Todo::create([
+            'user_id' => $this->user->id,
+            'title' => '個人の予定',
+            'completed' => false,
+            'start_date' => '2026-08-11',
+            'end_date' => '2026-08-11',
+            'start_time' => '16:00',
+            'importance' => 'medium',
+            'category' => 'task',
+        ]);
+
+        $data = $this->home->build($this->user, [], AppContext::Personal);
+
+        $this->assertSame('app', $data['calendar']['source']);
+        $this->assertSame(['個人の予定'], array_column($data['calendar']['events'], 'title'));
+        $this->assertSame('/todos?view=day&date=2026-08-11#todo-list-panel', $data['links']['googleCalendar']);
     }
 
     public function test_next_actions_skip_past_and_overdue(): void
@@ -173,11 +202,15 @@ class DashboardHomeServiceTest extends TestCase
             ],
         ]);
 
-        $data = $this->home->build($this->user);
+        $data = $this->home->build($this->user, [], AppContext::Work);
 
         $this->assertTrue($data['calendar']['connected']);
+        $this->assertSame('google', $data['calendar']['source']);
         $this->assertSame(2, $data['counts']['events']);
         $this->assertSame('会議', $data['calendar']['next']['title']);
+        $this->assertTrue($data['links']['calendarExternal']);
+        $this->assertStringContainsString('g%40example.com', $data['links']['googleCalendar']);
+        $this->assertStringContainsString('AccountChooser', $data['links']['googleCalendar']);
         $this->assertSame('あと 1時間30分', $data['calendar']['nextInLabel']);
         $this->assertSame('11:30', $data['calendar']['events'][0]['timeLabel']);
         $this->assertSame('終日', $data['calendar']['events'][1]['timeLabel']);
@@ -268,6 +301,71 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertSame('on_this_day', $data['photos']['mode']);
         $this->assertGreaterThan(4, count($data['photos']['pool']));
         $this->assertSame('old.jpg', $data['photos']['pool'][0]['originalName']);
+    }
+
+    public function test_dashboard_excludes_photos_hidden_from_dashboard(): void
+    {
+        $this->google->shouldReceive('connectionFor')->andReturn(null);
+
+        Photo::create([
+            'user_id' => $this->user->id,
+            'path' => 'photos/hidden.jpg',
+            'original_name' => 'hidden.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2024-08-11 12:00:00',
+            'show_on_dashboard' => false,
+        ]);
+        Photo::create([
+            'user_id' => $this->user->id,
+            'path' => 'photos/visible.jpg',
+            'original_name' => 'visible.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2026-08-01 12:00:00',
+        ]);
+
+        $data = $this->home->build($this->user);
+        $names = array_column($data['photos']['pool'], 'originalName');
+
+        $this->assertNotContains('hidden.jpg', $names);
+        $this->assertContains('visible.jpg', $names);
+    }
+
+    public function test_dashboard_excludes_photos_in_hidden_albums(): void
+    {
+        $this->google->shouldReceive('connectionFor')->andReturn(null);
+
+        $album = PhotoAlbum::create([
+            'user_id' => $this->user->id,
+            'name' => '非表示アルバム',
+            'visibility' => 'private',
+            'show_on_dashboard' => false,
+        ]);
+        Photo::create([
+            'user_id' => $this->user->id,
+            'album_id' => $album->id,
+            'path' => 'photos/album-hidden.jpg',
+            'original_name' => 'album-hidden.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2024-08-11 12:00:00',
+            'show_on_dashboard' => true,
+        ]);
+        Photo::create([
+            'user_id' => $this->user->id,
+            'path' => 'photos/loose.jpg',
+            'original_name' => 'loose.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2026-08-01 12:00:00',
+        ]);
+
+        $data = $this->home->build($this->user);
+        $names = array_column($data['photos']['pool'], 'originalName');
+
+        $this->assertNotContains('album-hidden.jpg', $names);
+        $this->assertContains('loose.jpg', $names);
     }
 
     public function test_pinned_notes_appear_in_home(): void

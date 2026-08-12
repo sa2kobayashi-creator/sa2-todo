@@ -135,6 +135,7 @@ class PhotoController extends Controller
                 'takenDate' => $p['takenDate'] ?? null,
                 'takenAtLocal' => $p['takenAtLocal'] ?? null,
                 'archived' => $p['archived'] ?? false,
+                'showOnDashboard' => $p['showOnDashboard'] ?? true,
                 'canEdit' => $p['canEdit'] ?? false,
                 'fileUrl' => $p['fileUrl'] ?? null,
                 'editLabel' => $p['editLabel'] ?? null,
@@ -222,7 +223,8 @@ class PhotoController extends Controller
                 (string) $request->input('visibility', 'private'),
                 $request->input('group_id'),
                 $request->input('password'),
-                $request->boolean('is_hidden')
+                $request->boolean('is_hidden'),
+                $this->requestedShowOnDashboard($request)
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -262,7 +264,10 @@ class PhotoController extends Controller
                 $request->input('password'),
                 $request->boolean('clear_password'),
                 $request->boolean('is_hidden'),
-                $request->filled('cover_photo_id') ? (int) $request->input('cover_photo_id') : null
+                $request->filled('cover_photo_id') ? (int) $request->input('cover_photo_id') : null,
+                $request->exists('show_on_dashboard')
+                    ? $this->requestedShowOnDashboard($request)
+                    : null
             );
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
@@ -382,7 +387,8 @@ class PhotoController extends Controller
                 $thumbsByIndex,
                 $allowDuplicates,
                 $takenAtByIndex,
-                $contentHashByIndex
+                $contentHashByIndex,
+                $this->requestedShowOnDashboard($request)
             );
         } catch (\InvalidArgumentException $e) {
             if ($wantsJson) {
@@ -542,7 +548,8 @@ class PhotoController extends Controller
                 $request->input('mime'),
                 $allowDuplicates,
                 $request->input('taken_at'),
-                $request->input('content_hash')
+                $request->input('content_hash'),
+                $this->requestedShowOnDashboard($request)
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
@@ -957,6 +964,30 @@ class PhotoController extends Controller
         return $this->redirectWithMessage($returnTo, __('登録日を更新しました。'));
     }
 
+    public function updateDashboardVisibility(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        try {
+            $photo = $this->photos->updateShowOnDashboard(
+                (int) $request->user()->id,
+                $id,
+                $this->requestedShowOnDashboard($request, true)
+            );
+        } catch (\InvalidArgumentException $e) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['ok' => true, 'photo' => $photo]);
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ダッシュボードの表示設定を更新しました。'));
+    }
+
     private function uploadFailureMessage(\Throwable $e): string
     {
         $detail = trim(mb_substr($e->getMessage(), 0, 240));
@@ -1163,5 +1194,18 @@ class PhotoController extends Controller
             ),
             default => $this->redirectWithMessage($returnTo, __('アルバムが見つかりません'), 'error'),
         };
+    }
+
+    private function requestedShowOnDashboard(Request $request, bool $default = true): bool
+    {
+        if (! $request->exists('show_on_dashboard')) {
+            return $default;
+        }
+
+        return ! in_array(
+            strtolower(trim((string) $request->input('show_on_dashboard'))),
+            ['0', 'false', 'off', 'no', ''],
+            true
+        );
     }
 }

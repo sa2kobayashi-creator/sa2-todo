@@ -154,6 +154,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/{id}/cloudinary-edit/cancel', [PhotoController::class, 'cloudinaryEditCancel'])->whereNumber('id');
     Route::post('/photos/{id}/trim-video', [PhotoController::class, 'trimVideo'])->whereNumber('id');
     Route::post('/photos/{id}/taken-at', [PhotoController::class, 'updateTakenAt'])->whereNumber('id');
+    Route::post('/photos/{id}/dashboard', [PhotoController::class, 'updateDashboardVisibility'])->whereNumber('id');
     Route::get('/photos/{id}/file', [PhotoController::class, 'file'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);

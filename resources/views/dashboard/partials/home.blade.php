@@ -56,7 +56,13 @@
           <p class="dash-home-countdown">{{ __('次の予定まで :label', ['label' => $calendar['nextInLabel']]) }}</p>
         @endif
       </div>
-      @if(empty($calendar['connected']))
+      @php
+        $calendarHref = $links['googleCalendar'] ?? '/todos?view=day#todo-list-panel';
+        $calendarLabel = $links['calendarLabel'] ?? (__('カレンダー').' →');
+        $calendarExternal = !empty($links['calendarExternal']);
+        $calendarSource = $calendar['source'] ?? 'app';
+      @endphp
+      @if($calendarSource === 'google' && empty($calendar['connected']))
         <p class="dash-home-empty">{{ __('Googleカレンダーは未連携です') }}</p>
         <div class="dash-home-card-foot">
           <a class="dash-home-action" href="{{ $links['googleCalendarConnect'] ?? '/settings?section=integration#google-calendar' }}">{{ __('Googleカレンダーを連携') }}</a>
@@ -64,7 +70,11 @@
       @elseif(count($calendar['events'] ?? []) === 0)
         <p class="dash-home-empty">{{ __('今日の予定はありません') }}</p>
         <div class="dash-home-card-foot">
-          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? 'https://calendar.google.com/calendar/r/day' }}" target="_blank" rel="noopener noreferrer">Google Calendar →</a>
+          <a
+            class="dash-home-more"
+            href="{{ $calendarHref }}"
+            @if($calendarExternal) target="_blank" rel="noopener noreferrer" @endif
+          >{{ $calendarLabel }}</a>
         </div>
       @else
         <ul class="dash-home-list">
@@ -80,7 +90,11 @@
           @endforeach
         </ul>
         <div class="dash-home-card-foot">
-          <a class="dash-home-more" href="{{ $links['googleCalendar'] ?? 'https://calendar.google.com/calendar/r/day' }}" target="_blank" rel="noopener noreferrer">Google Calendar →</a>
+          <a
+            class="dash-home-more"
+            href="{{ $calendarHref }}"
+            @if($calendarExternal) target="_blank" rel="noopener noreferrer" @endif
+          >{{ $calendarLabel }}</a>
         </div>
       @endif
     </section>

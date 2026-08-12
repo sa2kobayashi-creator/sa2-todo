@@ -1138,6 +1138,7 @@ class PhotoService
         mixed $groupId = null,
         ?string $password = null,
         bool $isHidden = false,
+        bool $showOnDashboard = true,
     ): array {
         $name = trim($name);
         if ($name === '') {
@@ -1167,6 +1168,7 @@ class PhotoService
             'description' => $description !== null ? mb_substr(trim($description), 0, 500) : null,
             'password_hash' => $passwordHash,
             'is_hidden' => $isHidden,
+            'show_on_dashboard' => $showOnDashboard,
             'visibility' => $visibilityEnum,
             'group_id' => $resolvedGroupId,
             'sort_order' => $max + 10,
@@ -1224,6 +1226,7 @@ class PhotoService
         bool $clearPassword = false,
         ?bool $isHidden = null,
         ?int $coverPhotoId = null,
+        ?bool $showOnDashboard = null,
     ): array {
         $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
         if (! $album) {
@@ -1242,6 +1245,9 @@ class PhotoService
         }
         if ($isHidden !== null) {
             $album->is_hidden = $isHidden;
+        }
+        if ($showOnDashboard !== null) {
+            $album->show_on_dashboard = $showOnDashboard;
         }
         if ($album->is_hidden) {
             $album->visibility = AlbumVisibility::Private;
@@ -1382,7 +1388,8 @@ class PhotoService
         array $videoThumbsByIndex = [],
         bool $allowDuplicates = false,
         array $takenAtByIndex = [],
-        array $contentHashByIndex = []
+        array $contentHashByIndex = [],
+        bool $showOnDashboard = true
     ): array {
         if ($albumId !== null) {
             $album = PhotoAlbum::query()->where('user_id', $userId)->find($albumId);
@@ -1469,6 +1476,7 @@ class PhotoService
                         $file,
                         is_string($takenAtByIndex[$index] ?? null) ? $takenAtByIndex[$index] : null
                     ),
+                    'show_on_dashboard' => $showOnDashboard,
                     'sort_order' => $nextOrder,
                     'storage_tier' => $target['tier'],
                     'cold_disk' => in_array($target['tier'], ['cold', 'overflow'], true) ? $target['disk'] : null,
@@ -1822,7 +1830,8 @@ class PhotoService
         ?string $mimeHint = null,
         bool $allowDuplicates = false,
         ?string $takenAtHint = null,
-        ?string $contentHash = null
+        ?string $contentHash = null,
+        bool $showOnDashboard = true
     ): array {
         $uploadId = $this->assertChunkUploadId($uploadId);
         $dir = $this->chunkDir($userId, $uploadId);
@@ -1879,7 +1888,8 @@ class PhotoService
                 $videoThumb ? [0 => $videoThumb] : [],
                 $allowDuplicates,
                 $takenAtHint !== null && $takenAtHint !== '' ? [0 => $takenAtHint] : [],
-                is_string($contentHash) && $contentHash !== '' ? [0 => $contentHash] : []
+                is_string($contentHash) && $contentHash !== '' ? [0 => $contentHash] : [],
+                $showOnDashboard
             );
         } finally {
             $this->deleteChunkDir($userId, $uploadId);
@@ -1955,6 +1965,35 @@ class PhotoService
         $photo->save();
 
         return $this->photoToArray($photo->fresh(), $userId);
+    }
+
+    public function updateShowOnDashboard(int $userId, int $photoId, bool $showOnDashboard): array
+    {
+        $photo = $this->findOwnedPhoto($userId, $photoId);
+        if (! $photo) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+
+        $photo->show_on_dashboard = $showOnDashboard;
+        $photo->save();
+
+        return $this->photoToArray($photo->fresh(), $userId);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>
+     */
+    public function constrainToDashboardVisible($query)
+    {
+        return $query
+            ->where('show_on_dashboard', true)
+            ->where(function ($q) {
+                $q->whereNull('album_id')
+                    ->orWhereHas('album', function ($album) {
+                        $album->where('show_on_dashboard', true);
+                    });
+            });
     }
 
     private function normalizeTakenAt(?string $value): ?\Carbon\Carbon
@@ -3520,6 +3559,7 @@ class PhotoService
             'caption' => $source->caption,
             'edit_label' => $label ? mb_substr(trim($label), 0, 120) : __('編集版'),
             'taken_at' => $source->taken_at,
+            'show_on_dashboard' => (bool) $source->show_on_dashboard,
             'sort_order' => $minSort,
             'storage_tier' => 'hot',
         ]);
@@ -3879,6 +3919,7 @@ class PhotoService
                 'caption' => $source->caption,
                 'edit_label' => sprintf('%s %.1f-%.1fs', __('トリム'), $startSec, $endSec),
                 'taken_at' => $source->taken_at,
+                'show_on_dashboard' => (bool) $source->show_on_dashboard,
                 'sort_order' => $minSort,
             ]);
 
@@ -3923,6 +3964,7 @@ class PhotoService
             'canManage' => $isOwner,
             'hasPassword' => $album->hasPassword(),
             'isHidden' => (bool) $album->is_hidden,
+            'showOnDashboard' => (bool) $album->show_on_dashboard,
             'isUnlocked' => $viewerUserId !== null && (
                 ! $album->hasPassword() || $this->isAlbumUnlocked($viewerUserId, (int) $album->id)
             ),
@@ -4007,6 +4049,7 @@ class PhotoService
             'takenAtLocal' => $takenAtLocal,
             'archived' => $photo->archived_at !== null,
             'archivedAt' => $photo->archived_at?->toIso8601String(),
+            'showOnDashboard' => (bool) $photo->show_on_dashboard,
             'createdAt' => $photo->created_at?->toIso8601String(),
             'canEdit' => $viewerUserId !== null && (int) $photo->user_id === $viewerUserId,
             'fileUrl' => $fileUrl,

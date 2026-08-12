@@ -33,6 +33,7 @@ class DashboardHomeTest extends TestCase
         $google = Mockery::mock(GoogleCalendarService::class);
         $google->shouldReceive('connectionFor')->andReturn(null)->byDefault();
         $google->shouldReceive('listEventsAsTodos')->andReturn([])->byDefault();
+        $google->shouldReceive('mergeEventsIntoTodos')->andReturnUsing(fn ($user, $todos) => $todos)->byDefault();
         $this->app->instance(GoogleCalendarService::class, $google);
     }
 
@@ -68,31 +69,53 @@ class DashboardHomeTest extends TestCase
         $response->assertSee('路線検索', false);
     }
 
-    public function test_dashboard_shows_google_connect_cta_when_disconnected(): void
+    public function test_personal_mode_links_to_app_calendar_and_hides_google_connect(): void
     {
         $response = $this->actingAs($this->user)->get('/dashboard');
+
+        $response->assertOk();
+        $response->assertDontSee('Googleカレンダーは未連携です', false);
+        $response->assertSee('/todos?view=day', false);
+        $response->assertSee('#todo-list-panel', false);
+        $response->assertDontSee('⚠', false);
+    }
+
+    public function test_work_mode_shows_google_connect_cta_when_disconnected(): void
+    {
+        $this->user->app_context = 'work';
+        $this->user->save();
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['app_context' => 'work'])
+            ->get('/dashboard');
 
         $response->assertOk();
         $response->assertSee('Googleカレンダーは未連携です', false);
         $response->assertSee('Googleカレンダーを連携', false);
-        $response->assertDontSee('⚠', false);
     }
 
-    public function test_dashboard_google_calendar_link_opens_calendar_when_connected(): void
+    public function test_work_mode_google_calendar_link_uses_connected_account(): void
     {
+        $this->user->app_context = 'work';
+        $this->user->save();
+
         $google = Mockery::mock(GoogleCalendarService::class);
         $google->shouldReceive('connectionFor')->andReturn(new \App\Models\GoogleCalendarConnection([
             'user_id' => $this->user->id,
             'google_user_id' => 'g-1',
-            'google_email' => 'g@example.com',
+            'google_email' => 'work-cal@example.com',
         ]));
         $google->shouldReceive('listEventsAsTodos')->andReturn([]);
+        $google->shouldReceive('mergeEventsIntoTodos')->andReturnUsing(fn ($user, $todos) => $todos);
         $this->app->instance(GoogleCalendarService::class, $google);
 
-        $response = $this->actingAs($this->user)->get('/dashboard');
+        $response = $this->actingAs($this->user)
+            ->withSession(['app_context' => 'work'])
+            ->get('/dashboard');
 
         $response->assertOk();
-        $response->assertSee('https://calendar.google.com/calendar/r/day', false);
+        $response->assertSee('AccountChooser', false);
+        $response->assertSee('work-cal%40example.com', false);
         $response->assertDontSee('href="/settings?section=integration#google-calendar">Google Calendar', false);
     }
 

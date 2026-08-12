@@ -80,7 +80,7 @@
         })()
       </script>
 
-      <details class="app-accordion dash-calendar-accordion" data-accordion-key="dash-calendar">
+      <details class="app-accordion dash-calendar-accordion" id="dash-calendar" data-accordion-key="dash-calendar">
         <summary class="app-accordion-summary dash-calendar-summary">
           <h2 class="dash-calendar-title">{{ __('カレンダー') }}</h2>
           <span class="app-accordion-note">{{ $periodLabel ?? '' }}</span>

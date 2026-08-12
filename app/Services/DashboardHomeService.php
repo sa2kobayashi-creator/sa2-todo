@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\AppContext;
+use App\Models\GoogleCalendarConnection;
 use App\Models\Photo;
 use App\Models\User;
 use Carbon\Carbon;
@@ -21,15 +23,17 @@ class DashboardHomeService
      * @param  list<array<string, mixed>>  $localTodos
      * @return array<string, mixed>
      */
-    public function build(User $user, array $localTodos = []): array
+    public function build(User $user, array $localTodos = [], ?AppContext $context = null): array
     {
         $tz = config('app.timezone', 'Asia/Tokyo');
         $now = Carbon::now($tz);
         $today = $now->toDateString();
         $userId = (int) $user->id;
+        $context ??= AppContext::Personal;
+        $isWork = $context === AppContext::Work;
 
         if ($localTodos === []) {
-            $localTodos = $this->todos->listTodos($userId)->all();
+            $localTodos = $this->todos->listTodos($userId, $context)->all();
         }
 
         $greeting = $this->greetingForHour((int) $now->format('G'));
@@ -38,7 +42,9 @@ class DashboardHomeService
         $nextActions = $this->nextActions($localTodos, $now, 5);
         $todayTodoCount = $this->todayPendingCount($localTodos, $today);
 
-        $gcal = $this->todayGoogleEvents($user, $now);
+        $calendar = $isWork
+            ? $this->todayGoogleEvents($user, $now)
+            : $this->todayLocalEvents($localTodos, $now);
         $photos = $this->photosMemories($userId, $now);
         $pinnedNotes = $this->pinnedNotes($userId, 3);
 
@@ -46,6 +52,10 @@ class DashboardHomeService
         $dateLabel = $locale === 'en'
             ? $now->locale('en')->isoFormat('MMM D (ddd)')
             : $now->locale('ja')->isoFormat('M月D日（ddd）');
+
+        $calendarLink = $isWork
+            ? $this->connectedGoogleCalendarUrl($user)
+            : '/todos?view=day&date='.$now->format('Y-m-d').'#todo-list-panel';
 
         return [
             'dateLabel' => $dateLabel,
@@ -56,11 +66,11 @@ class DashboardHomeService
                 ? __(':greeting、:nameさん', ['greeting' => $greeting, 'name' => $displayName])
                 : $greeting,
             'counts' => [
-                'events' => count($gcal['events']),
+                'events' => count($calendar['events']),
                 'todos' => $todayTodoCount,
             ],
             'nextActions' => $nextActions,
-            'calendar' => $gcal,
+            'calendar' => $calendar,
             'photos' => $photos,
             'pinnedNotes' => $pinnedNotes,
             'links' => [
@@ -73,7 +83,9 @@ class DashboardHomeService
                 'transit' => '/transit',
                 'aiSettings' => '/settings?section=ai',
                 'googleCalendarConnect' => '/settings?section=integration#google-calendar',
-                'googleCalendar' => 'https://calendar.google.com/calendar/r/day',
+                'googleCalendar' => $calendarLink,
+                'calendarExternal' => $isWork,
+                'calendarLabel' => $isWork ? 'Google Calendar →' : __('カレンダー').' →',
             ],
         ];
     }
@@ -218,7 +230,53 @@ class DashboardHomeService
     }
 
     /**
+     * 個人モード: このアプリの今日の予定。
+     *
+     * @param  list<array<string, mixed>>  $todos
      * @return array{
+     *   source: string,
+     *   connected: bool,
+     *   events: list<array<string, mixed>>,
+     *   next: ?array<string, mixed>,
+     *   nextInLabel: ?string
+     * }
+     */
+    private function todayLocalEvents(array $todos, Carbon $now): array
+    {
+        $today = $now->toDateString();
+        $events = [];
+        foreach ($todos as $todo) {
+            if (! empty($todo['completed']) || ! empty($todo['googleEventId'])) {
+                continue;
+            }
+            if (! $this->todos->getTodoRange($todo)) {
+                continue;
+            }
+            if (! $this->todos->dateInRange($today, $todo)) {
+                continue;
+            }
+            $events[] = [
+                'id' => $todo['id'] ?? null,
+                'title' => $todo['title'] ?? __('予定'),
+                'startTime' => $todo['startTime'] ?? null,
+                'endTime' => $todo['endTime'] ?? null,
+                'allDay' => empty($todo['startTime']) && empty($todo['endTime']),
+                'timeLabel' => $this->formatEventTimeLabel($todo),
+                'htmlLink' => null,
+            ];
+        }
+
+        return $this->finalizeTodayEvents($events, $now, [
+            'source' => 'app',
+            'connected' => true,
+        ]);
+    }
+
+    /**
+     * 仕事モード: 外部連携した Google カレンダーの今日の予定。
+     *
+     * @return array{
+     *   source: string,
      *   connected: bool,
      *   events: list<array<string, mixed>>,
      *   next: ?array<string, mixed>,
@@ -230,6 +288,7 @@ class DashboardHomeService
         $connected = $this->googleCalendar->connectionFor($user) !== null;
         if (! $connected) {
             return [
+                'source' => 'google',
                 'connected' => false,
                 'events' => [],
                 'next' => null,
@@ -263,6 +322,25 @@ class DashboardHomeService
             ];
         }
 
+        return $this->finalizeTodayEvents($events, $now, [
+            'source' => 'google',
+            'connected' => true,
+        ]);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $events
+     * @param  array{source: string, connected: bool}  $meta
+     * @return array{
+     *   source: string,
+     *   connected: bool,
+     *   events: list<array<string, mixed>>,
+     *   next: ?array<string, mixed>,
+     *   nextInLabel: ?string
+     * }
+     */
+    private function finalizeTodayEvents(array $events, Carbon $now, array $meta): array
+    {
         usort($events, static function (array $a, array $b) {
             if (($a['allDay'] ?? false) !== ($b['allDay'] ?? false)) {
                 return ($a['allDay'] ?? false) ? 1 : -1;
@@ -286,11 +364,32 @@ class DashboardHomeService
         }
 
         return [
-            'connected' => true,
+            'source' => $meta['source'],
+            'connected' => $meta['connected'],
             'events' => $events,
             'next' => $next,
             'nextInLabel' => $nextInLabel,
         ];
+    }
+
+    /** 外部連携で接続した Google アカウントのカレンダー（ログインメールではない） */
+    private function connectedGoogleCalendarUrl(User $user): string
+    {
+        $connection = $this->googleCalendar->connectionFor($user);
+        $email = trim((string) ($connection?->google_email ?? ''));
+        $dayUrl = 'https://calendar.google.com/calendar/r/day';
+        if ($connection instanceof GoogleCalendarConnection) {
+            $cid = $connection->syncCalendarId();
+            if ($cid !== '' && $cid !== 'primary') {
+                $dayUrl = 'https://calendar.google.com/calendar/r/day?cid='.rawurlencode($cid);
+            }
+        }
+        if ($email === '') {
+            return $dayUrl;
+        }
+
+        return 'https://accounts.google.com/AccountChooser?Email='.rawurlencode($email)
+            .'&continue='.rawurlencode($dayUrl);
     }
 
     /**
@@ -307,15 +406,15 @@ class DashboardHomeService
         $poolSize = 24;
         $visible = 4;
 
-        $addedToday = (int) Photo::query()
-            ->where('user_id', $userId)
-            ->whereNull('archived_at')
+        $visibleQuery = fn () => $this->photos->constrainToDashboardVisible(
+            Photo::query()->where('user_id', $userId)->whereNull('archived_at')
+        );
+
+        $addedToday = (int) $visibleQuery()
             ->whereDate('created_at', $now->toDateString())
             ->count();
 
-        $onThisDay = Photo::query()
-            ->where('user_id', $userId)
-            ->whereNull('archived_at')
+        $onThisDay = $visibleQuery()
             ->whereNotNull('taken_at')
             ->whereMonth('taken_at', (int) $now->format('n'))
             ->whereDay('taken_at', (int) $now->format('j'))
@@ -324,12 +423,14 @@ class DashboardHomeService
             ->limit($poolSize)
             ->get();
 
-        // アルバム内も含めて回転用プールを確保（loose だと枚数が足りず止まっていた）
-        $recentRows = $this->photos->listPhotos($userId, null, 'taken_desc', null, $poolSize, 'active', 'library');
-        $recentPool = array_map(
-            fn (array $photo) => $this->photoCardFromArray($photo),
-            $recentRows
-        );
+        $recentPool = $visibleQuery()
+            ->orderByDesc('taken_at')
+            ->orderByDesc('id')
+            ->limit($poolSize)
+            ->get()
+            ->map(fn (Photo $photo) => $this->photoCardPayload($photo, $userId))
+            ->values()
+            ->all();
 
         if ($onThisDay->isNotEmpty()) {
             $yearsAgo = (int) $now->format('Y') - (int) $onThisDay->first()->taken_at->format('Y');

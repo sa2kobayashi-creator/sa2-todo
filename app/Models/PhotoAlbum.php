@@ -15,6 +15,7 @@ class PhotoAlbum extends Model
         'description',
         'password_hash',
         'is_hidden',
+        'show_on_dashboard',
         'visibility',
         'group_id',
         'cover_photo_id',
@@ -31,6 +32,7 @@ class PhotoAlbum extends Model
             'sort_order' => 'integer',
             'cover_photo_id' => 'integer',
             'is_hidden' => 'boolean',
+            'show_on_dashboard' => 'boolean',
             'visibility' => AlbumVisibility::class,
         ];
     }

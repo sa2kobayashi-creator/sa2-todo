@@ -204,6 +204,11 @@
               </select>
             </label>
           @endif
+          @include('photos.partials.dashboard-visibility-select', [
+            'id' => 'photos-pending-dashboard',
+            'name' => 'show_on_dashboard',
+            'class' => 'photos-upload-album',
+          ])
           <button type="button" class="photos-secondary-btn" id="photos-pending-more">{{ __('さらに選ぶ') }}</button>
           <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('まとめて追加') }}</button>
           <button type="button" class="photos-secondary-btn" id="photos-pending-cancel">{{ __('やめる') }}</button>
@@ -226,6 +231,11 @@
               </select>
             </label>
           @endif
+          @include('photos.partials.dashboard-visibility-select', [
+            'id' => 'photos-add-sheet-dashboard',
+            'name' => 'show_on_dashboard',
+            'class' => 'photos-add-sheet-album',
+          ])
           <label class="photos-dup-option photos-add-sheet-dup" title="{{ __('同じ内容のファイルを再度追加する') }}">
             <input type="checkbox" id="photos-allow-duplicates" />
             <span>{{ __('重複も追加') }}</span>
@@ -777,6 +787,7 @@
         @csrf
         <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
         <input type="hidden" name="album_id" id="photos-form-album-id" value="{{ $selectedAlbumId }}" />
+        <input type="hidden" name="show_on_dashboard" id="photos-form-show-dashboard" value="1" />
         <input type="file" name="photos[]" id="photos-form-files" accept="image/*,video/mp4,video/quicktime,.heic,.heif,.mp4,.mov" multiple hidden />
         <input type="file" name="video_thumbs[]" id="photos-form-thumbs" accept="image/jpeg" multiple hidden />
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
@@ -1101,6 +1112,18 @@
                   <input type="datetime-local" name="taken_at" id="photos-taken-at-input" required />
                 </label>
                 <button type="submit" class="photos-secondary-btn">{{ __('日付を更新') }}</button>
+              </form>
+              <form method="post" action="" id="photos-dashboard-form" class="photos-taken-at-form photos-dashboard-form" hidden>
+                @csrf
+                <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                <label>
+                  <span class="photos-lb-label">{{ __('ダッシュボード') }}</span>
+                  <select name="show_on_dashboard" id="photos-dashboard-select">
+                    <option value="1">{{ __('表示する') }}</option>
+                    <option value="0">{{ __('表示しない') }}</option>
+                  </select>
+                </label>
+                <button type="submit" class="photos-secondary-btn">{{ __('保存') }}</button>
               </form>
               <form method="post" action="" id="photos-trim-video-form" class="photos-trim-form" hidden>
                 @csrf
@@ -1754,6 +1777,11 @@
             <span>{{ __('隠しアルバム（一覧に出さない・本人のみ）') }}</span>
           </label>
           <p class="hint" id="photos-album-hidden-hint" hidden>{{ __('隠しアルバムはタイトル「Photos」を7回タップすると表示／非表示を切り替えられます。') }}</p>
+          @include('photos.partials.dashboard-visibility-select', [
+            'id' => 'photos-album-show-dashboard',
+            'name' => 'show_on_dashboard',
+            'class' => 'photos-album-dashboard-field',
+          ])
           <div class="photos-album-cover-picker" id="photos-album-cover-picker" hidden>
             <div class="photos-album-cover-picker-head">
               <strong>{{ __('表紙') }}</strong>
@@ -2536,6 +2564,29 @@
           return !!document.getElementById('photos-allow-duplicates')?.checked
         }
 
+        function currentUploadShowOnDashboard() {
+          const el = document.getElementById('photos-add-sheet-dashboard')
+            || document.getElementById('photos-pending-dashboard')
+          return el && el.value === '0' ? '0' : '1'
+        }
+
+        function syncUploadShowOnDashboard(value) {
+          const next = value === '0' ? '0' : '1'
+          ;['photos-add-sheet-dashboard', 'photos-pending-dashboard'].forEach((id) => {
+            const el = document.getElementById(id)
+            if (el && el.value !== next) el.value = next
+          })
+          const hidden = document.getElementById('photos-form-show-dashboard')
+          if (hidden) hidden.value = next
+        }
+
+        ;['photos-add-sheet-dashboard', 'photos-pending-dashboard'].forEach((id) => {
+          document.getElementById(id)?.addEventListener('change', (e) => {
+            syncUploadShowOnDashboard(e.target.value)
+          })
+        })
+        syncUploadShowOnDashboard(currentUploadShowOnDashboard())
+
         async function sha256Hex(buffer) {
           const digest = await crypto.subtle.digest('SHA-256', buffer)
           return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -2571,7 +2622,7 @@
           return existing
         }
 
-        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash }) {
+        async function uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash, showOnDashboard }) {
           const chunkBytes = Math.max(1 * 1024 * 1024, Number(uploadLimits.chunkBytes) || 4 * 1024 * 1024)
           const total = Math.max(1, Math.ceil((Number(file.size) || 0) / chunkBytes))
           const uploadId = newUploadId()
@@ -2599,6 +2650,7 @@
           if (albumId) done.append('album_id', albumId)
           if (file.type) done.append('mime', file.type)
           if (allowDuplicates) done.append('allow_duplicates', '1')
+          done.append('show_on_dashboard', showOnDashboard === '0' ? '0' : '1')
           const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) done.append('taken_at', takenHint)
           if (contentHash) done.append('content_hash', contentHash)
@@ -2614,11 +2666,12 @@
           }
         }
 
-        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash }) {
+        async function uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash, showOnDashboard }) {
           const fd = new FormData()
           fd.append('returnTo', returnTo)
           if (albumId) fd.append('album_id', albumId)
           if (allowDuplicates) fd.append('allow_duplicates', '1')
+          fd.append('show_on_dashboard', showOnDashboard === '0' ? '0' : '1')
           fd.append('photos[]', file, file.name)
           const takenHint = takenAtHintForUpload(file, takeoutMap)
           if (takenHint) fd.append('taken_ats[]', takenHint)
@@ -2687,6 +2740,7 @@
             : currentUploadAlbumId()
           const returnTo = uploadReturnTo(albumId)
           const allowDuplicates = allowDuplicatesChecked()
+          const showOnDashboard = currentUploadShowOnDashboard()
           let totalCreated = 0
           let totalSkipped = 0
           const failed = []
@@ -2764,8 +2818,8 @@
                   if (uploadCancelRequested) break
                   try {
                     result = shouldUseChunkedUpload(file)
-                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash })
-                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash })
+                      ? await uploadFileChunked(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash, showOnDashboard })
+                      : await uploadFileSimple(file, { albumId, returnTo, thumb, fileLabel, onProgress, allowDuplicates, takeoutMap, contentHash: hash, showOnDashboard })
                     lastErr = null
                     break
                   } catch (err) {
@@ -3779,6 +3833,13 @@
             takenAtForm.action = `/photos/${photo.id}/taken-at`
             takenAtForm.hidden = !canEdit
             takenAtInput.value = photo.takenAtLocal || ''
+          }
+          const dashboardForm = document.getElementById('photos-dashboard-form')
+          const dashboardSelect = document.getElementById('photos-dashboard-select')
+          if (dashboardForm && dashboardSelect) {
+            dashboardForm.action = `/photos/${photo.id}/dashboard`
+            dashboardForm.hidden = !canEdit
+            dashboardSelect.value = photo.showOnDashboard === false ? '0' : '1'
           }
           if (deleteForm) {
             deleteForm.hidden = !canEdit
@@ -5552,6 +5613,7 @@
         const albumClearPassword = document.getElementById('photos-album-clear-password')
         const albumHidden = document.getElementById('photos-album-hidden')
         const albumHiddenHint = document.getElementById('photos-album-hidden-hint')
+        const albumShowDashboard = document.getElementById('photos-album-show-dashboard')
         const albumSubmit = document.getElementById('photos-album-submit')
         const albumDeleteBtn = document.getElementById('photos-album-delete-btn')
         const albumDeleteForm = document.getElementById('photos-album-delete-form')
@@ -5654,6 +5716,7 @@
             if (albumClearPasswordWrap) albumClearPasswordWrap.hidden = !selectedAlbum.hasPassword
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = !!selectedAlbum.isHidden
+            if (albumShowDashboard) albumShowDashboard.value = selectedAlbum.showOnDashboard === false ? '0' : '1'
             if (albumSubmit) albumSubmit.textContent = @json(__('保存'));
             if (albumDeleteBtn) albumDeleteBtn.hidden = false
             if (albumDeleteForm) albumDeleteForm.action = `/photos/albums/${selectedAlbum.id}/delete`
@@ -5679,6 +5742,7 @@
             if (albumClearPasswordWrap) albumClearPasswordWrap.hidden = true
             if (albumClearPassword) albumClearPassword.checked = false
             if (albumHidden) albumHidden.checked = false
+            if (albumShowDashboard) albumShowDashboard.value = '1'
             if (albumSubmit) albumSubmit.textContent = @json(__('作成'));
             if (albumDeleteBtn) albumDeleteBtn.hidden = true
             if (albumCoverPicker) albumCoverPicker.hidden = true

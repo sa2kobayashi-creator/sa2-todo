@@ -64,7 +64,7 @@ class DashboardController extends Controller
         $userId = (int) $user->id;
         $context = $this->contexts->current($user, $request);
         $allTodos = $this->todos->listTodos($userId, $context)->all();
-        $home = $this->home->build($user, $allTodos);
+        $home = $this->home->build($user, $allTodos, $context);
         $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
 
         if ($context === AppContext::Work) {

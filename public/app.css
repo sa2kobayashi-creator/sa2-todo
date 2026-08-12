@@ -11462,6 +11462,33 @@ body.photos-is-busy .photos-main {
   min-height: 44px;
 }
 
+.photos-dashboard-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--photos-muted);
+}
+
+.photos-album-dashboard-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  color: #4b5563;
+}
+
+.photos-album-dashboard-field select {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--photos-line, #d1d5db);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  color: var(--photos-ink, #111827);
+}
+
 .photos-add-sheet-panel h2 {
   margin: 0;
   font-family: 'Fraunces', Georgia, serif;
@@ -13285,6 +13312,18 @@ label.photos-camera-btn span {
 
 .photos-lightbox-meta .photos-taken-at-form input[type="datetime-local"] {
   max-width: 128px;
+}
+
+.photos-lightbox-meta .photos-dashboard-form select {
+  min-height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  color-scheme: dark;
 }
 
 .photos-lightbox-meta .photos-trim-form input[type="number"] {
