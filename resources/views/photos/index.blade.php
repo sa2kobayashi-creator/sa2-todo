@@ -1752,7 +1752,6 @@
             <select name="visibility" id="photos-album-visibility">
               <option value="private">{{ __('非公開') }}</option>
               <option value="group">{{ __('グループのみ') }}</option>
-              <option value="public">{{ __('登録ユーザーに公開') }}</option>
             </select>
           </label>
           <label id="photos-album-group-wrap" hidden>
@@ -5782,7 +5781,7 @@
             albumForm.action = `/photos/albums/${selectedAlbum.id}/update`
             albumNameInput.value = selectedAlbum.name || ''
             albumDescInput.value = selectedAlbum.description || ''
-            if (albumVisibility) albumVisibility.value = selectedAlbum.visibility || 'private'
+            if (albumVisibility) albumVisibility.value = selectedAlbum.visibility === 'group' ? 'group' : 'private'
             if (albumGroupId) albumGroupId.value = selectedAlbum.groupId || ''
             if (albumPassword) albumPassword.value = ''
             if (albumPasswordHint) {

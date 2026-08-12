@@ -29,6 +29,40 @@
         </ul>
       </div>
 
+      @if(!empty($canManageRegistration))
+      <div class="panel">
+        <h2>{{ __('新規登録（招待コード）') }}</h2>
+        <p class="hint">
+          {{ __('招待コードを入れると、そのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、下の「ユーザーを追加」だけで増やします。スーパー管理者のみ変更できます。') }}
+        </p>
+        @if(!empty($registrationOpen))
+          <p class="banner notice">{{ __('現在: 自己登録は開いています') }}</p>
+        @else
+          <p class="banner notice">{{ __('現在: 自己登録は閉じています') }}</p>
+        @endif
+        @if(empty($registrationConfiguredInDatabase) && $registrationInviteCode !== '')
+          <p class="hint">{{ __('いまは .env の REGISTRATION_INVITE_CODE が使われています。ここで保存すると管理画面の設定が優先されます。') }}</p>
+        @endif
+        <form method="post" action="/admin/users/registration" class="stack-form">
+          @csrf
+          <label>{{ __('招待コード') }}
+            <input
+              type="text"
+              name="inviteCode"
+              value="{{ old('inviteCode', $registrationInviteCode ?? '') }}"
+              maxlength="120"
+              autocomplete="off"
+              placeholder="{{ __('空欄＝自己登録を閉じる') }}"
+            />
+          </label>
+          <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;">
+            <button type="submit">{{ __('招待コードを保存') }}</button>
+            <button type="submit" name="clearInviteCode" value="1" class="secondary">{{ __('空にして閉じる') }}</button>
+          </div>
+        </form>
+      </div>
+      @endif
+
       <div class="panel">
         <h2>{{ __('ユーザーを追加') }}</h2>
         <form method="post" action="/admin/users" class="admin-user-form" id="admin-user-create-form">
@@ -45,14 +79,14 @@
           </label>
           <label>{{ __('権限') }}
             <select name="role" id="create-user-role" required>
-              @foreach($roles as $role)
+              @foreach(($assignableRoles ?? $roles) as $role)
                 <option value="{{ $role->value }}" @selected(old('role', 'standard') === $role->value)>{{ __($role->label()) }}</option>
               @endforeach
             </select>
           </label>
           <fieldset class="menu-feature-fieldset" id="create-menu-features">
             <legend>{{ __('利用メニュー') }}</legend>
-            <p class="hint">{{ __('管理者はすべてのメニューを利用できます。') }}</p>
+            <p class="hint">{{ __('スーパー管理者・管理者はすべてのメニューを利用できます。') }}</p>
             <div class="menu-feature-checks">
               @foreach($menuFeatures as $feature)
                 <label class="menu-feature-check">
@@ -111,12 +145,14 @@
                     </td>
                     <td class="admin-users-actions">
                       <a href="/admin/users/{{ $user['id'] }}" class="secondary mini-btn">{{ __('詳細') }}</a>
-                      <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
-                      @if(empty($user['isSelf']))
-                        <form method="post" action="/admin/users/{{ $user['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このユーザーを削除しますか？')))'>
-                          @csrf
-                          <button type="submit" class="danger mini-btn">{{ __('削除') }}</button>
-                        </form>
+                      @if(!empty($user['canManageTarget']))
+                        <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
+                        @if(empty($user['isSelf']))
+                          <form method="post" action="/admin/users/{{ $user['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このユーザーを削除しますか？')))'>
+                            @csrf
+                            <button type="submit" class="danger mini-btn">{{ __('削除') }}</button>
+                          </form>
+                        @endif
                       @endif
                     </td>
                   </tr>
@@ -138,9 +174,9 @@
           const defaults = byRole[role] || [];
           container.querySelectorAll('input[type="checkbox"][name="menuFeatures[]"]').forEach((input) => {
             input.checked = defaults.includes(input.value);
-            input.disabled = role === 'admin';
+            input.disabled = role === 'admin' || role === 'super_admin';
           });
-          if (role === 'admin') {
+          if (role === 'admin' || role === 'super_admin') {
             container.classList.add('is-admin-locked');
           } else {
             container.classList.remove('is-admin-locked');

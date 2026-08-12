@@ -37,7 +37,9 @@
           <button type="submit" class="auth-submit">{{ __('ログイン') }}</button>
         </form>
         <div class="auth-links">
-          <a href="/register">{{ __('会員登録') }}</a>
+          @if(!empty($registrationOpen))
+            <a href="/register">{{ __('会員登録') }}</a>
+          @endif
           <a href="/password/forgot">{{ __('パスワードをお忘れですか？') }}</a>
         </div>
       </div>

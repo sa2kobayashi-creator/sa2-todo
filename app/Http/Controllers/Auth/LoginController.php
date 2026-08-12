@@ -18,6 +18,7 @@ class LoginController extends Controller
         return view('auth.login', [
             'returnTo' => $this->safeReturnTo($request->query('returnTo'), '/dashboard'),
             'email' => $request->old('email'),
+            'registrationOpen' => \App\Support\Registration::isOpen(),
             ...$this->flashFromQuery($request),
         ]);
     }

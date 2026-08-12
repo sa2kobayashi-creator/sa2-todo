@@ -22,7 +22,7 @@ class EnglishLocaleRenderTest extends TestCase
             'email' => 'english@example.com',
             'display_name' => 'English User',
             'password' => Hash::make('password123'),
-            'role' => UserRole::Admin,
+            'role' => UserRole::SuperAdmin,
         ]);
     }
 

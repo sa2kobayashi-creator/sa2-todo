@@ -14,6 +14,8 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
+      @include('partials.group-invitations', ['pendingGroupInvitations' => $pendingInvitations ?? []])
+
       <div class="panel">
         <h2>{{ !empty($isAdmin) ? __('グループを作成') : __('グループを申請') }}</h2>
         <p class="hint">
@@ -60,16 +62,24 @@
             @if(($group['ownerUserId'] ?? null) === ($currentUser['id'] ?? null) && ($group['status'] ?? '') === 'approved')
               <form method="post" action="/groups/{{ $group['id'] }}/members" class="stack-form" style="margin-top:12px;">
                 @csrf
-                <label>{{ __('メンバーを追加') }}
-                  <select name="user_id" required>
-                    <option value="">{{ __('ユーザーを選択') }}</option>
-                    @foreach($users as $user)
-                      <option value="{{ $user['id'] }}">{{ $user['displayName'] }} ({{ $user['email'] }})</option>
-                    @endforeach
-                  </select>
+                <label>{{ __('メールアドレスで招待') }}
+                  <input type="email" name="email" value="{{ old('email') }}" required maxlength="255" placeholder="{{ __('登録済みのメール') }}" autocomplete="off" />
                 </label>
-                <button type="submit" class="secondary">{{ __('追加') }}</button>
+                <p class="hint">{{ __('相手が承諾するまでメンバーにはなりません。ユーザー一覧は表示しません。') }}</p>
+                <button type="submit" class="secondary">{{ __('招待する') }}</button>
               </form>
+
+              @if(!empty($pendingByGroup[$group['id']]))
+                <p class="hint" style="margin-top:12px">{{ __('承諾待ち') }}</p>
+                <ul class="feature-access-list">
+                  @foreach($pendingByGroup[$group['id']] as $invitation)
+                    <li>
+                      <span>{{ $invitation['inviteeName'] }} <span class="hint">({{ $invitation['inviteeEmail'] }})</span></span>
+                      <span class="hint">{{ $invitation['statusLabel'] }}</span>
+                    </li>
+                  @endforeach
+                </ul>
+              @endif
 
               @if(!empty($memberDetails[$group['id']]))
                 <ul class="feature-access-list" style="margin-top:12px;">

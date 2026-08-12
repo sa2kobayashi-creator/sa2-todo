@@ -43,6 +43,9 @@ class MediaStorageSetting extends Model
     /** Facebook Page / Messenger（ToDo 通知） */
     public const PROVIDER_FACEBOOK = 'facebook';
 
+    /** 新規登録の招待コード（管理画面で設定） */
+    public const PROVIDER_REGISTRATION = 'registration';
+
     protected $fillable = [
         'provider',
         'enabled',

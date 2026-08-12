@@ -23,13 +23,78 @@ class RoleAccessTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_access_settings_and_user_management(): void
+    public function test_admin_can_set_registration_invite_code_from_user_management(): void
     {
-        $admin = $this->makeUser(UserRole::Admin, 'admin-role@example.com');
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-invite@example.com');
 
-        $this->actingAs($admin)->get('/settings')->assertOk();
-        $this->actingAs($admin)->get('/admin/users')->assertOk()->assertSee('ユーザー管理');
-        $this->actingAs($admin)->get('/finance')->assertOk();
+        $this->actingAs($admin)->get('/admin/users')
+            ->assertOk()
+            ->assertSee('新規登録（招待コード）');
+
+        $this->actingAs($admin)->post('/admin/users/registration', [
+            'inviteCode' => 'family-secret',
+        ])->assertRedirect();
+
+        $this->assertTrue(\App\Support\Registration::isOpen());
+        $this->assertSame('family-secret', \App\Support\Registration::inviteCode());
+
+        Mail::fake();
+        auth()->logout();
+        $this->post('/register', [
+            'email' => 'invited@example.com',
+            'displayName' => 'Invited',
+            'inviteCode' => 'family-secret',
+        ])->assertRedirect();
+        $this->assertNotNull(User::query()->where('email', 'invited@example.com')->first());
+
+        $this->actingAs($admin)->post('/admin/users/registration', [
+            'clearInviteCode' => '1',
+        ])->assertRedirect();
+
+        $this->assertFalse(\App\Support\Registration::isOpen());
+        auth()->logout();
+        $this->post('/register', [
+            'email' => 'blocked@example.com',
+            'displayName' => 'Blocked',
+            'inviteCode' => 'family-secret',
+        ])->assertRedirect();
+        $this->assertNull(User::query()->where('email', 'blocked@example.com')->first());
+    }
+
+    public function test_regular_admin_cannot_change_registration_invite_code(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-no-invite@example.com');
+
+        $this->actingAs($admin)->get('/admin/users')
+            ->assertOk()
+            ->assertDontSee('name="inviteCode"', false);
+
+        $this->actingAs($admin)->post('/admin/users/registration', [
+            'inviteCode' => 'should-fail',
+        ])->assertForbidden();
+    }
+
+    public function test_regular_admin_cannot_assign_super_admin(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-assign@example.com');
+
+        $this->actingAs($admin)->post('/admin/users', [
+            'displayName' => 'Attempt Super',
+            'email' => 'attempt-super@example.com',
+            'password' => 'password123',
+            'role' => UserRole::SuperAdmin->value,
+        ])->assertSessionHasErrors('role');
+
+        $this->assertNull(User::query()->where('email', 'attempt-super@example.com')->first());
+    }
+
+    public function test_standard_user_cannot_change_registration_invite_code(): void
+    {
+        $user = $this->makeUser(UserRole::Standard, 'standard-invite@example.com');
+
+        $this->actingAs($user)->post('/admin/users/registration', [
+            'inviteCode' => 'hack',
+        ])->assertForbidden();
     }
 
     public function test_standard_user_cannot_access_settings_but_can_use_apps(): void
@@ -84,7 +149,7 @@ class RoleAccessTest extends TestCase
 
     public function test_admin_can_create_user_with_role(): void
     {
-        $admin = $this->makeUser(UserRole::Admin, 'admin-create@example.com');
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-create@example.com');
 
         $this->actingAs($admin)->post('/admin/users', [
             'displayName' => 'Light Member',
@@ -100,7 +165,7 @@ class RoleAccessTest extends TestCase
 
     public function test_admin_can_no_longer_set_another_users_password(): void
     {
-        $admin = $this->makeUser(UserRole::Admin, 'admin-nopass@example.com');
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-nopass@example.com');
         $member = $this->makeUser(UserRole::Light, 'member-nopass@example.com');
 
         $this->actingAs($admin)->get("/admin/users/{$member->id}/edit")

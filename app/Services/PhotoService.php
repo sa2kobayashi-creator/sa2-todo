@@ -635,8 +635,7 @@ class PhotoService
             ->with(['group', 'user'])
             ->withCount('activePhotos')
             ->where(function ($q) use ($userId, $groupIds) {
-                $q->where('user_id', $userId)
-                    ->orWhere('visibility', AlbumVisibility::Public->value);
+                $q->where('user_id', $userId);
                 if ($groupIds !== []) {
                     $q->orWhere(function ($groupQ) use ($groupIds) {
                         $groupQ->where('visibility', AlbumVisibility::Group->value)
@@ -736,9 +735,6 @@ class PhotoService
             return false;
         }
         $visibility = $album->visibilityEnum();
-        if ($visibility === AlbumVisibility::Public) {
-            return true;
-        }
         if ($visibility === AlbumVisibility::Group && $album->group_id) {
             return $this->groups->userBelongsToApprovedGroup($userId, (int) $album->group_id);
         }
@@ -1286,6 +1282,9 @@ class PhotoService
     private function normalizeAlbumVisibility(int $userId, string $visibility, mixed $groupId): array
     {
         $visibilityEnum = AlbumVisibility::tryFrom($visibility) ?? AlbumVisibility::Private;
+        if ($visibilityEnum === AlbumVisibility::Public) {
+            $visibilityEnum = AlbumVisibility::Private;
+        }
         $resolvedGroupId = null;
         if ($visibilityEnum === AlbumVisibility::Group) {
             $resolvedGroupId = (int) $groupId;
@@ -3979,6 +3978,9 @@ class PhotoService
         $coverArr = $cover ? $this->photoToArray($cover, $viewerUserId) : null;
 
         $visibility = $album->visibilityEnum();
+        if ($visibility === AlbumVisibility::Public) {
+            $visibility = AlbumVisibility::Private;
+        }
         $isOwner = $viewerUserId !== null && (int) $album->user_id === $viewerUserId;
 
         return [

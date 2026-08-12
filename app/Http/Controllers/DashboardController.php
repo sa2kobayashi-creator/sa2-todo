@@ -138,6 +138,7 @@ class DashboardController extends Controller
                 : null,
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
+            'pendingGroupInvitations' => $this->groups->listPendingInvitationsForUser($userId),
             ...$this->flashFromQuery($request),
         ]);
     }

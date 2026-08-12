@@ -46,13 +46,63 @@ class AuthPasswordFlowTest extends TestCase
         $this->get('/password/reset')->assertOk()->assertSee('確認コード（6桁）');
     }
 
+    public function test_register_uses_admin_saved_invite_code_over_env(): void
+    {
+        config(['registration.invite_code' => 'env-code']);
+        \App\Support\Registration::setInviteCode('admin-code');
+        Mail::fake();
+
+        $this->post('/register', [
+            'email' => 'db-code@example.com',
+            'displayName' => 'Db',
+            'inviteCode' => 'env-code',
+        ])->assertRedirect();
+        $this->assertNull(User::query()->where('email', 'db-code@example.com')->first());
+
+        $this->post('/register', [
+            'email' => 'db-code@example.com',
+            'displayName' => 'Db',
+            'inviteCode' => 'admin-code',
+        ])->assertRedirect();
+        $this->assertNotNull(User::query()->where('email', 'db-code@example.com')->first());
+    }
+
+    public function test_register_is_closed_without_an_invite_code(): void
+    {
+        config(['registration.invite_code' => '']);
+
+        $this->get('/register')->assertOk()->assertSee('現在、新規登録は受け付けていません');
+        $this->post('/register', [
+            'email' => 'closed@example.com',
+            'displayName' => 'Closed',
+        ])->assertRedirect();
+
+        $this->assertNull(User::query()->where('email', 'closed@example.com')->first());
+    }
+
+    public function test_register_rejects_a_wrong_invite_code(): void
+    {
+        config(['registration.invite_code' => 'family-secret']);
+        Mail::fake();
+
+        $this->followingRedirects()->post('/register', [
+            'email' => 'wrong-code@example.com',
+            'displayName' => 'Wrong',
+            'inviteCode' => 'nope',
+        ])->assertOk()->assertSee('招待コードが正しくありません');
+
+        $this->assertNull(User::query()->where('email', 'wrong-code@example.com')->first());
+    }
+
     public function test_register_emails_an_initial_password_without_logging_in(): void
     {
+        config(['registration.invite_code' => 'family-secret']);
         Mail::fake();
 
         $this->post('/register', [
             'email' => 'Newbie@Example.com',
             'displayName' => 'Newbie',
+            'inviteCode' => 'family-secret',
         ])->assertRedirect();
 
         $this->assertGuest();
@@ -70,11 +120,13 @@ class AuthPasswordFlowTest extends TestCase
 
     public function test_register_no_longer_accepts_a_password_field(): void
     {
+        config(['registration.invite_code' => 'family-secret']);
         Mail::fake();
 
         $this->post('/register', [
             'email' => 'chosen@example.com',
             'displayName' => 'Chosen',
+            'inviteCode' => 'family-secret',
             'password' => 'ignored-password',
             'password_confirmation' => 'ignored-password',
         ])->assertRedirect();

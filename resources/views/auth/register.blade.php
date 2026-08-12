@@ -21,13 +21,18 @@
         @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
         @if(session('error'))<div class="banner error">{{ session('error') }}</div>@endif
         @include('partials.form-errors')
-        <p class="hint">{{ __('登録すると、初期パスワードをメールでお送りします。初回ログイン後にご自身のパスワードを設定していただきます。') }}</p>
-        <form method="post" action="/register" class="auth-form">
-          @csrf
-          <label>{{ __('メールアドレス') }}<input type="email" name="email" value="{{ old('email') }}" required autocomplete="username" /></label>
-          <label>{{ __('表示名') }}<input type="text" name="displayName" value="{{ old('displayName') }}" maxlength="100" /></label>
-          <button type="submit" class="auth-submit">{{ __('登録') }}</button>
-        </form>
+        @if(empty($registrationOpen))
+          <p class="hint">{{ __('現在、新規登録は受け付けていません。管理者に依頼してください。') }}</p>
+        @else
+          <p class="hint">{{ __('新規登録は招待制です。管理者から招待コードを受け取ってください。登録すると、初期パスワードをメールでお送りします。初回ログイン後にご自身のパスワードを設定していただきます。') }}</p>
+          <form method="post" action="/register" class="auth-form">
+            @csrf
+            <label>{{ __('メールアドレス') }}<input type="email" name="email" value="{{ old('email') }}" required autocomplete="username" /></label>
+            <label>{{ __('表示名') }}<input type="text" name="displayName" value="{{ old('displayName') }}" maxlength="100" /></label>
+            <label>{{ __('招待コード') }}<input type="text" name="inviteCode" value="{{ old('inviteCode') }}" required maxlength="120" autocomplete="off" /></label>
+            <button type="submit" class="auth-submit">{{ __('登録') }}</button>
+          </form>
+        @endif
         <div class="auth-links"><a href="/login">{{ __('ログインへ') }}</a></div>
       </div>
     </main>

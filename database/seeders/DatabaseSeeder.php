@@ -23,6 +23,10 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        if (app()->environment('production')) {
+            throw new \RuntimeException('DatabaseSeeder は本番では実行できません。');
+        }
+
         $this->importUsers();
         $this->importTodos();
         $this->importNotes();
@@ -34,7 +38,8 @@ class DatabaseSeeder extends Seeder
         $holidayService->importNationalHolidays($year + 1);
 
         $financeUserId = User::query()
-            ->where('role', 'admin')
+            ->whereIn('role', ['super_admin', 'admin'])
+            ->orderByRaw("CASE role WHEN 'super_admin' THEN 0 ELSE 1 END")
             ->orderBy('id')
             ->value('id')
             ?? User::query()->orderBy('id')->value('id');
@@ -64,7 +69,7 @@ class DatabaseSeeder extends Seeder
                 [
                     'display_name' => '管理者',
                     'password' => Hash::make('admin12345'),
-                    'role' => 'admin',
+                    'role' => 'super_admin',
                 ]
             );
 
@@ -132,7 +137,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $adminId = User::query()->where('email', 'admin@example.com')->value('id')
-            ?? User::query()->where('role', 'admin')->orderBy('id')->value('id')
+            ?? User::query()->whereIn('role', ['super_admin', 'admin'])->orderByRaw("CASE role WHEN 'super_admin' THEN 0 ELSE 1 END")->orderBy('id')->value('id')
             ?? User::query()->orderBy('id')->value('id');
 
         $raw = json_decode(file_get_contents($path), true);

@@ -5,7 +5,10 @@
 
 現状はほぼすべて**運営側の外部サービス課金**で、エンドユーザーへの実徴収（Stripe 等）は未実装です。
 
-関連: `docs/specs/commercial-storage.md`
+関連:
+
+- `docs/specs/commercial-storage.md` … ストレージ接続・クォータ・将来の Stripe
+- `docs/specs/commercial-public-readiness.md` … 公開・複数利用の実装ギャップ（登録・PII・レート制限など）
 
 ---
 

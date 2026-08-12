@@ -7,10 +7,10 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Registration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 class UserController extends Controller
 {
@@ -18,11 +18,40 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
+        $actor = $request->user();
         $users = User::query()->orderBy('id')->get()->map(fn (User $user) => $this->presentUser($user, $request));
 
-        return view('admin.users.index', array_merge($this->flashFromQuery($request), $this->formMeta(), [
+        return view('admin.users.index', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
             'users' => $users,
+            'canManageRegistration' => $actor->isSuperAdmin(),
+            'registrationInviteCode' => Registration::inviteCode(),
+            'registrationConfiguredInDatabase' => Registration::isConfiguredInDatabase(),
+            'registrationOpen' => Registration::isOpen(),
         ]));
+    }
+
+    public function updateRegistration(Request $request)
+    {
+        if (! $request->user()->isSuperAdmin()) {
+            abort(403, __('招待コードを変更できるのはスーパー管理者だけです。'));
+        }
+
+        $data = $request->validate([
+            'inviteCode' => ['nullable', 'string', 'max:120'],
+            'clearInviteCode' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->boolean('clearInviteCode')) {
+            Registration::setInviteCode('');
+        } else {
+            Registration::setInviteCode($data['inviteCode'] ?? '');
+        }
+
+        $message = Registration::isOpen()
+            ? __('招待コードを保存しました。このコードを知っている人だけ自己登録できます。')
+            : __('招待コードを空にしたので、新規の自己登録は閉じました。');
+
+        return $this->redirectWithMessage('/admin/users', $message);
     }
 
     public function show(Request $request, int $id)
@@ -37,27 +66,35 @@ class UserController extends Controller
 
     public function edit(Request $request, int $id)
     {
+        $actor = $request->user();
         $user = User::query()->findOrFail($id);
 
-        return view('admin.users.edit', array_merge($this->flashFromQuery($request), $this->formMeta(), [
+        if ($error = $this->guardTargetEditable($actor, $user)) {
+            return $this->redirectWithMessage('/admin/users', $error, 'error');
+        }
+
+        return view('admin.users.edit', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
             'user' => $this->presentUser($user, $request),
         ]));
     }
 
     public function store(Request $request)
     {
+        $actor = $request->user();
+        $allowedRoles = array_map(fn (UserRole $role) => $role->value, UserRole::assignableBy($actor->roleEnum()));
+
         $data = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'displayName' => ['required', 'string', 'max:100'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', new Enum(UserRole::class)],
+            'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
             'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
         ]);
 
         $role = UserRole::from($data['role']);
         $menuFeatures = null;
-        if ($role !== UserRole::Admin && $request->boolean('menuFeaturesConfigured')) {
+        if (! $role->isStaff() && $request->boolean('menuFeaturesConfigured')) {
             $menuFeatures = array_values(array_intersect($data['menuFeatures'] ?? [], MenuFeature::values()));
         }
 
@@ -74,7 +111,17 @@ class UserController extends Controller
 
     public function update(Request $request, int $id)
     {
+        $actor = $request->user();
         $user = User::query()->findOrFail($id);
+
+        if ($error = $this->guardTargetEditable($actor, $user)) {
+            return $this->redirectWithMessage("/admin/users/{$id}/edit", $error, 'error');
+        }
+
+        $allowedRoles = array_map(fn (UserRole $role) => $role->value, UserRole::assignableBy($actor->roleEnum()));
+        // 編集対象の現在ロールが選択肢外でも、変更しない限り維持できるよう含める
+        $allowedRoles[] = $user->roleEnum()->value;
+        $allowedRoles = array_values(array_unique($allowedRoles));
 
         $data = $request->validate([
             'email' => [
@@ -84,24 +131,29 @@ class UserController extends Controller
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
             'displayName' => ['required', 'string', 'max:100'],
-            'role' => ['required', new Enum(UserRole::class)],
+            'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
             'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
         ]);
 
         $newRole = UserRole::from($data['role']);
-        if ($user->id === $request->user()->id && $newRole !== UserRole::Admin) {
+
+        if ($user->id === $actor->id && ! $newRole->isStaff()) {
             return $this->redirectWithMessage("/admin/users/{$id}/edit", __('自分自身の管理者権限は外せません。'), 'error');
         }
 
-        if ($user->isAdmin() && $newRole !== UserRole::Admin && $this->adminCount() <= 1) {
-            return $this->redirectWithMessage("/admin/users/{$id}/edit", __('最後の管理者は降格できません。'), 'error');
+        if ($user->isSuperAdmin() && $newRole !== UserRole::SuperAdmin && $this->superAdminCount() <= 1) {
+            return $this->redirectWithMessage("/admin/users/{$id}/edit", __('最後のスーパー管理者は降格できません。'), 'error');
+        }
+
+        if (! $actor->isSuperAdmin() && $newRole === UserRole::SuperAdmin) {
+            return $this->redirectWithMessage("/admin/users/{$id}/edit", __('スーパー管理者を付与できるのはスーパー管理者だけです。'), 'error');
         }
 
         $user->email = strtolower(trim($data['email']));
         $user->display_name = trim($data['displayName']);
         $user->role = $newRole;
-        if ($newRole === UserRole::Admin) {
+        if ($newRole->isStaff()) {
             $user->menu_features = null;
         } elseif ($request->boolean('menuFeaturesConfigured')) {
             $user->menu_features = array_values(array_intersect($data['menuFeatures'] ?? [], MenuFeature::values()));
@@ -113,14 +165,19 @@ class UserController extends Controller
 
     public function destroy(Request $request, int $id)
     {
+        $actor = $request->user();
         $user = User::query()->findOrFail($id);
 
-        if ($user->id === $request->user()->id) {
+        if ($user->id === $actor->id) {
             return $this->redirectWithMessage('/admin/users', __('自分自身は削除できません。'), 'error');
         }
 
-        if ($user->isAdmin() && $this->adminCount() <= 1) {
-            return $this->redirectWithMessage('/admin/users', __('最後の管理者は削除できません。'), 'error');
+        if ($error = $this->guardTargetEditable($actor, $user)) {
+            return $this->redirectWithMessage('/admin/users', $error, 'error');
+        }
+
+        if ($user->isSuperAdmin() && $this->superAdminCount() <= 1) {
+            return $this->redirectWithMessage('/admin/users', __('最後のスーパー管理者は削除できません。'), 'error');
         }
 
         $user->delete();
@@ -129,10 +186,13 @@ class UserController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function formMeta(): array
+    private function formMeta(User $actor): array
     {
+        $assignable = UserRole::assignableBy($actor->roleEnum());
+
         return [
             'roles' => UserRole::assignable(),
+            'assignableRoles' => $assignable,
             'menuFeatures' => MenuFeature::assignable(),
             'menuFeaturesByRole' => collect(UserRole::assignable())
                 ->mapWithKeys(fn (UserRole $role) => [$role->value => MenuFeature::defaultsForRole($role)])
@@ -143,23 +203,38 @@ class UserController extends Controller
     /** @return array<string, mixed> */
     private function presentUser(User $user, Request $request): array
     {
+        $actor = $request->user();
         $menuLabels = collect(MenuFeature::assignable())
             ->filter(fn (MenuFeature $feature) => in_array($feature->value, $user->baseMenuFeatures(), true))
             ->map(fn (MenuFeature $feature) => __($feature->label()))
             ->values()
             ->all();
 
+        $staffLabel = $user->isSuperAdmin()
+            ? __('すべて（スーパー管理者）')
+            : __('すべて（管理者）');
+
         return [
             ...$user->toPublicArray(),
-            'isSelf' => $user->id === $request->user()->id,
-            'menuFeatureLabels' => $user->roleEnum() === UserRole::Admin
-                ? [__('すべて（管理者）')]
+            'isSelf' => $user->id === $actor->id,
+            'canManageTarget' => $this->guardTargetEditable($actor, $user) === null,
+            'menuFeatureLabels' => $user->isAdmin()
+                ? [$staffLabel]
                 : $menuLabels,
         ];
     }
 
-    private function adminCount(): int
+    private function guardTargetEditable(User $actor, User $target): ?string
     {
-        return User::query()->where('role', UserRole::Admin->value)->count();
+        if ($target->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+            return __('スーパー管理者はスーパー管理者のみ編集できます。');
+        }
+
+        return null;
+    }
+
+    private function superAdminCount(): int
+    {
+        return User::query()->where('role', UserRole::SuperAdmin->value)->count();
     }
 }

@@ -36,14 +36,17 @@
           </label>
           <label>{{ __('権限') }}
             <select name="role" id="edit-user-role" required>
-              @foreach($roles as $role)
+              @foreach(($assignableRoles ?? $roles) as $role)
                 <option value="{{ $role->value }}" @selected(old('role', $user['role']) === $role->value)>{{ __($role->label()) }}</option>
               @endforeach
+              @if(!collect($assignableRoles ?? $roles)->contains(fn ($role) => $role->value === $user['role']))
+                <option value="{{ $user['role'] }}" selected>{{ $user['roleLabel'] }}</option>
+              @endif
             </select>
           </label>
           <fieldset class="menu-feature-fieldset" id="edit-menu-features">
             <legend>{{ __('利用メニュー') }}</legend>
-            <p class="hint">{{ __('管理者はすべてのメニューを利用できます。') }}</p>
+            <p class="hint">{{ __('スーパー管理者・管理者はすべてのメニューを利用できます。') }}</p>
             <div class="menu-feature-checks">
               @foreach($menuFeatures as $feature)
                 <label class="menu-feature-check">
@@ -81,9 +84,9 @@
             if (useDefaults) {
               input.checked = defaults.includes(input.value);
             }
-            input.disabled = role === 'admin';
+            input.disabled = role === 'admin' || role === 'super_admin';
           });
-          if (role === 'admin') {
+          if (role === 'admin' || role === 'super_admin') {
             fieldset.classList.add('is-admin-locked');
             if (configuredInput) configuredInput.disabled = true;
           } else {

@@ -73,15 +73,21 @@ class User extends Authenticatable
             : UserRole::tryFrom((string) $this->role) ?? UserRole::Standard;
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->roleEnum() === UserRole::SuperAdmin;
+    }
+
+    /** スーパー管理者または管理者（設定・ユーザー管理など） */
     public function isAdmin(): bool
     {
-        return $this->roleEnum() === UserRole::Admin;
+        return $this->roleEnum()->isStaff();
     }
 
     public function canAccess(string $feature): bool
     {
         if ($this->isAdmin()) {
-            return UserRole::Admin->canAccess($feature);
+            return $this->roleEnum()->canAccess($feature);
         }
 
         if (MenuFeature::tryFrom($feature) !== null) {

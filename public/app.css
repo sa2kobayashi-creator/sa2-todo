@@ -581,6 +581,11 @@ a {
   color: #b45309;
 }
 
+.role-badge.super_admin {
+  background: #e8f0fe;
+  color: #174ea6;
+}
+
 .feature-access-list,
 .role-permission-summary {
   list-style: none;

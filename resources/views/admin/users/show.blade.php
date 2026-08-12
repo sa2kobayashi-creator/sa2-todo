@@ -20,7 +20,9 @@
         <div class="admin-user-card-head">
           <h2>{{ __('ユーザー詳細') }}</h2>
           <div class="admin-users-actions">
-            <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
+            @if(!empty($user['canManageTarget']))
+              <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
+            @endif
             <a href="/admin/users" class="secondary mini-btn">{{ __('一覧に戻る') }}</a>
           </div>
         </div>
@@ -65,7 +67,7 @@
           </div>
         </dl>
 
-        @if(empty($user['isSelf']))
+        @if(empty($user['isSelf']) && !empty($user['canManageTarget']))
           <form method="post" action="/admin/users/{{ $user['id'] }}/delete" class="admin-user-delete-form" onsubmit='return confirm(@json(__('このユーザーを削除しますか？')))'>
             @csrf
             <button type="submit" class="danger">{{ __('削除') }}</button>

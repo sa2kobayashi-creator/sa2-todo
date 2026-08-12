@@ -15,6 +15,7 @@
     <main class="page-main">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
+      @include('partials.group-invitations', ['pendingGroupInvitations' => $pendingGroupInvitations ?? []])
       @if(!empty($appContextIsWork))
         <div class="banner notice">
           {{ __('仕事モード: プライベートの ToDo／メモは表示されません。') }}

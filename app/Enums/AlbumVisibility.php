@@ -13,7 +13,7 @@ enum AlbumVisibility: string
         return match ($this) {
             self::Private => '非公開',
             self::Group => 'グループのみ',
-            self::Public => '登録ユーザーに公開',
+            self::Public => '非公開',
         };
     }
 }

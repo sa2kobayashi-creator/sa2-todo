@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\GroupInvitationStatus;
 use App\Enums\GroupStatus;
 use App\Enums\MenuFeature;
 use App\Models\Group;
+use App\Models\GroupInvitation;
 use App\Models\GroupMember;
 use App\Models\GroupMenuFeature;
 use App\Models\User;
@@ -158,21 +160,107 @@ class GroupService
         return $group->load('owner')->loadCount('members')->toPublicArray();
     }
 
-    public function addMember(int $actorUserId, int $groupId, int $memberUserId): void
+    /**
+     * 登録済みユーザーをメール完全一致で招待する。承諾するまでメンバーにはならない。
+     *
+     * @return array<string, mixed>
+     */
+    public function inviteByEmail(int $actorUserId, int $groupId, string $email): array
     {
         $group = Group::query()->findOrFail($groupId);
         $this->assertOwner($group, $actorUserId);
         if (! $group->isApproved()) {
-            throw new \InvalidArgumentException(__('承認済みのグループのみメンバーを追加できます。'));
+            throw new \InvalidArgumentException(__('承認済みのグループのみメンバーを招待できます。'));
         }
-        if (! User::query()->whereKey($memberUserId)->exists()) {
-            throw new \InvalidArgumentException(__('ユーザーが見つかりません。'));
+
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            throw new \InvalidArgumentException(__('メールアドレスを入力してください。'));
+        }
+
+        $invitee = User::query()->where('email', $email)->first();
+        if (! $invitee) {
+            throw new \InvalidArgumentException(__('そのメールのユーザーは見つかりません。先にアカウントを作成してもらってください。'));
+        }
+        if ((int) $invitee->id === $actorUserId) {
+            throw new \InvalidArgumentException(__('自分自身は招待できません。'));
+        }
+        if ($this->userBelongsToApprovedGroup((int) $invitee->id, $groupId)) {
+            throw new \InvalidArgumentException(__('すでにメンバーです。'));
+        }
+
+        $invitation = GroupInvitation::query()->firstOrNew([
+            'group_id' => $groupId,
+            'invitee_user_id' => $invitee->id,
+        ]);
+        if ($invitation->exists && $invitation->isPending()) {
+            throw new \InvalidArgumentException(__('すでに招待中です。'));
+        }
+
+        $invitation->inviter_user_id = $actorUserId;
+        $invitation->status = GroupInvitationStatus::Pending;
+        $invitation->save();
+
+        return $invitation->load(['group', 'inviter', 'invitee'])->toPublicArray();
+    }
+
+    public function acceptInvitation(int $userId, int $invitationId): void
+    {
+        $invitation = $this->pendingInvitationForInvitee($userId, $invitationId);
+        $group = $invitation->group;
+        if (! $group || ! $group->isApproved()) {
+            throw new \InvalidArgumentException(__('このグループはまだ利用できません。'));
         }
 
         GroupMember::query()->firstOrCreate(
-            ['group_id' => $groupId, 'user_id' => $memberUserId],
+            ['group_id' => $invitation->group_id, 'user_id' => $userId],
             ['role' => 'member']
         );
+        $invitation->status = GroupInvitationStatus::Accepted;
+        $invitation->save();
+    }
+
+    public function declineInvitation(int $userId, int $invitationId): void
+    {
+        $invitation = $this->pendingInvitationForInvitee($userId, $invitationId);
+        $invitation->status = GroupInvitationStatus::Declined;
+        $invitation->save();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function listPendingInvitationsForUser(int $userId): array
+    {
+        return GroupInvitation::query()
+            ->with(['group', 'inviter', 'invitee'])
+            ->where('invitee_user_id', $userId)
+            ->where('status', GroupInvitationStatus::Pending->value)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (GroupInvitation $invitation) => $invitation->toPublicArray())
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function listPendingInvitationsForGroup(int $groupId): array
+    {
+        return GroupInvitation::query()
+            ->with(['group', 'inviter', 'invitee'])
+            ->where('group_id', $groupId)
+            ->where('status', GroupInvitationStatus::Pending->value)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (GroupInvitation $invitation) => $invitation->toPublicArray())
+            ->all();
+    }
+
+    private function pendingInvitationForInvitee(int $userId, int $invitationId): GroupInvitation
+    {
+        $invitation = GroupInvitation::query()->with('group')->find($invitationId);
+        if (! $invitation || (int) $invitation->invitee_user_id !== $userId || ! $invitation->isPending()) {
+            throw new \InvalidArgumentException(__('招待が見つかりません。'));
+        }
+
+        return $invitation;
     }
 
     public function removeMember(int $actorUserId, int $groupId, int $memberUserId): void

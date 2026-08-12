@@ -204,11 +204,48 @@ class GroupsSharingTest extends TestCase
 
         $this->actingAs($member)->get('/photos')->assertOk()
             ->assertSee('Group Album')
-            ->assertSee('Public Album');
+            ->assertDontSee('Public Album');
 
         $this->actingAs($outsider)->get('/photos')->assertOk()
             ->assertDontSee('Group Album')
-            ->assertSee('Public Album');
+            ->assertDontSee('Public Album');
+    }
+
+    public function test_owner_invites_by_email_and_member_must_accept(): void
+    {
+        $owner = $this->makeUser('invite-owner@example.com');
+        $member = $this->makeUser('invite-member@example.com');
+        $outsider = $this->makeUser('invite-outsider@example.com');
+        $admin = $this->makeUser('invite-admin@example.com', UserRole::Admin);
+
+        $this->actingAs($owner)->post('/groups', ['name' => 'Invite Share'])->assertRedirect();
+        $group = Group::query()->where('name', 'Invite Share')->firstOrFail();
+        $this->actingAs($admin)->post('/admin/groups/'.$group->id.'/approve')->assertRedirect();
+
+        $this->actingAs($owner)->get('/groups')
+            ->assertOk()
+            ->assertDontSee($member->email)
+            ->assertDontSee($outsider->email);
+
+        $this->actingAs($owner)->post('/groups/'.$group->id.'/members', [
+            'email' => $member->email,
+        ])->assertRedirect();
+
+        $this->assertFalse(
+            GroupMember::query()->where('group_id', $group->id)->where('user_id', $member->id)->exists()
+        );
+
+        $this->actingAs($member)->get('/dashboard')->assertOk()->assertSee('Invite Share');
+        $invitationId = \App\Models\GroupInvitation::query()
+            ->where('group_id', $group->id)
+            ->where('invitee_user_id', $member->id)
+            ->value('id');
+        $this->assertNotNull($invitationId);
+
+        $this->actingAs($member)->post('/group-invitations/'.$invitationId.'/accept')->assertRedirect();
+        $this->assertTrue(
+            GroupMember::query()->where('group_id', $group->id)->where('user_id', $member->id)->exists()
+        );
     }
 
     public function test_edit_image_creates_new_photo_row(): void

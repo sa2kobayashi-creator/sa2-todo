@@ -51,16 +51,16 @@ Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]));
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
-    Route::post('/login', [LoginController::class, 'login']);
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:auth-login');
     Route::get('/register', [RegisterController::class, 'show']);
-    Route::post('/register', [RegisterController::class, 'register']);
+    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:auth-register');
 });
 
 // パスワード再設定はログイン前（パスワード忘れ）とログイン後（マイページ）で同じ導線を使う
 Route::get('/password/forgot', [PasswordResetController::class, 'showForgot']);
-Route::post('/password/forgot', [PasswordResetController::class, 'sendCode']);
+Route::post('/password/forgot', [PasswordResetController::class, 'sendCode'])->middleware('throttle:auth-password');
 Route::get('/password/reset', [PasswordResetController::class, 'showReset']);
-Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+Route::post('/password/reset', [PasswordResetController::class, 'reset'])->middleware('throttle:auth-password');
 
 Route::middleware('auth')->group(function () {
     Route::get('/password/setup', [PasswordSetupController::class, 'show']);
@@ -121,7 +121,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/notes/attachments/{id}/file', [NoteController::class, 'attachmentFile'])->whereNumber('id');
     Route::get('/notes/attachments/{id}/download', [NoteController::class, 'attachmentDownload'])->whereNumber('id');
     Route::post('/notes/{id}/update', [NoteController::class, 'update'])->whereNumber('id');
-    Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->whereNumber('id');
+    Route::post('/notes/{id}/translate', [NoteController::class, 'translate'])->middleware('throttle:ai-translate')->whereNumber('id');
     Route::post('/notes/{id}/pin', [NoteController::class, 'pin'])->whereNumber('id');
     Route::post('/notes/{id}/complete', [NoteController::class, 'complete'])->whereNumber('id');
     Route::post('/notes/{id}/archive', [NoteController::class, 'archive'])->whereNumber('id');
@@ -129,12 +129,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/notes/{id}/delete', [NoteController::class, 'destroy'])->whereNumber('id');
 
     Route::get('/photos', [PhotoController::class, 'index']);
-    Route::post('/photos', [PhotoController::class, 'store']);
+    Route::post('/photos', [PhotoController::class, 'store'])->middleware('throttle:media-upload');
     Route::post('/photos/check-duplicates', [PhotoController::class, 'checkDuplicates']);
     Route::post('/photos/duplicates/scan', [PhotoController::class, 'scanDuplicates']);
     Route::post('/photos/{id}/rename', [PhotoController::class, 'rename'])->whereNumber('id');
-    Route::post('/photos/upload/chunk', [PhotoController::class, 'uploadChunk']);
-    Route::post('/photos/upload/complete', [PhotoController::class, 'uploadComplete']);
+    Route::post('/photos/upload/chunk', [PhotoController::class, 'uploadChunk'])->middleware('throttle:media-upload');
+    Route::post('/photos/upload/complete', [PhotoController::class, 'uploadComplete'])->middleware('throttle:media-upload');
     Route::post('/photos/archive-cold', [PhotoController::class, 'archiveCold']);
     Route::post('/photos/archive-cold/start', [PhotoController::class, 'archiveColdStart']);
     Route::get('/photos/archive-cold/status', [PhotoController::class, 'archiveColdStatus']);
@@ -194,19 +194,23 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(EnsureFeature::class.':translate')->group(function () {
         Route::get('/translate', [TranslateController::class, 'index']);
-        Route::post('/translate', [TranslateController::class, 'translate']);
-        Route::post('/translate/document', [TranslateController::class, 'document']);
-        Route::post('/translate/website', [TranslateController::class, 'website']);
+        Route::post('/translate', [TranslateController::class, 'translate'])->middleware('throttle:ai-translate');
+        Route::post('/translate/document', [TranslateController::class, 'document'])->middleware('throttle:ai-translate');
+        Route::post('/translate/website', [TranslateController::class, 'website'])->middleware('throttle:ai-translate');
         Route::get('/translate/history', [TranslateController::class, 'history']);
         Route::post('/translate/history/{id}/saved', [TranslateController::class, 'toggleSaved'])->whereNumber('id');
         Route::delete('/translate/history/{id}', [TranslateController::class, 'destroyHistory'])->whereNumber('id');
     });
 
+    // 招待の承諾・辞退はライト（グループ画面なし）でもダッシュボードから行う
+    Route::post('/group-invitations/{id}/accept', [GroupController::class, 'acceptInvitation'])->whereNumber('id');
+    Route::post('/group-invitations/{id}/decline', [GroupController::class, 'declineInvitation'])->whereNumber('id');
+
     // グループはスタンダード以上。ライトは一覧も作成もできない
     Route::middleware(EnsureFeature::class.':groups')->group(function () {
         Route::get('/groups', [GroupController::class, 'index']);
         Route::post('/groups', [GroupController::class, 'store']);
-        Route::post('/groups/{id}/members', [GroupController::class, 'addMember'])->whereNumber('id');
+        Route::post('/groups/{id}/members', [GroupController::class, 'inviteMember'])->whereNumber('id');
         Route::post('/groups/{id}/members/remove', [GroupController::class, 'removeMember'])->whereNumber('id');
         Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
     });
@@ -342,6 +346,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(RequireAdmin::class)->group(function () {
         Route::get('/admin/users', [AdminUserController::class, 'index']);
         Route::post('/admin/users', [AdminUserController::class, 'store']);
+        Route::post('/admin/users/registration', [AdminUserController::class, 'updateRegistration']);
         Route::get('/admin/users/{id}', [AdminUserController::class, 'show'])->whereNumber('id');
         Route::get('/admin/users/{id}/edit', [AdminUserController::class, 'edit'])->whereNumber('id');
         Route::post('/admin/users/{id}/update', [AdminUserController::class, 'update'])->whereNumber('id');
