@@ -46,7 +46,7 @@
           </label>
           <fieldset class="menu-feature-fieldset" id="edit-menu-features">
             <legend>{{ __('利用メニュー') }}</legend>
-            <p class="hint">{{ __('スーパー管理者・管理者はすべてのメニューを利用できます。') }}</p>
+            <p class="hint">{{ __('チェックを外したメニューはヘッダーに出ません。ダッシュボード・Todo・メモ・Photos は常に表示されます。ここでの設定はグループ付与より優先されます。') }}</p>
             <div class="menu-feature-checks">
               @foreach($menuFeatures as $feature)
                 <label class="menu-feature-check">
@@ -73,6 +73,7 @@
     <script>
       (function () {
         const byRole = @json($menuFeaturesByRole);
+        const form = document.getElementById('admin-user-edit-form');
         const roleSelect = document.getElementById('edit-user-role');
         const fieldset = document.getElementById('edit-menu-features');
         const configuredInput = document.getElementById('edit-menu-configured');
@@ -98,6 +99,18 @@
         if (roleSelect && fieldset) {
           roleSelect.addEventListener('change', () => applyRoleDefaults(roleSelect.value, true));
           applyRoleDefaults(roleSelect.value, false);
+        }
+
+        // disabled のチェックは送信されないため、送信直前に有効化する
+        if (form && fieldset) {
+          form.addEventListener('submit', () => {
+            const role = roleSelect ? roleSelect.value : '';
+            if (role === 'admin' || role === 'super_admin') return;
+            fieldset.querySelectorAll('input[type="checkbox"][name="menuFeatures[]"]').forEach((input) => {
+              input.disabled = false;
+            });
+            if (configuredInput) configuredInput.disabled = false;
+          });
         }
       })();
     </script>

@@ -2457,6 +2457,7 @@
     "招待コードを変更できるのはスーパー管理者だけです。": "Only a super admin can change the invite code.",
     "招待コードを入れると、そのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、下の「ユーザーを追加」だけで増やします。スーパー管理者のみ変更できます。": "Enter an invite code so only people who know it can self-register. Leave it empty to close self-registration and add users only below. Super admins only.",
     "スーパー管理者・管理者はすべてのメニューを利用できます。": "Super admins and admins can use every menu.",
+    "チェックを外したメニューはヘッダーに出ません。ダッシュボード・Todo・メモ・Photos は常に表示されます。ここでの設定はグループ付与より優先されます。": "Unchecked menus do not appear in the header. Dashboard, Todo, Notes, and Photos always remain. This setting overrides group menu grants.",
     "最後のスーパー管理者は降格できません。": "You cannot demote the last super admin.",
     "最後のスーパー管理者は削除できません。": "You cannot delete the last super admin.",
     "スーパー管理者を付与できるのはスーパー管理者だけです。": "Only a super admin can grant super admin.",

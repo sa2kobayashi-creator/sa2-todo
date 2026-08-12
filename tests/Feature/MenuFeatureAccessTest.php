@@ -48,7 +48,8 @@ class MenuFeatureAccessTest extends TestCase
     public function test_approved_group_menu_features_are_granted_to_members(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-menus@example.com');
-        $user = $this->makeUser(UserRole::Light, 'light-group@example.com', []);
+        // null = ロール既定。グループ付与が加算される
+        $user = $this->makeUser(UserRole::Light, 'light-group@example.com', null);
 
         $group = Group::create([
             'name' => 'Travel Team',
@@ -71,6 +72,50 @@ class MenuFeatureAccessTest extends TestCase
         $this->actingAs($user)->get('/travel')->assertOk();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/finance')->assertForbidden();
+    }
+
+    public function test_explicit_empty_user_menus_ignore_group_grants(): void
+    {
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'super-group-lock@example.com');
+        $user = $this->makeUser(UserRole::Standard, 'standard-group-lock@example.com', null);
+
+        $group = Group::create([
+            'name' => 'Full Menus',
+            'owner_user_id' => $admin->id,
+            'status' => GroupStatus::Approved,
+            'reviewed_by' => $admin->id,
+            'reviewed_at' => now(),
+        ]);
+        GroupMember::create([
+            'group_id' => $group->id,
+            'user_id' => $user->id,
+            'role' => 'member',
+        ]);
+        $this->actingAs($admin)->post("/admin/groups/{$group->id}/menus", [
+            'menuFeatures' => ['finance', 'transit', 'music', 'map'],
+        ])->assertRedirect();
+
+        $this->actingAs($user)->get('/finance')->assertOk();
+
+        $this->actingAs($admin)->post("/admin/users/{$user->id}/update", [
+            'displayName' => $user->display_name,
+            'email' => $user->email,
+            'role' => UserRole::Standard->value,
+            // 全部外す
+        ])->assertRedirect();
+
+        $user->refresh();
+        $this->assertSame([], $user->menu_features);
+        $this->assertSame([], $user->effectiveMenuFeatures());
+
+        $this->actingAs($user)->get('/finance')->assertForbidden();
+        $this->actingAs($user)->get('/music')->assertForbidden();
+        $this->actingAs($user)->get('/todos')->assertOk();
+
+        $dashboard = $this->actingAs($user)->get('/dashboard')->assertOk();
+        $dashboard->assertDontSee('href="/finance"', false);
+        $dashboard->assertDontSee('href="/music"', false);
+        $dashboard->assertDontSee('入出金経費');
     }
 
     public function test_super_admin_can_restrict_standard_user_menus_and_header(): void

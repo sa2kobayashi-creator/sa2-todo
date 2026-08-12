@@ -86,7 +86,7 @@
           </label>
           <fieldset class="menu-feature-fieldset" id="create-menu-features">
             <legend>{{ __('利用メニュー') }}</legend>
-            <p class="hint">{{ __('スーパー管理者・管理者はすべてのメニューを利用できます。') }}</p>
+            <p class="hint">{{ __('チェックを外したメニューはヘッダーに出ません。ダッシュボード・Todo・メモ・Photos は常に表示されます。ここでの設定はグループ付与より優先されます。') }}</p>
             <div class="menu-feature-checks">
               @foreach($menuFeatures as $feature)
                 <label class="menu-feature-check">

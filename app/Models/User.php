@@ -138,6 +138,12 @@ class User extends Authenticatable
             return MenuFeature::values();
         }
 
+        // 管理画面で利用メニューを明示設定した場合（空配列＝追加メニューなし）はそれを優先。
+        // グループ付与で制限を上書きしない。
+        if (is_array($this->menu_features)) {
+            return $this->baseMenuFeatures();
+        }
+
         return array_values(array_unique([
             ...$this->baseMenuFeatures(),
             ...$this->groupMenuFeatures(),

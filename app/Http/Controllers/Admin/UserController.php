@@ -96,7 +96,7 @@ class UserController extends Controller
         $role = UserRole::from($data['role']);
         $menuFeatures = null;
         if (! $role->isStaff() && $request->boolean('menuFeaturesConfigured')) {
-            $menuFeatures = array_values(array_intersect($data['menuFeatures'] ?? [], MenuFeature::values()));
+            $menuFeatures = $this->normalizeMenuFeaturesForStorage($role, $data['menuFeatures'] ?? []);
         }
 
         User::create([
@@ -158,8 +158,7 @@ class UserController extends Controller
             $user->menu_features = null;
         } else {
             // 編集フォームは常に利用メニューを送る（未チェック＝追加メニューなし）。
-            // hidden の menuFeaturesConfigured に依存すると、未送信時に設定が残ったままになる。
-            $user->menu_features = array_values(array_intersect($data['menuFeatures'] ?? [], MenuFeature::values()));
+            $user->menu_features = $this->normalizeMenuFeaturesForStorage($newRole, $data['menuFeatures'] ?? []);
         }
 
         // 利用メニュー変更後、表示メニュー設定から権限外の項目を落とす
@@ -236,6 +235,33 @@ class UserController extends Controller
                 ? [$staffLabel]
                 : $menuLabels,
         ];
+    }
+
+    /**
+     * ロール既定と同じ選択なら null（グループ付与を有効のまま）。
+     * それ以外（空配列含む）は明示の許可リストとして保存する。
+     *
+     * @param  list<string>|array<int, string>  $selected
+     * @return list<string>|null
+     */
+    private function normalizeMenuFeaturesForStorage(UserRole $role, array $selected): ?array
+    {
+        if ($role->isStaff()) {
+            return null;
+        }
+
+        $selected = array_values(array_intersect($selected, MenuFeature::values()));
+        $defaults = MenuFeature::defaultsForRole($role);
+        $sortedSelected = $selected;
+        $sortedDefaults = $defaults;
+        sort($sortedSelected);
+        sort($sortedDefaults);
+
+        if ($sortedSelected === $sortedDefaults) {
+            return null;
+        }
+
+        return $selected;
     }
 
     private function guardTargetEditable(User $actor, User $target): ?string
