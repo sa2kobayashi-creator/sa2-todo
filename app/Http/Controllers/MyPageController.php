@@ -22,10 +22,18 @@ class MyPageController extends Controller
     {
         $user = $request->user();
 
+        $featureKeys = [
+            'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'map',
+            'music', 'video', 'groups', 'settings', 'admin',
+        ];
+
         return view('mypage.index', array_merge($this->flashFromQuery($request), [
             'user' => $user->toPublicArray(),
             'role' => $user->roleEnum(),
-            'features' => $user->roleEnum()->features(),
+            'features' => array_values(array_filter(
+                $featureKeys,
+                fn (string $feature) => $user->canAccess($feature)
+            )),
             'groups' => $this->groups->listForUser($user->id)->all(),
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
         ]));

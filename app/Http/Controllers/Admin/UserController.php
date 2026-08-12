@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\FooterNav;
 use App\Support\Registration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -155,9 +156,22 @@ class UserController extends Controller
         $user->role = $newRole;
         if ($newRole->isStaff()) {
             $user->menu_features = null;
-        } elseif ($request->boolean('menuFeaturesConfigured')) {
+        } else {
+            // 編集フォームは常に利用メニューを送る（未チェック＝追加メニューなし）。
+            // hidden の menuFeaturesConfigured に依存すると、未送信時に設定が残ったままになる。
             $user->menu_features = array_values(array_intersect($data['menuFeatures'] ?? [], MenuFeature::values()));
         }
+
+        // 利用メニュー変更後、表示メニュー設定から権限外の項目を落とす
+        if (! $newRole->isStaff()) {
+            if (is_array($user->footer_nav)) {
+                $user->footer_nav = FooterNav::normalizeFooterKeys($user->footer_nav, $user);
+            }
+            if (is_array($user->header_nav)) {
+                $user->header_nav = FooterNav::normalizeHeaderKeys($user->header_nav, $user);
+            }
+        }
+
         $user->save();
 
         return $this->redirectWithMessage("/admin/users/{$id}", __('ユーザー情報を更新しました。'));

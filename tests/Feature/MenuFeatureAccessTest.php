@@ -73,22 +73,46 @@ class MenuFeatureAccessTest extends TestCase
         $this->actingAs($user)->get('/finance')->assertForbidden();
     }
 
-    public function test_admin_can_save_user_menu_features(): void
+    public function test_super_admin_can_restrict_standard_user_menus_and_header(): void
     {
-        $admin = $this->makeUser(UserRole::Admin, 'admin-save-menus@example.com');
-        $user = $this->makeUser(UserRole::Light, 'target-menus@example.com');
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'super-restrict@example.com');
+        $user = $this->makeUser(UserRole::Standard, 'standard-restrict@example.com', null);
+        // 以前に全メニュー表示を保存していたケースを再現
+        $user->header_nav = ['dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'map', 'music', 'video'];
+        $user->footer_nav = ['dashboard', 'todos', 'notes', 'photos', 'finance'];
+        $user->save();
+
+        $this->actingAs($user)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('入出金経費', false)
+            ->assertSee('音楽', false);
 
         $this->actingAs($admin)->post("/admin/users/{$user->id}/update", [
             'displayName' => $user->display_name,
             'email' => $user->email,
-            'role' => UserRole::Light->value,
-            'menuFeaturesConfigured' => '1',
-            'menuFeatures' => ['music', 'video'],
+            'role' => UserRole::Standard->value,
+            'menuFeatures' => ['music'],
         ])->assertRedirect();
 
         $user->refresh();
-        $this->assertSame(['music', 'video'], $user->menu_features);
+        $this->assertSame(['music'], $user->menu_features);
+        $this->assertSame(['music'], $user->effectiveMenuFeatures());
+        $this->assertSame(['dashboard', 'todos', 'notes', 'photos', 'music'], $user->header_nav);
+        $this->assertSame(['dashboard', 'todos', 'notes', 'photos'], $user->footer_nav);
+
         $this->actingAs($user)->get('/music')->assertOk();
         $this->actingAs($user)->get('/finance')->assertForbidden();
+        $this->actingAs($user)->get('/mypage')
+            ->assertOk()
+            ->assertSee('is-denied', false)
+            ->assertSee(__('利用不可'));
+
+        $dashboard = $this->actingAs($user)->get('/dashboard')->assertOk();
+        $dashboard->assertSee('>音楽</a>', false);
+        $dashboard->assertDontSee('href="/finance"', false);
+        $dashboard->assertDontSee('href="/transit"', false);
+        $dashboard->assertDontSee('href="/map"', false);
+        $dashboard->assertDontSee('入出金経費');
+        $dashboard->assertDontSee('路線検索');
     }
 }

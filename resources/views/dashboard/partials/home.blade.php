@@ -354,13 +354,18 @@
       </div>
     @endif
     <nav class="dash-home-links" aria-label="{{ __('ショートカット') }}">
-      <a href="{{ $links['notes'] ?? '/notes' }}">{{ __('メモ') }}</a>
-      <span aria-hidden="true">｜</span>
-      <a href="{{ $links['aiSettings'] ?? '/settings?section=ai' }}">{{ __('AI設定') }}</a>
-      <span aria-hidden="true">｜</span>
-      <a href="{{ $links['map'] ?? '/map' }}">{{ __('Map') }}</a>
-      <span aria-hidden="true">｜</span>
-      <a href="{{ $links['transit'] ?? '/transit' }}">{{ __('路線検索') }}</a>
+      @php
+        $homeShortcuts = array_values(array_filter([
+          ['href' => $links['notes'] ?? '/notes', 'label' => __('メモ')],
+          ! empty($canSettings) ? ['href' => $links['aiSettings'] ?? '/settings?section=ai', 'label' => __('AI設定')] : null,
+          ! empty($canMap) ? ['href' => $links['map'] ?? '/map', 'label' => __('Map')] : null,
+          ! empty($canTransit) ? ['href' => $links['transit'] ?? '/transit', 'label' => __('路線検索')] : null,
+        ]));
+      @endphp
+      @foreach($homeShortcuts as $i => $shortcut)
+        @if($i > 0)<span aria-hidden="true">｜</span>@endif
+        <a href="{{ $shortcut['href'] }}">{{ $shortcut['label'] }}</a>
+      @endforeach
     </nav>
   </footer>
 </section>

@@ -17086,7 +17086,8 @@ body.video-page .media-player-stage-spacer {
   gap: 10px 16px;
   width: 100%;
   position: relative;
-  z-index: 450;
+  /* sticky 操作バーより上、.site-header(100) より下（高いとタイトルがヘッダーに重なる） */
+  z-index: 50;
 }
 
 .photos-hero-title-row .photos-hero-title-group {
@@ -17109,7 +17110,7 @@ body.video-page .media-player-stage-spacer {
   cursor: pointer;
   flex-shrink: 0;
   position: relative;
-  z-index: 451;
+  z-index: 51;
   pointer-events: auto;
 }
 
