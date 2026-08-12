@@ -523,7 +523,10 @@
           translateNetworkError: @json(__('翻訳中に通信エラーが発生しました')),
           noneSelected: @json(__('対象が選択されていません')),
           textMemo: @json(__('テキストメモ')),
+          memo: @json(__('メモ')),
           checklist: @json(__('チェックリスト')),
+          switchToFreeMemo: @json(__('フリーメモに切替')),
+          switchToChecklist: @json(__('チェックリストに切替')),
           recognizedPrefix: @json(__('認識テキスト:')),
           confidenceHigh: @json(__('確信度: 高')),
           confidenceMedium: @json(__('確信度: 中')),
@@ -690,7 +693,7 @@
           if (typeInput) typeInput.value = isChecklist ? 'checklist' : 'text'
           textPanel?.classList.toggle('date-panel-hidden', isChecklist)
           checklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
-          if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? @json(__('メモ')) : @json(__('チェックリスト'))
+          if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? noteStrings.memo : noteStrings.checklist
           if (isChecklist && checklistEditor && checklistEditor.children.length === 0) {
             addChecklistRow()
           }
@@ -792,7 +795,7 @@
           if (noteEditType) noteEditType.value = isChecklist ? 'checklist' : 'text'
           noteEditTextPanel?.classList.toggle('date-panel-hidden', isChecklist)
           noteEditChecklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
-          if (noteEditToggleType) noteEditToggleType.textContent = isChecklist ? @json(__('フリーメモに切替')) : @json(__('チェックリストに切替'))
+          if (noteEditToggleType) noteEditToggleType.textContent = isChecklist ? noteStrings.switchToFreeMemo : noteStrings.switchToChecklist
           if (isChecklist && noteEditChecklist && noteEditChecklist.children.length === 0) {
             addEditChecklistRow()
           }
