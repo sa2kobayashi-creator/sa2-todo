@@ -1,4 +1,4 @@
-# Sa2 Studio TWA（Android）
+# Sa2 Plus TWA（Android）
 
 PWA（https://sa2-plus.com）を Trusted Web Activity で Android アプリ化するための作業ディレクトリです。
 
@@ -58,8 +58,8 @@ npx @bubblewrap/cli init --manifest=https://sa2-plus.com/manifest.webmanifest
 | 項目 | 推奨 |
 |---|---|
 | Domain | `sa2-plus.com`（https なし） |
-| Application name | `Sa2 Studio` |
-| Launcher name | `Sa2 Studio` |
+| Application name | `Sa2 Plus` |
+| Launcher name | `Sa2 Plus` |
 | Package ID | `com.sa2_plus.twa` |
 | Start URL | `/` |
 | Display mode | `standalone` |

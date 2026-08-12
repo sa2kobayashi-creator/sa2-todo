@@ -9,8 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="application-name" content="{{ config('app.name', 'Sa2 Studio') }}" />
-<meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Sa2 Studio') }}" />
+<meta name="application-name" content="{{ config('app.name', 'Sa2 Plus') }}" />
+<meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'Sa2 Plus') }}" />
 <script>
   // 全体 PWA: 認証 HTML / API はキャッシュしない最小 SW を全ページで登録
   if ('serviceWorker' in navigator) {

@@ -1,11 +1,11 @@
-# Sa2 Studio TWA 初期セットアップ補助（Windows）
+# Sa2 Plus TWA 初期セットアップ補助（Windows）
 # 使い方: powershell -ExecutionPolicy Bypass -File scripts/setup-twa.ps1
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $twaDir = Join-Path $root 'twa'
 
-Write-Host '== Sa2 Studio TWA setup ==' -ForegroundColor Cyan
+Write-Host '== Sa2 Plus TWA setup ==' -ForegroundColor Cyan
 
 # JDK
 $java = Get-Command java -ErrorAction SilentlyContinue

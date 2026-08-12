@@ -63,7 +63,7 @@ class MessengerWebhookController extends Controller
                 if (! preg_match('/\b([A-Za-z0-9]{6})\b/', $text, $m)) {
                     $this->messenger->pushText(
                         $psid,
-                        '連携するには、Sa2 Studio 設定画面の6桁コードを送ってください。'
+                        '連携するには、'.config('app.name').' マイページの6桁コードを送ってください。'
                     );
                     continue;
                 }
@@ -76,7 +76,7 @@ class MessengerWebhookController extends Controller
                 );
 
                 if (! empty($result['ok'])) {
-                    $this->messenger->pushText($psid, 'Sa2 Studio と連携しました。設定画面からテスト通知を送れます。');
+                    $this->messenger->pushText($psid, config('app.name').' と連携しました。マイページからテスト通知を送れます。');
                 } else {
                     $this->messenger->pushText($psid, '連携コードが無効か期限切れです。設定画面で再発行してください。');
                 }

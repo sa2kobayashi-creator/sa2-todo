@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\FinanceCsvService;
 use App\Services\FinanceService;
 use App\Services\FinanceVoiceParseService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -17,6 +19,7 @@ class FinanceController extends Controller
         private FinanceService $finance,
         private FinanceCsvService $financeCsv,
         private FinanceVoiceParseService $voiceParse,
+        private UserUsageLimitService $usageLimits,
     ) {}
 
     private function actAsUser(Request $request): void
@@ -165,6 +168,12 @@ class FinanceController extends Controller
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {
             return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        try {
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         }
 
         try {

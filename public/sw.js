@@ -1,4 +1,4 @@
-/* Sa2 Studio app PWA - installability only; do not cache authenticated HTML/API */
+/* Sa2 Plus app PWA - installability only; do not cache authenticated HTML/API */
 const CACHE = 'sa2-app-shell-v1'
 const PRECACHE = [
   '/manifest.webmanifest',

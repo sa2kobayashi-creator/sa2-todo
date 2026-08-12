@@ -36,7 +36,21 @@ class TranslationApiKeyController extends Controller
             return response()->json(['error' => 'APIキーが見つかりません'], 404);
         }
 
-        return response()->json($key);
+        return response()->json([
+            'id' => $key->id,
+            'name' => $key->name,
+            'api_key' => '',
+            'api_key_masked' => $key->maskedApiKey(),
+            'provider' => $key->provider,
+            'api_url' => $key->api_url,
+            'daily_limit' => $key->daily_limit,
+            'monthly_limit' => $key->monthly_limit,
+            'current_daily_usage' => $key->current_daily_usage,
+            'current_monthly_usage' => $key->current_monthly_usage,
+            'priority' => $key->priority,
+            'is_active' => $key->is_active,
+            'notes' => $key->notes,
+        ]);
     }
 
     public function update(Request $request, int $id)

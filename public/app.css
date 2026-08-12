@@ -10298,6 +10298,34 @@ body.map-page {
   color: #4b5563;
 }
 
+.auth-form label.checkbox-inline,
+.auth-form .agree-terms-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.auth-form label.checkbox-inline input[type="checkbox"],
+.auth-form .agree-terms-row input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.auth-form .agree-terms-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.auth-form .agree-terms-row a.is-read {
+  color: #15803d;
+}
+
+
 .auth-form input[type="email"],
 .auth-form input[type="password"],
 .auth-form input[type="text"] {

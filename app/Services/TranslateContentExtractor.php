@@ -47,7 +47,7 @@ class TranslateContentExtractor
 
         $response = Http::timeout(20)
             ->withHeaders([
-                'User-Agent' => 'Sa2StudioTranslateBot/1.0',
+                'User-Agent' => 'Sa2PlusTranslateBot/1.0',
                 'Accept' => 'text/html,application/xhtml+xml',
             ])
             ->get($url);

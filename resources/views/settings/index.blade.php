@@ -674,8 +674,12 @@
             if (editingIdInput) editingIdInput.value = String(id);
 
             setField('translation-name', data.name);
-            setField('translation-api-key-input', data.api_key);
-            setField('translation-api-url', data.api_url || getDeepLApiUrl(data.api_key || ''));
+            setField('translation-api-key-input', '');
+            if (keyInput) {
+              keyInput.placeholder = data.api_key_masked || '••••••••（変更するときだけ入力）';
+              keyInput.required = false;
+            }
+            setField('translation-api-url', data.api_url || '');
             setField('translation-priority', data.priority ?? 0);
             setField('translation-daily-limit', data.daily_limit ?? '');
             setField('translation-monthly-limit', data.monthly_limit ?? '');

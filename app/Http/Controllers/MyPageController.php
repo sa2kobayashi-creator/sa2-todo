@@ -3,17 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
+use App\Jobs\DeleteUserAccountJob;
 use App\Models\User;
 use App\Services\EmailChangeService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use App\Services\LineMessagingService;
 use App\Services\MessengerMessagingService;
-use App\Services\UserAccountDeletionService;
+use App\Services\UserDataExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class MyPageController extends Controller
@@ -26,7 +29,7 @@ class MyPageController extends Controller
         private GoogleCalendarService $googleCalendar,
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
-        private UserAccountDeletionService $accountDeletion,
+        private UserDataExportService $dataExport,
     ) {}
 
     public function show(Request $request)
@@ -96,6 +99,26 @@ class MyPageController extends Controller
         return $this->redirectWithMessage('/mypage', __('プロフィールを更新しました。'));
     }
 
+    public function export(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $relative = $this->dataExport->createZip($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage('/mypage#account-delete', __('データエクスポートに失敗しました。'), 'error');
+        }
+
+        $absolute = Storage::disk('local')->path($relative);
+
+        return response()->download($absolute, basename($relative), [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
+    }
+
     public function destroy(Request $request)
     {
         /** @var User $user */
@@ -131,22 +154,18 @@ class MyPageController extends Controller
             );
         }
 
-        try {
-            $this->accountDeletion->delete($user);
-        } catch (\Throwable $e) {
-            report($e);
-
-            return $this->redirectWithMessage(
-                '/mypage#account-delete',
-                __('アカウント削除に失敗しました。しばらくしてから再度お試しください。'),
-                'error'
-            );
-        }
+        $userId = (int) $user->id;
+        $user->forceFill([
+            'password' => Hash::make(Str::random(64)),
+            'remember_token' => null,
+        ])->save();
 
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return $this->redirectWithMessage('/login', __('アカウントを削除しました。ご利用ありがとうございました。'));
+        DeleteUserAccountJob::dispatchAfterHttp($userId);
+
+        return $this->redirectWithMessage('/login', __('アカウント削除を開始しました。ご利用ありがとうございました。'));
     }
 }

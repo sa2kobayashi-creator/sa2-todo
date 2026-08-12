@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Sa2 Studio",
-  "short_name": "Sa2 Studio",
-  "description": "Sa2 Studio",
+  "name": "Sa2 Plus",
+  "short_name": "Sa2 Plus",
+  "description": "Sa2 Plus",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

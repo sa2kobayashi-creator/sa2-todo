@@ -7,7 +7,7 @@
   <div class="site-header-inner">
     <a href="/dashboard" class="site-logo">
       <img src="{{ asset('icons/app-icon.png') }}?v=9" alt="" class="site-logo-icon" width="36" height="36" />
-      <span>{{ config('app.name', 'Sa2 Studio') }}</span>
+      <span>{{ config('app.name', 'Sa2 Plus') }}</span>
     </a>
     <nav class="site-nav" aria-label="{{ __('メインメニュー') }}">
       @forelse($headerNavItems as $navItem)
@@ -117,6 +117,8 @@
                 <span class="role-badge {{ $currentUser['role'] }}">{{ $currentUser['roleLabel'] }}</span>
               </div>
               <a href="/mypage" role="menuitem">{{ __('マイページ') }}</a>
+              <a href="/help" role="menuitem">{{ __('ヘルプ') }}</a>
+              <a href="/about" role="menuitem">{{ __('Sa2 Plus について') }}</a>
               @if(!empty($canGroups))
                 <a href="/groups" role="menuitem">{{ __('グループ') }}</a>
               @endif

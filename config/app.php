@@ -13,7 +13,9 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Sa2 Studio'),
+    'name' => env('APP_NAME', 'Sa2 Plus'),
+
+    'version' => env('APP_VERSION', '1.0.0'),
 
     /*
     |--------------------------------------------------------------------------

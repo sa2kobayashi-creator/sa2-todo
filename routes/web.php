@@ -15,6 +15,7 @@ use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\HelpController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
@@ -104,7 +105,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/todos', [TodoController::class, 'index']);
     Route::post('/todos', [TodoController::class, 'store']);
-    Route::post('/todos/voice/parse', [TodoController::class, 'parseVoice']);
+    Route::post('/todos/voice/parse', [TodoController::class, 'parseVoice'])->middleware('throttle:ai-voice');
     Route::post('/todos/bulk/complete', [TodoController::class, 'bulkComplete']);
     Route::post('/todos/bulk/uncomplete', [TodoController::class, 'bulkUncomplete']);
     Route::post('/todos/bulk/delete', [TodoController::class, 'bulkDelete']);
@@ -117,7 +118,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/notes', [NoteController::class, 'index']);
     Route::post('/notes', [NoteController::class, 'store']);
-    Route::post('/notes/voice/parse', [NoteController::class, 'parseVoice']);
+    Route::post('/notes/voice/parse', [NoteController::class, 'parseVoice'])->middleware('throttle:ai-voice');
     Route::post('/notes/bulk/archive', [NoteController::class, 'bulkArchive']);
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);
     Route::post('/notes/bulk/append', [NoteController::class, 'bulkAppend']);
@@ -151,7 +152,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
-    Route::post('/photos/{id}/stability-enhance', [PhotoController::class, 'stabilityEnhance'])->whereNumber('id');
+    Route::post('/photos/{id}/stability-enhance', [PhotoController::class, 'stabilityEnhance'])->middleware('throttle:ai-enhance')->whereNumber('id');
     Route::post('/photos/{id}/stability-enhance/cancel', [PhotoController::class, 'stabilityEnhanceCancel'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/start', [PhotoController::class, 'cloudinaryEditStart'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/commit', [PhotoController::class, 'cloudinaryEditCommit'])->whereNumber('id');
@@ -221,7 +222,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
+    Route::get('/mypage/export', [MyPageController::class, 'export']);
     Route::post('/mypage/delete', [MyPageController::class, 'destroy']);
+    Route::get('/help', [HelpController::class, 'index']);
+    Route::get('/about', [HelpController::class, 'about']);
 
     // Google Calendar 個人連携（設定画面不要。Standard / Light も利用可）
     Route::get('/mypage/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
@@ -255,7 +259,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/finance/import', [FinanceController::class, 'importCsv']);
         Route::post('/finance/bulk/delete', [FinanceController::class, 'bulkDestroy']);
         Route::post('/finance', [FinanceController::class, 'store']);
-        Route::post('/finance/voice/parse', [FinanceController::class, 'parseVoice']);
+        Route::post('/finance/voice/parse', [FinanceController::class, 'parseVoice'])->middleware('throttle:ai-voice');
         Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
         Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
         Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');

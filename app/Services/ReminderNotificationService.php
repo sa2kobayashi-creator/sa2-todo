@@ -136,7 +136,8 @@ class ReminderNotificationService
         $time = trim((string) ($todo->start_time ?? ''));
         $schedule = $when.($time !== '' ? ' '.$time : '');
         $text = sprintf(
-            "【Sa2 Studio リマインダ】\n%s\n予定: %s\n通知: %s",
+            "【%s リマインダ】\n%s\n予定: %s\n通知: %s",
+            config('app.name'),
             $todo->title,
             $schedule,
             $label
@@ -159,7 +160,7 @@ class ReminderNotificationService
             return ['ok' => false, 'message' => __('未連携です。先に連携コードで接続してください。')];
         }
 
-        $text = __('【Sa2 Studio】テスト通知です。連携は正常です。');
+        $text = __('【:app】テスト通知です。連携は正常です。', ['app' => config('app.name')]);
 
         return match ($provider) {
             MessagingConnection::PROVIDER_LINE => $this->line->sendText($user, $text),

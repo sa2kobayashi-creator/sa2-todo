@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\TranslationHistory;
 use App\Services\TranslateContentExtractor;
 use App\Services\TranslationService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -17,6 +19,7 @@ class TranslateController extends Controller
     public function __construct(
         private TranslationService $translation,
         private TranslateContentExtractor $extractor,
+        private UserUsageLimitService $usageLimits,
     ) {}
 
     public function index(Request $request)
@@ -51,6 +54,19 @@ class TranslateController extends Controller
         $target = strtoupper(trim($data['target']));
         $text = (string) $data['text'];
         $mode = $data['mode'] ?? 'text';
+        $chars = mb_strlen($text);
+
+        try {
+            if (Auth::check()) {
+                $this->usageLimits->consume(Auth::user(), UserUsageLimitService::FEATURE_TRANSLATE, $chars);
+            }
+        } catch (UsageLimitExceededException $e) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
+            }
+
+            return $this->redirectWithMessage('/translate', $e->getMessage(), 'error');
+        }
 
         $result = $this->translation->translateDetailed($text, $source, $target);
         if ($result === null) {

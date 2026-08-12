@@ -28,9 +28,14 @@ class TranslationApiKey extends Model
         'deepl_usage_fetched_at',
     ];
 
+    protected $hidden = [
+        'api_key',
+    ];
+
     protected function casts(): array
     {
         return [
+            'api_key' => 'encrypted',
             'daily_limit' => 'integer',
             'monthly_limit' => 'integer',
             'current_daily_usage' => 'integer',
@@ -45,6 +50,18 @@ class TranslationApiKey extends Model
             'deepl_character_limit' => 'integer',
             'deepl_usage_fetched_at' => 'datetime',
         ];
+    }
+
+    public function maskedApiKey(): string
+    {
+        $plain = (string) $this->api_key;
+        if ($plain === '') {
+            return '';
+        }
+
+        $tail = mb_substr($plain, -4);
+
+        return '••••••••'.$tail;
     }
 
     /**

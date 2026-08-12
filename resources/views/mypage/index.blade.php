@@ -120,6 +120,10 @@
       <div class="panel" id="account-delete" style="border-color:#f3c1c1;">
         <h2>{{ __('退会（アカウント削除）') }}</h2>
         <p class="hint">{{ __('アカウントと、写真・メモ・音楽などのデータを削除します。この操作は取り消せません。') }}</p>
+        <p class="hint">{{ __('退会前に、データのコピー（JSON ZIP）をダウンロードできます。写真・音楽ファイル本体は含まれません。') }}</p>
+        <div class="storage-form-actions" style="margin-bottom:12px;">
+          <a class="button-link secondary" href="/mypage/export">{{ __('データをエクスポート') }}</a>
+        </div>
         <form method="post" action="/mypage/delete" class="stack-form" onsubmit="return confirm(@json(__('本当に退会しますか？データは復元できません。')))">
           @csrf
           <label>{{ __('現在のパスワード') }}

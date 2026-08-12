@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AppContext;
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\AppContextService;
 use App\Services\CalendarService;
 use App\Services\DisplayService;
@@ -12,6 +13,7 @@ use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
 use App\Services\TodoVoiceParseService;
+use App\Services\UserUsageLimitService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +33,7 @@ class TodoController extends Controller
         private TodoVoiceParseService $voiceParse,
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
+        private UserUsageLimitService $usageLimits,
     ) {}
 
     public function index(Request $request)
@@ -234,6 +237,12 @@ class TodoController extends Controller
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {
             return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        try {
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         }
 
         return $this->voiceParseJsonResponse(fn () => $this->voiceParse->parse(

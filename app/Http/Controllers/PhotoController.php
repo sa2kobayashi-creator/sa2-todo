@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\GroupService;
 use App\Services\PhotoService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 
 class PhotoController extends Controller
@@ -14,6 +16,7 @@ class PhotoController extends Controller
         private PhotoService $photos,
         private GroupService $groups,
         private \App\Services\MediaStorageConfigService $mediaStorage,
+        private UserUsageLimitService $usageLimits,
     ) {}
 
     public function index(Request $request)
@@ -816,6 +819,12 @@ class PhotoController extends Controller
     {
         if (! $request->user()?->isSuperAdmin()) {
             return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
+        }
+
+        try {
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_ENHANCE, 1);
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         }
 
         try {

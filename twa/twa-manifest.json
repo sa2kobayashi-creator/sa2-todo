@@ -1,8 +1,8 @@
 {
   "packageId": "com.sa2_plus.twa",
   "host": "sa2-plus.com",
-  "name": "Sa2 Studio",
-  "launcherName": "Sa2 Studio",
+  "name": "Sa2 Plus",
+  "launcherName": "Sa2 Plus",
   "display": "standalone",
   "themeColor": "#1A1F24",
   "themeColorDark": "#000000",

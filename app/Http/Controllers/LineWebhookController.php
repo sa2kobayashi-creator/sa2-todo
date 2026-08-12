@@ -43,7 +43,7 @@ class LineWebhookController extends Controller
             if ($type === 'follow' && $lineUserId !== '') {
                 $this->line->replyText(
                     $replyToken,
-                    "友だち追加ありがとうございます。\nSa2 Studio の設定画面で発行した連携コードをこのトークに送信してください。"
+                    '友だち追加ありがとうございます。'."\n".config('app.name').' のマイページで発行した連携コードをこのトークに送信してください。'
                 );
                 continue;
             }
@@ -79,7 +79,7 @@ class LineWebhookController extends Controller
             );
 
             if (! empty($result['ok'])) {
-                $this->line->replyText($replyToken, "Sa2 Studio と連携しました。テスト通知を設定画面から送れます。");
+                $this->line->replyText($replyToken, config('app.name').' と連携しました。マイページからテスト通知を送れます。');
             } else {
                 $this->line->replyText($replyToken, "連携コードが無効か期限切れです。設定画面で再発行してください。");
             }

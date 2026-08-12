@@ -54,6 +54,9 @@ class UserAccountDeletionTest extends TestCase
         $response->assertRedirect();
         $this->assertStringStartsWith(url('/login'), $response->headers->get('Location'));
         $this->assertGuest();
+
+        $this->app->terminate();
+
         $this->assertDatabaseMissing('users', ['email' => 'leave@example.com']);
         $this->assertDatabaseMissing('todos', ['title' => 'gone']);
         $this->assertDatabaseMissing('notes', ['title' => 'note']);
@@ -101,6 +104,8 @@ class UserAccountDeletionTest extends TestCase
         Storage::disk(config('music.disk', $disk))->put('music/'.$target->id.'/a.mp3', 'audio');
 
         $this->actingAs($admin)->post("/admin/users/{$target->id}/delete")->assertRedirect();
+
+        $this->app->terminate();
 
         $this->assertDatabaseMissing('users', ['email' => 'target-del@example.com']);
         $this->assertDatabaseMissing('photos', ['path' => $path]);

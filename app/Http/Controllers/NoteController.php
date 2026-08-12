@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Note;
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\GroupService;
 use App\Services\NoteService;
 use App\Services\NoteVoiceParseService;
 use App\Services\TranslationService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,6 +21,7 @@ class NoteController extends Controller
         private NoteService $notes,
         private GroupService $groups,
         private NoteVoiceParseService $voiceParse,
+        private UserUsageLimitService $usageLimits,
     ) {}
 
     /**
@@ -51,6 +54,13 @@ class NoteController extends Controller
             ? $request->input('target_lang')
             : ($this->containsJapanese($note->title.' '.$note->body.' '.$this->itemsText($note)) ? 'en' : 'ja');
         $source = $target === 'en' ? 'ja' : 'en';
+
+        $sourceBlob = trim($note->title.' '.$note->body.' '.$this->itemsText($note));
+        try {
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_TRANSLATE, mb_strlen($sourceBlob));
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
+        }
 
         $items = [];
         foreach ($note->items ?? [] as $item) {
@@ -150,6 +160,12 @@ class NoteController extends Controller
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {
             return response()->json(['ok' => false, 'message' => __('音声テキストが空です。')], 422);
+        }
+
+        try {
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         }
 
         return $this->voiceParseJsonResponse(fn () => $this->voiceParse->parse(
