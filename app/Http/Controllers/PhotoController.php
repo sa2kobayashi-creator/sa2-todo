@@ -1148,6 +1148,44 @@ class PhotoController extends Controller
         return $this->redirectWithMessage($returnTo, $message);
     }
 
+    public function bulkUpdate(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $takenAt = $request->filled('taken_at') ? (string) $request->input('taken_at') : null;
+        $showRaw = $request->input('show_on_dashboard');
+        $showOnDashboard = ($showRaw === null || $showRaw === '')
+            ? null
+            : $this->requestedShowOnDashboard($request);
+
+        try {
+            $count = $this->photos->bulkUpdatePhotos(
+                (int) $request->user()->id,
+                $this->photos->parseIdList($request->input('ids')),
+                $takenAt,
+                $showOnDashboard
+            );
+        } catch (\InvalidArgumentException $e) {
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        $message = __(':count件のメディアを更新しました', ['count' => $count]);
+
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'count' => $count,
+                'message' => $message,
+            ]);
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
+    }
+
     public function bulkArchive(Request $request)
     {
         $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');

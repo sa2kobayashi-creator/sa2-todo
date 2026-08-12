@@ -3765,6 +3765,7 @@ a.filter-clear-btn {
 
 .modal-form textarea,
 .modal-form input[type="date"],
+.modal-form input[type="datetime-local"],
 .modal-form input[type="text"],
 .modal-form input[type="password"],
 .modal-form input[type="email"],
@@ -3778,6 +3779,19 @@ a.filter-clear-btn {
   background: white;
   box-sizing: border-box;
   min-height: 42px;
+}
+
+.modal-form input[type="datetime-local"] {
+  color: #111827;
+  color-scheme: light;
+  appearance: none;
+}
+
+.modal-form input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  width: 18px;
+  height: 18px;
 }
 
 .modal-form select {
@@ -11470,6 +11484,12 @@ body.photos-is-busy .photos-main {
   color: var(--photos-muted);
 }
 
+.photos-dashboard-field select {
+  color: var(--photos-ink, #111827);
+  background: #fff;
+  color-scheme: light;
+}
+
 .photos-album-dashboard-field {
   display: flex;
   flex-direction: column;
@@ -11487,6 +11507,7 @@ body.photos-is-busy .photos-main {
   background: #fff;
   font: inherit;
   color: var(--photos-ink, #111827);
+  color-scheme: light;
 }
 
 .photos-add-sheet-panel h2 {
@@ -13246,8 +13267,24 @@ label.photos-camera-btn span {
   display: none !important;
 }
 
-.photos-detail-dialog {
+.photos-detail-dialog,
+.photos-bulk-edit-dialog {
   width: min(420px, 100%);
+}
+
+.photos-bulk-edit-form select,
+.photos-bulk-edit-form input[type="datetime-local"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+  background: #fff;
+  color-scheme: light;
+  box-sizing: border-box;
 }
 
 .photos-detail-list {
@@ -13323,7 +13360,15 @@ label.photos-camera-btn span {
   font-size: 10px;
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  color-scheme: dark;
+  /* native option list must stay light or Windows shows white-on-white */
+  color-scheme: light;
+}
+
+.photos-lightbox-meta .photos-dashboard-form select option,
+.photos-dashboard-field select option,
+.photos-bulk-edit-form select option {
+  color: #111827;
+  background: #fff;
 }
 
 .photos-lightbox-meta .photos-trim-form input[type="number"] {

@@ -2416,6 +2416,37 @@ class PhotoService
             ->update(['album_id' => $albumId]);
     }
 
+    /**
+     * @param  list<int|string>  $ids
+     */
+    public function bulkUpdatePhotos(int $userId, array $ids, ?string $takenAt = null, ?bool $showOnDashboard = null): int
+    {
+        $idSet = $this->parseIdList($ids);
+        if ($idSet === []) {
+            return 0;
+        }
+        if ($takenAt === null && $showOnDashboard === null) {
+            throw new \InvalidArgumentException(__('登録日かダッシュボード表示を指定してください。'));
+        }
+
+        $updates = [];
+        if ($takenAt !== null) {
+            $normalized = $this->normalizeTakenAt($takenAt);
+            if ($normalized === null) {
+                throw new \InvalidArgumentException(__('登録日が正しくありません。'));
+            }
+            $updates['taken_at'] = $normalized;
+        }
+        if ($showOnDashboard !== null) {
+            $updates['show_on_dashboard'] = $showOnDashboard;
+        }
+
+        return Photo::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $idSet)
+            ->update($updates);
+    }
+
     /** @param mixed $raw @return list<int> */
     public function parseIdList(mixed $raw): array
     {

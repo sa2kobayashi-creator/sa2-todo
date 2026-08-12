@@ -145,6 +145,8 @@ class BulkActionsAndPagesTest extends TestCase
         $response->assertSee('data-photos-mode="archive"', false);
         $response->assertSee('id="photos-bulk-archive"', false);
         $response->assertSee('id="photos-bulk-restore"', false);
+        $response->assertSee('id="photos-bulk-edit"', false);
+        $response->assertSee('id="photos-bulk-edit-modal"', false);
         $response->assertSee('photos-lightbox', false);
         $response->assertSee('photos-lb-detail-open', false);
         $response->assertDontSee('photos-zoom-in', false);
@@ -289,6 +291,35 @@ class BulkActionsAndPagesTest extends TestCase
 
         $this->assertDatabaseMissing('photos', ['id' => $photoDelete->id]);
         $this->assertDatabaseHas('photos', ['id' => $photoKeep->id]);
+    }
+
+    public function test_photos_bulk_update_changes_taken_at_and_dashboard_visibility(): void
+    {
+        $photo = Photo::create([
+            'user_id' => $this->user->id,
+            'path' => 'photos/bulk-edit.jpg',
+            'original_name' => 'bulk-edit.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 100,
+            'taken_at' => '2024-01-01 12:00:00',
+            'show_on_dashboard' => true,
+        ]);
+
+        $this->actingAs($this->user)
+            ->postJson('/photos/bulk/update', [
+                'ids' => [$photo->id],
+                'taken_at' => '2026-08-12T15:30',
+                'show_on_dashboard' => '0',
+            ])
+            ->assertOk()
+            ->assertJson([
+                'ok' => true,
+                'count' => 1,
+            ]);
+
+        $fresh = $photo->fresh();
+        $this->assertFalse((bool) $fresh->show_on_dashboard);
+        $this->assertSame('2026-08-12 15:30:00', $fresh->taken_at?->format('Y-m-d H:i:s'));
     }
 
     public function test_photos_root_scope_hides_album_photos_by_default(): void
@@ -561,6 +592,7 @@ class BulkActionsAndPagesTest extends TestCase
         $this->post('/photos/bulk/move', ['ids' => [1], 'album_id' => 1])->assertRedirect('/login');
         $this->post('/photos/bulk/archive', ['ids' => [1]])->assertRedirect('/login');
         $this->post('/photos/bulk/restore', ['ids' => [1]])->assertRedirect('/login');
+        $this->post('/photos/bulk/update', ['ids' => [1]])->assertRedirect('/login');
     }
 
     public function test_photos_upload_succeeds_when_gd_full_decode_is_skipped(): void

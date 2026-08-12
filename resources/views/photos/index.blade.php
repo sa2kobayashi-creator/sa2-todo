@@ -912,6 +912,7 @@
               <button type="button" class="photos-secondary-btn" id="photos-bulk-archive" @if($photosLibrary === 'archived') hidden @endif>{{ __('アーカイブ') }}</button>
               <button type="button" class="photos-secondary-btn" id="photos-bulk-restore" @if($photosLibrary !== 'archived') hidden @endif>{{ __('元に戻す') }}</button>
               <button type="button" class="photos-secondary-btn photos-danger-btn" id="photos-bulk-delete">{{ __('一括削除') }}</button>
+              <button type="button" class="photos-secondary-btn" id="photos-bulk-edit">{{ __('一括編集') }}</button>
               <label class="photos-bulk-move" id="photos-bulk-move-wrap" hidden>
                 <span>{{ __('アルバムへ移動') }}</span>
                 <select id="photos-bulk-move-album">
@@ -1843,6 +1844,37 @@
         >
           @csrf
           <input type="hidden" name="returnTo" value="/photos" />
+        </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="photos-bulk-edit-modal" hidden>
+      <div class="modal-backdrop" data-close-bulk-edit-modal></div>
+      <div class="modal-dialog photos-bulk-edit-dialog" role="dialog" aria-labelledby="photos-bulk-edit-title">
+        <div class="modal-header">
+          <h2 id="photos-bulk-edit-title">{{ __('一括編集') }}</h2>
+          <button type="button" class="modal-close" data-close-bulk-edit-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form class="modal-form photos-bulk-edit-form" id="photos-bulk-edit-form">
+          @csrf
+          <p class="hint" id="photos-bulk-edit-count"></p>
+          <p class="hint">{{ __('空欄の項目は変更しません。') }}</p>
+          <label>
+            {{ __('登録日') }}
+            <input type="datetime-local" name="taken_at" id="photos-bulk-edit-taken-at" />
+          </label>
+          <label>
+            {{ __('ダッシュボード') }}
+            <select name="show_on_dashboard" id="photos-bulk-edit-dashboard">
+              <option value="">{{ __('変更しない') }}</option>
+              <option value="1">{{ __('表示する') }}</option>
+              <option value="0" selected>{{ __('表示しない') }}</option>
+            </select>
+          </label>
+          <div class="modal-actions">
+            <button type="button" class="secondary" data-close-bulk-edit-modal>{{ __('キャンセル') }}</button>
+            <button type="submit" id="photos-bulk-edit-submit">{{ __('実行') }}</button>
+          </div>
         </form>
       </div>
     </div>
@@ -4667,7 +4699,7 @@
             else overlay.setAttribute('hidden', '')
           }
           document.body.classList.toggle('photos-is-busy', !!visible)
-          const actionIds = ['photos-bulk-delete', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick']
+          const actionIds = ['photos-bulk-delete', 'photos-bulk-edit', 'photos-bulk-archive', 'photos-bulk-restore', 'photos-bulk-move', 'photos-lb-delete-quick']
           if (visible) {
             // 既存ジョブがあっても削除を優先して上書きする
             pageJob?.start(kind)
@@ -4785,6 +4817,51 @@
         }
         document.getElementById('photos-bulk-delete')?.addEventListener('click', () => {
           void bulkDeleteSelectedChunked()
+        })
+        const bulkEditModal = document.getElementById('photos-bulk-edit-modal')
+        const bulkEditForm = document.getElementById('photos-bulk-edit-form')
+        const bulkEditCount = document.getElementById('photos-bulk-edit-count')
+        const bulkEditTakenAt = document.getElementById('photos-bulk-edit-taken-at')
+        const bulkEditDashboard = document.getElementById('photos-bulk-edit-dashboard')
+        function closeBulkEditModal() {
+          bulkEditModal?.setAttribute('hidden', '')
+        }
+        function openBulkEditModal() {
+          const ids = selectedPhotoIds()
+          if (ids.length === 0) {
+            window.alert(@json(__('対象が選択されていません')));
+            return
+          }
+          if (bulkEditCount) {
+            bulkEditCount.textContent = @json(__(':count件選択')).replace(':count', String(ids.length))
+          }
+          if (bulkEditTakenAt) bulkEditTakenAt.value = ''
+          if (bulkEditDashboard) bulkEditDashboard.value = '0'
+          bulkEditModal?.removeAttribute('hidden')
+          bulkEditTakenAt?.focus()
+        }
+        document.getElementById('photos-bulk-edit')?.addEventListener('click', () => openBulkEditModal())
+        document.querySelectorAll('[data-close-bulk-edit-modal]').forEach((el) => {
+          el.addEventListener('click', () => closeBulkEditModal())
+        })
+        bulkEditForm?.addEventListener('submit', (e) => {
+          e.preventDefault()
+          const takenAt = bulkEditTakenAt?.value || ''
+          const showOnDashboard = bulkEditDashboard?.value ?? ''
+          if (!takenAt && showOnDashboard === '') {
+            window.alert(@json(__('登録日かダッシュボード表示を指定してください。')))
+            return
+          }
+          const extra = {}
+          if (takenAt) extra.taken_at = takenAt
+          if (showOnDashboard !== '') extra.show_on_dashboard = showOnDashboard
+          closeBulkEditModal()
+          const count = selectedPhotoIds().length
+          void runPhotosBulkJson(
+            '/photos/bulk/update',
+            extra,
+            @json(__(':count件を更新しています…')).replace(':count', String(count))
+          )
         })
         document.getElementById('photos-bulk-archive')?.addEventListener('click', () => {
           if (!window.confirm(@json(__('選択したメディアをアーカイブしますか？通常の一覧からは隠れますが、ファイルは残り、「アーカイブ」表示から復元できます。')))) return

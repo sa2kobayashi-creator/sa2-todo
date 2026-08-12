@@ -158,6 +158,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/photos/{id}/file', [PhotoController::class, 'file'])->whereNumber('id');
     Route::post('/photos/{id}/delete', [PhotoController::class, 'destroy'])->whereNumber('id');
     Route::post('/photos/bulk/delete', [PhotoController::class, 'bulkDestroy']);
+    Route::post('/photos/bulk/update', [PhotoController::class, 'bulkUpdate']);
     Route::post('/photos/bulk/move', [PhotoController::class, 'bulkMove']);
     Route::post('/photos/bulk/archive', [PhotoController::class, 'bulkArchive']);
     Route::post('/photos/bulk/restore', [PhotoController::class, 'bulkRestore']);
