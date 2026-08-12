@@ -29,7 +29,23 @@ class EnglishLocaleRenderTest extends TestCase
     /** @return list<string> */
     private function pages(): array
     {
-        return ['/dashboard', '/todos', '/notes', '/finance', '/photos', '/transit', '/map', '/mypage', '/settings', '/groups', '/video', '/travel'];
+        return [
+            '/dashboard',
+            '/todos',
+            '/notes',
+            '/finance',
+            '/photos',
+            '/transit',
+            '/map',
+            '/mypage',
+            '/settings',
+            '/groups',
+            '/video',
+            '/travel',
+            '/translate',
+            '/music',
+            '/admin/users',
+        ];
     }
 
     public function test_every_page_renders_in_english(): void

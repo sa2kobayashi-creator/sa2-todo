@@ -419,7 +419,7 @@ class PhotoController extends Controller
             default => '写真',
         };
         $message = $count > 0
-            ? __(':count件の'.$labelKey.'を追加しました', ['count' => $count])
+            ? __(':count件の:labelを追加しました', ['count' => $count, 'label' => __($labelKey)])
             : __('追加する新規ファイルはありませんでした');
         if ($skipCount > 0) {
             $message .= __('（重複スキップ :count件）', ['count' => $skipCount]);

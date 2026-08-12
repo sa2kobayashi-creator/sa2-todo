@@ -422,7 +422,7 @@
                     @csrf
                     <button type="submit" class="mini-btn secondary" title="{{ __('使用量をリセット') }}">↺</button>
                   </form>
-                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/delete" class="inline-form" onsubmit='return confirm(@json('「'.$key->name.'」'.__('を削除しますか？')))'>
+                  <form method="post" action="/settings/translation-keys/{{ $key->id }}/delete" class="inline-form" onsubmit='return confirm(@json(__('「:name」を削除しますか？', ['name' => $key->name])))'>
                     @csrf
                     <button type="submit" class="danger mini-btn">{{ __('削除') }}</button>
                   </form>

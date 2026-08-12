@@ -36,12 +36,12 @@
       <div class="gt-langs">
         <div class="gt-lang-side" id="gt-source-chips">
           <button type="button" class="gt-chip" data-lang="AUTO">{{ __('言語を検出') }}</button>
-          <button type="button" class="gt-chip is-active" data-lang="JA">日本語</button>
+          <button type="button" class="gt-chip is-active" data-lang="JA">{{ __('日本語') }}</button>
           <button type="button" class="gt-chip" data-lang="EN">{{ __('英語') }}</button>
           <button type="button" class="gt-chip" data-lang="KO">{{ __('韓国語') }}</button>
           <select id="translate-source" class="gt-lang-more" aria-label="{{ __('原文の言語') }}">
             <option value="AUTO">{{ __('言語を検出') }}</option>
-            <option value="JA" selected>日本語</option>
+            <option value="JA" selected>{{ __('日本語') }}</option>
             <option value="EN">English</option>
             <option value="KO">한국어</option>
             <option value="TL">Filipino</option>
@@ -55,11 +55,11 @@
         </button>
         <div class="gt-lang-side" id="gt-target-chips">
           <button type="button" class="gt-chip is-active" data-lang="EN">{{ __('英語') }}</button>
-          <button type="button" class="gt-chip" data-lang="JA">日本語</button>
+          <button type="button" class="gt-chip" data-lang="JA">{{ __('日本語') }}</button>
           <button type="button" class="gt-chip" data-lang="KO">{{ __('韓国語') }}</button>
           <select id="translate-target" class="gt-lang-more" aria-label="{{ __('訳文の言語') }}">
             <option value="EN" selected>English</option>
-            <option value="JA">日本語</option>
+            <option value="JA">{{ __('日本語') }}</option>
             <option value="KO">한국어</option>
             <option value="TL">Filipino</option>
             <option value="ZH">中文</option>
@@ -70,7 +70,7 @@
       <section class="gt-board" data-panel="text">
         <div class="gt-panes">
           <div class="gt-pane">
-            <label class="gt-pane-label" id="gt-source-label">日本語</label>
+            <label class="gt-pane-label" id="gt-source-label">{{ __('日本語') }}</label>
             <textarea id="translate-input" maxlength="50000" placeholder="{{ __('翻訳したい文章') }}">{{ $input ?? '' }}</textarea>
             <div class="gt-pane-foot">
               <button type="button" class="gt-mic" id="translate-mic" hidden>{{ __('マイクで話す') }}</button>
@@ -177,7 +177,7 @@
       ];
       $langLabels = [
         'AUTO' => __('言語を検出'),
-        'JA' => '日本語',
+        'JA' => __('日本語'),
         'EN' => __('英語'),
         'KO' => __('韓国語'),
         'TL' => 'Filipino',

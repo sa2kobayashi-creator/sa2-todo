@@ -1392,7 +1392,7 @@
           btn.type = 'button'
           btn.className = 'finance-easy-amount-btn finance-easy-amount-btn--icon text-btn'
           btn.setAttribute('aria-label', @json(__('金額を簡単入力')))
-          btn.setAttribute('title', '簡単入力')
+          btn.setAttribute('title', @json(__('簡単入力')))
           btn.innerHTML = '<svg class="finance-easy-amount-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="6" rx="1.5"></rect><rect x="14" y="3" width="7" height="6" rx="1.5"></rect><rect x="3" y="11" width="7" height="6" rx="1.5"></rect><rect x="14" y="11" width="7" height="6" rx="1.5"></rect></svg>'
           return btn
         }
@@ -1463,9 +1463,9 @@
           function resolveEasyAmountTitle(input) {
             const label = input.closest('label')
             const labelText = label?.querySelector('.finance-quick-field-label, span')?.textContent?.trim()
-            if (labelText) return `${labelText} 簡単入力`
-            if (input.id === 'finance-quick-to-amount' || input.name === 'toAmount') return '振替先金額 簡単入力'
-            return '金額 簡単入力'
+            if (labelText) return @json(__(':label 簡単入力')).replace(':label', labelText)
+            if (input.id === 'finance-quick-to-amount' || input.name === 'toAmount') return @json(__('振替先金額 簡単入力'))
+            return @json(__('金額 簡単入力'))
           }
 
           function openEasyAmountModal(input) {
@@ -1826,15 +1826,15 @@
         }
 
         const quickSubmitLabels = {
-          income: '入金を登録',
-          expense: '支出を登録',
-          transfer: '振替を登録',
+          income: @json(__('入金を登録')),
+          expense: @json(__('支出を登録')),
+          transfer: @json(__('振替を登録')),
         }
 
         const quickAccountLabels = {
-          income: '入金先',
-          expense: '支出元',
-          transfer: '振替元',
+          income: @json(__('入金先')),
+          expense: @json(__('支出元')),
+          transfer: @json(__('振替元')),
         }
 
         function setQuickExpenseCategory(category) {
@@ -1898,8 +1898,8 @@
             del.type = 'button'
             del.className = 'finance-expense-other-delete'
             del.dataset.category = slug
-            del.setAttribute('aria-label', `${label}を削除`)
-            del.title = '削除'
+            del.setAttribute('aria-label', @json(__(':nameを削除')).replace(':name', label))
+            del.title = @json(__('削除'))
             del.textContent = '×'
             item.appendChild(btn)
             item.appendChild(del)
@@ -1953,7 +1953,7 @@
               ?.querySelector('.finance-expense-other-option')
               ?.textContent
               ?.trim() || slug
-            if (!window.confirm(`「${label}」を削除しますか？`)) return
+            if (!window.confirm(@json(__('「:name」を削除しますか？')).replace(':name', label))) return
             btn.disabled = true
             try {
               const response = await fetch(`/finance/categories/${encodeURIComponent(slug)}/delete`, {
@@ -1988,9 +1988,9 @@
             clearQuickExpenseCategory()
             closeExpenseOtherModal()
           }
-          if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || '登録'
-          if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || '口座'
-          if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? '振替元金額' : '金額'
+          if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || @json(__('登録'))
+          if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || @json(__('口座'))
+          if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? @json(__('振替元金額')) : @json(__('金額'))
           quickSubmitBtn?.classList.toggle('is-income', type === 'income')
           quickSubmitBtn?.classList.toggle('is-expense', type === 'expense')
           quickSubmitBtn?.classList.toggle('is-transfer', type === 'transfer')
@@ -2098,7 +2098,7 @@
             })
             const data = await response.json().catch(() => ({}))
             if (!response.ok || !data?.ok || !data?.category) {
-              throw new Error(data?.message || 'カテゴリーの追加に失敗しました')
+              throw new Error(data?.message || @json(__('カテゴリーの追加に失敗しました')))
             }
             appendExpenseCategoryOption(data.category.slug, data.category.label)
             setQuickExpenseCategory(data.category.slug)
@@ -2106,7 +2106,7 @@
             closeExpenseOtherModal()
           } catch (error) {
             if (errorEl) {
-              errorEl.textContent = error?.message || 'カテゴリーの追加に失敗しました'
+              errorEl.textContent = error?.message || @json(__('カテゴリーの追加に失敗しました'))
               errorEl.hidden = false
             }
           } finally {
@@ -2122,15 +2122,15 @@
         syncQuickTransferVisibility()
 
         const typeHints = {
-          income: '入金を登録すると、選んだ口座の残高にすぐ加算されます（給与・振込受取など）。',
-          expense: '支出を登録すると、選んだ口座の残高からすぐ差し引かれます。クレカ利用は口座でクレカを選び、メモに内容を書きます。',
-          transfer: '口座間の移動です。送金元から減り、送金先に加わります。',
+          income: @json(__('入金を登録すると、選んだ口座の残高にすぐ加算されます（給与・振込受取など）。')),
+          expense: @json(__('支出を登録すると、選んだ口座の残高からすぐ差し引かれます。クレカ利用は口座でクレカを選び、メモに内容を書きます。')),
+          transfer: @json(__('口座間の移動です。送金元から減り、送金先に加わります。')),
         }
 
         const typeTitles = {
-          income: '入金を登録',
-          expense: '支出を登録',
-          transfer: '振替・送金を登録',
+          income: @json(__('入金を登録')),
+          expense: @json(__('支出を登録')),
+          transfer: @json(__('振替・送金を登録')),
         }
 
         function syncTransactionTypeHint() {
@@ -2379,7 +2379,7 @@
         function syncAccountInitialBalanceLabel() {
           const label = document.getElementById('finance-account-initial-balance-label')
           const isCreditCard = accountKindSelect?.value === 'credit_card'
-          if (label) label.textContent = isCreditCard ? '利用額（開始）' : '開始残高'
+          if (label) label.textContent = isCreditCard ? @json(__('利用額（開始）')) : @json(__('開始残高'))
         }
 
         function openAddAccountModal(options = {}) {
@@ -2686,7 +2686,7 @@
 
         function openScheduleModal(account) {
           if (!account?.scheduleType) return
-          scheduleModalTitle.textContent = account.scheduleTypeLabel || '予定'
+          scheduleModalTitle.textContent = account.scheduleTypeLabel || @json(__('予定'))
           scheduleAccountName.textContent = account.name || ''
           scheduleForm.action = `/finance/accounts/${account.id}/schedules`
           scheduleForm.querySelector('#finance-schedule-date').value = @json($defaultDate);
@@ -2753,7 +2753,7 @@
           function updateBulkUi() {
             const all = checks()
             const selected = all.filter((cb) => cb.checked)
-            if (countEl) countEl.textContent = selected.length + '件選択'
+            if (countEl) countEl.textContent = @json(__(':count件選択')).replace(':count', String(selected.length))
             if (selectAll) {
               selectAll.checked = all.length > 0 && selected.length === all.length
               selectAll.indeterminate = selected.length > 0 && selected.length < all.length

@@ -690,7 +690,7 @@
           if (typeInput) typeInput.value = isChecklist ? 'checklist' : 'text'
           textPanel?.classList.toggle('date-panel-hidden', isChecklist)
           checklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
-          if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? 'メモ' : 'チェックリスト'
+          if (toggleTypeBtn) toggleTypeBtn.textContent = isChecklist ? @json(__('メモ')) : @json(__('チェックリスト'))
           if (isChecklist && checklistEditor && checklistEditor.children.length === 0) {
             addChecklistRow()
           }
@@ -792,7 +792,7 @@
           if (noteEditType) noteEditType.value = isChecklist ? 'checklist' : 'text'
           noteEditTextPanel?.classList.toggle('date-panel-hidden', isChecklist)
           noteEditChecklistPanel?.classList.toggle('date-panel-hidden', !isChecklist)
-          if (noteEditToggleType) noteEditToggleType.textContent = isChecklist ? 'フリーメモに切替' : 'チェックリストに切替'
+          if (noteEditToggleType) noteEditToggleType.textContent = isChecklist ? @json(__('フリーメモに切替')) : @json(__('チェックリストに切替'))
           if (isChecklist && noteEditChecklist && noteEditChecklist.children.length === 0) {
             addEditChecklistRow()
           }

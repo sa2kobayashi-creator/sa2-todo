@@ -24,10 +24,10 @@
       <select name="active_provider">
         <option value="stability" @selected($active === 'stability')>Stability AI</option>
         <option value="realesrgan" @selected($active === 'realesrgan') @disabled($realesrganPaused)>
-          Real-ESRGAN（ローカル GPU）@if($realesrganPaused) — {{ __('当面利用停止中') }}@endif
+          {{ __('Real-ESRGAN（ローカル GPU）') }}@if($realesrganPaused) — {{ __('当面利用停止中') }}@endif
         </option>
         <option value="swinir" @selected($active === 'swinir') @disabled($swinirPaused)>
-          SwinIR（GPU VPS）@if($swinirPaused) — {{ __('当面利用停止中') }}@endif
+          {{ __('SwinIR（GPU VPS）') }}@if($swinirPaused) — {{ __('当面利用停止中') }}@endif
         </option>
       </select>
     </label>
@@ -89,7 +89,7 @@
 </div>
 
 <div class="panel storage-settings" id="enhance-realesrgan">
-  <h2>Real-ESRGAN（ローカル GPU）</h2>
+  <h2>{{ __('Real-ESRGAN（ローカル GPU）') }}</h2>
   <p class="hint">{{ __('無料・高速のローカル超解像です。realesrgan-ncnn-vulkan を GPU 付きマシンに置き、Laravel から実行して結果を R2 へ保存します。API キーは不要です。') }}</p>
   <p class="hint">
     {{ __('Windows 用 zip（直接ダウンロード）:') }}
@@ -120,7 +120,7 @@
     </label>
     <label>{{ __('モデル') }}
       <select name="model">
-        <option value="realesrgan-x4plus" @selected(($eSettings['model'] ?? 'realesrgan-x4plus') === 'realesrgan-x4plus')>realesrgan-x4plus（写真向け）</option>
+        <option value="realesrgan-x4plus" @selected(($eSettings['model'] ?? 'realesrgan-x4plus') === 'realesrgan-x4plus')>{{ __('realesrgan-x4plus（写真向け）') }}</option>
         <option value="realesrgan-x4plus-anime" @selected(($eSettings['model'] ?? '') === 'realesrgan-x4plus-anime')>realesrgan-x4plus-anime</option>
         <option value="realesrnet-x4plus" @selected(($eSettings['model'] ?? '') === 'realesrnet-x4plus')>realesrnet-x4plus</option>
         <option value="realesr-animevideov3" @selected(($eSettings['model'] ?? '') === 'realesr-animevideov3')>realesr-animevideov3</option>
@@ -159,7 +159,7 @@
 </div>
 
 <div class="panel storage-settings" id="enhance-swinir">
-  <h2>SwinIR（GPU VPS）</h2>
+  <h2>{{ __('SwinIR（GPU VPS）') }}</h2>
   <p class="hint">{{ __('高品質な無料超解像です。GPU 付き VPS に SwinIR ワーカーを起動し、Laravel から HTTP で呼び出して結果を R2 へ保存します。') }}</p>
   <p class="hint">
     {{ __('公式リポジトリ:') }}

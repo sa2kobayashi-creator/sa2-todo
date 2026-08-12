@@ -477,7 +477,7 @@
                 {{ __('検索条件') }}:
                 {{ $q['origin'] }}→{{ $q['destination'] }} {{ $q['departOn'] }}
                 @if(!empty($q['returnOn']))
-                  / 帰り {{ $q['returnOn'] }}
+                  {{ __('/ 帰り :date', ['date' => $q['returnOn']]) }}
                 @endif
                 · {{ $bookedAs === 'ow_pair' ? __('片道（OW）') : __('往復（RT）') }}
               </p>
