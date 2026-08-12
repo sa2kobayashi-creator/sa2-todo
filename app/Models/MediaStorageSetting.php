@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class MediaStorageSetting extends Model
 {
@@ -66,26 +67,58 @@ class MediaStorageSetting extends Model
         ];
     }
 
+    public static function tableExists(): bool
+    {
+        try {
+            return Schema::hasTable((new static)->getTable());
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** マイグレーション前など、DB 行が使えないときのメモリ上フォールバック */
+    public static function unavailable(string $provider): self
+    {
+        $row = new static([
+            'provider' => $provider,
+            'enabled' => false,
+            'settings' => [],
+            'secrets' => [],
+        ]);
+        $row->exists = false;
+
+        return $row;
+    }
+
     public static function forProvider(string $provider): self
     {
+        // 起動時・テスト migrate 前にテーブルが無いのは想定内。report しない。
+        if (! static::tableExists()) {
+            return static::unavailable($provider);
+        }
+
         try {
             return static::query()->firstOrCreate(
                 ['provider' => $provider],
                 ['enabled' => false, 'settings' => [], 'secrets' => []]
             );
         } catch (\Throwable $e) {
-            // テーブル未作成や復号失敗時でも設定画面が 500 にならないようフォールバック
-            report($e);
-            $row = new static([
-                'provider' => $provider,
-                'enabled' => false,
-                'settings' => [],
-                'secrets' => [],
-            ]);
-            $row->exists = false;
+            // 復号失敗などは報告。テーブル欠如は再度黙ってフォールバック。
+            if (! static::isMissingTableError($e)) {
+                report($e);
+            }
 
-            return $row;
+            return static::unavailable($provider);
         }
+    }
+
+    private static function isMissingTableError(\Throwable $e): bool
+    {
+        $message = $e->getMessage();
+
+        return str_contains($message, 'no such table')
+            || (str_contains($message, 'media_storage_settings')
+                && str_contains(strtolower($message), 'does not exist'));
     }
 
     /** @return array<string, mixed> */

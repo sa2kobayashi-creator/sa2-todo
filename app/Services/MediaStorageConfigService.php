@@ -32,6 +32,11 @@ class MediaStorageConfigService
 
     public function get(string $provider): MediaStorageSetting
     {
+        // テーブル未作成時のフォールバックはキャッシュしない（migrate 後に本物を読めるようにする）
+        if (! MediaStorageSetting::tableExists()) {
+            return MediaStorageSetting::unavailable($provider);
+        }
+
         return $this->providerCache[$provider] ??= MediaStorageSetting::forProvider($provider);
     }
 
@@ -127,6 +132,10 @@ class MediaStorageConfigService
 
     public function applyRuntimeDisks(): void
     {
+        if (! MediaStorageSetting::tableExists()) {
+            return;
+        }
+
         try {
             $r2 = $this->get(MediaStorageSetting::PROVIDER_R2);
             if ($r2->enabled) {
@@ -152,7 +161,11 @@ class MediaStorageConfigService
                 }
             }
         } catch (\Throwable $e) {
-            report($e);
+            if (! str_contains($e->getMessage(), 'no such table')
+                && ! (str_contains($e->getMessage(), 'media_storage_settings')
+                    && str_contains(strtolower($e->getMessage()), 'does not exist'))) {
+                report($e);
+            }
         }
     }
 
