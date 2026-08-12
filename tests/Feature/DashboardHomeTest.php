@@ -116,7 +116,7 @@ class DashboardHomeTest extends TestCase
         $response->assertOk();
         $response->assertSee('AccountChooser', false);
         $response->assertSee('work-cal%40example.com', false);
-        $response->assertDontSee('href="/settings?section=integration#google-calendar">Google Calendar', false);
+        $response->assertDontSee('href="/mypage#google-calendar">Google Calendar', false);
     }
 
     public function test_ai_usage_panel_is_hidden_from_standard_users(): void

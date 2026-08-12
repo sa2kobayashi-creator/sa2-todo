@@ -112,6 +112,8 @@
           <button type="submit">{{ __('確認コードを送信') }}</button>
         </form>
       </div>
+
+      @include('settings.partials.google-calendar')
     </main>
   </body>
 </html>

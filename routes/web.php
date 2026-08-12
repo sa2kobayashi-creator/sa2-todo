@@ -218,6 +218,19 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
 
+    // Google Calendar 個人連携（設定画面不要。Standard / Light も利用可）
+    Route::get('/mypage/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
+    Route::post('/mypage/google-calendar/disconnect', [GoogleCalendarSettingsController::class, 'disconnect']);
+    Route::post('/mypage/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
+    Route::post('/mypage/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
+    Route::post('/mypage/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
+    // 旧 URL 互換
+    Route::get('/settings/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
+    Route::post('/settings/google-calendar/disconnect', [GoogleCalendarSettingsController::class, 'disconnect']);
+    Route::post('/settings/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
+    Route::post('/settings/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
+    Route::post('/settings/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
+
     // メールアドレス変更は新しい宛先に届いたコードを確認してから反映する
     Route::get('/mypage/email/verify', [EmailChangeController::class, 'showVerify']);
     Route::post('/mypage/email/verify', [EmailChangeController::class, 'verify']);
@@ -316,12 +329,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');
         Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');
-
-        Route::get('/settings/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
-        Route::post('/settings/google-calendar/disconnect', [GoogleCalendarSettingsController::class, 'disconnect']);
-        Route::post('/settings/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
-        Route::post('/settings/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
-        Route::post('/settings/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
 
         Route::post('/settings/messaging/{provider}/channel', [MessagingSettingsController::class, 'saveChannel'])
             ->where('provider', 'line|messenger');

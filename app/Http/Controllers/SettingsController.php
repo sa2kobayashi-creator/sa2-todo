@@ -8,7 +8,6 @@ use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
-use App\Services\GoogleCalendarService;
 use App\Services\LineMessagingService;
 use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
@@ -29,7 +28,6 @@ class SettingsController extends Controller
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
-        private GoogleCalendarService $googleCalendar,
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
     ) {}
@@ -70,9 +68,6 @@ class SettingsController extends Controller
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
             'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
-            'googleCalendar' => $section === 'integration'
-                ? $this->googleCalendar->formState($request->user())
-                : null,
             'lineMessaging' => $messagingSection
                 ? $this->lineMessaging->formState($request->user())
                 : null,

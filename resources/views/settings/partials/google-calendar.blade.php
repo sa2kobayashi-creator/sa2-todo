@@ -1,4 +1,4 @@
-{{-- Google Calendar OAuth（ログイン認証ではない） --}}
+{{-- Google Calendar OAuth（個人連携。ログイン認証ではない） --}}
 @php
   $gc = $googleCalendar ?? [
     'configured' => false,
@@ -11,6 +11,7 @@
     'needsRescope' => false,
   ];
   $selected = $gc['selectedCalendarIds'] ?? [];
+  $gcalBase = $googleCalendarActionBase ?? '/mypage/google-calendar';
 @endphp
 <div class="panel storage-settings" id="google-calendar">
   <h2>{{ __('Googleカレンダー') }}</h2>
@@ -23,7 +24,7 @@
   @elseif(empty($gc['connected']))
     <p class="hint">{{ __('Googleカレンダーは連携されていません。') }}</p>
     <div class="storage-form-actions">
-      <a class="button-link" href="/settings/google-calendar/connect">{{ __('Googleカレンダーと連携') }}</a>
+      <a class="button-link" href="{{ $gcalBase }}/connect">{{ __('Googleカレンダーと連携') }}</a>
     </div>
   @else
     <dl class="photos-usage-result-dl" style="margin: 0 0 12px;">
@@ -48,10 +49,10 @@
         {{ __('カレンダー一覧の取得に失敗しました。権限追加のため「再連携」してください。') }}
       </p>
       <div class="storage-form-actions">
-        <a class="button-link" href="/settings/google-calendar/connect">{{ __('権限を追加して再連携') }}</a>
+        <a class="button-link" href="{{ $gcalBase }}/connect">{{ __('権限を追加して再連携') }}</a>
       </div>
     @elseif(!empty($gc['calendars']))
-      <form method="post" action="/settings/google-calendar/calendars" class="storage-provider-form">
+      <form method="post" action="{{ $gcalBase }}/calendars" class="storage-provider-form">
         @csrf
         <h3>{{ __('表示するカレンダー') }}</h3>
         <p class="hint">{{ __('仕事モードのダッシュボードに表示するカレンダーを選択します。') }}</p>
@@ -92,7 +93,7 @@
         </div>
       </form>
 
-      <form method="post" action="/settings/google-calendar/import" class="storage-provider-form" style="margin-top:16px;">
+      <form method="post" action="{{ $gcalBase }}/import" class="storage-provider-form" style="margin-top:16px;">
         @csrf
         <h3>{{ __('予定の取込') }}</h3>
         <p class="hint">{{ __('選択中カレンダーの予定を仕事 ToDo として取り込みます（過去30日〜先90日）。') }}</p>
@@ -103,14 +104,14 @@
     @endif
 
     <div class="storage-form-actions" style="margin-top:16px;">
-      <form method="post" action="/settings/google-calendar/probe" class="inline-form">
+      <form method="post" action="{{ $gcalBase }}/probe" class="inline-form">
         @csrf
         <button type="submit" class="secondary">{{ __('接続テスト（直近1件）') }}</button>
       </form>
-      <a class="button-link secondary" href="/settings/google-calendar/connect">{{ __('再連携') }}</a>
+      <a class="button-link secondary" href="{{ $gcalBase }}/connect">{{ __('再連携') }}</a>
       <form
         method="post"
-        action="/settings/google-calendar/disconnect"
+        action="{{ $gcalBase }}/disconnect"
         class="inline-form"
         onsubmit="return confirm(@json(__('Googleカレンダー連携を解除しますか？')))"
       >

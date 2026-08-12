@@ -27,7 +27,7 @@ class GoogleCalendarOAuthTest extends TestCase
 
     public function test_guest_cannot_connect(): void
     {
-        $this->get('/settings/google-calendar/connect')
+        $this->get('/mypage/google-calendar/connect')
             ->assertRedirect('/login');
     }
 
@@ -43,8 +43,45 @@ class GoogleCalendarOAuthTest extends TestCase
         $response = $this->actingAs($user)->get('/settings/google-calendar/connect');
         $response->assertRedirect();
         $location = (string) $response->headers->get('Location');
-        $this->assertStringContainsString('/settings?section=integration', $location);
+        $this->assertStringContainsString('/mypage', $location);
         $this->assertStringContainsString('error=', $location);
+    }
+
+    public function test_standard_user_can_start_google_calendar_connect(): void
+    {
+        config([
+            'services.google.client_id' => 'test-client-id',
+            'services.google.client_secret' => 'test-client-secret',
+            'services.google.redirect' => 'http://localhost/auth/google/calendar/callback',
+        ]);
+
+        $user = User::create([
+            'email' => 'standard-gcal@example.com',
+            'display_name' => 'Standard',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Standard,
+        ]);
+
+        $response = $this->actingAs($user)->get('/mypage/google-calendar/connect');
+        $response->assertRedirect();
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringContainsString('accounts.google.com', $location);
+    }
+
+    public function test_light_user_can_open_mypage_google_calendar_panel(): void
+    {
+        $user = User::create([
+            'email' => 'light-gcal@example.com',
+            'display_name' => 'Light',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee('id="google-calendar"', false)
+            ->assertSee(__('Googleカレンダー'));
     }
 
     public function test_connect_redirects_to_google_with_state(): void
@@ -167,7 +204,7 @@ class GoogleCalendarOAuthTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->post('/settings/google-calendar/disconnect')
+            ->post('/mypage/google-calendar/disconnect')
             ->assertRedirect();
 
         $this->assertDatabaseMissing('google_calendar_connections', ['user_id' => $user->id]);

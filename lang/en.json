@@ -2461,5 +2461,7 @@
     "最後のスーパー管理者は降格できません。": "You cannot demote the last super admin.",
     "最後のスーパー管理者は削除できません。": "You cannot delete the last super admin.",
     "スーパー管理者を付与できるのはスーパー管理者だけです。": "Only a super admin can grant super admin.",
-    "スーパー管理者はスーパー管理者のみ編集できます。": "Only a super admin can edit a super admin."
+    "スーパー管理者はスーパー管理者のみ編集できます。": "Only a super admin can edit a super admin.",
+    "個人の Google カレンダー連携はマイページで行います。スタンダード／ライトユーザーも自分のアカウントを接続できます。": "Personal Google Calendar linking is on My Page. Standard and Light users can connect their own accounts.",
+    "マイページで連携する": "Connect on My Page"
 }

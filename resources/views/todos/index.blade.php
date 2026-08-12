@@ -20,10 +20,10 @@
           {{ __('仕事モード: プライベートの ToDo は表示されません。') }}
           @if(($displayMode ?? '') === 'calendar')
             @if(empty($googleCalendarConnected))
-              <a href="/settings?section=integration#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
+              <a href="/mypage#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
             @else
               {{ __('選択中の Google カレンダー予定も表示します。') }}
-              <a href="/settings?section=integration#google-calendar">{{ __('カレンダー選択') }}</a>
+              <a href="/mypage#google-calendar">{{ __('カレンダー選択') }}</a>
             @endif
           @endif
         </div>

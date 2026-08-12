@@ -82,7 +82,7 @@ class DashboardHomeService
                 'map' => '/map',
                 'transit' => '/transit',
                 'aiSettings' => '/settings?section=ai',
-                'googleCalendarConnect' => '/settings?section=integration#google-calendar',
+                'googleCalendarConnect' => '/mypage#google-calendar',
                 'googleCalendar' => $calendarLink,
                 'calendarExternal' => $isWork,
                 'calendarLabel' => $isWork ? 'Google Calendar →' : __('カレンダー').' →',

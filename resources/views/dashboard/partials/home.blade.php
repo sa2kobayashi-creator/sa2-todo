@@ -65,7 +65,7 @@
       @if($calendarSource === 'google' && empty($calendar['connected']))
         <p class="dash-home-empty">{{ __('Googleカレンダーは未連携です') }}</p>
         <div class="dash-home-card-foot">
-          <a class="dash-home-action" href="{{ $links['googleCalendarConnect'] ?? '/settings?section=integration#google-calendar' }}">{{ __('Googleカレンダーを連携') }}</a>
+          <a class="dash-home-action" href="{{ $links['googleCalendarConnect'] ?? '/mypage#google-calendar' }}">{{ __('Googleカレンダーを連携') }}</a>
         </div>
       @elseif(count($calendar['events'] ?? []) === 0)
         <p class="dash-home-empty">{{ __('今日の予定はありません') }}</p>

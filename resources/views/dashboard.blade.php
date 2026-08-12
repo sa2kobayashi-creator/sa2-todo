@@ -20,9 +20,9 @@
         <div class="banner notice">
           {{ __('仕事モード: プライベートの ToDo／メモは表示されません。') }}
           @if(empty($googleCalendarConnected))
-            <a href="/settings?section=integration#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
+            <a href="/mypage#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
           @else
-            <a href="/settings?section=integration#google-calendar">{{ __('カレンダー選択・取込') }}</a>
+            <a href="/mypage#google-calendar">{{ __('カレンダー選択・取込') }}</a>
           @endif
         </div>
       @endif

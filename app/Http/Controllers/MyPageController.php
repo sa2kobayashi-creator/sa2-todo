@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\EmailChangeService;
+use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -16,6 +17,7 @@ class MyPageController extends Controller
     public function __construct(
         private GroupService $groups,
         private EmailChangeService $emailChange,
+        private GoogleCalendarService $googleCalendar,
     ) {}
 
     public function show(Request $request)
@@ -36,6 +38,8 @@ class MyPageController extends Controller
             )),
             'groups' => $this->groups->listForUser($user->id)->all(),
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
+            'googleCalendar' => $this->googleCalendar->formState($user),
+            'googleCalendarActionBase' => '/mypage/google-calendar',
         ]));
     }
 
