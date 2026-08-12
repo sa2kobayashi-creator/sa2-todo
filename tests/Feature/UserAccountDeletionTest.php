@@ -1,0 +1,125 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\UserRole;
+use App\Models\MusicTrack;
+use App\Models\Note;
+use App\Models\Photo;
+use App\Models\Todo;
+use App\Models\User;
+use App\Services\UserAccountDeletionService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
+
+class UserAccountDeletionTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function makeUser(UserRole $role, string $email): User
+    {
+        return User::create([
+            'email' => $email,
+            'display_name' => $role->label(),
+            'password' => Hash::make('password'),
+            'role' => $role,
+        ]);
+    }
+
+    public function test_user_can_delete_own_account_with_password_confirmation(): void
+    {
+        Storage::fake('public');
+        $user = $this->makeUser(UserRole::Standard, 'leave@example.com');
+        $this->makeUser(UserRole::SuperAdmin, 'keep-admin@example.com');
+
+        Todo::create([
+            'user_id' => $user->id,
+            'title' => 'gone',
+            'completed' => false,
+        ]);
+        Note::create([
+            'user_id' => $user->id,
+            'title' => 'note',
+            'body' => 'body',
+            'category' => 'personal',
+        ]);
+
+        $response = $this->actingAs($user)->post('/mypage/delete', [
+            'password' => 'password',
+            'confirm' => '退会',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertStringStartsWith(url('/login'), $response->headers->get('Location'));
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'leave@example.com']);
+        $this->assertDatabaseMissing('todos', ['title' => 'gone']);
+        $this->assertDatabaseMissing('notes', ['title' => 'note']);
+        $this->assertDatabaseHas('users', ['email' => 'keep-admin@example.com']);
+    }
+
+    public function test_account_deletion_rejects_wrong_password(): void
+    {
+        $user = $this->makeUser(UserRole::Light, 'wrong-pass@example.com');
+
+        $this->actingAs($user)->post('/mypage/delete', [
+            'password' => 'nope',
+            'confirm' => '退会',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('users', ['email' => 'wrong-pass@example.com']);
+    }
+
+    public function test_admin_delete_uses_account_deletion_service(): void
+    {
+        Storage::fake(config('photos.disk', 'public'));
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-del@example.com');
+        $target = $this->makeUser(UserRole::Light, 'target-del@example.com');
+
+        $disk = config('photos.disk', 'public');
+        $path = 'photos/'.$target->id.'/sample.jpg';
+        Storage::disk($disk)->put($path, 'fake-image');
+
+        Photo::create([
+            'user_id' => $target->id,
+            'path' => $path,
+            'original_name' => 'sample.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 10,
+        ]);
+
+        MusicTrack::create([
+            'user_id' => $target->id,
+            'title' => 'song',
+            'path' => 'music/'.$target->id.'/a.mp3',
+            'original_name' => 'a.mp3',
+            'mime' => 'audio/mpeg',
+            'size_bytes' => 10,
+        ]);
+        Storage::disk(config('music.disk', $disk))->put('music/'.$target->id.'/a.mp3', 'audio');
+
+        $this->actingAs($admin)->post("/admin/users/{$target->id}/delete")->assertRedirect();
+
+        $this->assertDatabaseMissing('users', ['email' => 'target-del@example.com']);
+        $this->assertDatabaseMissing('photos', ['path' => $path]);
+        $this->assertFalse(Storage::disk($disk)->exists($path));
+    }
+
+    public function test_deletion_service_removes_null_on_delete_notes(): void
+    {
+        $user = $this->makeUser(UserRole::Standard, 'svc-del@example.com');
+        Note::create([
+            'user_id' => $user->id,
+            'title' => 'keep-check',
+            'body' => 'x',
+            'category' => 'personal',
+        ]);
+
+        app(UserAccountDeletionService::class)->delete($user);
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('notes', ['title' => 'keep-check']);
+    }
+}

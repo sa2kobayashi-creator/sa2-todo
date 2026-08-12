@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\FooterNav;
 use App\Support\Registration;
+use App\Services\UserAccountDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -16,6 +17,10 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     use RedirectsWithFlash;
+
+    public function __construct(
+        private UserAccountDeletionService $accountDeletion,
+    ) {}
 
     public function index(Request $request)
     {
@@ -193,7 +198,7 @@ class UserController extends Controller
             return $this->redirectWithMessage('/admin/users', __('最後のスーパー管理者は削除できません。'), 'error');
         }
 
-        $user->delete();
+        $this->accountDeletion->delete($user);
 
         return $this->redirectWithMessage('/admin/users', __('ユーザーを削除しました。'));
     }

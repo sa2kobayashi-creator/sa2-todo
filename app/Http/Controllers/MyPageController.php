@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
+use App\Models\User;
 use App\Services\EmailChangeService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use App\Services\LineMessagingService;
+use App\Services\MessengerMessagingService;
+use App\Services\UserAccountDeletionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -20,6 +25,8 @@ class MyPageController extends Controller
         private EmailChangeService $emailChange,
         private GoogleCalendarService $googleCalendar,
         private LineMessagingService $lineMessaging,
+        private MessengerMessagingService $messengerMessaging,
+        private UserAccountDeletionService $accountDeletion,
     ) {}
 
     public function show(Request $request)
@@ -44,6 +51,8 @@ class MyPageController extends Controller
             'googleCalendarActionBase' => '/mypage/google-calendar',
             'lineMessaging' => $this->lineMessaging->formState($user),
             'lineMessagingActionBase' => '/mypage/messaging/line',
+            'messengerMessaging' => $this->messengerMessaging->formState($user),
+            'messengerMessagingActionBase' => '/mypage/messaging/messenger',
         ]));
     }
 
@@ -85,5 +94,59 @@ class MyPageController extends Controller
         }
 
         return $this->redirectWithMessage('/mypage', __('プロフィールを更新しました。'));
+    }
+
+    public function destroy(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'password' => ['required', 'string'],
+            'confirm' => ['required', 'string'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect('/mypage#account-delete')->withErrors($validator);
+        }
+
+        if (! Hash::check((string) $request->input('password'), (string) $user->password)) {
+            return $this->redirectWithMessage('/mypage#account-delete', __('パスワードが正しくありません。'), 'error');
+        }
+
+        $confirm = trim((string) $request->input('confirm'));
+        if ($confirm !== '退会' && strcasecmp($confirm, 'DELETE') !== 0) {
+            return $this->redirectWithMessage(
+                '/mypage#account-delete',
+                __('確認のため「退会」または DELETE と入力してください。'),
+                'error'
+            );
+        }
+
+        if ($user->isSuperAdmin() && User::query()->where('role', 'super_admin')->count() <= 1) {
+            return $this->redirectWithMessage(
+                '/mypage#account-delete',
+                __('最後のスーパー管理者は退会できません。先に別のスーパー管理者を任命してください。'),
+                'error'
+            );
+        }
+
+        try {
+            $this->accountDeletion->delete($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage(
+                '/mypage#account-delete',
+                __('アカウント削除に失敗しました。しばらくしてから再度お試しください。'),
+                'error'
+            );
+        }
+
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return $this->redirectWithMessage('/login', __('アカウントを削除しました。ご利用ありがとうございました。'));
     }
 }

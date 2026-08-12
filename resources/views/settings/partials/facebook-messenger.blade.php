@@ -64,45 +64,10 @@
 
   <hr style="margin: 18px 0; border: 0; border-top: 1px solid #e5e7eb;" />
   <h3>{{ __('個人アカウント連携') }}</h3>
-  <p class="hint">{{ __('ページの Messenger に、下で発行した6桁コードを送ってください。ToDo の通知方法で「Messenger」を選ぶとリマインダが届きます。') }}</p>
-
-  @if(empty($mm['configured']) && empty($mm['ready']))
-    <p class="hint storage-test-result is-fail">{{ __('先に上のチャネル設定を保存して有効にしてください。') }}</p>
-  @elseif(empty($mm['connected']))
-    <div class="storage-form-actions">
-      <form method="post" action="/settings/messaging/messenger/code">
-        @csrf
-        <button type="submit" class="button-link">{{ __('連携コードを発行') }}</button>
-      </form>
-    </div>
-  @else
-    <dl class="photos-usage-result-dl" style="margin: 0 0 12px;">
-      <div>
-        <dt>{{ __('状態') }}</dt>
-        <dd>{{ __('連携済み') }}</dd>
-      </div>
-      @if(!empty($mm['linkedAt']))
-        <div>
-          <dt>{{ __('連携日時') }}</dt>
-          <dd>{{ $mm['linkedAt'] }}</dd>
-        </div>
-      @endif
-    </dl>
-    <div class="storage-form-actions" style="display:flex;flex-wrap:wrap;gap:8px;">
-      <form method="post" action="/settings/messaging/messenger/test">
-        @csrf
-        <button type="submit" class="button-link">{{ __('テスト通知を送る') }}</button>
-      </form>
-      <form method="post" action="/settings/messaging/messenger/code">
-        @csrf
-        <button type="submit" class="button-link secondary">{{ __('コードを再発行') }}</button>
-      </form>
-      <form method="post" action="/settings/messaging/messenger/disconnect" onsubmit="return confirm(@json(__('Messenger連携を解除しますか？')))">
-        @csrf
-        <button type="submit" class="button-link secondary">{{ __('連携解除') }}</button>
-      </form>
-    </div>
-  @endif
+  <p class="hint">{{ __('個人の Messenger 連携（コード発行・解除）はマイページで行います。スタンダード／ライトユーザーも自分で接続できます。') }}</p>
+  <div class="storage-form-actions">
+    <a class="button-link" href="/mypage#facebook-messenger">{{ __('マイページで連携する') }}</a>
+  </div>
 </div>
 
 <script>

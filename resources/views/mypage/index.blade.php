@@ -115,6 +115,22 @@
 
       @include('settings.partials.google-calendar')
       @include('mypage.partials.line-link')
+      @include('mypage.partials.messenger-link')
+
+      <div class="panel" id="account-delete" style="border-color:#f3c1c1;">
+        <h2>{{ __('退会（アカウント削除）') }}</h2>
+        <p class="hint">{{ __('アカウントと、写真・メモ・音楽などのデータを削除します。この操作は取り消せません。') }}</p>
+        <form method="post" action="/mypage/delete" class="stack-form" onsubmit="return confirm(@json(__('本当に退会しますか？データは復元できません。')))">
+          @csrf
+          <label>{{ __('現在のパスワード') }}
+            <input type="password" name="password" required autocomplete="current-password" />
+          </label>
+          <label>{{ __('確認（「退会」または DELETE と入力）') }}
+            <input type="text" name="confirm" required autocomplete="off" placeholder="退会" />
+          </label>
+          <button type="submit" class="danger">{{ __('退会する') }}</button>
+        </form>
+      </div>
     </main>
   </body>
 </html>

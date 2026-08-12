@@ -221,6 +221,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
+    Route::post('/mypage/delete', [MyPageController::class, 'destroy']);
 
     // Google Calendar 個人連携（設定画面不要。Standard / Light も利用可）
     Route::get('/mypage/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
