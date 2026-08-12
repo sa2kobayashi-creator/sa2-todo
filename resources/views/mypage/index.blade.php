@@ -114,6 +114,7 @@
       </div>
 
       @include('settings.partials.google-calendar')
+      @include('mypage.partials.line-link')
     </main>
   </body>
 </html>

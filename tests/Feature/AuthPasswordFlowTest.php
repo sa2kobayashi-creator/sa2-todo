@@ -56,6 +56,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'db-code@example.com',
             'displayName' => 'Db',
             'inviteCode' => 'env-code',
+            'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNull(User::query()->where('email', 'db-code@example.com')->first());
 
@@ -63,6 +64,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'db-code@example.com',
             'displayName' => 'Db',
             'inviteCode' => 'admin-code',
+            'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNotNull(User::query()->where('email', 'db-code@example.com')->first());
     }
@@ -89,6 +91,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'wrong-code@example.com',
             'displayName' => 'Wrong',
             'inviteCode' => 'nope',
+            'agreeTerms' => '1',
         ])->assertOk()->assertSee('招待コードが正しくありません');
 
         $this->assertNull(User::query()->where('email', 'wrong-code@example.com')->first());
@@ -103,6 +106,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'Newbie@Example.com',
             'displayName' => 'Newbie',
             'inviteCode' => 'family-secret',
+            'agreeTerms' => '1',
         ])->assertRedirect();
 
         $this->assertGuest();
@@ -118,6 +122,20 @@ class AuthPasswordFlowTest extends TestCase
         });
     }
 
+    public function test_register_requires_terms_agreement(): void
+    {
+        config(['registration.invite_code' => 'family-secret']);
+        Mail::fake();
+
+        $this->from('/register')->post('/register', [
+            'email' => 'no-agree@example.com',
+            'displayName' => 'NoAgree',
+            'inviteCode' => 'family-secret',
+        ])->assertRedirect('/register');
+
+        $this->assertNull(User::query()->where('email', 'no-agree@example.com')->first());
+    }
+
     public function test_register_no_longer_accepts_a_password_field(): void
     {
         config(['registration.invite_code' => 'family-secret']);
@@ -127,6 +145,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'chosen@example.com',
             'displayName' => 'Chosen',
             'inviteCode' => 'family-secret',
+            'agreeTerms' => '1',
             'password' => 'ignored-password',
             'password_confirmation' => 'ignored-password',
         ])->assertRedirect();

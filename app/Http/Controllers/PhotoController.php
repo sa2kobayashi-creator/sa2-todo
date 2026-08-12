@@ -207,6 +207,11 @@ class PhotoController extends Controller
 
     private function enhanceButtonReady(): bool
     {
+        $user = request()->user();
+        if (! $user || ! $user->isSuperAdmin()) {
+            return false;
+        }
+
         $enhance = app(\App\Services\EnhanceConfigService::class);
 
         return $enhance->isReady() && $enhance->isImplemented($enhance->activeProvider());
@@ -809,6 +814,10 @@ class PhotoController extends Controller
 
     public function stabilityEnhance(Request $request, int $id)
     {
+        if (! $request->user()?->isSuperAdmin()) {
+            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
+        }
+
         try {
             $result = $this->photos->enhancePhoto((int) $request->user()->id, $id);
         } catch (\App\Exceptions\EnhanceCancelledException $e) {
@@ -839,6 +848,10 @@ class PhotoController extends Controller
 
     public function stabilityEnhanceCancel(Request $request, int $id)
     {
+        if (! $request->user()?->isSuperAdmin()) {
+            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
+        }
+
         $this->photos->cancelEnhance((int) $request->user()->id, $id);
 
         return response()->json([

@@ -446,7 +446,14 @@
         @include('settings.partials.storage')
       @elseif(($section ?? '') === 'enhance')
         @include('settings.partials.travelpayouts')
-        @include('settings.partials.enhance')
+        @if(!empty($isSuperAdmin))
+          @include('settings.partials.enhance')
+        @else
+          <div class="panel">
+            <h2>{{ __('鮮明化設定') }}</h2>
+            <p class="hint">{{ __('AI鮮明化はスーパー管理者のみが利用・設定できます（試作機能）。') }}</p>
+          </div>
+        @endif
       @elseif(($section ?? '') === 'notifications')
       @include('settings.partials.notifications')
       @endif

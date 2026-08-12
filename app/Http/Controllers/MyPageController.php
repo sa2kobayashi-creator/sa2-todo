@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\EmailChangeService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
+use App\Services\LineMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -18,6 +19,7 @@ class MyPageController extends Controller
         private GroupService $groups,
         private EmailChangeService $emailChange,
         private GoogleCalendarService $googleCalendar,
+        private LineMessagingService $lineMessaging,
     ) {}
 
     public function show(Request $request)
@@ -40,6 +42,8 @@ class MyPageController extends Controller
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
             'googleCalendar' => $this->googleCalendar->formState($user),
             'googleCalendarActionBase' => '/mypage/google-calendar',
+            'lineMessaging' => $this->lineMessaging->formState($user),
+            'lineMessagingActionBase' => '/mypage/messaging/line',
         ]));
     }
 

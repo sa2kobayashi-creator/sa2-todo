@@ -22,8 +22,8 @@ enum UserRole: string
     public function description(): string
     {
         return match ($this) {
-            self::SuperAdmin => 'すべてのメニューに加え、招待コードなど運営設定を変更できます。',
-            self::Admin => '設定・ユーザー管理を含むすべてのメニューを利用できます。招待コードの変更はできません。',
+            self::SuperAdmin => 'すべてのメニューに加え、招待コードなど運営設定を変更できます。鮮明化・翻訳・LLM 音声はスーパー管理者向けの試作機能です。',
+            self::Admin => '設定・ユーザー管理を含むすべてのメニューを利用できます。招待コードの変更と鮮明化・翻訳・LLM 音声はできません。',
             self::Standard => '設定以外の基本メニュー。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
             self::Light => 'ダッシュボード、Todo、メモ、Photos、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
         };
@@ -38,7 +38,7 @@ enum UserRole: string
     public function features(): array
     {
         return match ($this) {
-            self::SuperAdmin, self::Admin => [
+            self::SuperAdmin => [
                 'dashboard',
                 'todos',
                 'notes',
@@ -56,6 +56,23 @@ enum UserRole: string
                 'admin',
                 'mypage',
             ],
+            self::Admin => [
+                'dashboard',
+                'todos',
+                'notes',
+                'photos',
+                'finance',
+                'transit',
+                'travel',
+                'map',
+                'music',
+                'video',
+                'messages',
+                'groups',
+                'settings',
+                'admin',
+                'mypage',
+            ],
             self::Standard => [
                 'dashboard',
                 'todos',
@@ -68,7 +85,6 @@ enum UserRole: string
                 'music',
                 'video',
                 'messages',
-                'translate',
                 'groups',
                 'mypage',
             ],
@@ -77,9 +93,6 @@ enum UserRole: string
                 'todos',
                 'notes',
                 'photos',
-                'music',
-                'video',
-                'translate',
                 'mypage',
             ],
         };

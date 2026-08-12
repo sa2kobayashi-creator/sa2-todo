@@ -109,12 +109,12 @@ class MessagingSettingsController extends Controller
     public function issueCode(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
-        $path = $this->settingsPath($provider);
+        $path = $this->returnPath($request, $provider);
 
         if (! $this->providerConfigured($provider)) {
             return $this->redirectWithMessage(
                 $path,
-                __('チャネルが未設定です。上のフォームでトークンを保存し「有効にする」をオンにしてください。'),
+                __('チャネルが未設定です。管理者にチャネル設定を依頼してください。'),
                 'error'
             );
         }
@@ -136,13 +136,13 @@ class MessagingSettingsController extends Controller
         $provider = $this->normalizeProvider($provider);
         $this->links->disconnect($request->user(), $provider);
 
-        return $this->redirectWithMessage($this->settingsPath($provider), __('連携を解除しました。'));
+        return $this->redirectWithMessage($this->returnPath($request, $provider), __('連携を解除しました。'));
     }
 
     public function test(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
-        $path = $this->settingsPath($provider);
+        $path = $this->returnPath($request, $provider);
         $result = $this->reminders->sendTest($request->user(), $provider);
 
         if (! empty($result['ok'])) {
@@ -180,5 +180,16 @@ class MessagingSettingsController extends Controller
         $hash = $provider === MessagingConnection::PROVIDER_LINE ? 'line-messaging' : 'facebook-messenger';
 
         return '/settings?section=integration#'.$hash;
+    }
+
+    private function returnPath(Request $request, string $provider): string
+    {
+        if (str_starts_with($request->path(), 'mypage/')) {
+            $hash = $provider === MessagingConnection::PROVIDER_LINE ? 'line-messaging' : 'facebook-messenger';
+
+            return '/mypage#'.$hash;
+        }
+
+        return $this->settingsPath($provider);
     }
 }

@@ -40,6 +40,9 @@ class RegisterController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'displayName' => ['nullable', 'string', 'max:100'],
             'inviteCode' => ['required', 'string', 'max:120'],
+            'agreeTerms' => ['accepted'],
+        ], [
+            'agreeTerms.accepted' => __('利用規約とプライバシーポリシーへの同意が必要です。'),
         ]);
 
         if ($validator->fails()) {

@@ -80,7 +80,7 @@
           <label>{{ __('権限') }}
             <select name="role" id="create-user-role" required>
               @foreach(($assignableRoles ?? $roles) as $role)
-                <option value="{{ $role->value }}" @selected(old('role', 'standard') === $role->value)>{{ __($role->label()) }}</option>
+                <option value="{{ $role->value }}" @selected(old('role', 'light') === $role->value)>{{ __($role->label()) }}</option>
               @endforeach
             </select>
           </label>
@@ -94,7 +94,7 @@
                     type="checkbox"
                     name="menuFeatures[]"
                     value="{{ $feature->value }}"
-                    @checked(in_array($feature->value, old('menuFeatures', $menuFeaturesByRole['standard'] ?? []), true))
+                    @checked(in_array($feature->value, old('menuFeatures', $menuFeaturesByRole['light'] ?? []), true))
                   />
                   <span>{{ __($feature->label()) }}</span>
                 </label>

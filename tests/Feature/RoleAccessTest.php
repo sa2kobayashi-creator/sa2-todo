@@ -44,6 +44,7 @@ class RoleAccessTest extends TestCase
             'email' => 'invited@example.com',
             'displayName' => 'Invited',
             'inviteCode' => 'family-secret',
+            'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNotNull(User::query()->where('email', 'invited@example.com')->first());
 
@@ -57,6 +58,7 @@ class RoleAccessTest extends TestCase
             'email' => 'blocked@example.com',
             'displayName' => 'Blocked',
             'inviteCode' => 'family-secret',
+            'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNull(User::query()->where('email', 'blocked@example.com')->first());
     }
@@ -109,6 +111,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/groups')->assertOk();
+        $this->actingAs($user)->get('/translate')->assertForbidden();
     }
 
     public function test_light_user_is_limited_to_core_features(): void
@@ -120,6 +123,9 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/notes')->assertOk();
         $this->actingAs($user)->get('/photos')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
+        $this->actingAs($user)->get('/music')->assertForbidden();
+        $this->actingAs($user)->get('/video')->assertForbidden();
+        $this->actingAs($user)->get('/translate')->assertForbidden();
 
         $this->actingAs($user)->get('/finance')->assertForbidden();
         $this->actingAs($user)->get('/transit')->assertForbidden();

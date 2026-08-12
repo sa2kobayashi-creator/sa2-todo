@@ -2463,5 +2463,16 @@
     "スーパー管理者を付与できるのはスーパー管理者だけです。": "Only a super admin can grant super admin.",
     "スーパー管理者はスーパー管理者のみ編集できます。": "Only a super admin can edit a super admin.",
     "個人の Google カレンダー連携はマイページで行います。スタンダード／ライトユーザーも自分のアカウントを接続できます。": "Personal Google Calendar linking is on My Page. Standard and Light users can connect their own accounts.",
-    "マイページで連携する": "Connect on My Page"
+    "マイページで連携する": "Connect on My Page",
+    "個人の LINE 連携（コード発行・解除）はマイページで行います。スタンダード／ライトユーザーも自分で接続できます。": "Personal LINE linking (issue/revoke codes) is on My Page. Standard and Light users can connect themselves.",
+    "まだチャネルが有効ではありません。管理者に LINE チャネル設定を依頼してください。": "The LINE channel is not enabled yet. Ask an admin to configure it.",
+    "チャネルが未設定です。管理者にチャネル設定を依頼してください。": "The channel is not configured. Ask an admin to set it up.",
+    "この機能はスーパー管理者のみ利用できます。": "Only a super admin can use this feature.",
+    "AI鮮明化はスーパー管理者のみが利用・設定できます（試作機能）。": "AI enhance is available only to super admins (preview feature).",
+    "利用規約とプライバシーポリシーへの同意が必要です。": "You must agree to the Terms of Use and Privacy Policy.",
+    ":terms と :privacy に同意します。": "I agree to the :terms and :privacy.",
+    "利用規約": "Terms of Use",
+    "プライバシーポリシー": "Privacy Policy",
+    "最終更新: :date": "Last updated: :date",
+    "新規登録は招待制です。管理者から招待コードを受け取ってください。登録するとライト権限で開始し、初期パスワードをメールでお送りします。": "Registration is invite-only. Ask an admin for an invite code. New accounts start as Light, and an initial password is emailed to you."
 }

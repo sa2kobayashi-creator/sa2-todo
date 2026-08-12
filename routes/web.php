@@ -15,6 +15,7 @@ use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\LineWebhookController;
@@ -43,6 +44,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return auth()->check() ? redirect('/dashboard') : redirect('/login');
 });
+
+Route::get('/terms', [LegalController::class, 'terms']);
+Route::get('/privacy', [LegalController::class, 'privacy']);
 
 Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
@@ -192,7 +196,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/messages/{groupId}/poll', [MessageController::class, 'poll'])->whereNumber('groupId');
     });
 
-    Route::middleware(EnsureFeature::class.':translate')->group(function () {
+    Route::middleware([\App\Http\Middleware\EnsureFeature::class.':translate', \App\Http\Middleware\RequireSuperAdmin::class])->group(function () {
         Route::get('/translate', [TranslateController::class, 'index']);
         Route::post('/translate', [TranslateController::class, 'translate'])->middleware('throttle:ai-translate');
         Route::post('/translate/document', [TranslateController::class, 'document'])->middleware('throttle:ai-translate');
@@ -224,6 +228,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/mypage/google-calendar/probe', [GoogleCalendarSettingsController::class, 'probe']);
     Route::post('/mypage/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
     Route::post('/mypage/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
+    Route::post('/mypage/messaging/{provider}/code', [MessagingSettingsController::class, 'issueCode'])
+        ->where('provider', 'line|messenger');
+    Route::post('/mypage/messaging/{provider}/disconnect', [MessagingSettingsController::class, 'disconnect'])
+        ->where('provider', 'line|messenger');
+    Route::post('/mypage/messaging/{provider}/test', [MessagingSettingsController::class, 'test'])
+        ->where('provider', 'line|messenger');
     // 旧 URL 互換
     Route::get('/settings/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
     Route::post('/settings/google-calendar/disconnect', [GoogleCalendarSettingsController::class, 'disconnect']);
@@ -343,10 +353,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/messaging/{provider}/test', [MessagingSettingsController::class, 'test'])
             ->where('provider', 'line|messenger');
 
-        Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive']);
+        Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive'])
+            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class);
         Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])
+            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
             ->where('provider', 'stability|realesrgan|swinir');
         Route::post('/settings/enhance/{provider}/test', [EnhanceSettingsController::class, 'testProvider'])
+            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
             ->where('provider', 'stability|realesrgan|swinir');
     });
 

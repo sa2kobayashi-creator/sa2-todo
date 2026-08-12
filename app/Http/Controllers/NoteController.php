@@ -27,6 +27,13 @@ class NoteController extends Controller
      */
     public function translate(Request $request, int $id, TranslationService $translator)
     {
+        if (! $request->user()?->isSuperAdmin()) {
+            return response()->json([
+                'ok' => false,
+                'message' => __('この機能はスーパー管理者のみ利用できます。'),
+            ], 403);
+        }
+
         if (! $translator->isConfigured()) {
             return response()->json([
                 'ok' => false,
@@ -126,8 +133,8 @@ class NoteController extends Controller
             'noteAttachmentMaxCount' => $this->notes->maxAttachmentsPerNote(),
             'noteAttachmentMaxSizeLabel' => $this->formatNoteAttachmentSize($this->notes->maxAttachmentBytes()),
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
-            'voiceAiReady' => $this->voiceParse->isReady(),
-            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
+            'voiceAiReady' => $request->user()?->isSuperAdmin() && $this->voiceParse->isReady(),
+            'voiceAiProvider' => ($request->user()?->isSuperAdmin() && $this->voiceParse->isReady()) ? $this->voiceParse->activeProviderLabel() : null,
             'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
             ...$this->flashFromQuery($request),
         ]);
@@ -135,6 +142,10 @@ class NoteController extends Controller
 
     public function parseVoice(Request $request): JsonResponse
     {
+        if (! $request->user()?->isSuperAdmin()) {
+            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
+        }
+
         $userId = (int) $request->user()->id;
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {

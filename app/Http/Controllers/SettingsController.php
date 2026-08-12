@@ -37,6 +37,7 @@ class SettingsController extends Controller
         $year = (int) ($request->query('year') ?: date('Y'));
         $section = $this->parseSection($request->query('section'));
         $messagingSection = in_array($section, ['integration', 'notifications'], true);
+        $isSuperAdmin = (bool) $request->user()?->isSuperAdmin();
 
         return view('settings.index', [
             'section' => $section,
@@ -66,8 +67,9 @@ class SettingsController extends Controller
             'storageCloudinary' => $section === 'storage' ? $this->safeStorageFormState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->safeStorageFormState('backblaze') : null,
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
-            'enhanceSettings' => $section === 'enhance' ? $this->enhance->formState() : null,
+            'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
+            'isSuperAdmin' => $isSuperAdmin,
             'lineMessaging' => $messagingSection
                 ? $this->lineMessaging->formState($request->user())
                 : null,

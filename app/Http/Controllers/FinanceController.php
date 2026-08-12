@@ -63,8 +63,8 @@ class FinanceController extends Controller
             'expenseCategoryOther' => $this->finance->expenseCategoryOther(),
             'expenseCategoryCustom' => $this->finance->customExpenseCategoryLabels(),
             'expenseCategoryLabels' => $this->finance->expenseCategoryLabels(),
-            'voiceAiReady' => $this->voiceParse->isReady(),
-            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
+            'voiceAiReady' => $request->user()?->isSuperAdmin() && $this->voiceParse->isReady(),
+            'voiceAiProvider' => ($request->user()?->isSuperAdmin() && $this->voiceParse->isReady()) ? $this->voiceParse->activeProviderLabel() : null,
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
             'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
@@ -157,6 +157,10 @@ class FinanceController extends Controller
 
     public function parseVoice(Request $request): JsonResponse
     {
+        if (! $request->user()?->isSuperAdmin()) {
+            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
+        }
+
         $this->actAsUser($request);
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {
