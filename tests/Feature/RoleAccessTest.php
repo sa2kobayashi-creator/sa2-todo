@@ -122,6 +122,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/todos')->assertOk();
         $this->actingAs($user)->get('/notes')->assertOk();
         $this->actingAs($user)->get('/photos')->assertOk();
+        $this->actingAs($user)->get('/messages')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/music')->assertForbidden();
         $this->actingAs($user)->get('/video')->assertForbidden();
