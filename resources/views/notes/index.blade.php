@@ -25,81 +25,44 @@
 
       <div class="notes-top-actions">
         <div class="notes-top-actions-bar">
-          @if($showArchived)
-            <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => false])) }}" class="button-link secondary">{{ __('メモに戻る') }}</a>
-          @else
-            <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => true])) }}" class="button-link secondary">{{ __('アーカイブ') }}</a>
-          @endif
-          <button type="button" class="notes-icon-toggle" id="notes-filter-toggle" aria-expanded="false" aria-controls="notes-filter-panel" title="{{ __('検索・絞り込み') }}" aria-label="{{ __('検索・絞り込み') }}">
+          <label class="note-bulk-select-all-label notes-top-select-all">
+            <input type="checkbox" id="notes-select-all" />
+            {{ __('全選択') }}
+          </label>
+          <button
+            type="button"
+            class="notes-icon-toggle notes-filter-open-btn"
+            id="notes-filter-open"
+            aria-haspopup="dialog"
+            aria-controls="notes-filter-modal"
+            title="{{ __('検索・絞り込み') }}"
+            aria-label="{{ __('検索・絞り込み') }}"
+          >
             <svg class="notes-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
               <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
           </button>
-          @if(!$showArchived)
-            <button type="button" class="notes-icon-toggle" id="notes-voice-toggle" aria-expanded="false" aria-controls="notes-voice-panel" title="{{ __('音声入力') }}" aria-label="{{ __('音声入力') }}">
-              <svg class="notes-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-              </svg>
-            </button>
-          @endif
-          <div class="notes-view-toggle notes-view-toggle-inline" role="group" aria-label="{{ __('表示切替') }}">
-            <button type="button" class="notes-view-btn is-active" data-view="gallery" title="{{ __('ギャラリー表示') }}" aria-pressed="true" aria-label="{{ __('ギャラリー表示') }}">⊞</button>
-            <button type="button" class="notes-view-btn" data-view="list" title="{{ __('リスト表示') }}" aria-pressed="false" aria-label="{{ __('リスト表示') }}">☰</button>
+          <form class="notes-filter-form notes-filter-form-inline" method="get" action="/notes" id="notes-filter-form" data-notes-filter-inline>
+            @include('notes.partials.filter-fields', ['idPrefix' => '', 'includeJump' => true])
+          </form>
+          <div class="notes-top-trailing">
+            @if(!$showArchived)
+              <button type="button" class="notes-icon-toggle" id="notes-voice-toggle" aria-expanded="false" aria-controls="notes-voice-panel" title="{{ __('音声入力') }}" aria-label="{{ __('音声入力') }}">
+                <svg class="notes-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              </button>
+            @endif
+            <div class="notes-view-toggle notes-view-toggle-inline" role="group" aria-label="{{ __('表示切替') }}">
+              <button type="button" class="notes-view-btn is-active" data-view="gallery" title="{{ __('ギャラリー表示') }}" aria-pressed="true" aria-label="{{ __('ギャラリー表示') }}">⊞</button>
+              <button type="button" class="notes-view-btn" data-view="list" title="{{ __('リスト表示') }}" aria-pressed="false" aria-label="{{ __('リスト表示') }}">☰</button>
+            </div>
+            @if($showArchived)
+              <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => false])) }}" class="button-link secondary notes-archive-link">{{ __('メモに戻る') }}</a>
+            @else
+              <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => true])) }}" class="button-link secondary notes-archive-link">{{ __('アーカイブ') }}</a>
+            @endif
           </div>
-        </div>
-        <div class="notes-filter-panel" id="notes-filter-panel" hidden>
-        <form class="notes-filter-form" method="get" action="/notes" id="notes-filter-form">
-          @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
-          @if($filterDate)<input type="hidden" name="date" value="{{ $filterDate }}" />@endif
-          <label class="notes-period-label">
-            {{ __('表示月') }}
-            <select name="period" id="notes-period" aria-label="{{ __('表示月') }}" @disabled($filterDate)>
-              <option value="" @selected($periodValue === '')>{{ __('すべて') }}</option>
-              @foreach($notePeriodOptions ?? [] as $periodOption)
-                <option value="{{ $periodOption }}" @selected($periodValue === $periodOption)>
-                  {{ __(':year年:month月', ['year' => substr($periodOption, 0, 4), 'month' => (int) substr($periodOption, 5, 2)]) }}
-                </option>
-              @endforeach
-              @if($periodValue !== '' && ! in_array($periodValue, $notePeriodOptions ?? [], true))
-                <option value="{{ $periodValue }}" selected>
-                  {{ __(':year年:month月', ['year' => substr($periodValue, 0, 4), 'month' => (int) substr($periodValue, 5, 2)]) }}
-                </option>
-              @endif
-            </select>
-          </label>
-          <label class="notes-status-filter">
-            {{ __('完了') }}
-            <select name="status" id="notes-status-filter" aria-label="{{ __('完了') }}">
-              <option value="all" @selected(($filterStatus ?? 'all') === 'all')>{{ __('すべて') }}</option>
-              <option value="pending" @selected(($filterStatus ?? '') === 'pending')>{{ __('未完了') }}</option>
-              <option value="done" @selected(($filterStatus ?? '') === 'done')>{{ __('完了') }}</option>
-            </select>
-          </label>
-          <label class="notes-search-label">
-            <span class="visually-hidden">{{ __('メモを検索') }}</span>
-            <input type="search" name="q" value="{{ $searchQuery }}" placeholder="{{ __('メモを検索') }}" aria-label="{{ __('メモを検索') }}" />
-          </label>
-          <label class="notes-category-filter">
-            {{ __('カテゴリー') }}
-            <select name="category" id="notes-category-filter" aria-label="{{ __('カテゴリー') }}">
-              <option value="" @selected($filterCategory === '')>{{ __('すべて') }}</option>
-              @foreach($noteCategories as $key => $label)
-                <option value="{{ $key }}" @selected($filterCategory === $key)>{{ $label }}</option>
-              @endforeach
-            </select>
-          </label>
-          @if(count($noteJumpMonths ?? []) > 1)
-            <label class="notes-jump-filter">
-              <span class="visually-hidden">{{ __('年月へ移動') }}</span>
-              <select id="notes-month-jump" aria-label="{{ __('年月へ移動') }}">
-                <option value="">{{ __('年月へ移動') }}</option>
-                @foreach($noteJumpMonths as $jumpMonth)
-                  <option value="{{ $jumpMonth['period'] }}">{{ $jumpMonth['label'] }}</option>
-                @endforeach
-              </select>
-            </label>
-          @endif
-        </form>
         </div>
       </div>
 
@@ -192,10 +155,6 @@
 
       <div class="notes-bulk-bar panel" id="notes-bulk-bar">
         <input type="hidden" id="notes-bulk-return-to" value="{{ $returnTo }}" />
-        <label class="note-bulk-select-all-label">
-          <input type="checkbox" id="notes-select-all" />
-          {{ __('全選択') }}
-        </label>
         <div class="bulk-actions notes-bulk-actions" id="notes-bulk-actions" hidden>
           @if($showArchived)
             <button type="button" class="secondary notes-bulk-btn" data-bulk-url="/notes/bulk/archive" data-bulk-unarchive="1">{{ __('戻す') }}</button>
@@ -205,6 +164,7 @@
           <button type="button" class="secondary" id="notes-bulk-edit-open">{{ __('編集') }}</button>
           <button type="button" class="danger notes-bulk-btn" data-bulk-url="/notes/bulk/delete" data-confirm="{{ __('選択したメモを削除しますか？') }}">{{ __('削除') }}</button>
         </div>
+        <span class="notes-selected-count" id="notes-selected-count" hidden></span>
         <span class="notes-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
       </div>
 
@@ -322,6 +282,23 @@
         </button>
       </div>
     @endif
+
+    <div class="modal modal-centered" id="notes-filter-modal" hidden>
+      <div class="modal-backdrop" data-close-notes-filter-modal></div>
+      <div class="modal-dialog notes-filter-dialog" role="dialog" aria-labelledby="notes-filter-modal-title">
+        <div class="modal-header">
+          <h2 id="notes-filter-modal-title">{{ __('検索・絞り込み') }}</h2>
+          <button type="button" class="modal-close" data-close-notes-filter-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <form method="get" action="/notes" id="notes-filter-modal-form" class="modal-form notes-filter-modal-form">
+          @include('notes.partials.filter-fields', ['idPrefix' => 'modal-', 'includeJump' => false])
+          <div class="modal-actions">
+            <button type="button" class="secondary" data-close-notes-filter-modal>{{ __('キャンセル') }}</button>
+            <button type="submit">{{ __('適用') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="modal modal-centered" id="note-voice-confirm-modal" hidden>
       <div class="modal-backdrop" data-close-note-voice-modal></div>
@@ -642,6 +619,7 @@
         const colorDots = composer.querySelectorAll('.note-color-dot')
 
         function openComposer(options = {}) {
+          if (!collapsed || !expanded) return
           collapsed.classList.add('date-panel-hidden')
           expanded.classList.remove('date-panel-hidden')
           if (options.focusAttachments) {
@@ -654,6 +632,7 @@
         }
 
         function closeComposer() {
+          if (!collapsed || !expanded) return
           expanded.classList.add('date-panel-hidden')
           collapsed.classList.remove('date-panel-hidden')
         }
@@ -1085,9 +1064,74 @@
         const notesPeriodInput = document.getElementById('notes-period')
         const notesStatusFilter = document.getElementById('notes-status-filter')
         const notesCategoryFilter = document.getElementById('notes-category-filter')
-        notesPeriodInput?.addEventListener('change', () => notesFilterForm?.submit())
-        notesStatusFilter?.addEventListener('change', () => notesFilterForm?.submit())
-        notesCategoryFilter?.addEventListener('change', () => notesFilterForm?.submit())
+        notesPeriodInput?.addEventListener('change', () => {
+          if (!notesPeriodInput.disabled) notesFilterForm?.submit()
+        })
+        notesStatusFilter?.addEventListener('change', () => {
+          if (!notesStatusFilter.disabled) notesFilterForm?.submit()
+        })
+        notesCategoryFilter?.addEventListener('change', () => {
+          if (!notesCategoryFilter.disabled) notesFilterForm?.submit()
+        })
+
+        const notesFilterOpen = document.getElementById('notes-filter-open')
+        const notesFilterModal = document.getElementById('notes-filter-modal')
+        @php
+          $notesFilterActiveFlag = (($searchQuery ?? '') !== '')
+            || (($filterCategory ?? '') !== '')
+            || (($filterStatus ?? 'all') !== 'all')
+            || (($periodValue ?? '') !== '');
+          $notesFilterDateLocked = ! empty($filterDate);
+        @endphp
+        const notesFilterActive = @json($notesFilterActiveFlag);
+        const notesFilterDateLocked = @json($notesFilterDateLocked);
+        if (notesFilterActive) {
+          notesFilterOpen?.classList.add('is-active')
+        }
+
+        function syncNotesFilterLayout() {
+          const inlineForm = document.querySelector('[data-notes-filter-inline]')
+          const phone = window.matchMedia('(max-width: 480px)').matches
+          if (!inlineForm) return
+          if (phone) inlineForm.setAttribute('hidden', '')
+          else inlineForm.removeAttribute('hidden')
+          inlineForm.querySelectorAll('input, select, textarea, button').forEach((el) => {
+            // 日付固定フィルタの disabled は維持
+            if (el.id === 'notes-period' && notesFilterDateLocked) return
+            el.disabled = phone
+          })
+        }
+
+        const openNotesFilterModal = () => {
+          if (!notesFilterModal) return
+          notesFilterModal.hidden = false
+          notesFilterModal.removeAttribute('hidden')
+          const search = document.getElementById('modal-notes-search-q')
+          window.setTimeout(() => search?.focus(), 0)
+        }
+        const closeNotesFilterModal = () => {
+          if (!notesFilterModal) return
+          notesFilterModal.hidden = true
+          notesFilterModal.setAttribute('hidden', '')
+        }
+        notesFilterOpen?.addEventListener('click', (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          openNotesFilterModal()
+        })
+        document.querySelectorAll('[data-close-notes-filter-modal]').forEach((el) => {
+          el.addEventListener('click', (e) => {
+            e.preventDefault()
+            closeNotesFilterModal()
+          })
+        })
+        syncNotesFilterLayout()
+        const notesFilterMq = window.matchMedia('(max-width: 480px)')
+        if (typeof notesFilterMq.addEventListener === 'function') {
+          notesFilterMq.addEventListener('change', syncNotesFilterLayout)
+        } else if (typeof notesFilterMq.addListener === 'function') {
+          notesFilterMq.addListener(syncNotesFilterLayout)
+        }
 
         function jumpToNoteMonth(period) {
           if (!period) return
@@ -1259,9 +1303,24 @@
         })
 
         const notesBulkActions = document.getElementById('notes-bulk-actions')
+        const notesBulkBar = document.getElementById('notes-bulk-bar')
+        const notesSelectedCount = document.getElementById('notes-selected-count')
+        const selectedCountTemplate = @json(__(':count件選択'));
+
         function syncNotesBulkVisibility() {
-          const selected = getCheckedNoteIds().length > 0 || !!notesSelectAll?.checked
+          const selectedCount = getCheckedNoteIds().length
+          const selected = selectedCount > 0 || !!notesSelectAll?.checked
           if (notesBulkActions) notesBulkActions.hidden = !selected
+          if (notesBulkBar) notesBulkBar.classList.toggle('has-selection', selected)
+          if (notesSelectedCount) {
+            if (selectedCount > 0) {
+              notesSelectedCount.hidden = false
+              notesSelectedCount.textContent = selectedCountTemplate.replace(':count', String(selectedCount))
+            } else {
+              notesSelectedCount.hidden = true
+              notesSelectedCount.textContent = ''
+            }
+          }
         }
 
         notesSelectAll?.addEventListener('change', () => {
@@ -1283,18 +1342,8 @@
         })
         syncNotesBulkVisibility()
 
-        const filterToggle = document.getElementById('notes-filter-toggle')
-        const filterPanel = document.getElementById('notes-filter-panel')
         const voiceToggle = document.getElementById('notes-voice-toggle')
         const voicePanel = document.getElementById('notes-voice-panel')
-        filterToggle?.addEventListener('click', () => {
-          const open = filterPanel?.hasAttribute('hidden')
-          if (!filterPanel) return
-          if (open) filterPanel.removeAttribute('hidden')
-          else filterPanel.setAttribute('hidden', '')
-          filterToggle.classList.toggle('is-active', !!open)
-          filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-        })
         voiceToggle?.addEventListener('click', () => {
           const open = voicePanel?.hasAttribute('hidden')
           if (!voicePanel) return
@@ -1303,12 +1352,6 @@
           voiceToggle.classList.toggle('is-active', !!open)
           voiceToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
         })
-        // Keep filters open when any filter is already active
-        @if(($searchQuery ?? '') !== '' || ($filterCategory ?? '') !== '' || ($filterStatus ?? 'all') !== 'all' || ($periodValue ?? '') !== '')
-          filterPanel?.removeAttribute('hidden')
-          filterToggle?.classList.add('is-active')
-          filterToggle?.setAttribute('aria-expanded', 'true')
-        @endif
 
         function closeBulkEditModal() {
           if (bulkEditModal) bulkEditModal.hidden = true

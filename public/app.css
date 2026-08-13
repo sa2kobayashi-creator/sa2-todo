@@ -4237,8 +4237,10 @@ body.cal-height-dragging {
 
 .note-edit-form .note-date-field,
 .note-edit-form .note-category-field,
+.note-edit-form .note-share-field,
 .modal-form.note-edit-form label.note-date-field,
-.modal-form.note-edit-form label.note-category-field {
+.modal-form.note-edit-form label.note-category-field,
+.modal-form.note-edit-form label.note-share-field {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -4248,14 +4250,16 @@ body.cal-height-dragging {
 }
 
 .note-edit-form .note-date-field .field-label,
-.note-edit-form .note-category-field .field-label {
+.note-edit-form .note-category-field .field-label,
+.note-edit-form .note-share-field .field-label {
   font-size: 13px;
   color: #4b5563;
   line-height: 1.2;
 }
 
 .note-edit-form .note-date-field input[type="date"],
-.note-edit-form .note-category-field select {
+.note-edit-form .note-category-field select,
+.note-edit-form .note-share-field select {
   width: 100%;
   height: 40px;
   box-sizing: border-box;
@@ -4265,6 +4269,7 @@ body.cal-height-dragging {
   font: inherit;
   font-size: 14px;
   background: #fff;
+  color: inherit;
 }
 
 .note-compose-form textarea,
@@ -5138,6 +5143,19 @@ button.link.danger,
   min-width: 0;
 }
 
+.notes-filter-form-inline {
+  flex: 1 1 280px;
+}
+
+.notes-top-trailing {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .notes-period-form {
   margin: 0;
 }
@@ -5198,8 +5216,27 @@ button.link.danger,
   text-decoration-thickness: 1px;
 }
 
+.note-complete-btn {
+  color: #5f6368;
+}
+
+.note-complete-btn .note-complete-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.note-complete-btn:hover {
+  color: #188038;
+  background: rgba(24, 128, 56, 0.1);
+}
+
 .note-complete-btn.is-done {
   color: #188038;
+}
+
+.note-complete-btn.is-done:hover {
+  color: #137333;
+  background: rgba(24, 128, 56, 0.14);
 }
 
 /* グローバル button スタイルより後から上書きし、ビューポート右下に固定 */
@@ -5367,6 +5404,30 @@ body.notes-page .notes-year-dock-top:hover {
   padding: 10px 14px;
 }
 
+.notes-bulk-bar:not(.has-selection) {
+  display: none;
+}
+
+.notes-top-select-all {
+  margin-right: 4px;
+  flex: 0 0 auto;
+}
+
+.notes-filter-open-btn {
+  display: none;
+}
+
+.notes-archive-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .note-bulk-select-all-label {
   display: flex;
   align-items: center;
@@ -5381,10 +5442,15 @@ body.notes-page .notes-year-dock-top:hover {
   flex: 1 1 auto;
 }
 
-.notes-page-summary {
+.notes-page-summary,
+.notes-selected-count {
   font-size: 13px;
   color: #5f6368;
   margin-left: auto;
+}
+
+.notes-selected-count[hidden] {
+  display: none !important;
 }
 
 .notes-pagination {
@@ -5408,6 +5474,7 @@ body.notes-page .notes-year-dock-top:hover {
   margin: 0;
   opacity: 0;
   transition: opacity 0.15s ease;
+  line-height: 0;
 }
 
 .note-card:hover .note-bulk-check,
@@ -5419,7 +5486,9 @@ body.notes-page .notes-year-dock-top:hover {
 .note-bulk-check .note-check {
   width: 16px;
   height: 16px;
+  margin: 0;
   cursor: pointer;
+  vertical-align: top;
 }
 
 .notes-view-list .note-bulk-check {
@@ -5955,20 +6024,25 @@ body.notes-page .notes-year-dock-top:hover {
 }
 
 .note-date-field .field-label,
-.note-category-field .field-label {
+.note-category-field .field-label,
+.note-share-field .field-label {
   font-size: 12px;
   color: #5f6368;
   white-space: nowrap;
 }
 
 .note-date-field input[type="date"],
-.note-category-field select {
+.note-category-field select,
+.note-share-field select {
   border: 1px solid #dadce0;
   border-radius: 6px;
   padding: 4px 8px;
   font: inherit;
   font-size: 13px;
   background: #fff;
+  color: inherit;
+  min-height: 30px;
+  box-sizing: border-box;
 }
 
 .notes-date-filter {
@@ -5977,7 +6051,7 @@ body.notes-page .notes-year-dock-top:hover {
 }
 
 .note-card-view {
-  padding: 12px 14px 10px 28px;
+  padding: 12px 14px 10px 38px;
   cursor: pointer;
 }
 
@@ -6267,12 +6341,12 @@ body.notes-page .notes-year-dock-top:hover {
     flex-wrap: wrap;
   }
 
-  .notes-filter-form {
-    width: 100%;
+  .notes-filter-form-inline {
+    flex: 1 1 200px;
   }
 
   .notes-search-label {
-    flex: 1 1 100%;
+    flex: 1 1 140px;
     max-width: none;
   }
 
@@ -6282,7 +6356,6 @@ body.notes-page .notes-year-dock-top:hover {
 
   .notes-view-toggle {
     flex: 0 0 auto;
-    margin-left: auto;
   }
 
   /* タブレット幅: 多列指定を少し抑える（切替UIは残す） */
@@ -6305,6 +6378,106 @@ body.notes-page .notes-year-dock-top:hover {
   .notes-view-gallery.notes-cols-4 .notes-grid,
   .notes-view-gallery.notes-cols-5 .notes-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* スマホ: 選択時はページ件数の代わりに選択件数を表示 */
+  .notes-bulk-bar.has-selection .notes-page-summary {
+    display: none;
+  }
+
+  .notes-archive-link {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .notes-top-actions-bar {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .notes-top-trailing {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .notes-top-select-all {
+    font-size: 13px;
+    gap: 4px;
+  }
+
+  .notes-filter-form-inline {
+    display: none !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+  }
+
+  .notes-filter-open-btn {
+    display: inline-flex !important;
+  }
+
+  #notes-filter-modal[hidden] {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  #notes-filter-modal:not([hidden]) {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+
+  .notes-filter-modal-form {
+    display: grid;
+    gap: 14px;
+    padding: 12px 16px 16px;
+  }
+
+  .notes-filter-modal-form .notes-period-label,
+  .notes-filter-modal-form .notes-status-filter,
+  .notes-filter-modal-form .notes-category-filter,
+  .notes-filter-modal-form .notes-search-label {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .notes-filter-modal-form .notes-period-label select,
+  .notes-filter-modal-form .notes-status-filter select,
+  .notes-filter-modal-form .notes-category-filter select,
+  .notes-filter-modal-form .notes-search-label input[type="search"] {
+    width: 100%;
+    min-height: 42px;
+    height: 42px;
+  }
+
+  .notes-filter-modal-form .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  /* タッチ端末でも選択チェックを見えるようにする */
+  .note-bulk-check {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 481px) {
+  .notes-selected-count {
+    display: none !important;
+  }
+
+  .notes-filter-open-btn,
+  #notes-filter-modal {
+    display: none !important;
+    pointer-events: none !important;
   }
 }
 
@@ -18003,15 +18176,13 @@ body.video-page .media-player-stage-spacer {
   margin-left: 0;
 }
 
-.notes-filter-panel[hidden],
+.notes-top-actions-bar .notes-archive-link {
+  border-radius: 8px;
+}
+
 .notes-voice-panel[hidden],
 .notes-bulk-actions[hidden] {
   display: none !important;
-}
-
-.notes-filter-panel {
-  width: 100%;
-  margin-top: 8px;
 }
 
 @media (min-width: 769px) {
@@ -18019,11 +18190,6 @@ body.video-page .media-player-stage-spacer {
     display: none;
   }
 
-  .notes-view-toggle-inline {
-    margin-left: auto;
-  }
-
-  .notes-filter-panel[hidden],
   .notes-voice-panel[hidden] {
     display: block !important;
   }

@@ -91,7 +91,18 @@
             class="note-icon-btn note-complete-btn{{ !empty($note['completed']) ? ' is-done' : '' }}"
             title="{{ !empty($note['completed']) ? __('未完了に戻す') : __('完了にする') }}"
             aria-label="{{ !empty($note['completed']) ? __('未完了に戻す') : __('完了にする') }}"
-          >{{ !empty($note['completed']) ? '☑' : '☐' }}</button>
+            aria-pressed="{{ !empty($note['completed']) ? 'true' : 'false' }}"
+          >
+            @if(!empty($note['completed']))
+              <svg class="note-complete-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.1 14.2-3.9-3.9 1.4-1.4 2.5 2.49 5.1-5.1 1.4 1.42-6.5 6.49z"/>
+              </svg>
+            @else
+              <svg class="note-complete-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+              </svg>
+            @endif
+          </button>
         </form>
         <form method="post" action="/notes/{{ $note['id'] }}/pin" class="note-inline-form">
           @csrf
