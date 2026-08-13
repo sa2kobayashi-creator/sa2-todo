@@ -498,38 +498,6 @@ class NoteService
     }
 
     /**
-     * 年月ジャンプ用（表示中メモから）。
-     *
-     * @param  list<array<string, mixed>>  $notes
-     * @return list<array{period: string, year: string, month: int, label: string}>
-     */
-    public function noteJumpMonthOptions(array $notes): array
-    {
-        $seen = [];
-        $options = [];
-        foreach ($notes as $note) {
-            $date = $this->getRegisteredDate($note);
-            if (! preg_match('/^(\d{4})-(\d{2})/', $date, $m)) {
-                continue;
-            }
-            $period = $m[1].'-'.$m[2];
-            if (isset($seen[$period])) {
-                continue;
-            }
-            $seen[$period] = true;
-            $month = (int) $m[2];
-            $options[] = [
-                'period' => $period,
-                'year' => $m[1],
-                'month' => $month,
-                'label' => __(':year年:month月', ['year' => $m[1], 'month' => $month]),
-            ];
-        }
-
-        return $options;
-    }
-
-    /**
      * 登録日の年月でグループ化（表示順を保つ）。
      *
      * @param  list<array<string, mixed>>  $notes

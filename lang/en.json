@@ -1649,6 +1649,7 @@
     "年へ移動": "Jump to year",
     "年・月・日と口座で絞り込み。金額は入金\/出金\/振替、残高は総残高・全銀行・現金現在残高・クレカ支払い\/残金です。": "Filter by year, month, day, and account. Amounts include income, expense, and transfers; balances include total balance, all banks, current cash balance, and credit card payments\/remaining.",
     "年月へ移動": "Jump to month",
+    "表示月でフィルタ": "Filter by month",
     "引落口座": "Linked bank account",
     "引落口座の更新に失敗しました": "Failed to update payment account",
     "引落口座を保存": "Save linked bank account",

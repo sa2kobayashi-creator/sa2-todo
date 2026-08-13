@@ -43,7 +43,7 @@
             </svg>
           </button>
           <form class="notes-filter-form notes-filter-form-inline" method="get" action="/notes" id="notes-filter-form" data-notes-filter-inline>
-            @include('notes.partials.filter-fields', ['idPrefix' => '', 'includeJump' => true])
+            @include('notes.partials.filter-fields', ['idPrefix' => ''])
           </form>
           <div class="notes-top-trailing">
             @if(!$showArchived)
@@ -267,13 +267,16 @@
     @endif
 
     @if(count($pinnedNotes) > 0 || count($otherNotes) > 0)
-      <div class="notes-year-dock is-hiding" id="notes-year-dock" aria-label="{{ __('年月へ移動') }}" hidden>
-        @if(count($noteJumpMonths ?? []) > 1)
+      <div class="notes-year-dock is-hiding" id="notes-year-dock" aria-label="{{ __('表示月') }}" hidden>
+        @if(count($notePeriodOptions ?? []) > 0)
           <label class="notes-year-dock-field">
-            <span class="visually-hidden">{{ __('年月へ移動') }}</span>
-            <select id="notes-year-dock-select" aria-label="{{ __('年月へ移動') }}">
-              @foreach($noteJumpMonths as $jumpMonth)
-                <option value="{{ $jumpMonth['period'] }}">{{ $jumpMonth['label'] }}</option>
+            <span class="visually-hidden">{{ __('表示月') }}</span>
+            <select id="notes-year-dock-select" aria-label="{{ __('表示月でフィルタ') }}">
+              <option value="" @selected(($periodValue ?? '') === '')>{{ __('すべて') }}</option>
+              @foreach($notePeriodOptions as $periodOption)
+                <option value="{{ $periodOption }}" @selected(($periodValue ?? '') === $periodOption)>
+                  {{ __(':year年:month月', ['year' => substr($periodOption, 0, 4), 'month' => (int) substr($periodOption, 5, 2)]) }}
+                </option>
               @endforeach
             </select>
           </label>
@@ -293,7 +296,7 @@
           <button type="button" class="modal-close" data-close-notes-filter-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
         <form method="get" action="/notes" id="notes-filter-modal-form" class="modal-form notes-filter-modal-form">
-          @include('notes.partials.filter-fields', ['idPrefix' => 'modal-', 'includeJump' => false])
+          @include('notes.partials.filter-fields', ['idPrefix' => 'modal-'])
           <div class="modal-actions">
             <button type="button" class="secondary" data-close-notes-filter-modal>{{ __('キャンセル') }}</button>
             <button type="submit">{{ __('適用') }}</button>
@@ -1135,18 +1138,17 @@
           notesFilterMq.addListener(syncNotesFilterLayout)
         }
 
-        function jumpToNoteMonth(period) {
-          if (!period) return
-          const target = document.querySelector(`.notes-month-group[data-period="${CSS.escape(period)}"]`)
-          if (!target) return
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        function applyNotesPeriodFilter(period) {
+          const url = new URL(window.location.href)
+          if (period) url.searchParams.set('period', period)
+          else url.searchParams.delete('period')
+          url.searchParams.delete('page')
+          url.searchParams.delete('note')
+          const next = url.pathname + (url.search || '')
+          const current = window.location.pathname + window.location.search
+          if (next === current) return
+          window.location.assign(next)
         }
-
-        const notesMonthJump = document.getElementById('notes-month-jump')
-        notesMonthJump?.addEventListener('change', () => {
-          jumpToNoteMonth(notesMonthJump.value)
-          notesMonthJump.value = ''
-        })
 
         document.getElementById('notes-attach-fab')?.addEventListener('click', () => {
           if (typeof window.notesOpenComposerWithAttach === 'function') {
@@ -1163,35 +1165,6 @@
         const NOTES_YEAR_DOCK_SHOW_AT = 320
         let notesYearDockFrame = 0
         let notesYearDockHideTimer = 0
-        let notesMonthAnchors = []
-        let notesMonthAnchorsDirty = true
-
-        function rebuildNotesMonthAnchors() {
-          notesMonthAnchors = []
-          notesMonthAnchorsDirty = false
-          let previous = null
-          document.querySelectorAll('.notes-month-group').forEach((group) => {
-            const period = group.dataset.period || ''
-            if (!period || period === previous) return
-            notesMonthAnchors.push({
-              period,
-              top: group.getBoundingClientRect().top + window.scrollY,
-            })
-            previous = period
-          })
-        }
-
-        function noteMonthInView() {
-          if (notesMonthAnchorsDirty) rebuildNotesMonthAnchors()
-          if (!notesMonthAnchors.length) return ''
-          const line = window.scrollY + 140
-          let current = notesMonthAnchors[0].period
-          for (const anchor of notesMonthAnchors) {
-            if (anchor.top > line) break
-            current = anchor.period
-          }
-          return current
-        }
 
         function setNotesYearDockVisible(show) {
           if (!notesYearDock) return
@@ -1216,13 +1189,7 @@
         function refreshNotesYearDock() {
           notesYearDockFrame = 0
           if (!notesYearDock) return
-          const show = window.scrollY > NOTES_YEAR_DOCK_SHOW_AT
-          setNotesYearDockVisible(show)
-          if (!show) return
-          const period = noteMonthInView()
-          if (notesYearDockSelect && period && notesYearDockSelect.value !== period) {
-            notesYearDockSelect.value = period
-          }
+          setNotesYearDockVisible(window.scrollY > NOTES_YEAR_DOCK_SHOW_AT)
         }
 
         function queueNotesYearDockRefresh() {
@@ -1230,13 +1197,10 @@
           notesYearDockFrame = requestAnimationFrame(refreshNotesYearDock)
         }
 
-        notesYearDockSelect?.addEventListener('change', () => jumpToNoteMonth(notesYearDockSelect.value))
+        notesYearDockSelect?.addEventListener('change', () => applyNotesPeriodFilter(notesYearDockSelect.value))
         notesYearDockTop?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }))
         window.addEventListener('scroll', queueNotesYearDockRefresh, { passive: true })
-        window.addEventListener('resize', () => {
-          notesMonthAnchorsDirty = true
-          queueNotesYearDockRefresh()
-        })
+        window.addEventListener('resize', queueNotesYearDockRefresh)
         queueNotesYearDockRefresh()
 
         const bulkReturnTo = document.getElementById('notes-bulk-return-to')

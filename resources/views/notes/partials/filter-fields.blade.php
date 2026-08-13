@@ -1,7 +1,6 @@
 {{-- メモ一覧フィルタ項目（デスクトップ常時 / スマホモーダル共用） --}}
 @php
   $idPrefix = $idPrefix ?? '';
-  $includeJump = $includeJump ?? true;
 @endphp
 @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
 @if($filterDate)<input type="hidden" name="date" value="{{ $filterDate }}" />@endif
@@ -42,14 +41,3 @@
     @endforeach
   </select>
 </label>
-@if($includeJump && count($noteJumpMonths ?? []) > 1)
-  <label class="notes-jump-filter">
-    <span class="visually-hidden">{{ __('年月へ移動') }}</span>
-    <select id="{{ $idPrefix }}notes-month-jump" aria-label="{{ __('年月へ移動') }}">
-      <option value="">{{ __('年月へ移動') }}</option>
-      @foreach($noteJumpMonths as $jumpMonth)
-        <option value="{{ $jumpMonth['period'] }}">{{ $jumpMonth['label'] }}</option>
-      @endforeach
-    </select>
-  </label>
-@endif

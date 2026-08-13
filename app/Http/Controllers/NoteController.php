@@ -109,7 +109,6 @@ class NoteController extends Controller
         $otherNotes = array_values(array_filter($pageNotes, fn ($n) => empty($n['pinned'])));
         $pinnedNoteGroups = $this->notes->groupNotesByMonth($pinnedNotes);
         $otherNoteGroups = $this->notes->groupNotesByMonth($otherNotes);
-        $jumpMonths = $this->notes->noteJumpMonthOptions(array_merge($pinnedNotes, $otherNotes));
         $returnTo = $this->notes->buildNotesQuery($filters, [
             'page' => $pageResult['page'],
             'note' => $highlightId > 0 ? $highlightId : null,
@@ -123,7 +122,6 @@ class NoteController extends Controller
             'pinnedNoteGroups' => $pinnedNoteGroups,
             'otherNotes' => $otherNotes,
             'otherNoteGroups' => $otherNoteGroups,
-            'noteJumpMonths' => $jumpMonths,
             'notePeriodOptions' => $this->notes->notePeriodOptions($userId, $filters['archived']),
             'showArchived' => $filters['archived'],
             'searchQuery' => $filters['q'],
