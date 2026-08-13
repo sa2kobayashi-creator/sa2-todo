@@ -6285,31 +6285,30 @@ body.notes-page .notes-year-dock-top:hover {
     margin-left: auto;
   }
 
-  /* 4〜5列のみ抑える。3列指定は尊重する */
+  /* タブレット幅: 多列指定を少し抑える（切替UIは残す） */
   .notes-view-gallery.notes-cols-4 .notes-grid,
   .notes-view-gallery.notes-cols-5 .notes-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 520px) {
-  /* ユーザー指定の列数を尊重（以前は 2〜5 列を強制的に1列へ潰していた） */
-  .notes-view-gallery.notes-cols-1 .notes-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .notes-view-gallery.notes-cols-2 .notes-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .notes-view-gallery.notes-cols-3 .notes-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .notes-view-gallery.notes-cols-4 .notes-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .notes-view-gallery.notes-cols-5 .notes-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+@media (max-width: 480px) {
+  /* スマートフォン幅のみ: 横枚数切替を非表示、常に1列 */
+  .notes-cols-toggle {
+    display: none !important;
   }
 
+  .notes-view-gallery .notes-grid,
+  .notes-view-gallery.notes-cols-1 .notes-grid,
+  .notes-view-gallery.notes-cols-2 .notes-grid,
+  .notes-view-gallery.notes-cols-3 .notes-grid,
+  .notes-view-gallery.notes-cols-4 .notes-grid,
+  .notes-view-gallery.notes-cols-5 .notes-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 520px) {
   .notes-view-list .note-card-view {
     grid-template-columns: 1fr auto;
     grid-template-areas:

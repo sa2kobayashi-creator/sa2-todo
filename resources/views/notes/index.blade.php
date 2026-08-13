@@ -548,10 +548,20 @@
 
         const VIEW_KEY = 'notesViewMode'
         const COLS_KEY = 'notesGalleryCols'
+        const PHONE_MQ = window.matchMedia('(max-width: 480px)')
         const notesContent = document.getElementById('notes-content')
         const viewButtons = document.querySelectorAll('.notes-view-btn')
         const colsToggle = document.getElementById('notes-cols-toggle')
         const colsButtons = document.querySelectorAll('.notes-cols-btn')
+
+        function isPhoneViewport() {
+          return PHONE_MQ.matches
+        }
+
+        function syncColsToggleVisibility(view) {
+          if (!colsToggle) return
+          colsToggle.hidden = view === 'list' || isPhoneViewport()
+        }
 
         function applyCols(count) {
           const cols = Math.min(5, Math.max(1, Number(count) || 4))
@@ -582,9 +592,7 @@
             btn.classList.toggle('is-active', active)
             btn.setAttribute('aria-pressed', active ? 'true' : 'false')
           })
-          if (colsToggle) {
-            colsToggle.hidden = view === 'list'
-          }
+          syncColsToggleVisibility(view)
           try {
             localStorage.setItem(VIEW_KEY, view)
           } catch (_) {}
@@ -598,6 +606,16 @@
         } catch (_) {}
         applyCols(savedCols)
         applyView(savedView)
+
+        const onPhoneViewportChange = () => {
+          const view = notesContent?.classList.contains('notes-view-list') ? 'list' : 'gallery'
+          syncColsToggleVisibility(view)
+        }
+        if (typeof PHONE_MQ.addEventListener === 'function') {
+          PHONE_MQ.addEventListener('change', onPhoneViewportChange)
+        } else if (typeof PHONE_MQ.addListener === 'function') {
+          PHONE_MQ.addListener(onPhoneViewportChange)
+        }
 
         viewButtons.forEach((btn) => {
           btn.addEventListener('click', () => applyView(btn.dataset.view))
