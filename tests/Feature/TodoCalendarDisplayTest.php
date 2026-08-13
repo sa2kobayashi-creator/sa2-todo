@@ -270,4 +270,32 @@ class TodoCalendarDisplayTest extends TestCase
         $this->assertSame([], $todo->reminders ?? []);
         $this->assertNull($todo->notify_via);
     }
+
+    public function test_work_mode_shows_calendar_select_toggle_and_modal_without_banner(): void
+    {
+        $user = $this->makeUser();
+        $user->app_context = 'work';
+        $user->save();
+
+        $response = $this->actingAs($user)
+            ->withSession(['app_context' => 'work'])
+            ->get('/todos');
+
+        $response->assertOk();
+        $response->assertDontSee('仕事モード: プライベートの ToDo は表示されません。');
+        $response->assertDontSee('選択中の Google カレンダー予定も表示します。');
+        $response->assertSee('data-open-todo-gcal-modal', false);
+        $response->assertSee('id="todo-gcal-modal"', false);
+        $response->assertSee('id="google-calendar"', false);
+    }
+
+    public function test_personal_mode_hides_calendar_select_toggle(): void
+    {
+        $user = $this->makeUser();
+
+        $response = $this->actingAs($user)->get('/todos');
+        $response->assertOk();
+        $response->assertDontSee('id="todo-gcal-open"', false);
+        $response->assertDontSee('id="todo-gcal-modal"', false);
+    }
 }

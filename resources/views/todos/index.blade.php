@@ -15,19 +15,6 @@
     <main class="page-main">
       @if($notice)<div class="banner notice">{{ $notice }}</div>@endif
       @if($error)<div class="banner error">{{ $error }}</div>@endif
-      @if(!empty($appContextIsWork))
-        <div class="banner notice">
-          {{ __('仕事モード: プライベートの ToDo は表示されません。') }}
-          @if(($displayMode ?? '') === 'calendar')
-            @if(empty($googleCalendarConnected))
-              <a href="/mypage#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
-            @else
-              {{ __('選択中の Google カレンダー予定も表示します。') }}
-              <a href="/mypage#google-calendar">{{ __('カレンダー選択') }}</a>
-            @endif
-          @endif
-        </div>
-      @endif
 
       <div class="panel" id="todo-list-panel">
         @if(($displayMode ?? 'calendar') === 'list')
@@ -284,7 +271,7 @@
           <div class="list-toolbar-title-row">
           <h2>
             @if(($displayMode ?? 'list') === 'calendar')
-                {{ __('カレンダー') }}（{{ $periodLabel ?? ($calendarYear.__('年').$calendarMonth.__('月')) }}）
+                {{ __('カレンダー表示') }}
             @else
               {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
             @endif
@@ -293,6 +280,15 @@
             <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
               <a href="{{ $buildTodosQuery(['display' => 'list']) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
               <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
+              @if(!empty($appContextIsWork))
+                <button
+                  type="button"
+                  id="todo-gcal-open"
+                  data-open-todo-gcal-modal
+                  title="{{ __('Google カレンダーの表示・同期設定を開きます。') }}"
+                  aria-label="{{ __('Google カレンダーの表示・同期設定を開きます。') }}"
+                >{{ __('選択') }}</button>
+              @endif
             </div>
             @if(($displayMode ?? 'calendar') === 'list')
               <button
@@ -322,8 +318,6 @@
             <button type="button" class="danger bulk-btn" data-bulk-url="/todos/bulk/delete" data-confirm="{{ __('選択した ToDo を削除しますか？') }}">{{ __('一括削除') }}</button>
             <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">{{ __('コピー') }}</button>
           </div>
-          @else
-            <p class="hint inline-hint calendar-edit-hint">{{ __('余白をクリックすると ToDo を追加できます。予定をクリックすると編集、ドラッグで日付を変更できます。') }}</p>
           @endif
         </div>
 
@@ -1011,6 +1005,30 @@
       </div>
     </main>
 
+    @if(!empty($appContextIsWork) && is_array($googleCalendar ?? null))
+      @php
+        $todoGcalReturnBase = preg_replace('/#.*$/', '', $listReturnTo ?? '/todos') ?: '/todos';
+        $todoGcalReturnTo = $todoGcalReturnBase.'#todo-gcal-modal';
+      @endphp
+      <div class="modal modal-centered" id="todo-gcal-modal" hidden>
+        <div class="modal-backdrop" data-close-todo-gcal-modal></div>
+        <div class="modal-dialog todo-gcal-dialog" role="dialog" aria-labelledby="todo-gcal-modal-title">
+          <div class="modal-header">
+            <h2 id="todo-gcal-modal-title">{{ __('カレンダー選択') }}</h2>
+            <button type="button" class="modal-close" data-close-todo-gcal-modal aria-label="{{ __('閉じる') }}">×</button>
+          </div>
+          <div class="modal-body todo-gcal-modal-body">
+            @include('settings.partials.google-calendar', [
+              'googleCalendar' => $googleCalendar,
+              'googleCalendarActionBase' => $googleCalendarActionBase ?? '/mypage/google-calendar',
+              'googleCalendarEmbed' => true,
+              'googleCalendarReturnTo' => $todoGcalReturnTo,
+            ])
+          </div>
+        </div>
+      </div>
+    @endif
+
     <div class="modal modal-centered" id="todo-voice-confirm-modal" hidden>
       <div class="modal-backdrop" data-close-todo-voice-modal></div>
       <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="todo-voice-confirm-title">
@@ -1666,6 +1684,38 @@
         })
       })
     </script>
+    @if(!empty($appContextIsWork) && is_array($googleCalendar ?? null))
+    <script>
+      (function () {
+        const modal = document.getElementById('todo-gcal-modal');
+        if (!modal) return;
+
+        const open = function () {
+          modal.removeAttribute('hidden');
+          if (location.hash !== '#todo-gcal-modal') {
+            history.replaceState(null, '', location.pathname + location.search + '#todo-gcal-modal');
+          }
+        };
+        const close = function () {
+          modal.setAttribute('hidden', '');
+          if (location.hash === '#todo-gcal-modal') {
+            history.replaceState(null, '', location.pathname + location.search);
+          }
+        };
+
+        document.querySelectorAll('[data-open-todo-gcal-modal]').forEach(function (el) {
+          el.addEventListener('click', open);
+        });
+        document.querySelectorAll('[data-close-todo-gcal-modal]').forEach(function (el) {
+          el.addEventListener('click', close);
+        });
+
+        if (location.hash === '#todo-gcal-modal') {
+          open();
+        }
+      })();
+    </script>
+    @endif
     @include('partials.calendar-height-resizer-script')
     @include('partials.calendar-timed-scroll-script')
     @include('partials.accordion-state')

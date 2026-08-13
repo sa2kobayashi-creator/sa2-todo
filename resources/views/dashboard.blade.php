@@ -16,16 +16,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
       @include('partials.group-invitations', ['pendingGroupInvitations' => $pendingGroupInvitations ?? []])
-      @if(!empty($appContextIsWork))
-        <div class="banner notice">
-          {{ __('仕事モード: プライベートの ToDo／メモは表示されません。') }}
-          @if(empty($googleCalendarConnected))
-            <a href="/mypage#google-calendar">{{ __('Googleカレンダーを連携') }}</a>
-          @else
-            <a href="/mypage#google-calendar">{{ __('カレンダー選択・取込') }}</a>
-          @endif
-        </div>
-      @endif
 
       @include('dashboard.partials.home')
 

@@ -90,6 +90,8 @@ class DashboardHomeTest extends TestCase
             ->get('/dashboard');
 
         $response->assertOk();
+        $response->assertDontSee('仕事モード: プライベートの ToDo／メモは表示されません。');
+        $response->assertDontSee('カレンダー選択・取込');
         $response->assertSee('Googleカレンダーは未連携です', false);
         $response->assertSee('Googleカレンダーを連携', false);
     }

@@ -221,8 +221,10 @@ class TodoController extends Controller
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'voiceAiReady' => $request->user()?->isSuperAdmin() && $this->voiceParse->isReady(),
             'voiceAiProvider' => ($request->user()?->isSuperAdmin() && $this->voiceParse->isReady()) ? $this->voiceParse->activeProviderLabel() : null,
-            'googleCalendarConnected' => $context === AppContext::Work
-                && $this->googleCalendar->connectionFor($user) !== null,
+            'googleCalendar' => $context === AppContext::Work
+                ? $this->googleCalendar->formState($user)
+                : null,
+            'googleCalendarActionBase' => '/mypage/google-calendar',
             ...$this->flashFromQuery($request),
         ]);
     }

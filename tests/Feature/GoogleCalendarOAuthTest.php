@@ -211,6 +211,50 @@ class GoogleCalendarOAuthTest extends TestCase
         $this->assertDatabaseHas('google_calendar_connections', ['user_id' => $other->id]);
     }
 
+    public function test_calendar_actions_respect_return_to_todos(): void
+    {
+        config([
+            'services.google.client_id' => 'test-client-id',
+            'services.google.client_secret' => 'test-client-secret',
+            'services.google.redirect' => 'http://localhost/auth/google/calendar/callback',
+        ]);
+
+        $user = $this->makeAdmin();
+        GoogleCalendarConnection::create([
+            'user_id' => $user->id,
+            'google_user_id' => 'sub-return',
+            'google_email' => 'user@example.com',
+            'access_token' => 'a1',
+            'refresh_token' => 'r1',
+            'token_expires_at' => now()->addHour(),
+            'scopes' => 'openid email',
+            'selected_calendar_ids' => ['primary'],
+            'sync_calendar_id' => 'primary',
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/calendar/v3/users/me/calendarList*' => Http::response([
+                'items' => [
+                    ['id' => 'primary', 'summary' => 'Primary', 'primary' => true],
+                ],
+            ], 200),
+        ]);
+
+        $this->actingAs($user)
+            ->post('/mypage/google-calendar/calendars', [
+                'calendar_ids' => ['primary'],
+                'sync_calendar_id' => 'primary',
+                'returnTo' => '/todos#todo-gcal-modal',
+            ])
+            ->assertRedirect('/todos#todo-gcal-modal');
+
+        $this->actingAs($user)
+            ->get('/mypage/google-calendar/connect?returnTo='.rawurlencode('/todos#todo-gcal-modal'))
+            ->assertRedirect();
+
+        $this->assertSame('/todos#todo-gcal-modal', session('google_calendar_return_to'));
+    }
+
     public function test_refresh_updates_access_token(): void
     {
         config([

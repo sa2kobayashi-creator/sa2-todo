@@ -13,6 +13,8 @@ class GoogleCalendarSettingsController extends Controller
 
     private const MYPAGE_PATH = '/mypage#google-calendar';
 
+    private const SESSION_RETURN_KEY = 'google_calendar_return_to';
+
     public function __construct(
         private GoogleCalendarOAuthService $oauth,
         private GoogleCalendarService $calendar,
@@ -20,9 +22,11 @@ class GoogleCalendarSettingsController extends Controller
 
     public function connect(Request $request)
     {
+        $returnTo = $this->resolveReturnTo($request, true);
+
         if (! $this->oauth->isConfigured()) {
             return $this->redirectWithMessage(
-                self::MYPAGE_PATH,
+                $returnTo,
                 __('Google Calendar OAuth が設定されていません。管理者に GOOGLE_CLIENT_ID 等の設定を依頼してください。'),
                 'error'
             );
@@ -33,7 +37,7 @@ class GoogleCalendarSettingsController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Google Calendar connect failed to start', ['message' => $e->getMessage()]);
 
-            return $this->redirectWithMessage(self::MYPAGE_PATH, __('連携の開始に失敗しました。'), 'error');
+            return $this->redirectWithMessage($returnTo, __('連携の開始に失敗しました。'), 'error');
         }
 
         return redirect()->away($auth['url']);
@@ -41,18 +45,20 @@ class GoogleCalendarSettingsController extends Controller
 
     public function callback(Request $request)
     {
+        $returnTo = $this->consumeStoredReturnTo();
+
         if ($request->filled('error')) {
             $error = (string) $request->query('error');
             $message = $error === 'access_denied'
                 ? __('Google カレンダー連携がキャンセルされました。')
                 : __('Google 認証でエラーが発生しました。');
 
-            return $this->redirectWithMessage(self::MYPAGE_PATH, $message, 'error');
+            return $this->redirectWithMessage($returnTo, $message, 'error');
         }
 
         if (! $this->oauth->validateState($request->query('state'))) {
             return $this->redirectWithMessage(
-                self::MYPAGE_PATH,
+                $returnTo,
                 __('不正なリクエストです（state 検証に失敗）。もう一度連携してください。'),
                 'error'
             );
@@ -61,7 +67,7 @@ class GoogleCalendarSettingsController extends Controller
         $code = $request->query('code');
         if (! is_string($code) || trim($code) === '') {
             return $this->redirectWithMessage(
-                self::MYPAGE_PATH,
+                $returnTo,
                 __('認証コードを取得できませんでした。もう一度連携してください。'),
                 'error'
             );
@@ -69,7 +75,7 @@ class GoogleCalendarSettingsController extends Controller
 
         $user = $request->user();
         if (! $user) {
-            return redirect('/login?returnTo='.urlencode(self::MYPAGE_PATH));
+            return redirect('/login?returnTo='.urlencode($returnTo));
         }
 
         try {
@@ -84,7 +90,7 @@ class GoogleCalendarSettingsController extends Controller
             ]);
 
             return $this->redirectWithMessage(
-                self::MYPAGE_PATH,
+                $returnTo,
                 __('連携に失敗しました: :msg', ['msg' => $e->getMessage()]),
                 'error'
             );
@@ -101,15 +107,16 @@ class GoogleCalendarSettingsController extends Controller
             $notice .= ' '.__('（API疎通: :msg）', ['msg' => $probe['message'] ?? __('失敗')]);
         }
 
-        return $this->redirectWithMessage(self::MYPAGE_PATH, $notice);
+        return $this->redirectWithMessage($returnTo, $notice);
     }
 
     public function disconnect(Request $request)
     {
+        $returnTo = $this->resolveReturnTo($request);
         $user = $request->user();
         $connection = $this->calendar->connectionFor($user);
         if (! $connection) {
-            return $this->redirectWithMessage(self::MYPAGE_PATH, __('連携情報はありません。'));
+            return $this->redirectWithMessage($returnTo, __('連携情報はありません。'));
         }
 
         try {
@@ -120,14 +127,15 @@ class GoogleCalendarSettingsController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
-            return $this->redirectWithMessage(self::MYPAGE_PATH, __('連携解除に失敗しました。'), 'error');
+            return $this->redirectWithMessage($returnTo, __('連携解除に失敗しました。'), 'error');
         }
 
-        return $this->redirectWithMessage(self::MYPAGE_PATH, __('Google カレンダーの連携を解除しました。'));
+        return $this->redirectWithMessage($returnTo, __('Google カレンダーの連携を解除しました。'));
     }
 
     public function probe(Request $request)
     {
+        $returnTo = $this->resolveReturnTo($request);
         $probe = $this->calendar->probePrimaryCalendar($request->user());
         $type = ! empty($probe['ok']) ? 'notice' : 'error';
         $message = (string) ($probe['message'] ?? '');
@@ -138,11 +146,12 @@ class GoogleCalendarSettingsController extends Controller
             }
         }
 
-        return $this->redirectWithMessage(self::MYPAGE_PATH, $message !== '' ? $message : __('結果なし'), $type);
+        return $this->redirectWithMessage($returnTo, $message !== '' ? $message : __('結果なし'), $type);
     }
 
     public function updateCalendars(Request $request)
     {
+        $returnTo = $this->resolveReturnTo($request);
         $selected = $request->input('calendar_ids', []);
         if (! is_array($selected)) {
             $selected = [];
@@ -155,14 +164,15 @@ class GoogleCalendarSettingsController extends Controller
                 $request->input('sync_calendar_id')
             );
         } catch (\Throwable $e) {
-            return $this->redirectWithMessage(self::MYPAGE_PATH, $e->getMessage(), 'error');
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage(self::MYPAGE_PATH, __('表示・同期カレンダーを保存しました。'));
+        return $this->redirectWithMessage($returnTo, __('表示・同期カレンダーを保存しました。'));
     }
 
     public function import(Request $request)
     {
+        $returnTo = $this->resolveReturnTo($request);
         $user = $request->user();
         $from = $request->input('from');
         $to = $request->input('to');
@@ -177,15 +187,48 @@ class GoogleCalendarSettingsController extends Controller
         try {
             $result = $this->calendar->importEventsToWorkTodos($user, $timeMin, $timeMax);
         } catch (\Throwable $e) {
-            return $this->redirectWithMessage(self::MYPAGE_PATH, $e->getMessage(), 'error');
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
         return $this->redirectWithMessage(
-            self::MYPAGE_PATH,
+            $returnTo,
             __('取込完了: 新規 :created 件 / 更新 :updated 件', [
                 'created' => $result['created'],
                 'updated' => $result['updated'],
             ])
         );
+    }
+
+    private function resolveReturnTo(Request $request, bool $persistForOauth = false): string
+    {
+        $candidate = $request->input('returnTo') ?? $request->query('returnTo');
+        $path = $this->sanitizeReturnTo(is_string($candidate) ? $candidate : null) ?? self::MYPAGE_PATH;
+
+        if ($persistForOauth) {
+            session([self::SESSION_RETURN_KEY => $path]);
+        }
+
+        return $path;
+    }
+
+    private function consumeStoredReturnTo(): string
+    {
+        $stored = session()->pull(self::SESSION_RETURN_KEY);
+
+        return $this->sanitizeReturnTo(is_string($stored) ? $stored : null) ?? self::MYPAGE_PATH;
+    }
+
+    private function sanitizeReturnTo(?string $value): ?string
+    {
+        if (! is_string($value) || $value === '' || ! str_starts_with($value, '/') || str_starts_with($value, '//')) {
+            return null;
+        }
+
+        $path = parse_url($value, PHP_URL_PATH);
+        if (! is_string($path) || ! preg_match('#^/(mypage|settings|todos)(/|$)#', $path)) {
+            return null;
+        }
+
+        return $this->urlWithoutFlashParams($value);
     }
 }
