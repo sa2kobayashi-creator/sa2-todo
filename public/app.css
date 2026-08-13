@@ -5496,6 +5496,7 @@ body.notes-page .notes-year-dock-top:hover {
   opacity: 1;
   flex: 0 0 auto;
   padding-top: 14px;
+  margin-left: 2px;
 }
 
 .notes-input-row {
@@ -6255,6 +6256,8 @@ body.notes-page .notes-year-dock-top:hover {
   width: auto;
   margin: 0;
   align-self: stretch;
+  padding-left: 10px;
+  box-sizing: border-box;
 }
 
 .notes-view-list .note-card-view {
