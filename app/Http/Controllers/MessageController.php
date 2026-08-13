@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\UsageLimitExceededException;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\GroupChatService;
+use App\Services\PhotoService;
 use App\Services\TranslationService;
 use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class MessageController extends Controller
     public function __construct(
         private GroupChatService $chat,
         private UserUsageLimitService $usageLimits,
+        private PhotoService $photos,
     ) {}
 
     public function index(Request $request)
@@ -285,6 +287,54 @@ class MessageController extends Controller
     public function attachmentDownload(Request $request, int $id): StreamedResponse
     {
         return $this->streamAttachment($request, $id, true);
+    }
+
+    public function attachmentSaveToPhotos(Request $request, int $id)
+    {
+        $userId = (int) $request->user()->id;
+        $attachment = $this->chat->findAccessibleAttachment($userId, $id);
+        abort_unless($attachment, 404);
+
+        if (! $this->photos->canImportMimeAndName($attachment->mime, $attachment->original_name)) {
+            return response()->json([
+                'ok' => false,
+                'message' => __('Photosに追加できない形式です。'),
+            ], 422);
+        }
+
+        $albumId = $request->filled('album_id') ? $request->integer('album_id') : null;
+
+        try {
+            $result = $this->photos->importFromStoredFile(
+                $userId,
+                (string) $attachment->disk,
+                (string) $attachment->path,
+                (string) ($attachment->original_name ?: 'message-attachment'),
+                $attachment->mime,
+                $albumId > 0 ? $albumId : null,
+            );
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        if (($result['created'] ?? []) === [] && ($result['skipped'] ?? []) !== []) {
+            return response()->json([
+                'ok' => true,
+                'skipped' => true,
+                'message' => __('すでに Photos に同じ写真があります。'),
+                'photosUrl' => '/photos',
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'skipped' => false,
+            'photo' => $result['created'][0] ?? null,
+            'message' => __('Photosに追加しました。'),
+            'photosUrl' => '/photos',
+        ]);
     }
 
     private function containsJapanese(string $text): bool

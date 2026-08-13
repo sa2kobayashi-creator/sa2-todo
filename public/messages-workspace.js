@@ -240,10 +240,21 @@
     if (Array.isArray(message.attachments) && message.attachments.length) {
       html += '<ul class="msg-files">'
       message.attachments.forEach(function (file) {
+        var actions = '<div class="msg-file-actions">' +
+          '<a class="msg-file-action" href="' + escapeHtml(file.downloadUrl) + '" download>' + escapeHtml(i18n.download || 'Download') + '</a>'
+        if (file.canSaveToPhotos) {
+          actions += '<button type="button" class="msg-file-action" data-save-to-photos="' + Number(file.id) + '" data-save-to-photos-url="' +
+            escapeHtml(file.saveToPhotosUrl || ('/messages/attachments/' + file.id + '/to-photos')) + '">' +
+            escapeHtml(i18n.saveToPhotos || 'Add to Photos') + '</button>'
+        }
+        actions += '</div>'
         if (file.isImage) {
-          html += '<li><a href="' + escapeHtml(file.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(file.url) + '" alt="' + escapeHtml(file.name) + '" /></a></li>'
+          html += '<li class="msg-file-item is-image"><a class="msg-file-preview" href="' + escapeHtml(file.url) +
+            '" target="_blank" rel="noopener"><img src="' + escapeHtml(file.url) + '" alt="' + escapeHtml(file.name) +
+            '" /></a>' + actions + '</li>'
         } else {
-          html += '<li><a class="msg-file-link" href="' + escapeHtml(file.downloadUrl) + '">' + escapeHtml(file.name) + '</a></li>'
+          html += '<li class="msg-file-item"><a class="msg-file-link" href="' + escapeHtml(file.downloadUrl) + '">' +
+            escapeHtml(file.name) + '</a>' + actions + '</li>'
         }
       })
       html += '</ul>'
@@ -662,6 +673,31 @@
   thread.addEventListener('click', function (e) {
     var t = e.target
     if (!t || !t.closest) return
+
+    var saveBtn = t.closest('[data-save-to-photos]')
+    if (saveBtn) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (saveBtn.disabled) return
+      var saveUrl = saveBtn.getAttribute('data-save-to-photos-url') ||
+        ('/messages/attachments/' + saveBtn.getAttribute('data-save-to-photos') + '/to-photos')
+      saveBtn.disabled = true
+      api(saveUrl, { method: 'POST', body: JSON.stringify({}) })
+        .then(function (data) {
+          if (data && data.ok) {
+            toast(data.message || i18n.saveToPhotosOk || '')
+            return
+          }
+          toast((data && data.message) || i18n.saveToPhotosFail || i18n.sendFail)
+        })
+        .catch(function () {
+          toast(i18n.saveToPhotosFail || i18n.sendFail)
+        })
+        .finally(function () {
+          saveBtn.disabled = false
+        })
+      return
+    }
 
     var menuBtn = t.closest('[data-msg-menu]')
     if (menuBtn) {

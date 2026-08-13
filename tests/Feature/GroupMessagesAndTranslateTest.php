@@ -7,9 +7,12 @@ use App\Enums\UserRole;
 use App\Models\Group;
 use App\Models\GroupMember;
 use App\Models\GroupMessage;
+use App\Models\Photo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class GroupMessagesAndTranslateTest extends TestCase
@@ -285,5 +288,50 @@ class GroupMessagesAndTranslateTest extends TestCase
 
         $this->actingAs($user)->get('/translate')->assertForbidden();
         $this->actingAs($admin)->get('/translate')->assertOk();
+    }
+
+    public function test_member_can_download_and_save_message_image_to_photos(): void
+    {
+        Storage::fake('public');
+
+        $alice = $this->makeUser('alice-photo@example.com', 'Alice');
+        $bob = $this->makeUser('bob-photo@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, [
+                'body' => 'pic',
+                'attachments' => [UploadedFile::fake()->image('chat.jpg', 48, 48)],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $attachmentId = (int) \App\Models\GroupMessageAttachment::query()->value('id');
+        $this->assertGreaterThan(0, $attachmentId);
+
+        $this->actingAs($bob)
+            ->get('/messages/attachments/'.$attachmentId.'/download')
+            ->assertOk();
+
+        $this->actingAs($bob)
+            ->postJson('/messages/attachments/'.$attachmentId.'/to-photos')
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('skipped', false);
+
+        $this->assertSame(1, Photo::query()->where('user_id', $bob->id)->count());
+
+        $this->actingAs($bob)
+            ->postJson('/messages/attachments/'.$attachmentId.'/to-photos')
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('skipped', true);
+
+        $this->assertSame(1, Photo::query()->where('user_id', $bob->id)->count());
+
+        $outsider = $this->makeUser('out-photo@example.com');
+        $this->actingAs($outsider)
+            ->postJson('/messages/attachments/'.$attachmentId.'/to-photos')
+            ->assertNotFound();
     }
 }

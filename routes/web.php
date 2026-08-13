@@ -191,6 +191,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/messages', [MessageController::class, 'index']);
         Route::get('/messages/attachments/{id}/file', [MessageController::class, 'attachmentFile'])->whereNumber('id');
         Route::get('/messages/attachments/{id}/download', [MessageController::class, 'attachmentDownload'])->whereNumber('id');
+        Route::post('/messages/attachments/{id}/to-photos', [MessageController::class, 'attachmentSaveToPhotos'])->whereNumber('id');
         Route::post('/messages/items/{id}/update', [MessageController::class, 'update'])->whereNumber('id');
         Route::post('/messages/items/{id}/delete', [MessageController::class, 'destroy'])->whereNumber('id');
         Route::post('/messages/items/{id}/react', [MessageController::class, 'react'])->whereNumber('id');

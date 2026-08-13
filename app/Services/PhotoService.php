@@ -1519,6 +1519,93 @@ class PhotoService
     }
 
     /**
+     * メッセージ等の保存済みファイルを Photos ライブラリへ取り込む。
+     *
+     * @return array{created: list<array<string, mixed>>, skipped: list<array{name: string, hash: string}>}
+     */
+    public function importFromStoredFile(
+        int $userId,
+        string $disk,
+        string $path,
+        string $originalName,
+        ?string $mime = null,
+        ?int $albumId = null,
+        bool $allowDuplicates = false,
+    ): array {
+        $storage = Storage::disk($disk);
+        if (! $storage->exists($path)) {
+            throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
+        }
+
+        $safeName = mb_substr(trim($originalName) !== '' ? $originalName : basename($path), 0, 255);
+        $ext = strtolower((string) pathinfo($safeName, PATHINFO_EXTENSION));
+        if ($ext === '') {
+            $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+        }
+        if ($ext === '' || (! in_array($ext, self::ALLOWED_IMAGE_EXTENSIONS, true) && ! in_array($ext, self::ALLOWED_VIDEO_EXTENSIONS, true))) {
+            throw new \InvalidArgumentException(__('Photosに追加できない形式です。'));
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'sa2imp');
+        if ($tmp === false) {
+            throw new \InvalidArgumentException(__('一時ファイルを作成できませんでした。'));
+        }
+        $tmpPath = $tmp.'.'.$ext;
+        @rename($tmp, $tmpPath);
+
+        try {
+            $stream = $storage->readStream($path);
+            if ($stream === false) {
+                throw new \InvalidArgumentException(__('ファイルの読み込みに失敗しました。'));
+            }
+            $out = fopen($tmpPath, 'wb');
+            if ($out === false) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+                throw new \InvalidArgumentException(__('一時ファイルを作成できませんでした。'));
+            }
+            try {
+                stream_copy_to_stream($stream, $out);
+            } finally {
+                fclose($out);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+
+            $resolvedMime = is_string($mime) && $mime !== ''
+                ? $mime
+                : (mime_content_type($tmpPath) ?: 'application/octet-stream');
+            $uploaded = new UploadedFile($tmpPath, $safeName, $resolvedMime, \UPLOAD_ERR_OK, true);
+
+            return $this->uploadPhotos($userId, [$uploaded], $albumId, [], $allowDuplicates);
+        } finally {
+            if (is_file($tmpPath)) {
+                @unlink($tmpPath);
+            }
+            if (is_file($tmp)) {
+                @unlink($tmp);
+            }
+        }
+    }
+
+    public function canImportMimeAndName(?string $mime, ?string $originalName): bool
+    {
+        $mime = strtolower(trim((string) $mime));
+        $ext = strtolower((string) pathinfo((string) $originalName, PATHINFO_EXTENSION));
+        if (in_array($mime, self::ALLOWED_MIMES, true) || in_array($mime, self::ALLOWED_VIDEO_MIMES, true)) {
+            return true;
+        }
+        if (str_starts_with($mime, 'image/') && in_array($ext, self::ALLOWED_IMAGE_EXTENSIONS, true)) {
+            return true;
+        }
+
+        return $this->isVideoMime($mime, $ext) || in_array($ext, self::ALLOWED_VIDEO_EXTENSIONS, true)
+            || in_array($ext, self::ALLOWED_IMAGE_EXTENSIONS, true);
+    }
+
+    /**
      * クライアントと同じアルゴリズム（sa2-photo-v1）で内容フィンガープリントを計算する。
      * 4MB 以下は全文 SHA-256、それ以上は size + 先頭2MB + 末尾2MB。
      */

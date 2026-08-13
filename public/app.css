@@ -16980,6 +16980,14 @@ body.video-page .media-player-stage-spacer {
   display: grid;
   gap: 6px;
 }
+.msg-file-item {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.msg-file-preview {
+  display: block;
+}
 .msg-files img {
   max-width: 220px;
   border-radius: 12px;
@@ -16988,6 +16996,39 @@ body.video-page .media-player-stage-spacer {
 .msg-file-link {
   color: inherit;
   text-decoration: underline;
+}
+.msg-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.msg-file-action {
+  appearance: none;
+  border: 0;
+  background: rgba(15, 23, 42, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 5px 10px;
+  border-radius: 999px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.msg-file-action:hover {
+  background: rgba(15, 23, 42, 0.1);
+}
+.msg-file-action:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.msg-bubble.is-mine .msg-file-action {
+  background: rgba(255, 255, 255, 0.22);
+}
+.msg-bubble.is-mine .msg-file-action:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 .msg-compose {
   border-top: 0;

@@ -59,12 +59,25 @@
   @if(!empty($message['attachments']))
     <ul class="msg-files">
       @foreach($message['attachments'] as $file)
-        <li>
+        <li class="msg-file-item{{ !empty($file['isImage']) ? ' is-image' : '' }}">
           @if(!empty($file['isImage']))
-            <a href="{{ $file['url'] }}" target="_blank" rel="noopener"><img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" /></a>
+            <a class="msg-file-preview" href="{{ $file['url'] }}" target="_blank" rel="noopener">
+              <img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" />
+            </a>
           @else
             <a class="msg-file-link" href="{{ $file['downloadUrl'] }}">{{ $file['name'] }}</a>
           @endif
+          <div class="msg-file-actions">
+            <a class="msg-file-action" href="{{ $file['downloadUrl'] }}" download>{{ __('ダウンロード') }}</a>
+            @if(!empty($file['canSaveToPhotos']))
+              <button
+                type="button"
+                class="msg-file-action"
+                data-save-to-photos="{{ $file['id'] }}"
+                data-save-to-photos-url="{{ $file['saveToPhotosUrl'] ?? ('/messages/attachments/'.$file['id'].'/to-photos') }}"
+              >{{ __('Photosに追加') }}</button>
+            @endif
+          </div>
         </li>
       @endforeach
     </ul>

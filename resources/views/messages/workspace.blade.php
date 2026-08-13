@@ -342,6 +342,10 @@
           bgShared: @json(__('グループ背景を更新しました（全員に共有）')),
           bgTooLarge: @json(__('画像が大きすぎます。別の写真を選んでください。')),
           bgFail: @json(__('背景の読み込みに失敗しました。')),
+          download: @json(__('ダウンロード')),
+          saveToPhotos: @json(__('Photosに追加')),
+          saveToPhotosOk: @json(__('Photosに追加しました。')),
+          saveToPhotosFail: @json(__('Photosへの追加に失敗しました。')),
         }
       }
     </script>

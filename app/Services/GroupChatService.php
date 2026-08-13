@@ -519,14 +519,18 @@ class GroupChatService
     /** @return array<string, mixed> */
     public function attachmentToArray(GroupMessageAttachment $attachment): array
     {
+        $photos = app(PhotoService::class);
+
         return [
             'id' => $attachment->id,
             'name' => $attachment->original_name,
             'mime' => $attachment->mime,
             'sizeBytes' => (int) $attachment->size_bytes,
             'isImage' => $attachment->isImage(),
+            'canSaveToPhotos' => $photos->canImportMimeAndName($attachment->mime, $attachment->original_name),
             'url' => '/messages/attachments/'.$attachment->id.'/file',
             'downloadUrl' => '/messages/attachments/'.$attachment->id.'/download',
+            'saveToPhotosUrl' => '/messages/attachments/'.$attachment->id.'/to-photos',
         ];
     }
 
