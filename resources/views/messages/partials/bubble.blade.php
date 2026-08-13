@@ -51,6 +51,11 @@
   @if(!empty($message['body']) && !$isSticker)
     <p class="msg-body-text">{{ $message['body'] }}</p>
   @endif
+  @if($isSticker && !empty($message['body']))
+    <div class="msg-sticker-line">
+      <p class="msg-sticker-emoji msg-body-text" title="{{ __('長押しで拡大') }}">{{ $message['body'] }}</p>
+    </div>
+  @endif
   @if(!empty($message['attachments']))
     <ul class="msg-files">
       @foreach($message['attachments'] as $file)
@@ -64,24 +69,33 @@
       @endforeach
     </ul>
   @endif
-  @if($isSticker)
-    <div class="msg-sticker-line">
-      @if(!empty($message['body']))
-        <p class="msg-sticker-emoji msg-body-text" title="{{ __('長押しで拡大') }}">{{ $message['body'] }}</p>
-      @endif
-      <div class="msg-bubble-actions">
+  <div class="msg-footer">
+    <div class="msg-reacts">
+      @foreach($message['reactions'] ?? [] as $reaction)
+        <button
+          type="button"
+          class="msg-react-chip {{ !empty($reaction['reactedByMe']) ? 'is-mine' : '' }}"
+          data-react="{{ $reaction['emoji'] }}"
+          data-id="{{ $message['id'] }}"
+        >{{ $reaction['emoji'] }} <span>{{ $reaction['count'] }}</span></button>
+      @endforeach
+      <button
+        type="button"
+        class="msg-react-open"
+        data-react-open="{{ $message['id'] }}"
+        aria-label="{{ __('リアクション') }}"
+        title="{{ __('リアクション') }}"
+      >😊</button>
+    </div>
+    <div class="msg-bubble-actions">
+      @if($isSticker)
         @if($mine)
           {!! $actBtn('delete', (int) $message['id']) !!}
         @else
           {!! $actBtn('reply', (int) $message['id']) !!}
           {!! $actBtn('delete', (int) $message['id']) !!}
         @endif
-      </div>
-      <button type="button" class="msg-menu-btn" data-msg-menu="{{ $message['id'] }}">{{ __('操作') }}</button>
-    </div>
-  @else
-    <div class="msg-bubble-actions">
-      @if($mine)
+      @elseif($mine)
         {!! $actBtn('edit', (int) $message['id']) !!}
         {!! $actBtn('delete', (int) $message['id']) !!}
         {!! $actBtn('copy', (int) $message['id']) !!}
@@ -96,22 +110,5 @@
       @endif
     </div>
     <button type="button" class="msg-menu-btn" data-msg-menu="{{ $message['id'] }}">{{ __('操作') }}</button>
-  @endif
-  <div class="msg-reacts">
-    @foreach($message['reactions'] ?? [] as $reaction)
-      <button
-        type="button"
-        class="msg-react-chip {{ !empty($reaction['reactedByMe']) ? 'is-mine' : '' }}"
-        data-react="{{ $reaction['emoji'] }}"
-        data-id="{{ $message['id'] }}"
-      >{{ $reaction['emoji'] }} <span>{{ $reaction['count'] }}</span></button>
-    @endforeach
-    <button
-      type="button"
-      class="msg-react-open"
-      data-react-open="{{ $message['id'] }}"
-      aria-label="{{ __('リアクション') }}"
-      title="{{ __('リアクション') }}"
-    >😊</button>
   </div>
 </article>

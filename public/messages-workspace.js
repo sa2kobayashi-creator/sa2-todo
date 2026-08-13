@@ -205,6 +205,14 @@
       '<button type="button" class="msg-react-open" data-react-open="' + message.id + '" aria-label="' + escapeHtml(i18n.react) + '" title="' + escapeHtml(i18n.react) + '">😊</button></div>'
   }
 
+  function footerHtml(message, mine) {
+    return '<div class="msg-footer">' +
+      reactionsHtml(message) +
+      '<div class="msg-bubble-actions">' + actionButtons(message, mine) + '</div>' +
+      '<button type="button" class="msg-menu-btn" data-msg-menu="' + message.id + '">' + escapeHtml(i18n.menu) + '</button>' +
+      '</div>'
+  }
+
   function renderMessage(message) {
     var mine = Number(message.userId) === meId
     var sticker = !!message.isSticker
@@ -225,6 +233,8 @@
       }
       if (message.body) html += '<p class="msg-body-text">' + escapeHtml(message.body) + '</p>'
       if (message._translated) html += '<p class="msg-translated">' + escapeHtml(message._translated) + '</p>'
+    } else if (message.body) {
+      html += '<div class="msg-sticker-line"><p class="msg-sticker-emoji msg-body-text" title="' + escapeHtml(i18n.stickerHold || '') + '">' + escapeHtml(message.body) + '</p></div>'
     }
     if (Array.isArray(message.attachments) && message.attachments.length) {
       html += '<ul class="msg-files">'
@@ -237,19 +247,7 @@
       })
       html += '</ul>'
     }
-    if (sticker) {
-      html += '<div class="msg-sticker-line">'
-      if (message.body) {
-        html += '<p class="msg-sticker-emoji msg-body-text" title="' + escapeHtml(i18n.stickerHold || '') + '">' + escapeHtml(message.body) + '</p>'
-      }
-      html += '<div class="msg-bubble-actions">' + actionButtons(message, mine) + '</div>'
-      html += '<button type="button" class="msg-menu-btn" data-msg-menu="' + message.id + '">' + escapeHtml(i18n.menu) + '</button>'
-      html += '</div>'
-    } else {
-      html += '<div class="msg-bubble-actions">' + actionButtons(message, mine) + '</div>'
-      html += '<button type="button" class="msg-menu-btn" data-msg-menu="' + message.id + '">' + escapeHtml(i18n.menu) + '</button>'
-    }
-    html += reactionsHtml(message)
+    html += footerHtml(message, mine)
     article.innerHTML = html
     return article
   }

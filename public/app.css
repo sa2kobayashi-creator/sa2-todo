@@ -16428,14 +16428,14 @@ body.video-page .media-player-stage-spacer {
   filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.12));
   -webkit-tap-highlight-color: transparent;
 }
-.msg-bubble.is-sticker .msg-bubble-actions {
-  margin-top: 0;
-  opacity: 0.92;
+.msg-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
 }
-.msg-bubble.is-sticker .msg-menu-btn {
-  margin-top: 0;
-}
-.msg-bubble.is-sticker .msg-reacts {
+.msg-bubble.is-sticker .msg-footer {
   margin-top: 4px;
 }
 .msg-bubble.is-mine.is-sticker .msg-act {
@@ -16676,8 +16676,9 @@ body.video-page .media-player-stage-spacer {
 .msg-bubble-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
-  margin-top: 8px;
+  margin-top: 0;
   opacity: 0.92;
 }
 .msg-act {
@@ -16712,7 +16713,7 @@ body.video-page .media-player-stage-spacer {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 8px;
+  margin-top: 0;
   align-items: center;
 }
 .msg-react-chip {
@@ -16969,7 +16970,7 @@ body.video-page .media-player-stage-spacer {
 }
 .msg-menu-btn {
   display: none;
-  margin-top: 8px;
+  margin-top: 0;
   border: 0;
   background: rgba(16, 35, 31, 0.08);
   color: inherit;
