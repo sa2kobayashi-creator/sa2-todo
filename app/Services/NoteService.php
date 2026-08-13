@@ -214,7 +214,7 @@ class NoteService
             $list = array_values(array_filter($list, fn ($note) => $this->getRegisteredDate($note) === $date));
         } elseif ($year && $month >= 1 && $month <= 12) {
             // 表示月を絞っても、未完了メモは月をまたいで残す
-            $list = $this->filterNotesByMonthKeepingPending($list, $year, $month);
+            $list = $this->filterNotesByMonth($list, $year, $month);
         }
 
         if ($status === 'pending') {
@@ -1129,22 +1129,6 @@ class NoteService
         $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, Carbon::create($year, $month, 1)->daysInMonth);
 
         return array_values(array_filter($list, function ($note) use ($monthStart, $monthEnd) {
-            $date = $this->getRegisteredDate($note);
-
-            return $date >= $monthStart && $date <= $monthEnd;
-        }));
-    }
-
-    /** @param list<array<string, mixed>> $list @return list<array<string, mixed>> */
-    private function filterNotesByMonthKeepingPending(array $list, int $year, int $month): array
-    {
-        $monthStart = sprintf('%04d-%02d-01', $year, $month);
-        $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, Carbon::create($year, $month, 1)->daysInMonth);
-
-        return array_values(array_filter($list, function ($note) use ($monthStart, $monthEnd) {
-            if (empty($note['completed'])) {
-                return true;
-            }
             $date = $this->getRegisteredDate($note);
 
             return $date >= $monthStart && $date <= $monthEnd;

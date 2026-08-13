@@ -53,9 +53,9 @@ class NoteCompleteAndFiltersTest extends TestCase
             ->assertSee('notes-year-dock', false);
     }
 
-    public function test_month_filter_keeps_incomplete_notes_from_other_months(): void
+    public function test_month_filter_shows_only_selected_month_notes(): void
     {
-        $july = $this->notes->createNote([
+        $this->notes->createNote([
             'userId' => $this->user->id,
             'title' => 'July open',
             'body' => 'open',
@@ -83,10 +83,48 @@ class NoteCompleteAndFiltersTest extends TestCase
         ]);
         $titles = array_column($list, 'title');
 
-        $this->assertContains('July open', $titles);
-        $this->assertContains('August note', $titles);
-        $this->assertNotContains('July done', $titles);
-        $this->assertSame($july['id'], collect($list)->firstWhere('title', 'July open')['id']);
+        $this->assertSame(['August note'], $titles);
+
+        $this->actingAs($this->user)
+            ->get('/notes?period=2026-08')
+            ->assertOk()
+            ->assertSee('August note', false)
+            ->assertDontSee('July open', false)
+            ->assertDontSee('July done', false)
+            ->assertSee('2026年8月', false);
+    }
+
+    public function test_unpinned_section_label_shows_only_when_pinned_notes_exist(): void
+    {
+        $this->notes->createNote([
+            'userId' => $this->user->id,
+            'title' => 'Normal note',
+            'body' => 'n',
+            'registeredDate' => '2026-08-01',
+        ]);
+
+        $this->actingAs($this->user)
+            ->get('/notes')
+            ->assertOk()
+            ->assertDontSee('>ピンなし<', false)
+            ->assertSee('Normal note', false);
+
+        $pinned = $this->notes->createNote([
+            'userId' => $this->user->id,
+            'title' => 'Pinned note',
+            'body' => 'p',
+            'registeredDate' => '2026-08-02',
+            'pinned' => true,
+        ]);
+        $this->assertTrue(! empty($pinned['pinned']));
+
+        $this->actingAs($this->user)
+            ->get('/notes')
+            ->assertOk()
+            ->assertSee('ピン留め', false)
+            ->assertSee('ピンなし', false)
+            ->assertSee('Pinned note', false)
+            ->assertSee('Normal note', false);
     }
 
     public function test_status_filter_pending_and_done(): void

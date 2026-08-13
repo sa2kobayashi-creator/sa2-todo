@@ -199,7 +199,7 @@
             data-year="{{ $monthGroup['year'] }}"
             aria-label="{{ $monthGroup['label'] }}"
           >
-            @if(count($pinnedNoteGroups ?? []) > 1)
+            @if(count($pinnedNoteGroups ?? []) > 1 || ($periodValue ?? '') !== '')
               <h3 class="notes-month-heading">{{ $monthGroup['label'] }}</h3>
             @endif
             <div class="notes-grid">
@@ -212,7 +212,9 @@
       @endif
 
         @if(count($otherNotes) > 0)
-        @if(count($pinnedNotes) > 0)<h2 class="notes-section-title">{{ __('その他') }}</h2>@endif
+        @if(count($pinnedNotes) > 0)
+          <h2 class="notes-section-title">{{ __('ピンなし') }}</h2>
+        @endif
         @foreach($otherNoteGroups ?? [] as $monthGroup)
           <section
             class="notes-month-group"
@@ -220,7 +222,7 @@
             data-year="{{ $monthGroup['year'] }}"
             aria-label="{{ $monthGroup['label'] }}"
           >
-            @if(count($otherNoteGroups ?? []) > 1)
+            @if(count($otherNoteGroups ?? []) > 1 || ($periodValue ?? '') !== '')
               <h3 class="notes-month-heading">{{ $monthGroup['label'] }}</h3>
             @endif
             <div class="notes-grid">

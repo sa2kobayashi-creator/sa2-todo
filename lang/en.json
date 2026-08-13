@@ -942,6 +942,7 @@
     "パスワード（確認）": "Confirm Password",
     "ビザ": "Visa",
     "ピン留め": "Pin",
+    "ピンなし": "Unpinned",
     "ピン留めを外す": "Unpin",
     "ピン留めメモ": "Pinned notes",
     "ファイルから文字を抽出できませんでした。": "Could not extract text from the file.",

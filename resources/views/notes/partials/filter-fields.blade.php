@@ -5,7 +5,7 @@
 @endphp
 @if($showArchived)<input type="hidden" name="archived" value="1" />@endif
 @if($filterDate)<input type="hidden" name="date" value="{{ $filterDate }}" />@endif
-<label class="notes-period-label">
+<label class="notes-period-label{{ ($periodValue ?? '') !== '' ? ' is-filtered' : '' }}">
   {{ __('表示月') }}
   <select name="period" id="{{ $idPrefix }}notes-period" aria-label="{{ __('表示月') }}" @disabled($filterDate)>
     <option value="" @selected($periodValue === '')>{{ __('すべて') }}</option>

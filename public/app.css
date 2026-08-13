@@ -5173,6 +5173,18 @@ button.link.danger,
   min-height: 38px;
 }
 
+.notes-period-label.is-filtered {
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+.notes-period-label.is-filtered select {
+  border-color: #93c5fd;
+  background: #eef4ff;
+  color: #1a73e8;
+  font-weight: 600;
+}
+
 .notes-period-label select,
 .notes-status-filter select,
 .notes-category-filter select,
