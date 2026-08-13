@@ -197,8 +197,18 @@
           <button type="button" class="msg-bg-preset" data-bg="default" title="{{ __('標準') }}"><span>{{ __('標準') }}</span></button>
           <button type="button" class="msg-bg-preset is-mint" data-bg="mint" title="{{ __('ミント') }}"><span>{{ __('ミント') }}</span></button>
           <button type="button" class="msg-bg-preset is-sky" data-bg="sky" title="{{ __('スカイ') }}"><span>{{ __('スカイ') }}</span></button>
-          <button type="button" class="msg-bg-preset is-dusk" data-bg="dusk" title="{{ __('ダスク') }}"><span>{{ __('ダスク') }}</span></button>
+          <button type="button" class="msg-bg-preset is-ocean" data-bg="ocean" title="{{ __('オーシャン') }}"><span>{{ __('オーシャン') }}</span></button>
+          <button type="button" class="msg-bg-preset is-aurora" data-bg="aurora" title="{{ __('オーロラ') }}"><span>{{ __('オーロラ') }}</span></button>
+          <button type="button" class="msg-bg-preset is-forest" data-bg="forest" title="{{ __('フォレスト') }}"><span>{{ __('フォレスト') }}</span></button>
+          <button type="button" class="msg-bg-preset is-meadow" data-bg="meadow" title="{{ __('メドウ') }}"><span>{{ __('メドウ') }}</span></button>
+          <button type="button" class="msg-bg-preset is-sakura" data-bg="sakura" title="{{ __('サクラ') }}"><span>{{ __('サクラ') }}</span></button>
+          <button type="button" class="msg-bg-preset is-peach" data-bg="peach" title="{{ __('ピーチ') }}"><span>{{ __('ピーチ') }}</span></button>
+          <button type="button" class="msg-bg-preset is-citrus" data-bg="citrus" title="{{ __('シトラス') }}"><span>{{ __('シトラス') }}</span></button>
+          <button type="button" class="msg-bg-preset is-sand" data-bg="sand" title="{{ __('サンド') }}"><span>{{ __('サンド') }}</span></button>
           <button type="button" class="msg-bg-preset is-paper" data-bg="paper" title="{{ __('ペーパー') }}"><span>{{ __('ペーパー') }}</span></button>
+          <button type="button" class="msg-bg-preset is-dusk" data-bg="dusk" title="{{ __('ダスク') }}"><span>{{ __('ダスク') }}</span></button>
+          <button type="button" class="msg-bg-preset is-midnight" data-bg="midnight" title="{{ __('ミッドナイト') }}"><span>{{ __('ミッドナイト') }}</span></button>
+          <button type="button" class="msg-bg-preset is-slate" data-bg="slate" title="{{ __('スレート') }}"><span>{{ __('スレート') }}</span></button>
           <button type="button" class="msg-bg-preset is-plain" data-bg="plain" title="{{ __('シンプル') }}"><span>{{ __('シンプル') }}</span></button>
         </div>
         <div class="msg-bg-actions">

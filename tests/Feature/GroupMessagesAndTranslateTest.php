@@ -242,6 +242,11 @@ class GroupMessagesAndTranslateTest extends TestCase
         $group = $this->makeApprovedGroup($alice, $bob);
 
         $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id.'/wallpaper', ['theme' => 'aurora'])
+            ->assertOk()
+            ->assertJsonPath('wallpaper.value', 'aurora');
+
+        $this->actingAs($alice)
             ->postJson('/messages/'.$group->id.'/wallpaper', ['theme' => 'mint'])
             ->assertOk()
             ->assertJsonPath('ok', true)

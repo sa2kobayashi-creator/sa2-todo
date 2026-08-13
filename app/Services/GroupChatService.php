@@ -686,7 +686,10 @@ class GroupChatService
         ]);
     }
 
-    public const WALLPAPER_THEMES = ['default', 'mint', 'sky', 'dusk', 'paper', 'plain'];
+    public const WALLPAPER_THEMES = [
+        'default', 'mint', 'sky', 'dusk', 'paper', 'plain',
+        'ocean', 'sakura', 'forest', 'sand', 'midnight', 'citrus', 'aurora', 'peach', 'slate', 'meadow',
+    ];
 
     public function maxWallpaperBytes(): int
     {
