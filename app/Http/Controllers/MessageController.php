@@ -403,8 +403,13 @@ class MessageController extends Controller
     /** @param list<array<string, mixed>> $workspace */
     private function workspaceViewData(Request $request, array $workspace): array
     {
+        $userId = (int) ($request->user()->id ?? 0);
+
         return [
             'workspace' => $workspace,
+            'inboxRecentMessages' => $userId > 0
+                ? $this->chat->inboxRecentGroupMessages($userId, 20)
+                : [],
             'activeGroup' => null,
             'activePeer' => null,
             'activeHref' => null,

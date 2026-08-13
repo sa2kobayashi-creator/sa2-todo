@@ -16544,6 +16544,22 @@ body.video-page .media-player-stage-spacer {
   font-weight: 700;
   color: #64748b;
 }
+.msg-rail-recent-section {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--msg-line);
+}
+.msg-rail-recent-group {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
+}
 .msg-rail-recent {
   list-style: none;
   margin: 0 0 8px;

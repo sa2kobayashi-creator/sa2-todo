@@ -109,7 +109,6 @@ class GroupChatService
                     'lastMessageAt' => $lastGroup['at'],
                     'lastMessagePreview' => $lastGroup['preview'],
                     'members' => $members,
-                    'recentMessages' => $this->recentChannelMessages($userId, $groupId, 12),
                 ];
             })
             ->values()
@@ -117,24 +116,36 @@ class GroupChatService
     }
 
     /**
-     * インボックス用：グループ全体チャットの最近メッセージ。
+     * インボックス下部用：全グループの最近のグループ全体メッセージ（重複なく1一覧）。
      *
-     * @return list<array{id: int, userName: string, preview: string, createdAt: ?string, href: string}>
+     * @return list<array{id: int, groupId: int, groupName: string, userName: string, preview: string, createdAt: ?string, href: string}>
      */
-    public function recentChannelMessages(int $userId, int $groupId, int $limit = 12): array
+    public function inboxRecentGroupMessages(int $userId, int $limit = 20): array
     {
-        $limit = max(1, min(30, $limit));
-        $query = GroupMessage::query()
-            ->with('user')
-            ->where('group_id', $groupId)
-            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
-        $this->applyThreadScope($query, $userId, null);
+        $limit = max(1, min(40, $limit));
+        $groups = $this->groups->listApprovedForUser($userId);
+        if ($groups->isEmpty()) {
+            return [];
+        }
 
-        return $query
+        $groupNames = [];
+        $groupIds = [];
+        foreach ($groups as $group) {
+            $id = (int) $group['id'];
+            $groupIds[] = $id;
+            $groupNames[$id] = (string) ($group['name'] ?? '');
+        }
+
+        return GroupMessage::query()
+            ->with('user')
+            ->whereIn('group_id', $groupIds)
+            ->whereNull('recipient_user_id')
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId))
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
-            ->map(function (GroupMessage $message) use ($groupId) {
+            ->map(function (GroupMessage $message) use ($groupNames) {
+                $groupId = (int) $message->group_id;
                 $preview = trim((string) ($message->body ?: ''));
                 if ($preview === '') {
                     $preview = __('（添付）');
@@ -142,6 +153,8 @@ class GroupChatService
 
                 return [
                     'id' => (int) $message->id,
+                    'groupId' => $groupId,
+                    'groupName' => $groupNames[$groupId] ?? '',
                     'userName' => $message->user?->display_name ?: __('不明'),
                     'preview' => mb_substr($preview, 0, 100),
                     'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,

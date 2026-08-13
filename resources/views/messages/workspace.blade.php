@@ -45,7 +45,7 @@
                       <span class="msg-type-pill msg-type-channel">{{ __('グループチャット') }}</span>
                       {{ $room['name'] }}
                     </strong>
-                    <small>{{ $room['lastMessagePreview'] ?: __('グループ全体へのメッセージ') }}</small>
+                    <small>{{ __('グループ全体へのメッセージ') }}</small>
                   </span>
                 </a>
                 @if(!empty($room['members']))
@@ -78,26 +78,33 @@
                     </a>
                   @endforeach
                 @endif
-                @if(!empty($room['recentMessages']))
-                  <p class="msg-rail-label">{{ __('最近のグループメッセージ') }}</p>
-                  <ul class="msg-rail-recent">
-                    @foreach($room['recentMessages'] as $recent)
-                      <li>
-                        <a href="{{ $recent['href'] }}" class="msg-rail-recent-item">
-                          <span class="msg-rail-recent-meta">
-                            <strong>{{ $recent['userName'] }}</strong>
-                            @if(!empty($recent['createdAt']))
-                              <time>{{ $recent['createdAt'] }}</time>
-                            @endif
-                          </span>
-                          <span class="msg-rail-recent-preview">{{ $recent['preview'] }}</span>
-                        </a>
-                      </li>
-                    @endforeach
-                  </ul>
-                @endif
               </section>
             @endforeach
+            @if(!empty($inboxRecentMessages))
+              <section class="msg-rail-recent-section" aria-label="{{ __('最近のグループメッセージ') }}">
+                <p class="msg-rail-label">{{ __('最近のグループメッセージ') }}</p>
+                <ul class="msg-rail-recent">
+                  @foreach($inboxRecentMessages as $recent)
+                    <li>
+                      <a href="{{ $recent['href'] }}" class="msg-rail-recent-item">
+                        <span class="msg-rail-recent-meta">
+                          <strong>
+                            @if(!empty($recent['groupName']))
+                              <span class="msg-rail-recent-group">{{ $recent['groupName'] }}</span>
+                            @endif
+                            {{ $recent['userName'] }}
+                          </strong>
+                          @if(!empty($recent['createdAt']))
+                            <time>{{ $recent['createdAt'] }}</time>
+                          @endif
+                        </span>
+                        <span class="msg-rail-recent-preview">{{ $recent['preview'] }}</span>
+                      </a>
+                    </li>
+                  @endforeach
+                </ul>
+              </section>
+            @endif
           @endif
         </aside>
 

@@ -68,7 +68,8 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertSee($group->name, false)
             ->assertSee('/messages/'.$group->id, false)
             ->assertSee('最近のグループメッセージ', false)
-            ->assertSee('group hello', false);
+            ->assertSee('group hello', false)
+            ->assertSee('グループ全体へのメッセージ', false);
     }
 
     public function test_group_member_can_post_and_poll_messages(): void
