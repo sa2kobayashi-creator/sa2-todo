@@ -309,6 +309,7 @@ class MessageController extends Controller
             'composeEmojis' => ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👎', '👏', '🙏', '❤️', '🔥', '🎉', '✨', '😢', '😮'],
             'canTranslate' => false,
             'maxUploadLabel' => $this->formatBytes($this->chat->maxAttachmentBytes()),
+            'maxAttachmentBytes' => $this->chat->maxAttachmentBytes(),
             ...$this->flashFromQuery($request),
         ];
     }

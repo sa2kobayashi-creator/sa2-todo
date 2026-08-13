@@ -92,7 +92,7 @@
             </div>
           @else
             <header class="msg-stage-head">
-              <div>
+              <div class="msg-stage-head-main">
                 <p class="msg-kicker">
                   <span class="msg-type-pill {{ !empty($isDirect) ? 'msg-type-dm' : 'msg-type-channel' }}">
                     {{ !empty($isDirect) ? __('個別メッセージ') : __('グループメッセージ') }}
@@ -114,6 +114,11 @@
                   @endif
                 </h2>
               </div>
+              <button type="button" class="msg-bg-btn" id="message-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+              </button>
             </header>
 
             <div
@@ -132,54 +137,78 @@
               @endforelse
             </div>
 
-            <div class="msg-reply-bar" id="message-reply-bar" hidden>
-              <div>
-                <strong id="message-reply-name"></strong>
-                <span id="message-reply-preview"></span>
-              </div>
-              <button type="button" class="msg-icon-btn" id="message-reply-clear" aria-label="{{ __('返信をやめる') }}">×</button>
-            </div>
-
-            <form method="post" action="/messages/{{ $activeGroup['id'] }}" enctype="multipart/form-data" class="msg-compose" id="message-compose">
-              @csrf
-              @if(!empty($activePeer))
-                <input type="hidden" name="peer_user_id" value="{{ $activePeer['userId'] }}" />
-              @endif
-              <input type="hidden" name="reply_to_id" id="message-reply-to" value="" />
-              <div class="msg-compose-input-wrap">
-                <textarea id="message-body" name="body" rows="2" maxlength="5000" placeholder="{{ !empty($isDirect) ? __('個別メッセージを入力') : __('グループにメッセージ') }}"></textarea>
-                <button type="button" class="msg-compose-emoji" id="message-emoji-btn" aria-label="{{ __('絵文字') }}" title="{{ __('絵文字') }}"><span aria-hidden="true">😊</span></button>
-              </div>
-              <div class="msg-compose-bar">
-                <span class="msg-attach-names" id="message-attach-names"></span>
-                <button type="submit" class="msg-send">{{ __('送信') }}</button>
-                <div class="msg-compose-tools">
-                  <label class="msg-icon-tool" for="message-attachments" title="{{ __('添付') }}" aria-label="{{ __('添付') }}">
-                    <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
-                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                      <path fill="currentColor" d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-1.93-1.57-3.5-3.5-3.5S8 3.07 8 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-2.5z"/>
-                    </svg>
-                  </label>
-                  <label class="msg-icon-tool" for="message-camera" title="{{ __('カメラ') }}" aria-label="{{ __('カメラ') }}">
-                    <input type="file" id="message-camera" accept="image/*" capture="environment" hidden />
-                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                      <path fill="currentColor" d="M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-                    </svg>
-                  </label>
-                  <button type="button" class="msg-icon-tool" id="message-mic" aria-pressed="false" title="{{ __('音声入力') }}" aria-label="{{ __('音声入力') }}">
-                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                      <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                    </svg>
-                  </button>
-                  <button type="button" class="msg-quick-ok" id="message-quick-ok" aria-label="{{ __('OK') }}" title="{{ __('OKを送る') }}"><span aria-hidden="true">👍</span></button>
+            <div class="msg-compose-dock">
+              <div class="msg-reply-bar" id="message-reply-bar" hidden>
+                <div>
+                  <strong id="message-reply-name"></strong>
+                  <span id="message-reply-preview"></span>
                 </div>
+                <button type="button" class="msg-icon-btn" id="message-reply-clear" aria-label="{{ __('返信をやめる') }}">×</button>
               </div>
-              <p class="msg-hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '20 MB']) }} · {{ __('カメラは撮影後にすぐ送信') }} · {{ __('🎙で音声入力') }}</p>
-            </form>
+
+              <form method="post" action="/messages/{{ $activeGroup['id'] }}" enctype="multipart/form-data" class="msg-compose" id="message-compose">
+                @csrf
+                @if(!empty($activePeer))
+                  <input type="hidden" name="peer_user_id" value="{{ $activePeer['userId'] }}" />
+                @endif
+                <input type="hidden" name="reply_to_id" id="message-reply-to" value="" />
+                <div class="msg-compose-input-wrap">
+                  <textarea id="message-body" name="body" rows="2" maxlength="5000" placeholder="{{ !empty($isDirect) ? __('個別メッセージを入力') : __('グループにメッセージ') }}"></textarea>
+                  <button type="button" class="msg-compose-emoji" id="message-emoji-btn" aria-label="{{ __('絵文字') }}" title="{{ __('絵文字') }}"><span aria-hidden="true">😊</span></button>
+                </div>
+                <div class="msg-compose-bar">
+                  <span class="msg-attach-names" id="message-attach-names"></span>
+                  <button type="submit" class="msg-send">{{ __('送信') }}</button>
+                  <div class="msg-compose-tools">
+                    <label class="msg-icon-tool" for="message-attachments" title="{{ __('添付') }}" aria-label="{{ __('添付') }}">
+                      <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
+                      <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-1.93-1.57-3.5-3.5-3.5S8 3.07 8 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-2.5z"/>
+                      </svg>
+                    </label>
+                    <label class="msg-icon-tool" for="message-camera" title="{{ __('カメラ') }}" aria-label="{{ __('カメラ') }}">
+                      <input type="file" id="message-camera" accept="image/*" capture="environment" hidden />
+                      <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                      </svg>
+                    </label>
+                    <button type="button" class="msg-icon-tool" id="message-mic" aria-pressed="false" title="{{ __('音声入力') }}" aria-label="{{ __('音声入力') }}">
+                      <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                      </svg>
+                    </button>
+                    <button type="button" class="msg-quick-ok" id="message-quick-ok" aria-label="{{ __('OK') }}" title="{{ __('OKを送る') }}"><span aria-hidden="true">👍</span></button>
+                  </div>
+                </div>
+              </form>
+            </div>
           @endif
         </section>
       </div>
     </main>
+
+    <dialog class="msg-dialog" id="message-bg-dialog">
+      <form method="dialog" class="msg-dialog-card">
+        <h3>{{ __('チャット背景') }}</h3>
+        <p class="msg-bg-hint">{{ __('テーマまたは写真を選べます（この端末に保存）') }}</p>
+        <div class="msg-bg-presets" id="message-bg-presets">
+          <button type="button" class="msg-bg-preset" data-bg="default" title="{{ __('標準') }}"><span>{{ __('標準') }}</span></button>
+          <button type="button" class="msg-bg-preset is-mint" data-bg="mint" title="{{ __('ミント') }}"><span>{{ __('ミント') }}</span></button>
+          <button type="button" class="msg-bg-preset is-sky" data-bg="sky" title="{{ __('スカイ') }}"><span>{{ __('スカイ') }}</span></button>
+          <button type="button" class="msg-bg-preset is-dusk" data-bg="dusk" title="{{ __('ダスク') }}"><span>{{ __('ダスク') }}</span></button>
+          <button type="button" class="msg-bg-preset is-paper" data-bg="paper" title="{{ __('ペーパー') }}"><span>{{ __('ペーパー') }}</span></button>
+          <button type="button" class="msg-bg-preset is-plain" data-bg="plain" title="{{ __('シンプル') }}"><span>{{ __('シンプル') }}</span></button>
+        </div>
+        <div class="msg-bg-actions">
+          <label class="msg-bg-upload">
+            <input type="file" id="message-bg-file" accept="image/*" hidden />
+            {{ __('写真を選ぶ') }}
+          </label>
+          <button type="button" class="msg-dialog-cancel" id="message-bg-clear">{{ __('写真をクリア') }}</button>
+        </div>
+        <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('閉じる') }}</button>
+      </form>
+    </dialog>
 
     <dialog class="msg-dialog" id="message-emoji-dialog">
       <form method="dialog" class="msg-dialog-card">
@@ -266,6 +295,8 @@
     <script>
       window.__MSG_CFG__ = {
         meId: {{ (int) ($currentUser['id'] ?? 0) }},
+        maxAttachmentBytes: {{ (int) ($maxAttachmentBytes ?? 20971520) }},
+        maxUploadLabel: @json($maxUploadLabel ?? '20 MB'),
         reactionEmojis: @json($reactionEmojis ?? []),
         i18n: {
           edited: @json(__('編集済み')),
@@ -274,6 +305,7 @@
           editPrompt: @json(__('メッセージを編集')),
           deleteConfirm: @json(__('このメッセージを削除しますか？')),
           sendFail: @json(__('送信に失敗しました。')),
+          fileTooLarge: @json(__('添付ファイルは :size 以下にしてください。', ['size' => $maxUploadLabel ?? '20 MB'])),
           translateFail: @json(__('翻訳に失敗しました。')),
           voiceUnsupported: @json(__('このブラウザでは音声入力に対応していません。')),
           voiceHttps: @json(__('音声入力は HTTPS（または localhost）でのみ利用できます。')),
@@ -292,6 +324,9 @@
           react: @json(__('リアクション')),
           menu: @json(__('操作')),
           stickerHold: @json(__('長押しで拡大')),
+          bgSaved: @json(__('背景を保存しました')),
+          bgTooLarge: @json(__('画像が大きすぎます。別の写真を選んでください。')),
+          bgFail: @json(__('背景の読み込みに失敗しました。')),
         }
       }
     </script>

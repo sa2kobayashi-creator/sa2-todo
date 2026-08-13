@@ -18,6 +18,7 @@
   var csrfMeta = document.querySelector('meta[name="csrf-token"]')
   var csrf = csrfMeta ? csrfMeta.getAttribute('content') || '' : ''
   var meId = Number(cfg.meId || 0)
+  var maxAttachmentBytes = Number(cfg.maxAttachmentBytes || (20 * 1024 * 1024))
   var reactionEmojis = cfg.reactionEmojis || []
   var i18n = cfg.i18n || {}
   var groupId = thread.getAttribute('data-group-id')
@@ -398,8 +399,40 @@
     clearReply()
   }
 
+  function fileTooLargeMessage() {
+    return i18n.fileTooLarge || 'File too large'
+  }
+
+  function filesWithinLimit(fileList) {
+    if (!fileList || !fileList.length) return true
+    var i
+    for (i = 0; i < fileList.length; i++) {
+      if (fileList[i] && Number(fileList[i].size || 0) > maxAttachmentBytes) {
+        return false
+      }
+    }
+    return true
+  }
+
+  function formDataWithinLimit(fd) {
+    if (!fd || typeof fd.getAll !== 'function') return true
+    var files = fd.getAll('attachments[]')
+    var i
+    for (i = 0; i < files.length; i++) {
+      var f = files[i]
+      if (f && typeof f.size === 'number' && f.size > maxAttachmentBytes) {
+        return false
+      }
+    }
+    return true
+  }
+
   function sendFormData(fd) {
     if (sending) return Promise.resolve()
+    if (!formDataWithinLimit(fd)) {
+      toast(fileTooLargeMessage())
+      return Promise.resolve()
+    }
     sending = true
     return api(form.action, { method: 'POST', body: fd })
       .then(function (data) {
@@ -800,6 +833,12 @@
 
   if (filesInput) {
     filesInput.addEventListener('change', function () {
+      if (!filesWithinLimit(filesInput.files)) {
+        toast(fileTooLargeMessage())
+        filesInput.value = ''
+        if (names) names.textContent = ''
+        return
+      }
       var list = []
       var i
       for (i = 0; i < (filesInput.files ? filesInput.files.length : 0); i++) {
@@ -813,6 +852,11 @@
     cameraInput.addEventListener('change', function () {
       var shot = cameraInput.files && cameraInput.files[0]
       if (!shot) return
+      if (Number(shot.size || 0) > maxAttachmentBytes) {
+        toast(fileTooLargeMessage())
+        cameraInput.value = ''
+        return
+      }
       var fd = new FormData(form)
       fd.delete('attachments[]')
       fd.set('body', '')
@@ -931,4 +975,158 @@
   thread.scrollTop = thread.scrollHeight
   setInterval(poll, 4000)
   poll()
+
+  // Chat wallpaper (device-local)
+  var BG_KEY = 'sa2.msg.wallpaper'
+  var bgDialog = document.getElementById('message-bg-dialog')
+  var bgBtn = document.getElementById('message-bg-btn')
+  var bgFile = document.getElementById('message-bg-file')
+  var bgClear = document.getElementById('message-bg-clear')
+  var bgPresets = document.getElementById('message-bg-presets')
+
+  function readBgPref() {
+    try {
+      var raw = window.localStorage.getItem(BG_KEY)
+      if (!raw) return { type: 'theme', value: 'default' }
+      var parsed = JSON.parse(raw)
+      if (parsed && parsed.type === 'image' && parsed.dataUrl) {
+        return { type: 'image', dataUrl: parsed.dataUrl }
+      }
+      if (parsed && parsed.type === 'theme' && parsed.value) {
+        return { type: 'theme', value: String(parsed.value) }
+      }
+    } catch (e) {}
+    return { type: 'theme', value: 'default' }
+  }
+
+  function writeBgPref(pref) {
+    try {
+      window.localStorage.setItem(BG_KEY, JSON.stringify(pref))
+    } catch (e) {
+      toast(i18n.bgFail || i18n.sendFail)
+    }
+  }
+
+  function markActivePreset(value) {
+    if (!bgPresets) return
+    var buttons = bgPresets.querySelectorAll('[data-bg]')
+    var i
+    for (i = 0; i < buttons.length; i++) {
+      var btn = buttons[i]
+      if (btn.getAttribute('data-bg') === value) btn.classList.add('is-active')
+      else btn.classList.remove('is-active')
+    }
+  }
+
+  function applyWallpaper(pref) {
+    if (!thread) return
+    if (pref && pref.type === 'image' && pref.dataUrl) {
+      thread.setAttribute('data-bg', 'image')
+      thread.style.setProperty('--msg-bg-image', 'linear-gradient(rgba(15,23,42,0.28), rgba(15,23,42,0.28)), url("' + pref.dataUrl + '")')
+      markActivePreset('')
+      return
+    }
+    var theme = (pref && pref.value) ? pref.value : 'default'
+    if (theme === 'default') thread.removeAttribute('data-bg')
+    else thread.setAttribute('data-bg', theme)
+    thread.style.removeProperty('--msg-bg-image')
+    markActivePreset(theme)
+  }
+
+  function compressImageFile(file, done) {
+    if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+      done(null)
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast(i18n.bgTooLarge || i18n.fileTooLarge)
+      done(null)
+      return
+    }
+    var reader = new FileReader()
+    reader.onerror = function () {
+      toast(i18n.bgFail || i18n.sendFail)
+      done(null)
+    }
+    reader.onload = function () {
+      var img = new Image()
+      img.onerror = function () {
+        toast(i18n.bgFail || i18n.sendFail)
+        done(null)
+      }
+      img.onload = function () {
+        var maxSide = 1600
+        var w = img.width || 1
+        var h = img.height || 1
+        var scale = Math.min(1, maxSide / Math.max(w, h))
+        var canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(w * scale))
+        canvas.height = Math.max(1, Math.round(h * scale))
+        var ctx = canvas.getContext('2d')
+        if (!ctx) {
+          done(null)
+          return
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+        if (dataUrl.length > 1800000) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.65)
+        }
+        if (dataUrl.length > 2200000) {
+          toast(i18n.bgTooLarge || i18n.fileTooLarge)
+          done(null)
+          return
+        }
+        done(dataUrl)
+      }
+      img.src = String(reader.result || '')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  applyWallpaper(readBgPref())
+
+  if (bgBtn && bgDialog) {
+    bgBtn.addEventListener('click', function (e) {
+      e.preventDefault()
+      openDialog(bgDialog)
+    })
+  }
+  if (bgPresets) {
+    bgPresets.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-bg]') : null
+      if (!btn) return
+      e.preventDefault()
+      var pref = { type: 'theme', value: btn.getAttribute('data-bg') || 'default' }
+      writeBgPref(pref)
+      applyWallpaper(pref)
+      toast(i18n.bgSaved || '')
+      closeDialog(bgDialog)
+    })
+  }
+  if (bgFile) {
+    bgFile.addEventListener('change', function () {
+      var file = bgFile.files && bgFile.files[0]
+      if (!file) return
+      compressImageFile(file, function (dataUrl) {
+        bgFile.value = ''
+        if (!dataUrl) return
+        var pref = { type: 'image', dataUrl: dataUrl }
+        writeBgPref(pref)
+        applyWallpaper(pref)
+        toast(i18n.bgSaved || '')
+        closeDialog(bgDialog)
+      })
+    })
+  }
+  if (bgClear) {
+    bgClear.addEventListener('click', function (e) {
+      e.preventDefault()
+      var pref = { type: 'theme', value: 'default' }
+      writeBgPref(pref)
+      applyWallpaper(pref)
+      toast(i18n.bgSaved || '')
+      closeDialog(bgDialog)
+    })
+  }
 })()
