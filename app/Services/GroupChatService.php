@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\GroupMessageAttachment;
+use App\Models\GroupMessageHide;
+use App\Models\GroupMessageReaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
@@ -13,6 +15,11 @@ use Illuminate\Support\Facades\Storage;
 
 class GroupChatService
 {
+    public const ONLINE_WITHIN_SECONDS = 120;
+
+    /** @var list<string> */
+    public const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😊'];
+
     public function __construct(private GroupService $groups) {}
 
     public function maxAttachmentBytes(): int
@@ -43,6 +50,11 @@ class GroupChatService
         return (string) config('photos.disk', config('filesystems.default', 'local'));
     }
 
+    public function touchPresence(int $userId): void
+    {
+        User::query()->where('id', $userId)->update(['last_seen_at' => now()]);
+    }
+
     /**
      * サイドバー用: グループ全体スレ + メンバー個別DM。
      *
@@ -54,17 +66,29 @@ class GroupChatService
             ->map(function (array $group) use ($userId) {
                 $groupId = (int) $group['id'];
                 $lastGroup = $this->latestInThread($groupId, null, $userId);
-                $members = collect($this->groups->listMembers($groupId))
+                $memberRows = collect($this->groups->listMembers($groupId));
+                $presenceById = User::query()
+                    ->whereIn('id', $memberRows->pluck('userId')->all())
+                    ->get(['id', 'last_seen_at'])
+                    ->keyBy('id');
+
+                $members = $memberRows
                     ->filter(fn (array $m) => (int) $m['userId'] !== $userId)
-                    ->map(function (array $m) use ($groupId, $userId) {
+                    ->map(function (array $m) use ($groupId, $userId, $presenceById) {
                         $peerId = (int) $m['userId'];
                         $last = $this->latestInThread($groupId, $peerId, $userId);
+                        /** @var User|null $peer */
+                        $peer = $presenceById->get($peerId);
 
                         return [
                             'userId' => $peerId,
                             'displayName' => $m['displayName'] ?: __('不明'),
                             'initials' => $this->initials((string) ($m['displayName'] ?? '')),
                             'href' => '/messages/'.$groupId.'/dm/'.$peerId,
+                            'threadType' => 'dm',
+                            'threadTypeLabel' => __('個別チャット'),
+                            'online' => $peer?->isOnline(self::ONLINE_WITHIN_SECONDS) ?? false,
+                            'lastSeenAt' => $peer?->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
                             'lastMessageAt' => $last['at'],
                             'lastMessagePreview' => $last['preview'],
                         ];
@@ -76,6 +100,8 @@ class GroupChatService
                     'id' => $groupId,
                     'name' => $group['name'],
                     'href' => '/messages/'.$groupId,
+                    'threadType' => 'channel',
+                    'threadTypeLabel' => __('グループチャット'),
                     'memberCount' => (int) ($group['memberCount'] ?? count($members) + 1),
                     'lastMessageAt' => $lastGroup['at'],
                     'lastMessagePreview' => $lastGroup['preview'],
@@ -84,6 +110,23 @@ class GroupChatService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array{online: bool, lastSeenAt: ?string}>
+     */
+    public function presenceForGroup(int $groupId): array
+    {
+        $ids = collect($this->groups->listMembers($groupId))->pluck('userId')->all();
+        $out = [];
+        foreach (User::query()->whereIn('id', $ids)->get(['id', 'last_seen_at']) as $user) {
+            $out[(int) $user->id] = [
+                'online' => $user->isOnline(self::ONLINE_WITHIN_SECONDS),
+                'lastSeenAt' => $user->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -96,17 +139,14 @@ class GroupChatService
             $this->assertPeer($userId, $groupId, $peerUserId);
         }
 
-        $query = GroupMessage::query()
-            ->with(['user', 'recipient', 'attachments'])
-            ->where('group_id', $groupId);
-        $this->applyThreadScope($query, $userId, $peerUserId);
+        $query = $this->threadQuery($userId, $groupId, $peerUserId);
 
         if ($afterId !== null && $afterId > 0) {
             return $query
                 ->where('id', '>', $afterId)
                 ->orderBy('id')
                 ->get()
-                ->map(fn (GroupMessage $message) => $this->messageToArray($message))
+                ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId))
                 ->all();
         }
 
@@ -116,16 +156,52 @@ class GroupChatService
             ->get()
             ->sortBy('id')
             ->values()
-            ->map(fn (GroupMessage $message) => $this->messageToArray($message))
+            ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId))
             ->all();
+    }
+
+    /**
+     * @return array{messages: list<array<string, mixed>>, events: list<array<string, mixed>>}
+     */
+    public function pollThread(int $userId, int $groupId, ?int $peerUserId, int $afterId, ?string $sinceIso = null): array
+    {
+        $messages = $this->listMessages(
+            $userId,
+            $groupId,
+            $peerUserId,
+            $afterId > 0 ? $afterId : null
+        );
+
+        $events = [];
+        if ($sinceIso) {
+            try {
+                $since = \Carbon\Carbon::parse($sinceIso);
+            } catch (\Throwable) {
+                $since = null;
+            }
+            if ($since) {
+                $events = $this->threadEventsSince($userId, $groupId, $peerUserId, $since, $afterId);
+            }
+        }
+
+        return [
+            'messages' => $messages,
+            'events' => $events,
+        ];
     }
 
     /**
      * @param  list<UploadedFile>  $files
      * @return array<string, mixed>
      */
-    public function send(int $userId, int $groupId, ?string $body, array $files = [], ?int $peerUserId = null): array
-    {
+    public function send(
+        int $userId,
+        int $groupId,
+        ?string $body,
+        array $files = [],
+        ?int $peerUserId = null,
+        ?int $replyToId = null,
+    ): array {
         $this->assertMember($userId, $groupId);
         if ($peerUserId !== null) {
             $this->assertPeer($userId, $groupId, $peerUserId);
@@ -144,11 +220,32 @@ class GroupChatService
             ]));
         }
 
-        return DB::transaction(function () use ($userId, $groupId, $text, $files, $peerUserId) {
+        $reply = null;
+        if ($replyToId !== null) {
+            $reply = $this->findAccessibleMessage($userId, $replyToId);
+            if ((int) $reply->group_id !== $groupId) {
+                throw new \InvalidArgumentException(__('返信先のメッセージが無効です。'));
+            }
+            if ($peerUserId === null && $reply->recipient_user_id !== null) {
+                throw new \InvalidArgumentException(__('返信先のメッセージが無効です。'));
+            }
+            if ($peerUserId !== null) {
+                $ok = (
+                    ((int) $reply->user_id === $userId && (int) $reply->recipient_user_id === $peerUserId)
+                    || ((int) $reply->user_id === $peerUserId && (int) $reply->recipient_user_id === $userId)
+                );
+                if (! $ok) {
+                    throw new \InvalidArgumentException(__('返信先のメッセージが無効です。'));
+                }
+            }
+        }
+
+        return DB::transaction(function () use ($userId, $groupId, $text, $files, $peerUserId, $reply) {
             $message = GroupMessage::create([
                 'group_id' => $groupId,
                 'user_id' => $userId,
                 'recipient_user_id' => $peerUserId,
+                'reply_to_id' => $reply?->id,
                 'body' => $text !== '' ? mb_substr($text, 0, 5000) : null,
             ]);
 
@@ -156,8 +253,100 @@ class GroupChatService
                 $this->storeAttachment($message, $userId, $file);
             }
 
-            return $this->messageToArray($message->load(['user', 'recipient', 'attachments']));
+            return $this->messageToArray(
+                $message->load(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions']),
+                $userId
+            );
         });
+    }
+
+    /** @return array<string, mixed> */
+    public function edit(int $userId, int $messageId, string $body): array
+    {
+        $message = $this->findAccessibleMessage($userId, $messageId);
+        if ((int) $message->user_id !== $userId) {
+            throw new \InvalidArgumentException(__('自分のメッセージのみ編集できます。'));
+        }
+
+        $text = trim($body);
+        if ($text === '') {
+            throw new \InvalidArgumentException(__('本文を入力してください。'));
+        }
+
+        $message->body = mb_substr($text, 0, 5000);
+        $message->edited_at = now();
+        $message->save();
+
+        return $this->messageToArray(
+            $message->load(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions']),
+            $userId
+        );
+    }
+
+    /**
+     * 送信者: 全員から削除 / 受信者: 自分の一覧から非表示
+     */
+    public function deleteForUser(int $userId, int $messageId): array
+    {
+        $message = $this->findAccessibleMessage($userId, $messageId);
+
+        if ((int) $message->user_id === $userId) {
+            $message->delete();
+
+            return ['id' => $messageId, 'deleted' => true, 'scope' => 'everyone'];
+        }
+
+        GroupMessageHide::query()->firstOrCreate([
+            'group_message_id' => $messageId,
+            'user_id' => $userId,
+        ]);
+
+        return ['id' => $messageId, 'deleted' => true, 'scope' => 'me'];
+    }
+
+    /** @return array<string, mixed> */
+    public function toggleReaction(int $userId, int $messageId, string $emoji): array
+    {
+        $emoji = trim($emoji);
+        if (! in_array($emoji, self::REACTION_EMOJIS, true)) {
+            throw new \InvalidArgumentException(__('このリアクションは使えません。'));
+        }
+
+        $message = $this->findAccessibleMessage($userId, $messageId);
+        $existing = GroupMessageReaction::query()
+            ->where('group_message_id', $message->id)
+            ->where('user_id', $userId)
+            ->where('emoji', $emoji)
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+        } else {
+            GroupMessageReaction::create([
+                'group_message_id' => $message->id,
+                'user_id' => $userId,
+                'emoji' => $emoji,
+            ]);
+        }
+
+        return $this->messageToArray(
+            $message->fresh()->load(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions']),
+            $userId
+        );
+    }
+
+    /** @return array<string, mixed> */
+    public function forward(int $userId, int $messageId, int $toGroupId, ?int $toPeerUserId = null): array
+    {
+        $source = $this->findAccessibleMessage($userId, $messageId);
+        $body = trim((string) ($source->body ?? ''));
+        if ($body === '') {
+            $body = __('（添付）');
+        }
+
+        $forwardBody = __('【転送】')."\n".$body;
+
+        return $this->send($userId, $toGroupId, $forwardBody, [], $toPeerUserId);
     }
 
     public function findAccessibleAttachment(int $userId, int $attachmentId): ?GroupMessageAttachment
@@ -179,7 +368,45 @@ class GroupChatService
             }
         }
 
+        if (GroupMessageHide::query()
+            ->where('group_message_id', $message->id)
+            ->where('user_id', $userId)
+            ->exists()) {
+            return null;
+        }
+
         return $attachment;
+    }
+
+    public function findAccessibleMessage(int $userId, int $messageId): GroupMessage
+    {
+        $message = GroupMessage::query()
+            ->with(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions'])
+            ->find($messageId);
+
+        if (! $message) {
+            throw new \InvalidArgumentException(__('メッセージが見つかりません。'));
+        }
+
+        if (! $this->groups->userBelongsToApprovedGroup($userId, (int) $message->group_id)) {
+            throw new \InvalidArgumentException(__('このメッセージを表示する権限がありません。'));
+        }
+
+        if ($message->recipient_user_id !== null) {
+            $allowed = [(int) $message->user_id, (int) $message->recipient_user_id];
+            if (! in_array($userId, $allowed, true)) {
+                throw new \InvalidArgumentException(__('このメッセージを表示する権限がありません。'));
+            }
+        }
+
+        if (GroupMessageHide::query()
+            ->where('group_message_id', $message->id)
+            ->where('user_id', $userId)
+            ->exists()) {
+            throw new \InvalidArgumentException(__('メッセージが見つかりません。'));
+        }
+
+        return $message;
     }
 
     public function assertMember(int $userId, int $groupId): Group
@@ -214,21 +441,74 @@ class GroupChatService
     }
 
     /** @return array<string, mixed> */
-    public function messageToArray(GroupMessage $message): array
+    public function messageToArray(GroupMessage $message, ?int $viewerUserId = null): array
     {
+        $isDirect = $message->isDirect();
+        $reactions = $message->relationLoaded('reactions')
+            ? $message->reactions
+            : $message->reactions()->get();
+
+        $grouped = [];
+        foreach ($reactions as $reaction) {
+            $emoji = (string) $reaction->emoji;
+            if (! isset($grouped[$emoji])) {
+                $grouped[$emoji] = ['emoji' => $emoji, 'count' => 0, 'reactedByMe' => false];
+            }
+            $grouped[$emoji]['count']++;
+            if ($viewerUserId !== null && (int) $reaction->user_id === $viewerUserId) {
+                $grouped[$emoji]['reactedByMe'] = true;
+            }
+        }
+
+        $reply = null;
+        if ($message->reply_to_id) {
+            $parent = $message->relationLoaded('replyTo') ? $message->replyTo : null;
+            if ($parent && ! $parent->trashed()) {
+                $reply = [
+                    'id' => $parent->id,
+                    'userName' => $parent->user?->display_name ?: __('不明'),
+                    'body' => mb_substr(trim((string) ($parent->body ?: __('（添付）'))), 0, 120),
+                ];
+            }
+        }
+
         return [
             'id' => $message->id,
             'groupId' => $message->group_id,
             'userId' => $message->user_id,
             'userName' => $message->user?->display_name ?: __('不明'),
             'recipientUserId' => $message->recipient_user_id,
+            'isDirect' => $isDirect,
+            'threadType' => $isDirect ? 'dm' : 'channel',
+            'threadTypeLabel' => $isDirect ? __('個別メッセージ') : __('グループメッセージ'),
             'body' => $message->body,
+            'isSticker' => $this->isStickerBody($message->body) && $message->attachments->isEmpty(),
             'createdAt' => $message->created_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'editedAt' => $message->edited_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'replyTo' => $reply,
+            'reactions' => array_values($grouped),
             'attachments' => $message->attachments
                 ->map(fn (GroupMessageAttachment $a) => $this->attachmentToArray($a))
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * Messenger風の大きな絵文字/OK送信かどうか（本文が絵文字のみ）。
+     */
+    public function isStickerBody(?string $body): bool
+    {
+        $text = trim((string) $body);
+        if ($text === '' || mb_strlen($text) > 12) {
+            return false;
+        }
+        if (preg_match('/[\p{L}\p{N}]/u', $text)) {
+            return false;
+        }
+
+        // 絵文字・記号・ZWJ・異体字セレクタのみ
+        return (bool) preg_match('/^[\p{So}\p{Sk}\x{200D}\x{FE0E}\x{FE0F}\x{1F3FB}-\x{1F3FF}\x{20E3}\s]+$/u', $text);
     }
 
     /** @return array<string, mixed> */
@@ -243,6 +523,75 @@ class GroupChatService
             'url' => '/messages/attachments/'.$attachment->id.'/file',
             'downloadUrl' => '/messages/attachments/'.$attachment->id.'/download',
         ];
+    }
+
+    private function threadQuery(int $userId, int $groupId, ?int $peerUserId): Builder
+    {
+        $query = GroupMessage::query()
+            ->with(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions'])
+            ->where('group_id', $groupId)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+        $this->applyThreadScope($query, $userId, $peerUserId);
+
+        return $query;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function threadEventsSince(
+        int $userId,
+        int $groupId,
+        ?int $peerUserId,
+        \Carbon\Carbon $since,
+        int $afterId,
+    ): array {
+        $events = [];
+
+        $editedQuery = GroupMessage::query()
+            ->with(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions'])
+            ->where('group_id', $groupId)
+            ->where('edited_at', '>', $since)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+        $this->applyThreadScope($editedQuery, $userId, $peerUserId);
+        if ($afterId > 0) {
+            $editedQuery->where('id', '<=', $afterId);
+        }
+        foreach ($editedQuery->get() as $message) {
+            $events[] = ['type' => 'edited', 'message' => $this->messageToArray($message, $userId)];
+        }
+
+        $deletedQuery = GroupMessage::onlyTrashed()
+            ->where('group_id', $groupId)
+            ->where('deleted_at', '>', $since);
+        $this->applyThreadScope($deletedQuery, $userId, $peerUserId);
+        foreach ($deletedQuery->get(['id']) as $message) {
+            $events[] = ['type' => 'deleted', 'id' => (int) $message->id];
+        }
+
+        $reactedIds = GroupMessageReaction::query()
+            ->where(function (Builder $q) use ($since) {
+                $q->where('created_at', '>', $since)->orWhere('updated_at', '>', $since);
+            })
+            ->whereHas('message', function (Builder $q) use ($userId, $groupId, $peerUserId) {
+                $q->where('group_id', $groupId);
+                $this->applyThreadScope($q, $userId, $peerUserId);
+            })
+            ->pluck('group_message_id')
+            ->unique()
+            ->all();
+
+        if ($reactedIds !== []) {
+            $reactQuery = GroupMessage::query()
+                ->with(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions'])
+                ->whereIn('id', $reactedIds)
+                ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+            foreach ($reactQuery->get() as $message) {
+                $events[] = ['type' => 'reacted', 'message' => $this->messageToArray($message, $userId)];
+            }
+        }
+
+        return $events;
     }
 
     private function applyThreadScope(Builder $query, int $userId, ?int $peerUserId): void
@@ -265,7 +614,9 @@ class GroupChatService
     /** @return array{at: ?string, preview: ?string} */
     private function latestInThread(int $groupId, ?int $peerUserId, int $userId): array
     {
-        $query = GroupMessage::query()->where('group_id', $groupId);
+        $query = GroupMessage::query()
+            ->where('group_id', $groupId)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
         $this->applyThreadScope($query, $userId, $peerUserId);
         $last = $query->orderByDesc('id')->first();
 

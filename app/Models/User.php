@@ -32,6 +32,7 @@ class User extends Authenticatable
         'pending_email_expires_at',
         'pending_email_attempts',
         'pending_email_sent_at',
+        'last_seen_at',
     ];
 
     protected $hidden = [
@@ -48,12 +49,22 @@ class User extends Authenticatable
             'reset_last_sent_at' => 'datetime',
             'pending_email_expires_at' => 'datetime',
             'pending_email_sent_at' => 'datetime',
+            'last_seen_at' => 'datetime',
             'must_change_password' => 'boolean',
             'role' => UserRole::class,
             'menu_features' => 'array',
             'footer_nav' => 'array',
             'header_nav' => 'array',
         ];
+    }
+
+    public function isOnline(int $withinSeconds = 120): bool
+    {
+        if (! $this->last_seen_at) {
+            return false;
+        }
+
+        return $this->last_seen_at->gt(now()->subSeconds(max(30, $withinSeconds)));
     }
 
     public function googleCalendarConnection()

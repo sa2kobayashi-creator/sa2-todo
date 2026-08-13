@@ -121,13 +121,126 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertRedirect();
     }
 
-    public function test_translate_page_is_available(): void
+    public function test_sender_can_edit_and_delete_own_message(): void
+    {
+        $user = $this->makeUser('edit@example.com');
+        $group = $this->makeApprovedGroup($user);
+
+        $this->actingAs($user)
+            ->postJson('/messages/'.$group->id, ['body' => 'original'])
+            ->assertOk();
+
+        $id = (int) GroupMessage::query()->value('id');
+
+        $this->actingAs($user)
+            ->postJson('/messages/items/'.$id.'/update', ['body' => 'updated'])
+            ->assertOk()
+            ->assertJsonPath('message.body', 'updated')
+            ->assertJsonPath('message.threadType', 'channel');
+
+        $this->assertNotNull(GroupMessage::query()->find($id)?->edited_at);
+
+        $this->actingAs($user)
+            ->postJson('/messages/items/'.$id.'/delete')
+            ->assertOk()
+            ->assertJsonPath('scope', 'everyone');
+
+        $this->assertSoftDeleted('group_messages', ['id' => $id]);
+    }
+
+    public function test_receiver_can_hide_message_and_reply(): void
+    {
+        $alice = $this->makeUser('alice2@example.com', 'Alice');
+        $bob = $this->makeUser('bob2@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, ['body' => 'hello all'])
+            ->assertOk();
+        $id = (int) GroupMessage::query()->value('id');
+
+        $this->actingAs($bob)
+            ->postJson('/messages/'.$group->id, [
+                'body' => 're: hello',
+                'reply_to_id' => $id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.replyTo.id', $id);
+
+        $this->actingAs($bob)
+            ->postJson('/messages/items/'.$id.'/delete')
+            ->assertOk()
+            ->assertJsonPath('scope', 'me');
+
+        $poll = $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?after=0')
+            ->assertOk()
+            ->json('messages');
+
+        $this->assertFalse(collect($poll)->contains(fn ($m) => (int) $m['id'] === $id));
+    }
+
+    public function test_members_can_react_and_presence_updates_on_poll(): void
+    {
+        $alice = $this->makeUser('alice3@example.com', 'Alice');
+        $bob = $this->makeUser('bob3@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, ['body' => 'react me'])
+            ->assertOk();
+        $id = (int) GroupMessage::query()->value('id');
+
+        $this->actingAs($bob)
+            ->postJson('/messages/items/'.$id.'/react', ['emoji' => '👍'])
+            ->assertOk()
+            ->assertJsonPath('message.reactions.0.emoji', '👍');
+
+        $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?after=0')
+            ->assertOk()
+            ->assertJsonPath('presence.'.$bob->id.'.online', true);
+
+        $this->assertNotNull($bob->fresh()->last_seen_at);
+    }
+
+    public function test_emoji_only_ok_message_is_marked_as_sticker(): void
+    {
+        $user = $this->makeUser('sticker@example.com');
+        $group = $this->makeApprovedGroup($user);
+
+        $this->actingAs($user)
+            ->postJson('/messages/'.$group->id, ['body' => '👍'])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('message.body', '👍')
+            ->assertJsonPath('message.isSticker', true);
+
+        $this->actingAs($user)
+            ->postJson('/messages/'.$group->id, ['body' => 'hello'])
+            ->assertOk()
+            ->assertJsonPath('message.isSticker', false);
+    }
+
+    public function test_workspace_shows_group_and_dm_labels(): void
+    {
+        $alice = $this->makeUser('alice4@example.com', 'Alice');
+        $bob = $this->makeUser('bob4@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($bob)->get('/messages/'.$group->id)
+            ->assertOk()
+            ->assertSee('グループチャット', false)
+            ->assertSee('個別チャット', false)
+            ->assertSee('グループメッセージ', false);
+    }
+
+    public function test_translate_page_requires_super_admin(): void
     {
         $user = $this->makeUser('tr@example.com');
+        $admin = $this->makeUser('sa@example.com', 'SA', UserRole::SuperAdmin);
 
-        $this->actingAs($user)->get('/translate')
-            ->assertOk()
-            ->assertSee('翻訳')
-            ->assertSee('tr-board', false);
+        $this->actingAs($user)->get('/translate')->assertForbidden();
+        $this->actingAs($admin)->get('/translate')->assertOk();
     }
 }

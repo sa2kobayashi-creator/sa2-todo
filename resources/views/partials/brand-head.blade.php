@@ -21,3 +21,4 @@
     })
   }
 </script>
+@include('partials.flash-url-cleanup')

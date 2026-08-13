@@ -34,7 +34,8 @@ class MyPageProfileTest extends TestCase
         $this->actingAs($user)->post('/mypage', [
             'displayName' => 'Tester',
             'email' => '  MyPage-Normalized@Example.COM  ',
-        ])->assertRedirect('/mypage/email/verify?notice='.urlencode('確認コードをmypage-normalized@example.comに送信しました。コードを入力すると変更が完了します。'));
+        ])->assertRedirect('/mypage/email/verify')
+            ->assertSessionHas('notice', '確認コードをmypage-normalized@example.comに送信しました。コードを入力すると変更が完了します。');
 
         $user->refresh();
         $this->assertSame('mypage-normalize@example.com', $user->email);

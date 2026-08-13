@@ -63,7 +63,13 @@ class PhotoLibrarySummaryTest extends TestCase
         $this->makePhoto($user, 'y2025.jpg', 'image/jpeg', '2025-05-06 09:00:00');
         $this->makePhoto($user, 'y2026.jpg', 'image/jpeg', '2026-07-27 09:00:00');
 
+        // 既定は今年に絞る。全件表示で年ジャンプが使える
         $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('data-year="2026"', false)
+            ->assertDontSee('data-year="2024"', false);
+
+        $this->actingAs($user)->get('/photos?year=all')
             ->assertOk()
             ->assertSee('id="photos-year-jump"', false)
             ->assertSee('2026年へ')
@@ -77,7 +83,7 @@ class PhotoLibrarySummaryTest extends TestCase
         $this->makePhoto($user, 'y2024.jpg', 'image/jpeg', '2024-03-02 09:00:00');
         $this->makePhoto($user, 'y2026.jpg', 'image/jpeg', '2026-07-27 09:00:00');
 
-        $this->actingAs($user)->get('/photos')
+        $this->actingAs($user)->get('/photos?year=all')
             ->assertOk()
             ->assertSee('id="photos-year-dock"', false)
             ->assertSee('id="photos-year-dock-select"', false)
@@ -145,19 +151,46 @@ class PhotoLibrarySummaryTest extends TestCase
         }
         $this->makePhoto($user, 'new.jpg', 'image/jpeg', '2026-08-01 10:00:00');
 
+        // 今年の写真があるときは既定で今年のみ
         $this->actingAs($user)->get('/photos')
             ->assertOk()
-            ->assertSee('最新の 2026 年のみ表示')
-            ->assertSee('すべての年を表示')
             ->assertSee('data-year="2026"', false)
             ->assertDontSee('data-year="2024"', false)
-            ->assertSee('id="photos-year-jump"', false)
-            ->assertSee('2024年へ');
+            ->assertSee('value="2026"', false)
+            ->assertSee(__('すべての年'), false);
 
         $this->actingAs($user)->get('/photos?year=all')
             ->assertOk()
-            ->assertDontSee('最新の 2026 年のみ表示')
-            ->assertSee('data-year="2024"', false);
+            ->assertSee('data-year="2024"', false)
+            ->assertSee('data-year="2026"', false);
+    }
+
+    public function test_root_all_shows_current_year_album_photos_without_moving(): void
+    {
+        $user = $this->makeUser('thisyear-album@example.com');
+        $album = \App\Models\PhotoAlbum::create([
+            'user_id' => $user->id,
+            'name' => 'Family 2026',
+            'visibility' => 'private',
+        ]);
+        $this->makePhoto($user, 'in-album-2026.jpg', 'image/jpeg', '2026-03-15 10:00:00')
+            ->forceFill([
+                'album_id' => $album->id,
+                'original_name' => 'in-album-2026.jpg',
+            ])
+            ->save();
+        $this->makePhoto($user, 'in-album-2024.jpg', 'image/jpeg', '2024-08-01 10:00:00')
+            ->forceFill([
+                'album_id' => $album->id,
+                'original_name' => 'in-album-2024.jpg',
+            ])
+            ->save();
+
+        // アルバムから出さなくても「すべて」で今年分が見える
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('in-album-2026.jpg', false)
+            ->assertDontSee('in-album-2024.jpg', false);
     }
 
     public function test_year_filter_outside_current_scope_is_dropped_instead_of_empty_gallery(): void

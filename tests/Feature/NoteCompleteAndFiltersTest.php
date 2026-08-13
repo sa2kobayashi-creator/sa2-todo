@@ -131,7 +131,8 @@ class NoteCompleteAndFiltersTest extends TestCase
         $this->actingAs($this->user)
             ->from('/notes')
             ->post("/notes/{$note->id}/complete", ['returnTo' => '/notes'])
-            ->assertRedirect('/notes?notice='.urlencode('メモを完了にしました'));
+            ->assertRedirect('/notes')
+            ->assertSessionHas('notice', 'メモを完了にしました');
 
         $this->assertTrue($note->fresh()->completed);
 

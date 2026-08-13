@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\GroupChatService;
+use App\Services\TranslationService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -12,7 +15,10 @@ class MessageController extends Controller
 {
     use RedirectsWithFlash;
 
-    public function __construct(private GroupChatService $chat) {}
+    public function __construct(
+        private GroupChatService $chat,
+        private UserUsageLimitService $usageLimits,
+    ) {}
 
     public function index(Request $request)
     {
@@ -39,6 +45,7 @@ class MessageController extends Controller
     {
         $userId = (int) $request->user()->id;
         $peerId = $request->filled('peer_user_id') ? $request->integer('peer_user_id') : null;
+        $replyToId = $request->filled('reply_to_id') ? $request->integer('reply_to_id') : null;
         $files = $request->file('attachments', []);
         if (! is_array($files)) {
             $files = $files ? [$files] : [];
@@ -54,7 +61,8 @@ class MessageController extends Controller
                 $groupId,
                 $request->input('body'),
                 $files,
-                $peerId
+                $peerId,
+                $replyToId
             );
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             if ($request->expectsJson() || $request->ajax()) {
@@ -76,19 +84,141 @@ class MessageController extends Controller
         $userId = (int) $request->user()->id;
         $afterId = $request->integer('after');
         $peerId = $request->filled('peer') ? $request->integer('peer') : null;
+        $since = $request->input('since');
+
+        $this->chat->touchPresence($userId);
 
         try {
-            $messages = $this->chat->listMessages(
+            $polled = $this->chat->pollThread(
                 $userId,
                 $groupId,
                 $peerId,
-                $afterId > 0 ? $afterId : null
+                $afterId > 0 ? $afterId : 0,
+                is_string($since) ? $since : null
             );
+            $presence = $this->chat->presenceForGroup($groupId);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 403);
         }
 
-        return response()->json(['ok' => true, 'messages' => $messages]);
+        return response()->json([
+            'ok' => true,
+            'messages' => $polled['messages'],
+            'events' => $polled['events'],
+            'presence' => $presence,
+            'serverTime' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        $request->validate(['body' => 'required|string|max:5000']);
+
+        try {
+            $message = $this->chat->edit((int) $request->user()->id, $id, (string) $request->input('body'));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'message' => $message]);
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        try {
+            $result = $this->chat->deleteForUser((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, ...$result]);
+    }
+
+    public function react(Request $request, int $id)
+    {
+        $request->validate(['emoji' => 'required|string|max:16']);
+
+        try {
+            $message = $this->chat->toggleReaction(
+                (int) $request->user()->id,
+                $id,
+                (string) $request->input('emoji')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'message' => $message]);
+    }
+
+    public function forward(Request $request, int $id)
+    {
+        $request->validate([
+            'group_id' => 'required|integer',
+            'peer_user_id' => 'nullable|integer',
+        ]);
+
+        $peerId = $request->filled('peer_user_id') ? $request->integer('peer_user_id') : null;
+
+        try {
+            $message = $this->chat->forward(
+                (int) $request->user()->id,
+                $id,
+                $request->integer('group_id'),
+                $peerId
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'message' => $message]);
+    }
+
+    public function translate(Request $request, int $id, TranslationService $translator)
+    {
+        if (! $translator->isConfigured()) {
+            return response()->json([
+                'ok' => false,
+                'message' => __('AI翻訳が設定されていません。'),
+            ], 422);
+        }
+
+        try {
+            $message = $this->chat->findAccessibleMessage((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 404);
+        }
+
+        $text = trim((string) ($message->body ?? ''));
+        if ($text === '') {
+            return response()->json(['ok' => false, 'message' => __('翻訳できる本文がありません。')], 422);
+        }
+
+        $target = in_array($request->input('target_lang'), ['ja', 'en'], true)
+            ? $request->input('target_lang')
+            : ($this->containsJapanese($text) ? 'en' : 'ja');
+        $source = $target === 'en' ? 'ja' : 'en';
+
+        try {
+            $this->usageLimits->consume(
+                $request->user(),
+                UserUsageLimitService::FEATURE_TRANSLATE,
+                mb_strlen($text)
+            );
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
+        }
+
+        $translated = $translator->translate($text, $source, $target);
+        if ($translated === null) {
+            return response()->json(['ok' => false, 'message' => __('翻訳に失敗しました。')], 502);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'target' => $target,
+            'text' => $translated,
+        ]);
     }
 
     public function attachmentFile(Request $request, int $id): StreamedResponse
@@ -101,9 +231,15 @@ class MessageController extends Controller
         return $this->streamAttachment($request, $id, true);
     }
 
+    private function containsJapanese(string $text): bool
+    {
+        return (bool) preg_match('/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', $text);
+    }
+
     private function renderThread(Request $request, int $groupId, ?int $peerUserId)
     {
         $userId = (int) $request->user()->id;
+        $this->chat->touchPresence($userId);
         $workspace = $this->chat->listWorkspace($userId);
 
         try {
@@ -120,6 +256,24 @@ class MessageController extends Controller
             ? '/messages/'.$groupId.'/dm/'.$peerUserId
             : '/messages/'.$groupId;
 
+        $forwardTargets = [];
+        foreach ($workspace as $room) {
+            $forwardTargets[] = [
+                'groupId' => $room['id'],
+                'peerUserId' => null,
+                'label' => __('グループチャット').' · '.$room['name'],
+                'href' => $room['href'],
+            ];
+            foreach ($room['members'] as $member) {
+                $forwardTargets[] = [
+                    'groupId' => $room['id'],
+                    'peerUserId' => $member['userId'],
+                    'label' => __('個別チャット').' · '.$member['displayName'].' ('.$room['name'].')',
+                    'href' => $member['href'],
+                ];
+            }
+        }
+
         return view('messages.workspace', [
             ...$this->workspaceViewData($request, $workspace),
             'activeGroup' => $group->toPublicArray(),
@@ -127,10 +281,16 @@ class MessageController extends Controller
                 'userId' => $peer->id,
                 'displayName' => $peer->display_name,
                 'initials' => mb_substr((string) $peer->display_name, 0, 1),
+                'online' => $peer->isOnline(GroupChatService::ONLINE_WITHIN_SECONDS),
+                'lastSeenAt' => $peer->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
             ] : null,
             'activeHref' => $activeHref,
             'messages' => $messages,
             'isDirect' => $peerUserId !== null,
+            'forwardTargets' => $forwardTargets,
+            'reactionEmojis' => GroupChatService::REACTION_EMOJIS,
+            'composeEmojis' => ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👎', '👏', '🙏', '❤️', '🔥', '🎉', '✨', '😢', '😮'],
+            'canTranslate' => app(TranslationService::class)->isConfigured(),
         ]);
     }
 
@@ -144,6 +304,10 @@ class MessageController extends Controller
             'activeHref' => null,
             'messages' => [],
             'isDirect' => false,
+            'forwardTargets' => [],
+            'reactionEmojis' => GroupChatService::REACTION_EMOJIS,
+            'composeEmojis' => ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👎', '👏', '🙏', '❤️', '🔥', '🎉', '✨', '😢', '😮'],
+            'canTranslate' => false,
             'maxUploadLabel' => $this->formatBytes($this->chat->maxAttachmentBytes()),
             ...$this->flashFromQuery($request),
         ];

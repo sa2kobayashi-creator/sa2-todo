@@ -846,12 +846,12 @@
               <button type="button" class="photos-mode-btn" data-photos-kind="video" aria-pressed="false">{{ __('動画') }}</button>
             </div>
             @if(empty($selectedAlbumId) && ($photosLibrary ?? 'active') !== 'archived')
-              @php $photosScope = ($photosScope ?? 'loose') === 'library' ? 'library' : 'loose'; @endphp
+              @php $photosScope = ($photosScope ?? 'library') === 'loose' ? 'loose' : 'library'; @endphp
               <label class="photos-kind-scope-wrap" id="photos-kind-scope-wrap">
                 <span class="visually-hidden">{{ __('すべて（表示範囲）') }}</span>
                 <select id="photos-scope-select" class="photos-kind-scope-select" aria-label="{{ __('すべて（表示範囲）') }}">
-                  <option value="loose" @selected($photosScope === 'loose')>{{ __('アルバム以外') }}</option>
                   <option value="library" @selected($photosScope === 'library')>{{ __('アルバム含む') }}</option>
+                  <option value="loose" @selected($photosScope === 'loose')>{{ __('アルバム以外') }}</option>
                 </select>
               </label>
             @endif
@@ -2374,7 +2374,7 @@
             sort: photosSortSelect?.value || 'taken_desc',
             year: photosYearSelect?.value || '',
             library: url.searchParams.get('library') === 'archived' ? 'archived' : 'active',
-            scope: photosScopeSelect?.value === 'library' ? 'library' : 'loose',
+            scope: photosScopeSelect?.value === 'loose' ? 'loose' : 'library',
             ...patch,
           }
           ;['album', 'sort', 'year', 'library', 'scope'].forEach((key) => url.searchParams.delete(key))
@@ -2382,9 +2382,9 @@
           if (next.sort && next.sort !== 'taken_desc') url.searchParams.set('sort', next.sort)
           if (next.year) url.searchParams.set('year', next.year)
           if (next.library === 'archived') url.searchParams.set('library', 'archived')
-          // ルートの既定は loose（クエリ省略）。library のときだけ明示
-          if (!next.album && next.library !== 'archived' && next.scope === 'library') {
-            url.searchParams.set('scope', 'library')
+          // ルートの既定は library（クエリ省略）。アルバム外のみのときだけ明示
+          if (!next.album && next.library !== 'archived' && next.scope === 'loose') {
+            url.searchParams.set('scope', 'loose')
           }
           window.location.assign(url.pathname + url.search + url.hash)
         }

@@ -322,7 +322,7 @@ class BulkActionsAndPagesTest extends TestCase
         $this->assertSame('2026-08-12 15:30:00', $fresh->taken_at?->format('Y-m-d H:i:s'));
     }
 
-    public function test_photos_root_scope_hides_album_photos_by_default(): void
+    public function test_photos_root_scope_defaults_to_library_and_loose_hides_album_photos(): void
     {
         $album = PhotoAlbum::create([
             'user_id' => $this->user->id,
@@ -357,14 +357,14 @@ class BulkActionsAndPagesTest extends TestCase
             'taken_at' => now(),
         ]);
 
-        $loose = $this->actingAs($this->user)->get('/photos');
+        $loose = $this->actingAs($this->user)->get('/photos?scope=loose');
         $loose->assertOk();
         $loose->assertSee('loose-only.jpg', false);
         $this->assertStringNotContainsString('in-album.jpg', $loose->getContent());
         $loose->assertSee('id="photos-scope-select"', false);
         $loose->assertSee('アルバム以外', false);
 
-        $library = $this->actingAs($this->user)->get('/photos?scope=library');
+        $library = $this->actingAs($this->user)->get('/photos');
         $library->assertOk();
         $library->assertSee('loose-only.jpg', false);
         $library->assertSee('in-album.jpg', false);
@@ -414,7 +414,7 @@ class BulkActionsAndPagesTest extends TestCase
             'taken_at' => now(),
         ]);
 
-        $library = $this->actingAs($this->user)->get('/photos?scope=library');
+        $library = $this->actingAs($this->user)->get('/photos');
         $library->assertOk();
         $library->assertSee('visible-album.jpg', false);
         $this->assertStringNotContainsString('secret-album.jpg', $library->getContent());

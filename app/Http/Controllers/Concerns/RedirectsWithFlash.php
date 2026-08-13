@@ -10,12 +10,9 @@ trait RedirectsWithFlash
     protected function redirectWithMessage(string $target, string $message, string $type = 'notice'): RedirectResponse
     {
         $key = $type === 'error' ? 'error' : 'notice';
-        $hashIndex = strpos($target, '#');
-        $pathAndQuery = $hashIndex !== false ? substr($target, 0, $hashIndex) : $target;
-        $hash = $hashIndex !== false ? substr($target, $hashIndex) : '';
-        $join = str_contains($pathAndQuery, '?') ? '&' : '?';
+        $cleanTarget = $this->urlWithoutFlashParams($target);
 
-        return redirect("{$pathAndQuery}{$join}{$key}=".urlencode($message).$hash);
+        return redirect($cleanTarget)->with($key, $message);
     }
 
     protected function safeReturnTo(?string $value, string $fallback = '/todos'): string
@@ -30,9 +27,39 @@ trait RedirectsWithFlash
     /** @return array{notice: ?string, error: ?string} */
     protected function flashFromQuery(Request $request): array
     {
+        $notice = $request->session()->pull('notice');
+        $error = $request->session()->pull('error');
+
+        // 旧 ?notice= / ?error= リンク互換（表示後は JS で URL から除去）
+        if (! is_string($notice) || $notice === '') {
+            $notice = is_string($request->query('notice')) ? $request->query('notice') : null;
+        }
+        if (! is_string($error) || $error === '') {
+            $error = is_string($request->query('error')) ? $request->query('error') : null;
+        }
+
         return [
-            'notice' => is_string($request->query('notice')) ? $request->query('notice') : null,
-            'error' => is_string($request->query('error')) ? $request->query('error') : null,
+            'notice' => $notice,
+            'error' => $error,
         ];
+    }
+
+    protected function urlWithoutFlashParams(string $target): string
+    {
+        $hashIndex = strpos($target, '#');
+        $pathAndQuery = $hashIndex !== false ? substr($target, 0, $hashIndex) : $target;
+        $hash = $hashIndex !== false ? substr($target, $hashIndex) : '';
+
+        $parts = parse_url($pathAndQuery);
+        $path = $parts['path'] ?? $pathAndQuery;
+        $query = [];
+        if (! empty($parts['query'])) {
+            parse_str($parts['query'], $query);
+            unset($query['notice'], $query['error']);
+        }
+
+        $qs = http_build_query($query);
+
+        return $path.($qs !== '' ? '?'.$qs : '').$hash;
     }
 }

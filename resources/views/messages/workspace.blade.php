@@ -41,21 +41,39 @@
                 >
                   <span class="msg-rail-badge" aria-hidden="true">#</span>
                   <span class="msg-rail-copy">
-                    <strong>{{ $room['name'] }}</strong>
-                    <small>{{ $room['lastMessagePreview'] ?: __('グループ全体') }}</small>
+                    <strong>
+                      <span class="msg-type-pill msg-type-channel">{{ __('グループチャット') }}</span>
+                      {{ $room['name'] }}
+                    </strong>
+                    <small>{{ $room['lastMessagePreview'] ?: __('グループ全体へのメッセージ') }}</small>
                   </span>
                 </a>
                 @if(!empty($room['members']))
-                  <p class="msg-rail-label">{{ __('メンバー') }}</p>
+                  <p class="msg-rail-label">{{ __('メンバー（個別）') }}</p>
                   @foreach($room['members'] as $member)
                     <a
                       href="{{ $member['href'] }}"
                       class="msg-rail-item msg-rail-dm {{ ($activeHref ?? '') === $member['href'] ? 'is-active' : '' }}"
+                      data-presence-user="{{ $member['userId'] }}"
                     >
-                      <span class="msg-avatar" aria-hidden="true">{{ $member['initials'] }}</span>
+                      <span class="msg-avatar-wrap" aria-hidden="true">
+                        <span class="msg-avatar">{{ $member['initials'] }}</span>
+                        <span class="msg-presence {{ !empty($member['online']) ? 'is-online' : 'is-offline' }}" title="{{ !empty($member['online']) ? __('オンライン') : __('オフライン') }}"></span>
+                      </span>
                       <span class="msg-rail-copy">
-                        <strong>{{ $member['displayName'] }}</strong>
-                        <small>{{ $member['lastMessagePreview'] ?: __('個別メッセージ') }}</small>
+                        <strong>
+                          <span class="msg-type-pill msg-type-dm">{{ __('個別チャット') }}</span>
+                          {{ $member['displayName'] }}
+                        </strong>
+                        <small class="msg-presence-label" data-presence-label>
+                          {{ !empty($member['online']) ? __('オンライン') : __('オフライン') }}
+                          @if(empty($member['online']) && !empty($member['lastSeenAt']))
+                            · {{ $member['lastSeenAt'] }}
+                          @endif
+                          @if(!empty($member['lastMessagePreview']))
+                            · {{ $member['lastMessagePreview'] }}
+                          @endif
+                        </small>
                       </span>
                     </a>
                   @endforeach
@@ -70,18 +88,29 @@
             <div class="msg-stage-empty">
               <p class="msg-kicker">{{ __('Ready when you are') }}</p>
               <h2>{{ __('会話を選びましょう') }}</h2>
-              <p>{{ __('左のグループ全体、またはメンバーを選ぶとチャットが始まります。') }}</p>
+              <p>{{ __('左のグループチャットまたは個別チャットを選ぶと始まります。') }}</p>
             </div>
           @else
             <header class="msg-stage-head">
               <div>
-                <p class="msg-kicker">{{ !empty($isDirect) ? __('Direct') : __('Channel') }}</p>
+                <p class="msg-kicker">
+                  <span class="msg-type-pill {{ !empty($isDirect) ? 'msg-type-dm' : 'msg-type-channel' }}">
+                    {{ !empty($isDirect) ? __('個別メッセージ') : __('グループメッセージ') }}
+                  </span>
+                </p>
                 <h2>
                   @if(!empty($isDirect) && !empty($activePeer))
-                    {{ $activePeer['displayName'] }}
-                    <span class="msg-stage-sub">{{ $activeGroup['name'] }}</span>
+                    <span class="msg-stage-name-row">
+                      <span class="msg-avatar-wrap msg-avatar-wrap--lg" aria-hidden="true">
+                        <span class="msg-avatar">{{ $activePeer['initials'] }}</span>
+                        <span class="msg-presence {{ !empty($activePeer['online']) ? 'is-online' : 'is-offline' }}" data-stage-presence></span>
+                      </span>
+                      {{ $activePeer['displayName'] }}
+                    </span>
+                    <span class="msg-stage-sub">{{ $activeGroup['name'] }} · <span data-stage-presence-label>{{ !empty($activePeer['online']) ? __('オンライン') : __('オフライン') }}</span></span>
                   @else
                     # {{ $activeGroup['name'] }}
+                    <span class="msg-stage-sub">{{ __('全員に届くグループチャット') }}</span>
                   @endif
                 </h2>
               </div>
@@ -92,34 +121,23 @@
               id="message-thread"
               data-group-id="{{ $activeGroup['id'] }}"
               data-peer-id="{{ $activePeer['userId'] ?? '' }}"
+              data-thread-type="{{ !empty($isDirect) ? 'dm' : 'channel' }}"
               data-last-id="{{ count($messages) ? $messages[array_key_last($messages)]['id'] : 0 }}"
+              data-can-translate="{{ !empty($canTranslate) ? '1' : '0' }}"
             >
               @forelse($messages as $message)
-                <article class="msg-bubble {{ (int) $message['userId'] === (int) ($currentUser['id'] ?? 0) ? 'is-mine' : '' }}" data-id="{{ $message['id'] }}">
-                  <div class="msg-bubble-meta">
-                    <strong>{{ $message['userName'] }}</strong>
-                    <time>{{ $message['createdAt'] }}</time>
-                  </div>
-                  @if(!empty($message['body']))
-                    <p>{{ $message['body'] }}</p>
-                  @endif
-                  @if(!empty($message['attachments']))
-                    <ul class="msg-files">
-                      @foreach($message['attachments'] as $file)
-                        <li>
-                          @if(!empty($file['isImage']))
-                            <a href="{{ $file['url'] }}" target="_blank" rel="noopener"><img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" /></a>
-                          @else
-                            <a class="msg-file-link" href="{{ $file['downloadUrl'] }}">{{ $file['name'] }}</a>
-                          @endif
-                        </li>
-                      @endforeach
-                    </ul>
-                  @endif
-                </article>
+                @include('messages.partials.bubble', ['message' => $message, 'currentUserId' => (int) ($currentUser['id'] ?? 0)])
               @empty
                 <p class="msg-thread-hint" id="message-empty">{{ __('まだ静かです。最初の一言をどうぞ。') }}</p>
               @endforelse
+            </div>
+
+            <div class="msg-reply-bar" id="message-reply-bar" hidden>
+              <div>
+                <strong id="message-reply-name"></strong>
+                <span id="message-reply-preview"></span>
+              </div>
+              <button type="button" class="msg-icon-btn" id="message-reply-clear" aria-label="{{ __('返信をやめる') }}">×</button>
             </div>
 
             <form method="post" action="/messages/{{ $activeGroup['id'] }}" enctype="multipart/form-data" class="msg-compose" id="message-compose">
@@ -127,126 +145,157 @@
               @if(!empty($activePeer))
                 <input type="hidden" name="peer_user_id" value="{{ $activePeer['userId'] }}" />
               @endif
-              <textarea id="message-body" name="body" rows="2" maxlength="5000" placeholder="{{ !empty($isDirect) ? __('個別メッセージを入力') : __('グループにメッセージ') }}"></textarea>
+              <input type="hidden" name="reply_to_id" id="message-reply-to" value="" />
+              <div class="msg-compose-input-wrap">
+                <textarea id="message-body" name="body" rows="2" maxlength="5000" placeholder="{{ !empty($isDirect) ? __('個別メッセージを入力') : __('グループにメッセージ') }}"></textarea>
+                <button type="button" class="msg-compose-emoji" id="message-emoji-btn" aria-label="{{ __('絵文字') }}" title="{{ __('絵文字') }}"><span aria-hidden="true">😊</span></button>
+              </div>
               <div class="msg-compose-bar">
-                <label class="msg-attach">
-                  <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
-                  <span>{{ __('添付') }}</span>
-                </label>
                 <span class="msg-attach-names" id="message-attach-names"></span>
                 <button type="submit" class="msg-send">{{ __('送信') }}</button>
+                <div class="msg-compose-tools">
+                  <label class="msg-icon-tool" for="message-attachments" title="{{ __('添付') }}" aria-label="{{ __('添付') }}">
+                    <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
+                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-1.93-1.57-3.5-3.5-3.5S8 3.07 8 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-2.5z"/>
+                    </svg>
+                  </label>
+                  <label class="msg-icon-tool" for="message-camera" title="{{ __('カメラ') }}" aria-label="{{ __('カメラ') }}">
+                    <input type="file" id="message-camera" accept="image/*" capture="environment" hidden />
+                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                    </svg>
+                  </label>
+                  <button type="button" class="msg-icon-tool" id="message-mic" aria-pressed="false" title="{{ __('音声入力') }}" aria-label="{{ __('音声入力') }}">
+                    <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="msg-quick-ok" id="message-quick-ok" aria-label="{{ __('OK') }}" title="{{ __('OKを送る') }}"><span aria-hidden="true">👍</span></button>
+                </div>
               </div>
-              <p class="msg-hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '20 MB']) }}</p>
+              <p class="msg-hint">{{ __('1ファイル最大 :size', ['size' => $maxUploadLabel ?? '20 MB']) }} · {{ __('カメラは撮影後にすぐ送信') }} · {{ __('🎙で音声入力') }}</p>
             </form>
           @endif
         </section>
       </div>
     </main>
 
+    <dialog class="msg-dialog" id="message-emoji-dialog">
+      <form method="dialog" class="msg-dialog-card">
+        <h3>{{ __('絵文字') }}</h3>
+        <div class="msg-emoji-grid" id="message-emoji-grid">
+          @foreach($composeEmojis ?? [] as $em)
+            <button type="button" class="msg-emoji-pick" data-emoji="{{ $em }}">{{ $em }}</button>
+          @endforeach
+        </div>
+        <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('キャンセル') }}</button>
+      </form>
+    </dialog>
+
+    <dialog class="msg-dialog" id="message-react-dialog">
+      <form method="dialog" class="msg-dialog-card">
+        <h3>{{ __('リアクション') }}</h3>
+        <div class="msg-emoji-grid" id="message-react-grid">
+          @foreach($reactionEmojis ?? [] as $emoji)
+            <button type="button" class="msg-react-pick" data-sheet-react="{{ $emoji }}">{{ $emoji }}</button>
+          @endforeach
+        </div>
+        <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('キャンセル') }}</button>
+      </form>
+    </dialog>
+
+    <dialog class="msg-dialog" id="message-action-sheet">
+      <form method="dialog" class="msg-dialog-card">
+        <h3>{{ __('メッセージ操作') }}</h3>
+        <div class="msg-emoji-grid" id="message-sheet-reacts">
+          @foreach($reactionEmojis ?? [] as $emoji)
+            <button type="button" class="msg-react-pick" data-sheet-react="{{ $emoji }}">{{ $emoji }}</button>
+          @endforeach
+        </div>
+        <div class="msg-sheet-actions" id="message-sheet-actions"></div>
+        <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('キャンセル') }}</button>
+      </form>
+    </dialog>
+
+    <dialog class="msg-dialog" id="message-forward-dialog">
+      <form method="dialog" class="msg-dialog-card">
+        <h3>{{ __('転送先を選択') }}</h3>
+        <div class="msg-forward-list" id="message-forward-list">
+          @foreach($forwardTargets ?? [] as $target)
+            <button
+              type="button"
+              class="msg-forward-item"
+              data-group-id="{{ $target['groupId'] }}"
+              data-peer-id="{{ $target['peerUserId'] ?? '' }}"
+            >{{ $target['label'] }}</button>
+          @endforeach
+        </div>
+        <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('キャンセル') }}</button>
+      </form>
+    </dialog>
+
+    <dialog class="msg-dialog" id="message-prompt-dialog">
+      <form method="dialog" class="msg-dialog-card" id="message-prompt-form">
+        <h3 id="message-prompt-title">{{ __('メッセージを編集') }}</h3>
+        <textarea id="message-prompt-input" rows="4" maxlength="5000"></textarea>
+        <div class="msg-dialog-actions">
+          <button type="button" class="msg-dialog-cancel" id="message-prompt-cancel">{{ __('キャンセル') }}</button>
+          <button type="button" class="msg-send" id="message-prompt-ok">{{ __('保存') }}</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="msg-dialog" id="message-confirm-dialog">
+      <form method="dialog" class="msg-dialog-card">
+        <p id="message-confirm-text"></p>
+        <div class="msg-dialog-actions">
+          <button type="button" class="msg-dialog-cancel" id="message-confirm-cancel">{{ __('キャンセル') }}</button>
+          <button type="button" class="msg-send" id="message-confirm-ok">{{ __('OK') }}</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="msg-sticker-pop" id="message-sticker-pop" aria-label="{{ __('スタンプ') }}">
+      <span class="msg-sticker-pop-emoji" id="message-sticker-pop-emoji" aria-hidden="true"></span>
+    </dialog>
+
+    <div class="msg-toast" id="message-toast" hidden></div>
+
     @if(!empty($activeGroup))
     <script>
-      (function () {
-        const thread = document.getElementById('message-thread')
-        const form = document.getElementById('message-compose')
-        const body = document.getElementById('message-body')
-        const filesInput = document.getElementById('message-attachments')
-        const names = document.getElementById('message-attach-names')
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
-        const meId = {{ (int) ($currentUser['id'] ?? 0) }}
-        if (!thread || !form) return
-
-        const groupId = thread.dataset.groupId
-        const peerId = thread.dataset.peerId || ''
-        let lastId = Number(thread.dataset.lastId || 0)
-
-        function escapeHtml(s) {
-          return String(s || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
+      window.__MSG_CFG__ = {
+        meId: {{ (int) ($currentUser['id'] ?? 0) }},
+        reactionEmojis: @json($reactionEmojis ?? []),
+        i18n: {
+          edited: @json(__('編集済み')),
+          copyOk: @json(__('コピーしました')),
+          copyFail: @json(__('コピーに失敗しました')),
+          editPrompt: @json(__('メッセージを編集')),
+          deleteConfirm: @json(__('このメッセージを削除しますか？')),
+          sendFail: @json(__('送信に失敗しました。')),
+          translateFail: @json(__('翻訳に失敗しました。')),
+          voiceUnsupported: @json(__('このブラウザでは音声入力に対応していません。')),
+          voiceHttps: @json(__('音声入力は HTTPS（または localhost）でのみ利用できます。')),
+          voiceListening: @json(__('聞いています…')),
+          sending: @json(__('送信中…')),
+          reply: @json(__('返信')),
+          edit: @json(__('編集')),
+          delete: @json(__('削除')),
+          copy: @json(__('コピー')),
+          forward: @json(__('転送')),
+          translate: @json(__('翻訳')),
+          online: @json(__('オンライン')),
+          offline: @json(__('オフライン')),
+          groupMsg: @json(__('グループメッセージ')),
+          dmMsg: @json(__('個別メッセージ')),
+          react: @json(__('リアクション')),
+          menu: @json(__('操作')),
+          stickerHold: @json(__('長押しで拡大')),
         }
-
-        function renderMessage(message) {
-          const mine = Number(message.userId) === meId
-          const article = document.createElement('article')
-          article.className = 'msg-bubble' + (mine ? ' is-mine' : '')
-          article.dataset.id = String(message.id)
-          let html = `<div class="msg-bubble-meta"><strong>${escapeHtml(message.userName)}</strong><time>${escapeHtml(message.createdAt)}</time></div>`
-          if (message.body) html += `<p>${escapeHtml(message.body)}</p>`
-          if (Array.isArray(message.attachments) && message.attachments.length) {
-            html += '<ul class="msg-files">'
-            message.attachments.forEach((file) => {
-              if (file.isImage) {
-                html += `<li><a href="${escapeHtml(file.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(file.url)}" alt="${escapeHtml(file.name)}" /></a></li>`
-              } else {
-                html += `<li><a class="msg-file-link" href="${escapeHtml(file.downloadUrl)}">${escapeHtml(file.name)}</a></li>`
-              }
-            })
-            html += '</ul>'
-          }
-          article.innerHTML = html
-          return article
-        }
-
-        function appendMessages(list) {
-          if (!list.length) return
-          document.getElementById('message-empty')?.remove()
-          list.forEach((message) => {
-            if (thread.querySelector(`[data-id="${message.id}"]`)) return
-            thread.appendChild(renderMessage(message))
-            lastId = Math.max(lastId, Number(message.id) || 0)
-            thread.dataset.lastId = String(lastId)
-          })
-          thread.scrollTop = thread.scrollHeight
-        }
-
-        async function poll() {
-          try {
-            const q = new URLSearchParams({ after: String(lastId) })
-            if (peerId) q.set('peer', peerId)
-            const res = await fetch(`/messages/${groupId}/poll?` + q.toString(), {
-              headers: { Accept: 'application/json' },
-              credentials: 'same-origin',
-            })
-            const data = await res.json()
-            if (data?.ok && Array.isArray(data.messages)) appendMessages(data.messages)
-          } catch (_) {}
-        }
-
-        filesInput?.addEventListener('change', () => {
-          const list = Array.from(filesInput.files || []).map((f) => f.name)
-          if (names) names.textContent = list.join(', ')
-        })
-
-        form.addEventListener('submit', async (e) => {
-          e.preventDefault()
-          const fd = new FormData(form)
-          try {
-            const res = await fetch(form.action, {
-              method: 'POST',
-              headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
-              body: fd,
-              credentials: 'same-origin',
-            })
-            const data = await res.json()
-            if (!data?.ok) {
-              window.alert(data?.message || @json(__('送信に失敗しました。')))
-              return
-            }
-            body.value = ''
-            if (filesInput) filesInput.value = ''
-            if (names) names.textContent = ''
-            appendMessages([data.message])
-          } catch (_) {
-            window.alert(@json(__('送信に失敗しました。')))
-          }
-        })
-
-        thread.scrollTop = thread.scrollHeight
-        setInterval(poll, 4000)
-      })()
+      }
     </script>
+    <script src="{{ asset('messages-workspace.js') }}?v={{ @filemtime(public_path('messages-workspace.js')) ?: time() }}" defer></script>
     @endif
   </body>
 </html>

@@ -114,7 +114,8 @@ class PhotoUploadAlbumTest extends TestCase
         $message = '通常の写真・動画が残っているため削除できません。先に移動または削除してください（アーカイブのみなら削除できます）。';
         $this->actingAs($user)
             ->post('/photos/albums/'.$album->id.'/delete', ['returnTo' => '/photos?album='.$album->id])
-            ->assertRedirect('/photos?album='.$album->id.'&error='.urlencode($message));
+            ->assertRedirect('/photos?album='.$album->id)
+            ->assertSessionHas('error', $message);
 
         $this->assertDatabaseHas('photo_albums', ['id' => $album->id]);
         $this->assertSame(1, Photo::query()->where('album_id', $album->id)->count());
@@ -137,7 +138,8 @@ class PhotoUploadAlbumTest extends TestCase
 
         $this->actingAs($user)
             ->post('/photos/albums/'.$album->id.'/delete', ['returnTo' => '/photos?album='.$album->id])
-            ->assertRedirect('/photos?notice='.urlencode('アルバムを削除しました'));
+            ->assertRedirect('/photos')
+            ->assertSessionHas('notice', 'アルバムを削除しました');
 
         $this->assertDatabaseMissing('photo_albums', ['id' => $album->id]);
         $this->assertSame(1, Photo::query()->where('user_id', $user->id)->whereNull('album_id')->whereNotNull('archived_at')->count());
@@ -150,7 +152,8 @@ class PhotoUploadAlbumTest extends TestCase
 
         $this->actingAs($user)
             ->post('/photos/albums/'.$album->id.'/delete', ['returnTo' => '/photos?album='.$album->id])
-            ->assertRedirect('/photos?notice='.urlencode('アルバムを削除しました'));
+            ->assertRedirect('/photos')
+            ->assertSessionHas('notice', 'アルバムを削除しました');
 
         $this->assertDatabaseMissing('photo_albums', ['id' => $album->id]);
     }

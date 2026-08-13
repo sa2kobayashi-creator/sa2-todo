@@ -191,6 +191,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/messages', [MessageController::class, 'index']);
         Route::get('/messages/attachments/{id}/file', [MessageController::class, 'attachmentFile'])->whereNumber('id');
         Route::get('/messages/attachments/{id}/download', [MessageController::class, 'attachmentDownload'])->whereNumber('id');
+        Route::post('/messages/items/{id}/update', [MessageController::class, 'update'])->whereNumber('id');
+        Route::post('/messages/items/{id}/delete', [MessageController::class, 'destroy'])->whereNumber('id');
+        Route::post('/messages/items/{id}/react', [MessageController::class, 'react'])->whereNumber('id');
+        Route::post('/messages/items/{id}/forward', [MessageController::class, 'forward'])->whereNumber('id');
+        Route::post('/messages/items/{id}/translate', [MessageController::class, 'translate'])->middleware('throttle:ai-translate')->whereNumber('id');
         Route::get('/messages/{groupId}/dm/{userId}', [MessageController::class, 'showDm'])->whereNumber('groupId')->whereNumber('userId');
         Route::get('/messages/{groupId}', [MessageController::class, 'show'])->whereNumber('groupId');
         Route::post('/messages/{groupId}', [MessageController::class, 'store'])->whereNumber('groupId');

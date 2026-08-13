@@ -30,8 +30,9 @@ class PhotoController extends Controller
             $sort = 'taken_desc';
         }
         $library = $request->query('library') === 'archived' ? 'archived' : 'active';
-        // ルート（アルバム未選択）: loose=アルバム外のみ（既定） / library=アーカイブ以外すべて
-        $scope = $request->query('scope') === 'library' ? 'library' : 'loose';
+        // ルート（アルバム未選択）: library=アルバム含む（既定） / loose=アルバム外のみ
+        // アルバムへ整理済みでも「すべて」で今年の写真を見られるようにする（移動・削除はしない）
+        $scope = $request->query('scope') === 'loose' ? 'loose' : 'library';
         if ($albumId !== null || $library === 'archived') {
             $scope = 'library';
         }
@@ -105,9 +106,16 @@ class PhotoController extends Controller
         $totalInScope = $albumLocked ? 0 : $this->photos->countPhotos($userId, $albumId, $library, $scope);
         $autoYearScoped = false;
         $autoYearThreshold = 120;
-        if (! $albumLocked && ! $explicitAllYears && $year === null && $totalInScope > $autoYearThreshold && $photoYears !== []) {
-            $year = $photoYears[0];
-            $autoYearScoped = true;
+        $currentCalendarYear = (int) now()->format('Y');
+        if (! $albumLocked && ! $explicitAllYears && $year === null && $photoYears !== []) {
+            // 今年の撮影があれば既定で今年を表示。無ければ件数が多いときだけ最新年に絞る
+            if (in_array($currentCalendarYear, $photoYears, true)) {
+                $year = $currentCalendarYear;
+                $autoYearScoped = true;
+            } elseif ($totalInScope > $autoYearThreshold) {
+                $year = $photoYears[0];
+                $autoYearScoped = true;
+            }
         }
 
         // フォーカス対象が年絞り込みで落ちる場合は全件表示へ
@@ -161,8 +169,8 @@ class PhotoController extends Controller
         if ($library === 'archived') {
             $queryBase['library'] = 'archived';
         }
-        if ($albumId === null && $library === 'active' && $scope === 'library') {
-            $queryBase['scope'] = 'library';
+        if ($albumId === null && $library === 'active' && $scope === 'loose') {
+            $queryBase['scope'] = 'loose';
         }
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
         $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);

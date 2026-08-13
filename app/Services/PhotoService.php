@@ -811,8 +811,8 @@ class PhotoService
 
     /**
      * ルート表示の所属範囲。
-     * - loose: アルバム未所属のみ（既定）
-     * - library: 非隠しアルバム所属も含む（隠しアルバム内はルートに出さない）
+     * - library: 非隠しアルバム所属も含む（既定。隠しアルバム内はルートに出さない）
+     * - loose: アルバム未所属のみ
      *
      * @param  'loose'|'library'  $scope
      */
