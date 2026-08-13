@@ -128,20 +128,46 @@
       .replace(/"/g, '&quot;')
   }
 
+  var actIcons = {
+    edit: '<path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
+    delete: '<path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>',
+    copy: '<path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>',
+    forward: '<path fill="currentColor" d="M12 8V4l8 8-8 8v-4H4V8h8z"/>',
+    reply: '<path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>',
+  }
+
+  function actButton(act, messageId, label) {
+    var path = actIcons[act]
+    if (path) {
+      return '<button type="button" class="msg-act msg-act-icon" data-act="' + act + '" data-id="' + messageId + '" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">' +
+        '<svg class="msg-act-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' + path + '</svg></button>'
+    }
+    return '<button type="button" class="msg-act" data-act="' + act + '" data-id="' + messageId + '">' + escapeHtml(label) + '</button>'
+  }
+
   function actionButtons(message, mine) {
     var sticker = !!message.isSticker
     var actions
     if (mine) {
       actions = []
-      if (!sticker) actions.push(['edit', i18n.edit])
-      actions = actions.concat([['delete', i18n.delete], ['copy', i18n.copy], ['forward', i18n.forward]])
+      if (!sticker) {
+        actions.push(['edit', i18n.edit])
+        actions.push(['delete', i18n.delete])
+        actions.push(['copy', i18n.copy])
+        actions.push(['forward', i18n.forward])
+      } else {
+        actions.push(['delete', i18n.delete])
+      }
     } else {
-      actions = [['reply', i18n.reply], ['copy', i18n.copy]]
-      if (canTranslate && !sticker) actions.push(['translate', i18n.translate])
+      actions = [['reply', i18n.reply]]
+      if (!sticker) {
+        actions.push(['copy', i18n.copy])
+        if (canTranslate) actions.push(['translate', i18n.translate])
+      }
       actions.push(['delete', i18n.delete])
     }
     return actions.map(function (pair) {
-      return '<button type="button" class="msg-act" data-act="' + pair[0] + '" data-id="' + message.id + '">' + escapeHtml(pair[1]) + '</button>'
+      return actButton(pair[0], message.id, pair[1])
     }).join('')
   }
 
@@ -149,11 +175,20 @@
     var actions
     if (mine) {
       actions = []
-      if (!sticker) actions.push(['edit', i18n.edit])
-      actions = actions.concat([['delete', i18n.delete], ['copy', i18n.copy], ['forward', i18n.forward]])
+      if (!sticker) {
+        actions.push(['edit', i18n.edit])
+        actions.push(['delete', i18n.delete])
+        actions.push(['copy', i18n.copy])
+        actions.push(['forward', i18n.forward])
+      } else {
+        actions.push(['delete', i18n.delete])
+      }
     } else {
-      actions = [['reply', i18n.reply], ['copy', i18n.copy]]
-      if (canTranslate && !sticker) actions.push(['translate', i18n.translate])
+      actions = [['reply', i18n.reply]]
+      if (!sticker) {
+        actions.push(['copy', i18n.copy])
+        if (canTranslate) actions.push(['translate', i18n.translate])
+      }
       actions.push(['delete', i18n.delete])
     }
     return actions.map(function (pair) {

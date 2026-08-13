@@ -16690,6 +16690,21 @@ body.video-page .media-player-stage-spacer {
   font-weight: 700;
   cursor: pointer;
 }
+.msg-act-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  line-height: 0;
+}
+.msg-act-svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
 .msg-bubble.is-mine .msg-act {
   background: rgba(255, 255, 255, 0.16);
 }
