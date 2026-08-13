@@ -53,13 +53,22 @@ class GroupMessagesAndTranslateTest extends TestCase
         return $group;
     }
 
-    public function test_messages_index_redirects_into_first_group_workspace(): void
+    public function test_messages_index_shows_inbox_list(): void
     {
         $user = $this->makeUser('chat@example.com');
         $group = $this->makeApprovedGroup($user);
 
+        $this->actingAs($user)
+            ->postJson('/messages/'.$group->id, ['body' => 'group hello'])
+            ->assertOk();
+
         $this->actingAs($user)->get('/messages')
-            ->assertRedirect('/messages/'.$group->id);
+            ->assertOk()
+            ->assertSee('メッセージ', false)
+            ->assertSee($group->name, false)
+            ->assertSee('/messages/'.$group->id, false)
+            ->assertSee('最近のグループメッセージ', false)
+            ->assertSee('group hello', false);
     }
 
     public function test_group_member_can_post_and_poll_messages(): void
@@ -235,7 +244,8 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertOk()
             ->assertSee('グループチャット', false)
             ->assertSee('個別チャット', false)
-            ->assertSee('グループメッセージ', false);
+            ->assertSee('会話一覧へ', false)
+            ->assertSee('全員に届くグループチャット', false);
     }
 
     public function test_group_wallpaper_is_shared_and_dm_poll_omits_it(): void

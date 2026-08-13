@@ -12,14 +12,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
     @include('partials.app-css')
   </head>
-  <body class="msg-app">
+  <body class="msg-app{{ !empty($activeGroup) ? ' msg-mobile-chat' : '' }}">
     @include('partials.header', ['active' => 'messages'])
     <main class="msg-shell">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      <div class="msg-layout">
-        <aside class="msg-rail" aria-label="{{ __('会話一覧') }}">
+      <div class="msg-layout{{ !empty($activeGroup) ? ' has-active-chat' : '' }}">
+        <aside class="msg-rail" id="message-rail" aria-label="{{ __('会話一覧') }}">
           <div class="msg-rail-head">
             <p class="msg-kicker">{{ __('Inbox') }}</p>
             <h1>{{ __('メッセージ') }}</h1>
@@ -78,6 +78,24 @@
                     </a>
                   @endforeach
                 @endif
+                @if(!empty($room['recentMessages']))
+                  <p class="msg-rail-label">{{ __('最近のグループメッセージ') }}</p>
+                  <ul class="msg-rail-recent">
+                    @foreach($room['recentMessages'] as $recent)
+                      <li>
+                        <a href="{{ $recent['href'] }}" class="msg-rail-recent-item">
+                          <span class="msg-rail-recent-meta">
+                            <strong>{{ $recent['userName'] }}</strong>
+                            @if(!empty($recent['createdAt']))
+                              <time>{{ $recent['createdAt'] }}</time>
+                            @endif
+                          </span>
+                          <span class="msg-rail-recent-preview">{{ $recent['preview'] }}</span>
+                        </a>
+                      </li>
+                    @endforeach
+                  </ul>
+                @endif
               </section>
             @endforeach
           @endif
@@ -92,12 +110,16 @@
             </div>
           @else
             <header class="msg-stage-head">
+              <button
+                type="button"
+                class="msg-back-btn"
+                id="message-back-btn"
+                title="{{ __('会話一覧へ') }}"
+                aria-label="{{ __('会話一覧へ') }}"
+              >
+                <span aria-hidden="true">←</span>
+              </button>
               <div class="msg-stage-head-main">
-                <p class="msg-kicker">
-                  <span class="msg-type-pill {{ !empty($isDirect) ? 'msg-type-dm' : 'msg-type-channel' }}">
-                    {{ !empty($isDirect) ? __('個別メッセージ') : __('グループメッセージ') }}
-                  </span>
-                </p>
                 <h2>
                   @if(!empty($isDirect) && !empty($activePeer))
                     <span class="msg-stage-name-row">
@@ -105,12 +127,16 @@
                         <span class="msg-avatar">{{ $activePeer['initials'] }}</span>
                         <span class="msg-presence {{ !empty($activePeer['online']) ? 'is-online' : 'is-offline' }}" data-stage-presence></span>
                       </span>
-                      {{ $activePeer['displayName'] }}
+                      <span class="msg-stage-peer-text">
+                        <span class="msg-stage-peer-name">{{ $activePeer['displayName'] }}</span>
+                        <span class="msg-stage-sub" data-stage-presence-label>{{ !empty($activePeer['online']) ? __('オンライン') : __('オフライン') }}</span>
+                      </span>
                     </span>
-                    <span class="msg-stage-sub">{{ $activeGroup['name'] }} · <span data-stage-presence-label>{{ !empty($activePeer['online']) ? __('オンライン') : __('オフライン') }}</span></span>
                   @else
-                    # {{ $activeGroup['name'] }}
-                    <span class="msg-stage-sub">{{ __('全員に届くグループチャット') }}</span>
+                    <span class="msg-stage-peer-text">
+                      <span class="msg-stage-peer-name"># {{ $activeGroup['name'] }}</span>
+                      <span class="msg-stage-sub">{{ __('全員に届くグループチャット') }}</span>
+                    </span>
                   @endif
                 </h2>
               </div>
@@ -152,14 +178,17 @@
                   <input type="hidden" name="peer_user_id" value="{{ $activePeer['userId'] }}" />
                 @endif
                 <input type="hidden" name="reply_to_id" id="message-reply-to" value="" />
-                <div class="msg-compose-input-wrap">
-                  <textarea id="message-body" name="body" rows="2" maxlength="5000" placeholder="{{ !empty($isDirect) ? __('個別メッセージを入力') : __('グループにメッセージ') }}"></textarea>
-                  <button type="button" class="msg-compose-emoji" id="message-emoji-btn" aria-label="{{ __('絵文字') }}" title="{{ __('絵文字') }}"><span aria-hidden="true">😊</span></button>
-                </div>
-                <div class="msg-compose-bar">
-                  <span class="msg-attach-names" id="message-attach-names"></span>
-                  <button type="submit" class="msg-send">{{ __('送信') }}</button>
-                  <div class="msg-compose-tools">
+                <span class="msg-attach-names" id="message-attach-names"></span>
+                <div class="msg-compose-row">
+                  <div class="msg-compose-input-wrap">
+                    <textarea id="message-body" name="body" rows="1" maxlength="5000" placeholder="{{ __('メッセージ入力') }}"></textarea>
+                    <div class="msg-compose-inner-actions">
+                      <button type="button" class="msg-compose-emoji" id="message-emoji-btn" aria-label="{{ __('絵文字') }}" title="{{ __('絵文字') }}"><span aria-hidden="true">😊</span></button>
+                      <button type="button" class="msg-quick-ok" id="message-quick-ok" aria-label="{{ __('OK') }}" title="{{ __('OKを送る') }}"><span aria-hidden="true">👍</span></button>
+                    </div>
+                  </div>
+                  <div class="msg-compose-side">
+                    <button type="submit" class="msg-send">{{ __('送信') }}</button>
                     <label class="msg-icon-tool" for="message-attachments" title="{{ __('添付') }}" aria-label="{{ __('添付') }}">
                       <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
                       <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -177,7 +206,6 @@
                         <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                       </svg>
                     </button>
-                    <button type="button" class="msg-quick-ok" id="message-quick-ok" aria-label="{{ __('OK') }}" title="{{ __('OKを送る') }}"><span aria-hidden="true">👍</span></button>
                   </div>
                 </div>
               </form>
@@ -346,6 +374,7 @@
           saveToPhotos: @json(__('Photosに追加')),
           saveToPhotosOk: @json(__('Photosに追加しました。')),
           saveToPhotosFail: @json(__('Photosへの追加に失敗しました。')),
+          backToList: @json(__('会話一覧へ')),
         }
       }
     </script>

@@ -214,21 +214,40 @@
       '</div>'
   }
 
+  function messageTimeLabel(message) {
+    var label = String(message.createdAt || '')
+    if (message.editedAt) label += (label ? ' · ' : '') + (i18n.edited || '')
+    return label
+  }
+
   function renderMessage(message) {
     var mine = Number(message.userId) === meId
     var sticker = !!message.isSticker
-    var article = document.createElement('article')
-    article.className = 'msg-bubble' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '')
-    article.setAttribute('data-id', String(message.id))
-    article.setAttribute('data-mine', mine ? '1' : '0')
-    article.setAttribute('data-sticker', sticker ? '1' : '0')
+    var entry = document.createElement('div')
+    entry.className = 'msg-entry' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '')
+    entry.id = 'msg-' + message.id
+    entry.setAttribute('data-id', String(message.id))
+    entry.setAttribute('data-mine', mine ? '1' : '0')
+    entry.setAttribute('data-sticker', sticker ? '1' : '0')
+
     var html = ''
     if (!sticker) {
       var typeLabel = message.threadTypeLabel || (message.isDirect ? i18n.dmMsg : i18n.groupMsg)
       var typeClass = (message.isDirect || message.threadType === 'dm') ? 'msg-type-dm' : 'msg-type-channel'
-      html += '<div class="msg-bubble-meta"><strong>' + escapeHtml(message.userName) + '</strong>' +
+      html += '<div class="msg-entry-aside">' +
+        '<strong class="msg-entry-name">' + escapeHtml(message.userName) + '</strong>' +
         '<span class="msg-type-pill ' + typeClass + '">' + escapeHtml(typeLabel) + '</span>' +
-        '<time>' + escapeHtml(message.createdAt) + (message.editedAt ? ' · ' + escapeHtml(i18n.edited) : '') + '</time></div>'
+        '</div>'
+    }
+
+    var timeLabel = messageTimeLabel(message)
+    html += '<article class="msg-bubble' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '') + '"' +
+      ' data-id="' + message.id + '" data-mine="' + (mine ? '1' : '0') + '" data-sticker="' + (sticker ? '1' : '0') + '"' +
+      (timeLabel ? ' title="' + escapeHtml(timeLabel) + '"' : '') + '>'
+    if (!sticker && timeLabel) {
+      html += '<time class="msg-bubble-time">' + escapeHtml(timeLabel) + '</time>'
+    }
+    if (!sticker) {
       if (message.replyTo) {
         html += '<div class="msg-quote"><strong>' + escapeHtml(message.replyTo.userName) + '</strong> ' + escapeHtml(message.replyTo.body || '') + '</div>'
       }
@@ -260,14 +279,19 @@
       html += '</ul>'
     }
     html += footerHtml(message, mine)
-    article.innerHTML = html
-    return article
+    html += '</article>'
+    entry.innerHTML = html
+    return entry
+  }
+
+  function findEntry(id) {
+    return thread.querySelector('.msg-entry[data-id="' + id + '"]')
   }
 
   function upsertMessage(message) {
     var empty = document.getElementById('message-empty')
     if (empty) empty.remove()
-    var existing = thread.querySelector('[data-id="' + message.id + '"]')
+    var existing = findEntry(message.id)
     var translated = existing && existing.querySelector('.msg-translated')
       ? existing.querySelector('.msg-translated').textContent
       : null
@@ -284,7 +308,7 @@
   function appendMessages(list) {
     if (!list || !list.length) return
     list.forEach(function (message) {
-      if (thread.querySelector('[data-id="' + message.id + '"]')) return
+      if (findEntry(message.id)) return
       upsertMessage(message)
     })
     thread.scrollTop = thread.scrollHeight
@@ -294,7 +318,7 @@
     if (!Array.isArray(events)) return
     events.forEach(function (ev) {
       if (ev.type === 'deleted' && ev.id) {
-        var el = thread.querySelector('[data-id="' + ev.id + '"]')
+        var el = findEntry(ev.id)
         if (el) el.remove()
         return
       }
@@ -492,7 +516,10 @@
     if (act === 'copy') return copyText(text)
 
     if (act === 'reply') {
-      var strong = bubble.querySelector('.msg-bubble-meta strong')
+      var entry = bubble.closest ? bubble.closest('.msg-entry') : null
+      var strong = entry
+        ? entry.querySelector('.msg-entry-name')
+        : bubble.querySelector('.msg-bubble-meta strong')
       setReply({
         id: id,
         userName: strong ? strong.textContent : '',
@@ -1272,4 +1299,81 @@
       saveGroupClear()
     })
   }
+
+  var backBtn = document.getElementById('message-back-btn')
+  var timeHideTimer = 0
+
+  function setInboxOpen(open) {
+    document.body.classList.toggle('msg-inbox-open', !!open)
+    if (open) {
+      var rail = document.getElementById('message-rail')
+      if (rail) rail.scrollTop = 0
+    } else {
+      thread.scrollTop = thread.scrollHeight
+    }
+  }
+
+  function flashBubbleTime(bubble) {
+    if (!bubble) return
+    thread.querySelectorAll('.msg-bubble.is-time-visible').forEach(function (el) {
+      if (el !== bubble) el.classList.remove('is-time-visible')
+    })
+    bubble.classList.add('is-time-visible')
+    clearTimeout(timeHideTimer)
+    timeHideTimer = setTimeout(function () {
+      bubble.classList.remove('is-time-visible')
+    }, 2200)
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener('click', function (e) {
+      e.preventDefault()
+      if (isMobileUi()) {
+        window.location.href = '/messages'
+        return
+      }
+      setInboxOpen(true)
+    })
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return
+    if (!isMobileUi() || !document.body.classList.contains('msg-mobile-chat')) return
+    if (document.body.classList.contains('msg-inbox-open')) return
+    window.location.href = '/messages'
+  })
+
+  var railEl = document.getElementById('message-rail')
+  if (railEl) {
+    railEl.addEventListener('click', function (e) {
+      if (!isMobileUi() || !document.body.classList.contains('msg-inbox-open')) return
+      var link = e.target.closest ? e.target.closest('a.msg-rail-item') : null
+      if (!link || !link.classList.contains('is-active')) return
+      e.preventDefault()
+      setInboxOpen(false)
+    })
+  }
+
+  thread.addEventListener('click', function (e) {
+    var t = e.target
+    if (!t || !t.closest) return
+    if (t.closest('a,button,input,textarea,label,.msg-file-actions')) return
+    var bubble = t.closest('.msg-bubble')
+    if (!bubble || bubble.classList.contains('is-sticker')) return
+    flashBubbleTime(bubble)
+  })
+
+  ;(function scrollToHashMessage() {
+    var hash = window.location.hash || ''
+    if (!/^#msg-\d+$/.test(hash)) return
+    var target = document.getElementById(hash.slice(1))
+    if (!target) return
+    requestAnimationFrame(function () {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      target.classList.add('is-hash-target')
+      setTimeout(function () {
+        target.classList.remove('is-hash-target')
+      }, 1800)
+    })
+  })()
 })()

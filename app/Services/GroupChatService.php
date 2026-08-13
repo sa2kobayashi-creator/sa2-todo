@@ -109,6 +109,43 @@ class GroupChatService
                     'lastMessageAt' => $lastGroup['at'],
                     'lastMessagePreview' => $lastGroup['preview'],
                     'members' => $members,
+                    'recentMessages' => $this->recentChannelMessages($userId, $groupId, 12),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * インボックス用：グループ全体チャットの最近メッセージ。
+     *
+     * @return list<array{id: int, userName: string, preview: string, createdAt: ?string, href: string}>
+     */
+    public function recentChannelMessages(int $userId, int $groupId, int $limit = 12): array
+    {
+        $limit = max(1, min(30, $limit));
+        $query = GroupMessage::query()
+            ->with('user')
+            ->where('group_id', $groupId)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+        $this->applyThreadScope($query, $userId, null);
+
+        return $query
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->map(function (GroupMessage $message) use ($groupId) {
+                $preview = trim((string) ($message->body ?: ''));
+                if ($preview === '') {
+                    $preview = __('（添付）');
+                }
+
+                return [
+                    'id' => (int) $message->id,
+                    'userName' => $message->user?->display_name ?: __('不明'),
+                    'preview' => mb_substr($preview, 0, 100),
+                    'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,
+                    'href' => '/messages/'.$groupId.'#msg-'.$message->id,
                 ];
             })
             ->values()

@@ -26,9 +26,6 @@ class MessageController extends Controller
     {
         $userId = (int) $request->user()->id;
         $workspace = $this->chat->listWorkspace($userId);
-        if ($workspace !== []) {
-            return redirect($workspace[0]['href']);
-        }
 
         return view('messages.workspace', $this->workspaceViewData($request, $workspace));
     }
