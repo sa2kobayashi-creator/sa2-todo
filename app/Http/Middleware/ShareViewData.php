@@ -84,6 +84,9 @@ class ShareViewData
                 'nishitetsu_rail' => __('西鉄電車'),
                 'subway' => __('地下鉄'),
             ],
+            'formatDate' => fn ($value) => \App\Support\LocaleFormat::date($value),
+            'formatDateTime' => fn ($value) => \App\Support\LocaleFormat::dateTime($value),
+            'formatMoney' => fn ($amount, string $currency = 'JPY') => \App\Support\LocaleFormat::money($amount, $currency),
         ]);
 
         if ($user = $request->user()) {

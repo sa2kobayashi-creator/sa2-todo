@@ -802,7 +802,7 @@ class FinanceService
                     'id' => $transaction->id,
                     'label' => $label !== '' ? $label : '利用',
                     'date' => $transaction->transaction_date->format('Y-m-d'),
-                    'displayDate' => $transaction->transaction_date->format('Y/n/j'),
+                    'displayDate' => \App\Support\LocaleFormat::date($transaction->transaction_date),
                     'amount' => round((float) $transaction->amount, 2),
                     'currency' => $transaction->currency,
                 ];
@@ -1616,7 +1616,9 @@ class FinanceService
         }
 
         usort($rows, function (array $a, array $b) {
-            $dateCompare = strcmp($b['displayDate'] ?? $b['transactionDate'], $a['displayDate'] ?? $a['transactionDate']);
+            $dateA = (string) ($a['transactionDate'] ?? $a['date'] ?? $a['displayDate'] ?? '');
+            $dateB = (string) ($b['transactionDate'] ?? $b['date'] ?? $b['displayDate'] ?? '');
+            $dateCompare = strcmp($dateB, $dateA);
             if ($dateCompare !== 0) {
                 return $dateCompare;
             }
@@ -2666,9 +2668,7 @@ class FinanceService
 
     public function formatMoney(float $amount, string $currency): string
     {
-        $prefix = $currency === 'PHP' ? '₱' : '¥';
-
-        return $prefix.number_format($amount, $currency === 'PHP' ? 2 : 0);
+        return \App\Support\LocaleFormat::money($amount, $currency);
     }
 
     public function todayIso(): string

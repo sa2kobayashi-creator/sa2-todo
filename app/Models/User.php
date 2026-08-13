@@ -33,6 +33,7 @@ class User extends Authenticatable
         'pending_email_attempts',
         'pending_email_sent_at',
         'last_seen_at',
+        'timezone',
     ];
 
     protected $hidden = [
@@ -176,6 +177,7 @@ class User extends Authenticatable
             'roleDescription' => __($role->description()),
             'menuFeatures' => $this->baseMenuFeatures(),
             'hasCustomMenuFeatures' => is_array($this->menu_features),
+            'timezone' => $this->timezone ?: \App\Support\LocaleFormat::timezone($this),
             'createdAt' => optional($this->created_at)?->format('Y-m-d H:i'),
             'updatedAt' => optional($this->updated_at)?->format('Y-m-d H:i'),
         ];

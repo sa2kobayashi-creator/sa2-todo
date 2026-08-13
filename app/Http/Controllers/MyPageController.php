@@ -48,6 +48,7 @@ class MyPageController extends Controller
                 $featureKeys,
                 fn (string $feature) => $user->canAccess($feature)
             )),
+            'timezoneOptions' => \App\Support\LocaleFormat::timezoneOptions(),
             'groups' => $this->groups->listForUser($user->id)->all(),
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
             'googleCalendar' => $this->googleCalendar->formState($user),
@@ -75,6 +76,7 @@ class MyPageController extends Controller
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
+            'timezone' => ['nullable', 'string', Rule::in(\App\Support\LocaleFormat::TIMEZONES)],
         ]);
 
         if ($validator->fails()) {
@@ -84,6 +86,8 @@ class MyPageController extends Controller
         $data = $validator->validated();
 
         $user->display_name = trim($data['displayName']);
+        $tz = trim((string) ($data['timezone'] ?? ''));
+        $user->timezone = $tz !== '' ? $tz : null;
         $user->save();
 
         // メールアドレスはログインIDなので、新しい宛先で受信できることを確認してから反映する

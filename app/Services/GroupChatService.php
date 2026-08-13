@@ -8,6 +8,7 @@ use App\Models\GroupMessageAttachment;
 use App\Models\GroupMessageHide;
 use App\Models\GroupMessageReaction;
 use App\Models\User;
+use App\Support\LocaleFormat;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -88,7 +89,9 @@ class GroupChatService
                             'threadType' => 'dm',
                             'threadTypeLabel' => __('個別チャット'),
                             'online' => $peer?->isOnline(self::ONLINE_WITHIN_SECONDS) ?? false,
-                            'lastSeenAt' => $peer?->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                            'lastSeenAt' => $peer?->last_seen_at
+                                ? LocaleFormat::dateTime($peer->last_seen_at)
+                                : null,
                             'lastMessageAt' => $last['at'],
                             'lastMessagePreview' => $last['preview'],
                         ];
@@ -122,7 +125,9 @@ class GroupChatService
         foreach (User::query()->whereIn('id', $ids)->get(['id', 'last_seen_at']) as $user) {
             $out[(int) $user->id] = [
                 'online' => $user->isOnline(self::ONLINE_WITHIN_SECONDS),
-                'lastSeenAt' => $user->last_seen_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+                'lastSeenAt' => $user->last_seen_at
+                    ? LocaleFormat::dateTime($user->last_seen_at)
+                    : null,
             ];
         }
 
@@ -483,8 +488,8 @@ class GroupChatService
             'threadTypeLabel' => $isDirect ? __('個別メッセージ') : __('グループメッセージ'),
             'body' => $message->body,
             'isSticker' => $this->isStickerBody($message->body) && $message->attachments->isEmpty(),
-            'createdAt' => $message->created_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
-            'editedAt' => $message->edited_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,
+            'editedAt' => $message->edited_at ? LocaleFormat::dateTime($message->edited_at) : null,
             'replyTo' => $reply,
             'reactions' => array_values($grouped),
             'attachments' => $message->attachments
@@ -621,7 +626,7 @@ class GroupChatService
         $last = $query->orderByDesc('id')->first();
 
         return [
-            'at' => $last?->created_at?->timezone(config('app.timezone'))->format('Y-m-d H:i'),
+            'at' => $last?->created_at ? LocaleFormat::dateTime($last->created_at) : null,
             'preview' => $last
                 ? mb_substr(trim((string) ($last->body ?: __('（添付）'))), 0, 80)
                 : null,

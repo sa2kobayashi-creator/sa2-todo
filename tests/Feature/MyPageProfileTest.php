@@ -26,6 +26,20 @@ class MyPageProfileTest extends TestCase
         ]);
     }
 
+    public function test_timezone_can_be_updated_on_mypage(): void
+    {
+        $user = $this->makeUser('mypage-tz@example.com');
+
+        $this->actingAs($user)->post('/mypage', [
+            'displayName' => 'Tester',
+            'email' => $user->email,
+            'timezone' => 'America/New_York',
+        ])->assertRedirect('/mypage');
+
+        $user->refresh();
+        $this->assertSame('America/New_York', $user->timezone);
+    }
+
     public function test_email_is_normalized_before_verification_starts(): void
     {
         Mail::fake();

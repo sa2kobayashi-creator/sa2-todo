@@ -97,6 +97,17 @@
             <input type="email" name="email" value="{{ old('email', $user['email']) }}" required maxlength="255" autocomplete="email" />
           </label>
           @error('email')<p class="field-error">{{ $message }}</p>@enderror
+          <label>{{ __('タイムゾーン') }}
+            <select name="timezone">
+              @foreach(($timezoneOptions ?? []) as $option)
+                <option value="{{ $option['value'] }}" @selected(old('timezone', $user['timezone'] ?? config('app.timezone')) === $option['value'])>
+                  {{ $option['label'] }}
+                </option>
+              @endforeach
+            </select>
+          </label>
+          @error('timezone')<p class="field-error">{{ $message }}</p>@enderror
+          <p class="hint">{{ __('日付や時刻の表示に使います。未設定時はアプリ既定（Asia/Tokyo）です。') }}</p>
           <p class="hint">{{ __('メールアドレスを変えると、新しいアドレスに6桁の確認コードを送ります。コードを入力するまで、ログインIDは今のままです。') }}</p>
           <button type="submit">{{ __('保存') }}</button>
         </form>

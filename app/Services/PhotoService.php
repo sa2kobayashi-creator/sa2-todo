@@ -4115,9 +4115,7 @@ class PhotoService
         try {
             $carbon = \Carbon\Carbon::createFromFormat('Y-m-d', $date, config('app.timezone', 'Asia/Tokyo'));
 
-            return app()->getLocale() === 'en'
-                ? $carbon->locale('en')->isoFormat('MMM D, YYYY')
-                : $carbon->format('Y年n月j日');
+            return \App\Support\LocaleFormat::date($carbon);
         } catch (\Throwable) {
             return $date;
         }
