@@ -196,6 +196,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/messages/items/{id}/react', [MessageController::class, 'react'])->whereNumber('id');
         Route::post('/messages/items/{id}/forward', [MessageController::class, 'forward'])->whereNumber('id');
         Route::post('/messages/items/{id}/translate', [MessageController::class, 'translate'])->middleware('throttle:ai-translate')->whereNumber('id');
+        Route::get('/messages/{groupId}/wallpaper', [MessageController::class, 'wallpaperFile'])->whereNumber('groupId');
+        Route::post('/messages/{groupId}/wallpaper', [MessageController::class, 'updateWallpaper'])->whereNumber('groupId');
         Route::get('/messages/{groupId}/dm/{userId}', [MessageController::class, 'showDm'])->whereNumber('groupId')->whereNumber('userId');
         Route::get('/messages/{groupId}', [MessageController::class, 'show'])->whereNumber('groupId');
         Route::post('/messages/{groupId}', [MessageController::class, 'store'])->whereNumber('groupId');

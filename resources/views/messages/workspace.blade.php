@@ -190,7 +190,9 @@
     <dialog class="msg-dialog" id="message-bg-dialog">
       <form method="dialog" class="msg-dialog-card">
         <h3>{{ __('チャット背景') }}</h3>
-        <p class="msg-bg-hint">{{ __('テーマまたは写真を選べます（この端末に保存）') }}</p>
+        <p class="msg-bg-hint" id="message-bg-hint">
+          {{ !empty($isDirect) ? __('個別チャットの背景は自分だけに表示されます（この端末に保存）') : __('グループチャットの背景はメンバー全員に共有されます') }}
+        </p>
         <div class="msg-bg-presets" id="message-bg-presets">
           <button type="button" class="msg-bg-preset" data-bg="default" title="{{ __('標準') }}"><span>{{ __('標準') }}</span></button>
           <button type="button" class="msg-bg-preset is-mint" data-bg="mint" title="{{ __('ミント') }}"><span>{{ __('ミント') }}</span></button>
@@ -297,6 +299,8 @@
         meId: {{ (int) ($currentUser['id'] ?? 0) }},
         maxAttachmentBytes: {{ (int) ($maxAttachmentBytes ?? 20971520) }},
         maxUploadLabel: @json($maxUploadLabel ?? '20 MB'),
+        isDirect: {{ !empty($isDirect) ? 'true' : 'false' }},
+        wallpaper: @json($wallpaper ?? null),
         reactionEmojis: @json($reactionEmojis ?? []),
         i18n: {
           edited: @json(__('編集済み')),
@@ -325,6 +329,7 @@
           menu: @json(__('操作')),
           stickerHold: @json(__('長押しで拡大')),
           bgSaved: @json(__('背景を保存しました')),
+          bgShared: @json(__('グループ背景を更新しました（全員に共有）')),
           bgTooLarge: @json(__('画像が大きすぎます。別の写真を選んでください。')),
           bgFail: @json(__('背景の読み込みに失敗しました。')),
         }

@@ -18,6 +18,11 @@ class Group extends Model
         'reviewed_by',
         'reviewed_at',
         'review_note',
+        'chat_bg_type',
+        'chat_bg_theme',
+        'chat_bg_disk',
+        'chat_bg_path',
+        'chat_bg_updated_at',
     ];
 
     protected function casts(): array
@@ -25,6 +30,7 @@ class Group extends Model
         return [
             'status' => GroupStatus::class,
             'reviewed_at' => 'datetime',
+            'chat_bg_updated_at' => 'datetime',
         ];
     }
 

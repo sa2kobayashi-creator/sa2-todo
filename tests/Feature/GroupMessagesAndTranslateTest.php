@@ -235,6 +235,44 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertSee('グループメッセージ', false);
     }
 
+    public function test_group_wallpaper_is_shared_and_dm_poll_omits_it(): void
+    {
+        $alice = $this->makeUser('alice-bg@example.com', 'Alice');
+        $bob = $this->makeUser('bob-bg@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id.'/wallpaper', ['theme' => 'mint'])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('wallpaper.type', 'theme')
+            ->assertJsonPath('wallpaper.value', 'mint');
+
+        $this->assertDatabaseHas('groups', [
+            'id' => $group->id,
+            'chat_bg_type' => 'theme',
+            'chat_bg_theme' => 'mint',
+        ]);
+
+        $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?after=0')
+            ->assertOk()
+            ->assertJsonPath('wallpaper.value', 'mint');
+
+        $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?after=0&peer='.$alice->id)
+            ->assertOk()
+            ->assertJsonMissingPath('wallpaper');
+
+        $this->actingAs($bob)->get('/messages/'.$group->id)
+            ->assertOk()
+            ->assertSee('グループチャットの背景はメンバー全員に共有されます', false);
+
+        $this->actingAs($bob)->get('/messages/'.$group->id.'/dm/'.$alice->id)
+            ->assertOk()
+            ->assertSee('個別チャットの背景は自分だけに表示されます', false);
+    }
+
     public function test_translate_page_requires_super_admin(): void
     {
         $user = $this->makeUser('tr@example.com');

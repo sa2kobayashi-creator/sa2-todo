@@ -372,6 +372,7 @@
         appendMessages(data.messages || [])
         applyEvents(data.events || [])
         applyPresence(data.presence || {})
+        if (!isDirect && data.wallpaper) applyServerWallpaper(data.wallpaper, false)
         if (data.serverTime) sinceIso = data.serverTime
       })
       .catch(function () {})
@@ -976,15 +977,17 @@
   setInterval(poll, 4000)
   poll()
 
-  // Chat wallpaper (device-local)
-  var BG_KEY = 'sa2.msg.wallpaper'
+  // Chat wallpaper: group = shared server / DM = device-local
+  var isDirect = !!cfg.isDirect || thread.getAttribute('data-thread-type') === 'dm'
+  var BG_KEY = 'sa2.msg.wallpaper.dm.' + groupId + '.' + (peerId || '0')
   var bgDialog = document.getElementById('message-bg-dialog')
   var bgBtn = document.getElementById('message-bg-btn')
   var bgFile = document.getElementById('message-bg-file')
   var bgClear = document.getElementById('message-bg-clear')
   var bgPresets = document.getElementById('message-bg-presets')
+  var wallpaperUpdatedAt = null
 
-  function readBgPref() {
+  function readDmBgPref() {
     try {
       var raw = window.localStorage.getItem(BG_KEY)
       if (!raw) return { type: 'theme', value: 'default' }
@@ -999,7 +1002,7 @@
     return { type: 'theme', value: 'default' }
   }
 
-  function writeBgPref(pref) {
+  function writeDmBgPref(pref) {
     try {
       window.localStorage.setItem(BG_KEY, JSON.stringify(pref))
     } catch (e) {
@@ -1013,16 +1016,17 @@
     var i
     for (i = 0; i < buttons.length; i++) {
       var btn = buttons[i]
-      if (btn.getAttribute('data-bg') === value) btn.classList.add('is-active')
+      if (value && btn.getAttribute('data-bg') === value) btn.classList.add('is-active')
       else btn.classList.remove('is-active')
     }
   }
 
   function applyWallpaper(pref) {
     if (!thread) return
-    if (pref && pref.type === 'image' && pref.dataUrl) {
+    if (pref && pref.type === 'image' && (pref.dataUrl || pref.url)) {
+      var src = pref.dataUrl || pref.url
       thread.setAttribute('data-bg', 'image')
-      thread.style.setProperty('--msg-bg-image', 'linear-gradient(rgba(15,23,42,0.28), rgba(15,23,42,0.28)), url("' + pref.dataUrl + '")')
+      thread.style.setProperty('--msg-bg-image', 'linear-gradient(rgba(15,23,42,0.28), rgba(15,23,42,0.28)), url("' + src + '")')
       markActivePreset('')
       return
     }
@@ -1031,6 +1035,74 @@
     else thread.setAttribute('data-bg', theme)
     thread.style.removeProperty('--msg-bg-image')
     markActivePreset(theme)
+  }
+
+  function applyServerWallpaper(wallpaper, force) {
+    if (!wallpaper || isDirect) return
+    if (!force && wallpaper.updatedAt && wallpaperUpdatedAt && wallpaper.updatedAt === wallpaperUpdatedAt) {
+      return
+    }
+    wallpaperUpdatedAt = wallpaper.updatedAt || wallpaperUpdatedAt
+    if (wallpaper.type === 'image' && wallpaper.url) {
+      applyWallpaper({ type: 'image', url: wallpaper.url })
+      return
+    }
+    applyWallpaper({ type: 'theme', value: wallpaper.value || 'default' })
+  }
+
+  function saveGroupTheme(theme) {
+    return api('/messages/' + groupId + '/wallpaper', {
+      method: 'POST',
+      body: JSON.stringify({ theme: theme }),
+    }).then(function (data) {
+      if (!data || !data.ok) {
+        toast((data && data.message) || i18n.bgFail || i18n.sendFail)
+        return
+      }
+      applyServerWallpaper(data.wallpaper, true)
+      toast(i18n.bgShared || i18n.bgSaved || '')
+      closeDialog(bgDialog)
+    }).catch(function () {
+      toast(i18n.bgFail || i18n.sendFail)
+    })
+  }
+
+  function saveGroupClear() {
+    var fd = new FormData()
+    fd.set('clear', '1')
+    return api('/messages/' + groupId + '/wallpaper', {
+      method: 'POST',
+      body: fd,
+    }).then(function (data) {
+      if (!data || !data.ok) {
+        toast((data && data.message) || i18n.bgFail || i18n.sendFail)
+        return
+      }
+      applyServerWallpaper(data.wallpaper, true)
+      toast(i18n.bgShared || i18n.bgSaved || '')
+      closeDialog(bgDialog)
+    }).catch(function () {
+      toast(i18n.bgFail || i18n.sendFail)
+    })
+  }
+
+  function saveGroupImage(file) {
+    var fd = new FormData()
+    fd.append('wallpaper', file, file.name || ('wallpaper-' + Date.now() + '.jpg'))
+    return api('/messages/' + groupId + '/wallpaper', {
+      method: 'POST',
+      body: fd,
+    }).then(function (data) {
+      if (!data || !data.ok) {
+        toast((data && data.message) || i18n.bgFail || i18n.sendFail)
+        return
+      }
+      applyServerWallpaper(data.wallpaper, true)
+      toast(i18n.bgShared || i18n.bgSaved || '')
+      closeDialog(bgDialog)
+    }).catch(function () {
+      toast(i18n.bgFail || i18n.sendFail)
+    })
   }
 
   function compressImageFile(file, done) {
@@ -1068,23 +1140,37 @@
           return
         }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.82)
-        if (dataUrl.length > 1800000) {
-          dataUrl = canvas.toDataURL('image/jpeg', 0.65)
-        }
-        if (dataUrl.length > 2200000) {
-          toast(i18n.bgTooLarge || i18n.fileTooLarge)
-          done(null)
-          return
-        }
-        done(dataUrl)
+        canvas.toBlob(function (blob) {
+          if (!blob) {
+            done(null)
+            return
+          }
+          if (blob.size > 2.5 * 1024 * 1024) {
+            canvas.toBlob(function (blob2) {
+              if (!blob2 || blob2.size > 3 * 1024 * 1024) {
+                toast(i18n.bgTooLarge || i18n.fileTooLarge)
+                done(null)
+                return
+              }
+              done(blob2)
+            }, 'image/jpeg', 0.65)
+            return
+          }
+          done(blob)
+        }, 'image/jpeg', 0.82)
       }
       img.src = String(reader.result || '')
     }
     reader.readAsDataURL(file)
   }
 
-  applyWallpaper(readBgPref())
+  if (isDirect) {
+    applyWallpaper(readDmBgPref())
+  } else if (cfg.wallpaper) {
+    applyServerWallpaper(cfg.wallpaper, true)
+  } else {
+    applyWallpaper({ type: 'theme', value: 'default' })
+  }
 
   if (bgBtn && bgDialog) {
     bgBtn.addEventListener('click', function (e) {
@@ -1097,36 +1183,57 @@
       var btn = e.target.closest ? e.target.closest('[data-bg]') : null
       if (!btn) return
       e.preventDefault()
-      var pref = { type: 'theme', value: btn.getAttribute('data-bg') || 'default' }
-      writeBgPref(pref)
-      applyWallpaper(pref)
-      toast(i18n.bgSaved || '')
-      closeDialog(bgDialog)
+      var theme = btn.getAttribute('data-bg') || 'default'
+      if (isDirect) {
+        var pref = { type: 'theme', value: theme }
+        writeDmBgPref(pref)
+        applyWallpaper(pref)
+        toast(i18n.bgSaved || '')
+        closeDialog(bgDialog)
+        return
+      }
+      saveGroupTheme(theme)
     })
   }
   if (bgFile) {
     bgFile.addEventListener('change', function () {
       var file = bgFile.files && bgFile.files[0]
       if (!file) return
-      compressImageFile(file, function (dataUrl) {
+      compressImageFile(file, function (blob) {
         bgFile.value = ''
-        if (!dataUrl) return
-        var pref = { type: 'image', dataUrl: dataUrl }
-        writeBgPref(pref)
-        applyWallpaper(pref)
-        toast(i18n.bgSaved || '')
-        closeDialog(bgDialog)
+        if (!blob) return
+        if (isDirect) {
+          var reader = new FileReader()
+          reader.onload = function () {
+            var pref = { type: 'image', dataUrl: String(reader.result || '') }
+            writeDmBgPref(pref)
+            applyWallpaper(pref)
+            toast(i18n.bgSaved || '')
+            closeDialog(bgDialog)
+          }
+          reader.onerror = function () {
+            toast(i18n.bgFail || i18n.sendFail)
+          }
+          reader.readAsDataURL(blob)
+          return
+        }
+        var upload = new File([blob], 'wallpaper.jpg', { type: 'image/jpeg' })
+        saveGroupImage(upload)
       })
     })
   }
   if (bgClear) {
     bgClear.addEventListener('click', function (e) {
       e.preventDefault()
-      var pref = { type: 'theme', value: 'default' }
-      writeBgPref(pref)
-      applyWallpaper(pref)
-      toast(i18n.bgSaved || '')
-      closeDialog(bgDialog)
+      if (isDirect) {
+        var pref = { type: 'theme', value: 'default' }
+        writeDmBgPref(pref)
+        applyWallpaper(pref)
+        toast(i18n.bgSaved || '')
+        closeDialog(bgDialog)
+        return
+      }
+      saveGroupClear()
     })
   }
 })()

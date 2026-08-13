@@ -12,6 +12,9 @@ return [
      */
     'attachment_disk' => env('MESSAGE_ATTACHMENT_DISK', ''),
 
+    /** グループ共有背景画像の上限（バイト）。初期値 3MB */
+    'max_wallpaper_bytes' => (int) env('MESSAGE_MAX_WALLPAPER_BYTES', 3 * 1024 * 1024),
+
     'allowed_extensions' => [
         'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
         'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx',

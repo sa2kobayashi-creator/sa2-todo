@@ -686,6 +686,180 @@ class GroupChatService
         ]);
     }
 
+    public const WALLPAPER_THEMES = ['default', 'mint', 'sky', 'dusk', 'paper', 'plain'];
+
+    public function maxWallpaperBytes(): int
+    {
+        return max(1024, (int) config('messages.max_wallpaper_bytes', 3 * 1024 * 1024));
+    }
+
+    /**
+     * グループチャット共有背景（DM では使わない）。
+     *
+     * @return array{type: string, value: ?string, url: ?string, updatedAt: ?string}
+     */
+    public function wallpaperForGroup(int $userId, int $groupId): array
+    {
+        $group = $this->assertMember($userId, $groupId);
+
+        return $this->wallpaperToArray($group);
+    }
+
+    /**
+     * @return array{type: string, value: ?string, url: ?string, updatedAt: ?string}
+     */
+    public function setGroupWallpaperTheme(int $userId, int $groupId, string $theme): array
+    {
+        $group = $this->assertMember($userId, $groupId);
+        $theme = strtolower(trim($theme));
+        if (! in_array($theme, self::WALLPAPER_THEMES, true)) {
+            throw new \InvalidArgumentException(__('その背景テーマは使えません。'));
+        }
+
+        $this->deleteGroupWallpaperFile($group);
+
+        if ($theme === 'default') {
+            $group->forceFill([
+                'chat_bg_type' => null,
+                'chat_bg_theme' => null,
+                'chat_bg_disk' => null,
+                'chat_bg_path' => null,
+                'chat_bg_updated_at' => now(),
+            ])->save();
+        } else {
+            $group->forceFill([
+                'chat_bg_type' => 'theme',
+                'chat_bg_theme' => $theme,
+                'chat_bg_disk' => null,
+                'chat_bg_path' => null,
+                'chat_bg_updated_at' => now(),
+            ])->save();
+        }
+
+        return $this->wallpaperToArray($group->fresh());
+    }
+
+    /**
+     * @return array{type: string, value: ?string, url: ?string, updatedAt: ?string}
+     */
+    public function setGroupWallpaperImage(int $userId, int $groupId, UploadedFile $file): array
+    {
+        $group = $this->assertMember($userId, $groupId);
+        $maxBytes = $this->maxWallpaperBytes();
+        if ($file->getSize() > $maxBytes) {
+            throw new \InvalidArgumentException(__('背景画像は :size 以下にしてください。', [
+                'size' => $this->formatBytes($maxBytes),
+            ]));
+        }
+
+        $mime = strtolower((string) ($file->getMimeType() ?: ''));
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if ($ext === '' || ! in_array($ext, $allowed, true)) {
+            throw new \InvalidArgumentException(__('背景には画像ファイルを選んでください。'));
+        }
+        if ($mime !== '' && ! str_starts_with($mime, 'image/')) {
+            throw new \InvalidArgumentException(__('背景には画像ファイルを選んでください。'));
+        }
+
+        $diskName = $this->attachmentDisk();
+        $dir = 'messages/'.$groupId.'/wallpaper';
+        $basename = str_replace('.', '', uniqid('bg_', true)).'.'.$ext;
+
+        try {
+            $path = Storage::disk($diskName)->putFileAs($dir, $file, $basename, [
+                'visibility' => 'private',
+                'ContentType' => $file->getMimeType() ?: 'application/octet-stream',
+            ]);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(__('背景の保存に失敗しました。'), 0, $e);
+        }
+
+        $this->deleteGroupWallpaperFile($group);
+
+        $group->forceFill([
+            'chat_bg_type' => 'image',
+            'chat_bg_theme' => null,
+            'chat_bg_disk' => $diskName,
+            'chat_bg_path' => $path,
+            'chat_bg_updated_at' => now(),
+        ])->save();
+
+        return $this->wallpaperToArray($group->fresh());
+    }
+
+    /**
+     * @return array{type: string, value: ?string, url: ?string, updatedAt: ?string}
+     */
+    public function clearGroupWallpaper(int $userId, int $groupId): array
+    {
+        return $this->setGroupWallpaperTheme($userId, $groupId, 'default');
+    }
+
+    public function streamGroupWallpaper(int $userId, int $groupId): array
+    {
+        $group = $this->assertMember($userId, $groupId);
+        if (($group->chat_bg_type ?? null) !== 'image' || ! $group->chat_bg_path) {
+            throw new \InvalidArgumentException(__('背景画像が見つかりません。'));
+        }
+
+        $disk = (string) ($group->chat_bg_disk ?: $this->attachmentDisk());
+
+        return [
+            'disk' => $disk,
+            'path' => (string) $group->chat_bg_path,
+            'name' => basename((string) $group->chat_bg_path),
+        ];
+    }
+
+    /**
+     * @return array{type: string, value: ?string, url: ?string, updatedAt: ?string}
+     */
+    public function wallpaperToArray(Group $group): array
+    {
+        $updatedAt = $group->chat_bg_updated_at?->timezone(config('app.timezone'))->toIso8601String();
+        $type = (string) ($group->chat_bg_type ?? '');
+
+        if ($type === 'image' && $group->chat_bg_path) {
+            return [
+                'type' => 'image',
+                'value' => null,
+                'url' => '/messages/'.$group->id.'/wallpaper?v='.($group->chat_bg_updated_at?->timestamp ?? time()),
+                'updatedAt' => $updatedAt,
+            ];
+        }
+
+        if ($type === 'theme' && $group->chat_bg_theme) {
+            return [
+                'type' => 'theme',
+                'value' => (string) $group->chat_bg_theme,
+                'url' => null,
+                'updatedAt' => $updatedAt,
+            ];
+        }
+
+        return [
+            'type' => 'theme',
+            'value' => 'default',
+            'url' => null,
+            'updatedAt' => $updatedAt,
+        ];
+    }
+
+    private function deleteGroupWallpaperFile(Group $group): void
+    {
+        $path = (string) ($group->chat_bg_path ?? '');
+        if ($path === '') {
+            return;
+        }
+        $disk = (string) ($group->chat_bg_disk ?: $this->attachmentDisk());
+        try {
+            Storage::disk($disk)->delete($path);
+        } catch (\Throwable) {
+            // ignore missing/remote cleanup failures
+        }
+    }
+
     private function formatBytes(int $bytes): string
     {
         $bytes = max(0, $bytes);

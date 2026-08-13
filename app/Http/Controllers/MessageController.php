@@ -101,12 +101,68 @@ class MessageController extends Controller
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 403);
         }
 
-        return response()->json([
+        $payload = [
             'ok' => true,
             'messages' => $polled['messages'],
             'events' => $polled['events'],
             'presence' => $presence,
             'serverTime' => now()->toIso8601String(),
+        ];
+
+        // グループチャット背景のみ共有同期（DMは端末ローカル）
+        if ($peerId === null) {
+            try {
+                $payload['wallpaper'] = $this->chat->wallpaperForGroup($userId, $groupId);
+            } catch (\InvalidArgumentException) {
+                // ignore
+            }
+        }
+
+        return response()->json($payload);
+    }
+
+    public function updateWallpaper(Request $request, int $groupId)
+    {
+        $userId = (int) $request->user()->id;
+
+        try {
+            if ($request->hasFile('wallpaper')) {
+                $wallpaper = $this->chat->setGroupWallpaperImage(
+                    $userId,
+                    $groupId,
+                    $request->file('wallpaper')
+                );
+            } elseif ($request->boolean('clear')) {
+                $wallpaper = $this->chat->clearGroupWallpaper($userId, $groupId);
+            } else {
+                $request->validate(['theme' => 'required|string|max:32']);
+                $wallpaper = $this->chat->setGroupWallpaperTheme(
+                    $userId,
+                    $groupId,
+                    (string) $request->input('theme')
+                );
+            }
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'wallpaper' => $wallpaper]);
+    }
+
+    public function wallpaperFile(Request $request, int $groupId): StreamedResponse
+    {
+        try {
+            $meta = $this->chat->streamGroupWallpaper((int) $request->user()->id, $groupId);
+        } catch (\InvalidArgumentException $e) {
+            abort(404, $e->getMessage());
+        }
+
+        $disk = Storage::disk($meta['disk']);
+        abort_unless($disk->exists($meta['path']), 404);
+
+        return $disk->response($meta['path'], $meta['name'], [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'private, max-age=3600',
         ]);
     }
 
@@ -291,6 +347,9 @@ class MessageController extends Controller
             'reactionEmojis' => GroupChatService::REACTION_EMOJIS,
             'composeEmojis' => ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👎', '👏', '🙏', '❤️', '🔥', '🎉', '✨', '😢', '😮'],
             'canTranslate' => app(TranslationService::class)->isConfigured(),
+            'wallpaper' => $peerUserId === null
+                ? $this->chat->wallpaperToArray($group)
+                : null,
         ]);
     }
 
