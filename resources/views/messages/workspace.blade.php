@@ -216,7 +216,7 @@
             <input type="file" id="message-bg-file" accept="image/*" hidden />
             {{ __('写真を選ぶ') }}
           </label>
-          <button type="button" class="msg-dialog-cancel" id="message-bg-clear">{{ __('写真をクリア') }}</button>
+          <button type="button" class="msg-dialog-cancel" id="message-bg-clear">{{ __('背景をクリア') }}</button>
         </div>
         <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('閉じる') }}</button>
       </form>
