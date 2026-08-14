@@ -450,11 +450,14 @@
 
   function resizeComposeBody() {
     if (!body) return
-    body.style.height = '0px'
     var computed = window.getComputedStyle(body)
+    var min = parseInt(computed.minHeight, 10)
     var max = parseInt(computed.maxHeight, 10)
+    if (!min || isNaN(min)) min = 44
     if (!max || isNaN(max)) max = 160
-    var next = Math.max(body.scrollHeight, parseInt(computed.minHeight, 10) || 0)
+    // いったん最小高さに戻してから実寸を測り、入力欄と右側ボタンの下端を揃える
+    body.style.height = min + 'px'
+    var next = Math.max(body.scrollHeight, min)
     if (next > max) {
       body.style.height = max + 'px'
       body.style.overflowY = 'auto'

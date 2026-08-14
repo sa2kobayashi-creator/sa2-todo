@@ -227,7 +227,12 @@
                     </div>
                   </div>
                   <div class="msg-compose-side">
-                    <button type="submit" class="msg-send">{{ __('送信') }}</button>
+                    <button type="submit" class="msg-send" title="{{ __('送信') }}" aria-label="{{ __('送信') }}">
+                      <span class="msg-send-label">{{ __('送信') }}</span>
+                      <svg class="msg-send-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/>
+                      </svg>
+                    </button>
                     <label class="msg-icon-tool" for="message-attachments" title="{{ __('添付') }}" aria-label="{{ __('添付') }}">
                       <input type="file" name="attachments[]" id="message-attachments" multiple hidden />
                       <svg class="msg-icon-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
