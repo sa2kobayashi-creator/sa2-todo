@@ -6458,11 +6458,11 @@ body.notes-page .notes-year-dock-top:hover {
 .notes-view-titles .note-card {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: auto;
   margin: 0;
   align-self: stretch;
-  padding-left: 8px;
+  padding-left: 4px;
   box-sizing: border-box;
   border-radius: 10px;
 }
@@ -6470,18 +6470,15 @@ body.notes-page .notes-year-dock-top:hover {
 .notes-view-titles .note-card-view {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   flex: 1 1 auto;
   min-width: 0;
 }
 
 .notes-view-titles .note-pin-badge {
-  position: static;
-  flex: 0 0 auto;
-  margin: 0;
-  font-size: 11px;
-  line-height: 1;
+  /* 操作列にピンボタンがあるので一覧では省き、タイトル幅を確保 */
+  display: none;
 }
 
 .notes-view-titles .note-card-meta,
@@ -6492,7 +6489,7 @@ body.notes-page .notes-year-dock-top:hover {
 }
 
 .notes-view-titles .note-card-title {
-  flex: 1 1 auto;
+  flex: 1 1 10em;
   margin: 0;
   padding-right: 0;
   font-size: 14px;
@@ -6501,7 +6498,8 @@ body.notes-page .notes-year-dock-top:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
+  /* 全角およそ10文字分は必ず見えるようにする */
+  min-width: 10em;
 }
 
 .note-card-title-only {
@@ -6515,15 +6513,65 @@ body.notes-page .notes-year-dock-top:hover {
 }
 
 .notes-view-titles .note-card-actions {
-  flex: 0 0 auto;
-  margin: 0 0 0 auto;
+  flex: 0 1 auto;
+  margin: 0;
   opacity: 1;
   align-self: center;
+  min-width: 0;
+  max-width: calc(100% - 10em);
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.notes-view-titles .note-card-actions::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.notes-view-titles .note-icon-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  font-size: 13px;
+}
+
+.notes-view-titles .note-translate-label {
+  display: none;
 }
 
 .notes-view-titles .note-card.is-editing .note-card-edit {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .notes-view-titles .note-card-view {
+    display: grid;
+    grid-template-columns: minmax(10em, 1fr) auto;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 0;
+  }
+
+  .notes-view-titles .note-card-title {
+    grid-column: 1;
+    min-width: 10em;
+    width: auto;
+  }
+
+  .notes-view-titles .note-card-actions {
+    grid-column: 2;
+    max-width: none;
+    justify-self: end;
+  }
+
+  .notes-view-titles .note-bulk-check,
+  .notes-view-titles .note-drag-handle {
+    flex: 0 0 auto;
+  }
 }
 
 @media (max-width: 1100px) {
