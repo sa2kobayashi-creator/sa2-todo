@@ -223,12 +223,14 @@
   function renderMessage(message) {
     var mine = Number(message.userId) === meId
     var sticker = !!message.isSticker
+    var unread = !mine && !!message.isUnread
     var entry = document.createElement('div')
-    entry.className = 'msg-entry' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '')
+    entry.className = 'msg-entry' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '') + (unread ? ' is-unread' : '')
     entry.id = 'msg-' + message.id
     entry.setAttribute('data-id', String(message.id))
     entry.setAttribute('data-mine', mine ? '1' : '0')
     entry.setAttribute('data-sticker', sticker ? '1' : '0')
+    entry.setAttribute('data-unread', unread ? '1' : '0')
 
     var html = ''
     if (!sticker) {
@@ -237,11 +239,15 @@
       html += '<div class="msg-entry-aside">' +
         '<strong class="msg-entry-name">' + escapeHtml(message.userName) + '</strong>' +
         '<span class="msg-type-pill ' + typeClass + '">' + escapeHtml(typeLabel) + '</span>' +
+        (unread ? '<span class="msg-unread-pill">' + escapeHtml(i18n.unread || 'Unread') + '</span>' : '') +
         '</div>'
     }
 
     var timeLabel = messageTimeLabel(message)
-    html += '<article class="msg-bubble' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '') + '"' +
+    if (unread) {
+      timeLabel += (timeLabel ? ' · ' : '') + (i18n.unread || 'Unread')
+    }
+    html += '<article class="msg-bubble' + (mine ? ' is-mine' : '') + (sticker ? ' is-sticker' : '') + (unread ? ' is-unread' : '') + '"' +
       ' data-id="' + message.id + '" data-mine="' + (mine ? '1' : '0') + '" data-sticker="' + (sticker ? '1' : '0') + '"' +
       (timeLabel ? ' title="' + escapeHtml(timeLabel) + '"' : '') + '>'
     if (!sticker && timeLabel) {
@@ -398,6 +404,19 @@
     })
   }
 
+  function updateMessagesUnreadBadges(count) {
+    var n = Math.max(0, Number(count) || 0)
+    var label = n > 99 ? '99+' : String(n)
+    document.querySelectorAll('[data-messages-unread-badge]').forEach(function (el) {
+      el.textContent = label
+      el.hidden = n <= 0
+    })
+    document.querySelectorAll('[data-nav-unread="messages"]').forEach(function (el) {
+      if (n > 0) el.classList.add('has-nav-badge')
+      else el.classList.remove('has-nav-badge')
+    })
+  }
+
   function poll() {
     var q = new URLSearchParams({ after: String(lastId), since: sinceIso })
     if (peerId) q.set('peer', peerId)
@@ -409,6 +428,7 @@
         applyPresence(data.presence || {})
         if (!isDirect && data.wallpaper) applyServerWallpaper(data.wallpaper, false)
         if (data.serverTime) sinceIso = data.serverTime
+        if (typeof data.unreadCount === 'number') updateMessagesUnreadBadges(data.unreadCount)
       })
       .catch(function () {})
   }

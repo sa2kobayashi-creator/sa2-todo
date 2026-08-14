@@ -3,7 +3,11 @@
   $isDm = !empty($message['isDirect']) || ($message['threadType'] ?? '') === 'dm';
   $typeLabel = $message['threadTypeLabel'] ?? ($isDm ? __('個別メッセージ') : __('グループメッセージ'));
   $isSticker = !empty($message['isSticker']);
+  $isUnread = ! $mine && ! empty($message['isUnread']);
   $timeLabel = trim(($message['createdAt'] ?? '').(!empty($message['editedAt']) ? ' · '.__('編集済み') : ''));
+  if ($isUnread) {
+    $timeLabel = trim(($timeLabel !== '' ? $timeLabel.' · ' : '').__('未読'));
+  }
 
   $actSvg = [
     'edit' => '<path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
@@ -28,20 +32,24 @@
   };
 @endphp
 <div
-  class="msg-entry {{ $mine ? 'is-mine' : '' }} {{ $isSticker ? 'is-sticker' : '' }}"
+  class="msg-entry {{ $mine ? 'is-mine' : '' }} {{ $isSticker ? 'is-sticker' : '' }}{{ $isUnread ? ' is-unread' : '' }}"
   id="msg-{{ $message['id'] }}"
   data-id="{{ $message['id'] }}"
   data-mine="{{ $mine ? '1' : '0' }}"
   data-sticker="{{ $isSticker ? '1' : '0' }}"
+  data-unread="{{ $isUnread ? '1' : '0' }}"
 >
   @if(!$isSticker)
     <div class="msg-entry-aside">
       <strong class="msg-entry-name">{{ $message['userName'] }}</strong>
       <span class="msg-type-pill {{ $isDm ? 'msg-type-dm' : 'msg-type-channel' }}">{{ $typeLabel }}</span>
+      @if($isUnread)
+        <span class="msg-unread-pill">{{ __('未読') }}</span>
+      @endif
     </div>
   @endif
   <article
-    class="msg-bubble {{ $mine ? 'is-mine' : '' }} {{ $isSticker ? 'is-sticker' : '' }}"
+    class="msg-bubble {{ $mine ? 'is-mine' : '' }} {{ $isSticker ? 'is-sticker' : '' }}{{ $isUnread ? ' is-unread' : '' }}"
     data-id="{{ $message['id'] }}"
     data-mine="{{ $mine ? '1' : '0' }}"
     data-sticker="{{ $isSticker ? '1' : '0' }}"

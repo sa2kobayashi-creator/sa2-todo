@@ -6,6 +6,8 @@
   $calendar = $home['calendar'] ?? ['connected' => false, 'events' => []];
   $photos = $home['photos'] ?? ['items' => [], 'mode' => 'recent', 'title' => ''];
   $pinnedNotes = $home['pinnedNotes'] ?? [];
+  $unreadMessages = $home['unreadMessages'] ?? ['count' => 0, 'items' => []];
+  $unreadCount = (int) ($counts['messagesUnread'] ?? ($unreadMessages['count'] ?? 0));
 @endphp
 
 <section class="dash-home" aria-label="{{ __('今日') }}">
@@ -23,7 +25,33 @@
         <span class="dash-home-count-num">{{ (int) ($counts['todos'] ?? 0) }}</span>
         <span class="dash-home-count-label">{{ __('今日のTodo') }}</span>
       </li>
+      @if($unreadCount > 0)
+        <li class="is-attention">
+          <a class="dash-home-count-link" href="{{ $links['messages'] ?? '/messages' }}">
+            <span class="dash-home-count-icon" aria-hidden="true">💬</span>
+            <span class="dash-home-count-num">{{ $unreadCount }}</span>
+            <span class="dash-home-count-label">{{ __('未読メッセージ') }}</span>
+          </a>
+        </li>
+      @endif
     </ul>
+    @if($unreadCount > 0 && count($unreadMessages['items'] ?? []) > 0)
+      <ul class="dash-home-unread" aria-label="{{ __('未読メッセージ') }}">
+        @foreach($unreadMessages['items'] as $item)
+          <li>
+            <a href="{{ $item['href'] ?? ($links['messages'] ?? '/messages') }}">
+              <span class="dash-home-unread-from">
+                @if(!empty($item['groupName']))
+                  <span class="dash-home-unread-group">{{ $item['groupName'] }}</span>
+                @endif
+                {{ $item['userName'] ?? '' }}
+              </span>
+              <span class="dash-home-unread-preview">{{ $item['preview'] ?? '' }}</span>
+            </a>
+          </li>
+        @endforeach
+      </ul>
+    @endif
   </header>
 
   <div class="dash-home-grid">

@@ -7,6 +7,7 @@ use App\Models\GroupMessage;
 use App\Models\GroupMessageAttachment;
 use App\Models\GroupMessageHide;
 use App\Models\GroupMessageReaction;
+use App\Models\GroupMessageThreadRead;
 use App\Models\User;
 use App\Support\LocaleFormat;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,6 +21,9 @@ class GroupChatService
 
     /** @var list<string> */
     public const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😊'];
+
+    /** @var array<string, int> */
+    private array $lastReadCache = [];
 
     public function __construct(private GroupService $groups) {}
 
@@ -144,12 +148,14 @@ class GroupChatService
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
-            ->map(function (GroupMessage $message) use ($groupNames) {
+            ->map(function (GroupMessage $message) use ($groupNames, $userId) {
                 $groupId = (int) $message->group_id;
                 $preview = trim((string) ($message->body ?: ''));
                 if ($preview === '') {
                     $preview = __('（添付）');
                 }
+                $lastRead = $this->lastReadMessageId($userId, $groupId, null);
+                $isUnread = (int) $message->user_id !== $userId && (int) $message->id > $lastRead;
 
                 return [
                     'id' => (int) $message->id,
@@ -159,10 +165,217 @@ class GroupChatService
                     'preview' => mb_substr($preview, 0, 100),
                     'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,
                     'href' => '/messages/'.$groupId.'#msg-'.$message->id,
+                    'isUnread' => $isUnread,
                 ];
             })
             ->values()
             ->all();
+    }
+
+    public function peerKey(?int $peerUserId): int
+    {
+        return $peerUserId !== null && $peerUserId > 0 ? $peerUserId : 0;
+    }
+
+    public function lastReadMessageId(int $userId, int $groupId, ?int $peerUserId): int
+    {
+        $cacheKey = $userId.'|'.$groupId.'|'.$this->peerKey($peerUserId);
+        if (array_key_exists($cacheKey, $this->lastReadCache)) {
+            return $this->lastReadCache[$cacheKey];
+        }
+
+        $row = GroupMessageThreadRead::query()
+            ->where('user_id', $userId)
+            ->where('group_id', $groupId)
+            ->where('peer_user_id', $this->peerKey($peerUserId))
+            ->first();
+
+        if ($row) {
+            return $this->lastReadCache[$cacheKey] = (int) $row->last_read_message_id;
+        }
+
+        // 記録なし＝導入前は既読扱い。新規投稿時に firstOrCreate で追跡開始する。
+        return $this->lastReadCache[$cacheKey] = $this->maxMessageIdInThread($groupId, $peerUserId, $userId);
+    }
+
+    public function markThreadRead(int $userId, int $groupId, ?int $peerUserId, int $messageId): void
+    {
+        if ($userId <= 0 || $groupId <= 0 || $messageId <= 0) {
+            return;
+        }
+
+        $peerKey = $this->peerKey($peerUserId);
+        $cacheKey = $userId.'|'.$groupId.'|'.$peerKey;
+        $row = GroupMessageThreadRead::query()->firstOrNew([
+            'user_id' => $userId,
+            'group_id' => $groupId,
+            'peer_user_id' => $peerKey,
+        ]);
+        if ((int) $row->last_read_message_id >= $messageId) {
+            $this->lastReadCache[$cacheKey] = (int) $row->last_read_message_id;
+
+            return;
+        }
+        $row->last_read_message_id = $messageId;
+        $row->save();
+        $this->lastReadCache[$cacheKey] = $messageId;
+    }
+
+    public function unreadCountForUser(int $userId): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        foreach ($this->groups->listApprovedForUser($userId) as $group) {
+            $groupId = (int) $group['id'];
+            $total += $this->unreadCountForThread($userId, $groupId, null);
+            foreach ($this->groups->listMembers($groupId) as $member) {
+                $peerId = (int) ($member['userId'] ?? 0);
+                if ($peerId <= 0 || $peerId === $userId) {
+                    continue;
+                }
+                $total += $this->unreadCountForThread($userId, $groupId, $peerId);
+            }
+        }
+
+        return $total;
+    }
+
+    public function unreadCountForThread(int $userId, int $groupId, ?int $peerUserId): int
+    {
+        $lastRead = $this->lastReadMessageId($userId, $groupId, $peerUserId);
+        $query = GroupMessage::query()
+            ->where('group_id', $groupId)
+            ->where('user_id', '!=', $userId)
+            ->where('id', '>', $lastRead)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+        $this->applyThreadScope($query, $userId, $peerUserId);
+
+        return (int) $query->count();
+    }
+
+    /**
+     * ダッシュボード用：未読件数と直近の未読プレビュー。
+     *
+     * @return array{count: int, items: list<array{id: int, href: string, userName: string, preview: string, groupName: string, createdAt: ?string, isDirect: bool}>}
+     */
+    public function unreadSummaryForDashboard(int $userId, int $limit = 5): array
+    {
+        $count = $this->unreadCountForUser($userId);
+        if ($count <= 0) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $items = [];
+        $groups = $this->groups->listApprovedForUser($userId);
+        foreach ($groups as $group) {
+            $groupId = (int) $group['id'];
+            $groupName = (string) ($group['name'] ?? '');
+
+            $channelLastRead = $this->lastReadMessageId($userId, $groupId, null);
+            $channelMsgs = GroupMessage::query()
+                ->with('user')
+                ->where('group_id', $groupId)
+                ->whereNull('recipient_user_id')
+                ->where('user_id', '!=', $userId)
+                ->where('id', '>', $channelLastRead)
+                ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId))
+                ->orderByDesc('id')
+                ->limit($limit)
+                ->get();
+            foreach ($channelMsgs as $message) {
+                $items[] = $this->unreadPreviewItem($message, $groupName, false);
+            }
+
+            foreach ($this->groups->listMembers($groupId) as $member) {
+                $peerId = (int) ($member['userId'] ?? 0);
+                if ($peerId <= 0 || $peerId === $userId) {
+                    continue;
+                }
+                $dmLastRead = $this->lastReadMessageId($userId, $groupId, $peerId);
+                $dmMsgs = GroupMessage::query()
+                    ->with('user')
+                    ->where('group_id', $groupId)
+                    ->where('user_id', '!=', $userId)
+                    ->where('id', '>', $dmLastRead)
+                    ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+                $this->applyThreadScope($dmMsgs, $userId, $peerId);
+                foreach ($dmMsgs->orderByDesc('id')->limit($limit)->get() as $message) {
+                    $items[] = $this->unreadPreviewItem($message, $groupName, true);
+                }
+            }
+        }
+
+        usort($items, static fn (array $a, array $b) => ($b['id'] <=> $a['id']));
+        $items = array_slice($items, 0, $limit);
+
+        return ['count' => $count, 'items' => $items];
+    }
+
+    /** @return array{id: int, href: string, userName: string, preview: string, groupName: string, createdAt: ?string, isDirect: bool} */
+    private function unreadPreviewItem(GroupMessage $message, string $groupName, bool $isDirect): array
+    {
+        $preview = trim((string) ($message->body ?: ''));
+        if ($preview === '') {
+            $preview = __('（添付）');
+        }
+        $groupId = (int) $message->group_id;
+        $href = $isDirect
+            ? '/messages/'.$groupId.'/dm/'.(int) $message->user_id.'#msg-'.$message->id
+            : '/messages/'.$groupId.'#msg-'.$message->id;
+
+        return [
+            'id' => (int) $message->id,
+            'href' => $href,
+            'userName' => $message->user?->display_name ?: __('不明'),
+            'preview' => mb_substr($preview, 0, 80),
+            'groupName' => $groupName,
+            'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,
+            'isDirect' => $isDirect,
+        ];
+    }
+
+    private function touchThreadReadsAfterSend(int $senderId, int $groupId, ?int $peerUserId, int $messageId): void
+    {
+        $this->markThreadRead($senderId, $groupId, $peerUserId, $messageId);
+
+        $recipientIds = [];
+        if ($peerUserId !== null) {
+            $recipientIds[] = $peerUserId;
+        } else {
+            foreach ($this->groups->listMembers($groupId) as $member) {
+                $uid = (int) ($member['userId'] ?? 0);
+                if ($uid > 0 && $uid !== $senderId) {
+                    $recipientIds[] = $uid;
+                }
+            }
+        }
+
+        foreach (array_unique($recipientIds) as $uid) {
+            // DM では相手側の peer_key は送信者
+            $peerKey = $peerUserId !== null ? $senderId : 0;
+            GroupMessageThreadRead::query()->firstOrCreate(
+                [
+                    'user_id' => $uid,
+                    'group_id' => $groupId,
+                    'peer_user_id' => $peerKey,
+                ],
+                ['last_read_message_id' => max(0, $messageId - 1)]
+            );
+            unset($this->lastReadCache[$uid.'|'.$groupId.'|'.$peerKey]);
+        }
+    }
+
+    private function maxMessageIdInThread(int $groupId, ?int $peerUserId, int $userId): int
+    {
+        $query = GroupMessage::query()
+            ->where('group_id', $groupId)
+            ->whereDoesntHave('hides', fn (Builder $q) => $q->where('user_id', $userId));
+        $this->applyThreadScope($query, $userId, $peerUserId);
+
+        return (int) ($query->max('id') ?? 0);
     }
 
     /**
@@ -195,13 +408,14 @@ class GroupChatService
         }
 
         $query = $this->threadQuery($userId, $groupId, $peerUserId);
+        $lastReadId = $this->lastReadMessageId($userId, $groupId, $peerUserId);
 
         if ($afterId !== null && $afterId > 0) {
             return $query
                 ->where('id', '>', $afterId)
                 ->orderBy('id')
                 ->get()
-                ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId))
+                ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId, $lastReadId))
                 ->all();
         }
 
@@ -211,7 +425,7 @@ class GroupChatService
             ->get()
             ->sortBy('id')
             ->values()
-            ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId))
+            ->map(fn (GroupMessage $message) => $this->messageToArray($message, $userId, $lastReadId))
             ->all();
     }
 
@@ -239,9 +453,21 @@ class GroupChatService
             }
         }
 
+        $latestId = 0;
+        foreach ($messages as $message) {
+            $latestId = max($latestId, (int) ($message['id'] ?? 0));
+        }
+        if ($latestId <= 0) {
+            $latestId = $this->maxMessageIdInThread($groupId, $peerUserId, $userId);
+        }
+        if ($latestId > 0) {
+            $this->markThreadRead($userId, $groupId, $peerUserId, $latestId);
+        }
+
         return [
             'messages' => $messages,
             'events' => $events,
+            'unreadCount' => $this->unreadCountForUser($userId),
         ];
     }
 
@@ -307,6 +533,8 @@ class GroupChatService
             foreach ($files as $file) {
                 $this->storeAttachment($message, $userId, $file);
             }
+
+            $this->touchThreadReadsAfterSend($userId, $groupId, $peerUserId, (int) $message->id);
 
             return $this->messageToArray(
                 $message->load(['user', 'recipient', 'attachments', 'replyTo.user', 'reactions']),
@@ -496,7 +724,7 @@ class GroupChatService
     }
 
     /** @return array<string, mixed> */
-    public function messageToArray(GroupMessage $message, ?int $viewerUserId = null): array
+    public function messageToArray(GroupMessage $message, ?int $viewerUserId = null, ?int $lastReadMessageId = null): array
     {
         $isDirect = $message->isDirect();
         $reactions = $message->relationLoaded('reactions')
@@ -527,6 +755,20 @@ class GroupChatService
             }
         }
 
+        $isUnread = false;
+        if ($viewerUserId !== null && (int) $message->user_id !== $viewerUserId) {
+            $threshold = $lastReadMessageId;
+            if ($threshold === null) {
+                $peer = $message->recipient_user_id !== null
+                    ? ((int) $message->user_id === $viewerUserId
+                        ? (int) $message->recipient_user_id
+                        : (int) $message->user_id)
+                    : null;
+                $threshold = $this->lastReadMessageId($viewerUserId, (int) $message->group_id, $peer);
+            }
+            $isUnread = (int) $message->id > (int) $threshold;
+        }
+
         return [
             'id' => $message->id,
             'groupId' => $message->group_id,
@@ -538,6 +780,7 @@ class GroupChatService
             'threadTypeLabel' => $isDirect ? __('個別メッセージ') : __('グループメッセージ'),
             'body' => $message->body,
             'isSticker' => $this->isStickerBody($message->body) && $message->attachments->isEmpty(),
+            'isUnread' => $isUnread,
             'createdAt' => $message->created_at ? LocaleFormat::dateTime($message->created_at) : null,
             'editedAt' => $message->edited_at ? LocaleFormat::dateTime($message->edited_at) : null,
             'replyTo' => $reply,

@@ -105,6 +105,7 @@ class MessageController extends Controller
             'messages' => $polled['messages'],
             'events' => $polled['events'],
             'presence' => $presence,
+            'unreadCount' => (int) ($polled['unreadCount'] ?? 0),
             'serverTime' => now()->toIso8601String(),
         ];
 
@@ -355,6 +356,19 @@ class MessageController extends Controller
         }
 
         $messages = $this->chat->listMessages($userId, $groupId, $peerUserId);
+        $firstUnreadMessageId = null;
+        $latestMessageId = 0;
+        foreach ($messages as $message) {
+            $id = (int) ($message['id'] ?? 0);
+            $latestMessageId = max($latestMessageId, $id);
+            if ($firstUnreadMessageId === null && ! empty($message['isUnread'])) {
+                $firstUnreadMessageId = $id;
+            }
+        }
+        if ($latestMessageId > 0) {
+            $this->chat->markThreadRead($userId, $groupId, $peerUserId, $latestMessageId);
+        }
+
         $activeHref = $peerUserId
             ? '/messages/'.$groupId.'/dm/'.$peerUserId
             : '/messages/'.$groupId;
@@ -389,6 +403,7 @@ class MessageController extends Controller
             ] : null,
             'activeHref' => $activeHref,
             'messages' => $messages,
+            'firstUnreadMessageId' => $firstUnreadMessageId,
             'isDirect' => $peerUserId !== null,
             'forwardTargets' => $forwardTargets,
             'reactionEmojis' => GroupChatService::REACTION_EMOJIS,
@@ -414,6 +429,7 @@ class MessageController extends Controller
             'activePeer' => null,
             'activeHref' => null,
             'messages' => [],
+            'firstUnreadMessageId' => null,
             'isDirect' => false,
             'forwardTargets' => [],
             'reactionEmojis' => GroupChatService::REACTION_EMOJIS,

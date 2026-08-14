@@ -345,4 +345,49 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->postJson('/messages/attachments/'.$attachmentId.'/to-photos')
             ->assertNotFound();
     }
+
+    public function test_unread_badges_and_dashboard_summary(): void
+    {
+        $alice = $this->makeUser('alice-unread@example.com', 'Alice');
+        $bob = $this->makeUser('bob-unread@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        // 導入前の既存メッセージ（send 経由でない）は未読にしない
+        GroupMessage::create([
+            'group_id' => $group->id,
+            'user_id' => $alice->id,
+            'recipient_user_id' => null,
+            'body' => 'legacy hello',
+        ]);
+
+        $this->actingAs($bob)->get('/messages')
+            ->assertOk()
+            ->assertDontSee('nav-unread-badge', false)
+            ->assertDontSee('is-unread', false);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, ['body' => 'new unread ping'])
+            ->assertOk();
+
+        $this->actingAs($bob)->get('/messages')
+            ->assertOk()
+            ->assertSee('nav-unread-badge', false)
+            ->assertSee('new unread ping', false)
+            ->assertSee('is-unread', false)
+            ->assertSee('未読', false);
+
+        $this->actingAs($bob)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('未読メッセージ', false)
+            ->assertSee('new unread ping', false);
+
+        $this->actingAs($bob)->get('/messages/'.$group->id)
+            ->assertOk()
+            ->assertSee('ここから未読', false)
+            ->assertSee('new unread ping', false);
+
+        $this->actingAs($bob)->get('/messages')
+            ->assertOk()
+            ->assertDontSee('nav-unread-badge', false);
+    }
 }

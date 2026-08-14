@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\CalendarService;
 use App\Services\FinanceService;
+use App\Services\GroupChatService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
@@ -92,6 +93,15 @@ class ShareViewData
         if ($user = $request->user()) {
             $appContext = app(\App\Services\AppContextService::class)->current($user, $request);
             $nav = \App\Support\FooterNav::resolve($user);
+            $canMessages = $user->canAccess('messages');
+            $messagesUnreadCount = 0;
+            if ($canMessages) {
+                try {
+                    $messagesUnreadCount = app(GroupChatService::class)->unreadCountForUser((int) $user->id);
+                } catch (\Throwable) {
+                    $messagesUnreadCount = 0;
+                }
+            }
             View::share([
                 'currentUser' => $user->toPublicArray(),
                 'isAdmin' => $user->isAdmin(),
@@ -102,7 +112,8 @@ class ShareViewData
                 'canMap' => $user->canAccess('map'),
                 'canMusic' => $user->canAccess('music'),
                 'canVideo' => $user->canAccess('video'),
-                'canMessages' => $user->canAccess('messages'),
+                'canMessages' => $canMessages,
+                'messagesUnreadCount' => $messagesUnreadCount,
                 'canTranslate' => $user->canAccess('translate'),
                 'canGroups' => $user->canAccess('groups'),
                 'canSettings' => $user->canAccess('settings'),

@@ -86,13 +86,16 @@
                 <ul class="msg-rail-recent">
                   @foreach($inboxRecentMessages as $recent)
                     <li>
-                      <a href="{{ $recent['href'] }}" class="msg-rail-recent-item">
+                      <a href="{{ $recent['href'] }}" class="msg-rail-recent-item{{ !empty($recent['isUnread']) ? ' is-unread' : '' }}">
                         <span class="msg-rail-recent-meta">
                           <strong>
                             @if(!empty($recent['groupName']))
                               <span class="msg-rail-recent-group">{{ $recent['groupName'] }}</span>
                             @endif
                             {{ $recent['userName'] }}
+                            @if(!empty($recent['isUnread']))
+                              <span class="msg-unread-dot" aria-label="{{ __('未読') }}">{{ __('未読') }}</span>
+                            @endif
                           </strong>
                           @if(!empty($recent['createdAt']))
                             <time>{{ $recent['createdAt'] }}</time>
@@ -164,6 +167,11 @@
               data-can-translate="{{ !empty($canTranslate) ? '1' : '0' }}"
             >
               @forelse($messages as $message)
+                @if(!empty($firstUnreadMessageId) && (int) $message['id'] === (int) $firstUnreadMessageId)
+                  <div class="msg-unread-divider" role="separator" aria-label="{{ __('ここから未読') }}">
+                    <span>{{ __('ここから未読') }}</span>
+                  </div>
+                @endif
                 @include('messages.partials.bubble', ['message' => $message, 'currentUserId' => (int) ($currentUser['id'] ?? 0)])
               @empty
                 <p class="msg-thread-hint" id="message-empty">{{ __('まだ静かです。最初の一言をどうぞ。') }}</p>
@@ -382,6 +390,8 @@
           saveToPhotosOk: @json(__('Photosに追加しました。')),
           saveToPhotosFail: @json(__('Photosへの追加に失敗しました。')),
           backToList: @json(__('会話一覧へ')),
+          unread: @json(__('未読')),
+          unreadFromHere: @json(__('ここから未読')),
         }
       }
     </script>

@@ -51,6 +51,7 @@ class DashboardHomeServiceTest extends TestCase
             app(NoteService::class),
             app(PhotoService::class),
             $this->google,
+            app(\App\Services\GroupChatService::class),
         );
     }
 

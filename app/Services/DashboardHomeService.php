@@ -15,6 +15,7 @@ class DashboardHomeService
         private NoteService $notes,
         private PhotoService $photos,
         private GoogleCalendarService $googleCalendar,
+        private GroupChatService $chat,
     ) {}
 
     /**
@@ -47,6 +48,14 @@ class DashboardHomeService
             : $this->todayLocalEvents($localTodos, $now);
         $photos = $this->photosMemories($userId, $now);
         $pinnedNotes = $this->pinnedNotes($userId, 3);
+        $messagesUnread = ['count' => 0, 'items' => []];
+        if ($user->canAccess('messages')) {
+            try {
+                $messagesUnread = $this->chat->unreadSummaryForDashboard($userId, 5);
+            } catch (\Throwable) {
+                $messagesUnread = ['count' => 0, 'items' => []];
+            }
+        }
 
         $locale = app()->getLocale();
         $dateLabel = $locale === 'en'
@@ -68,7 +77,9 @@ class DashboardHomeService
             'counts' => [
                 'events' => count($calendar['events']),
                 'todos' => $todayTodoCount,
+                'messagesUnread' => (int) ($messagesUnread['count'] ?? 0),
             ],
+            'unreadMessages' => $messagesUnread,
             'nextActions' => $nextActions,
             'calendar' => $calendar,
             'photos' => $photos,
@@ -79,6 +90,7 @@ class DashboardHomeService
                 'notes' => '/notes',
                 'notesNew' => '/notes',
                 'photos' => '/photos',
+                'messages' => '/messages',
                 'map' => '/map',
                 'transit' => '/transit',
                 'aiSettings' => '/settings?section=ai',

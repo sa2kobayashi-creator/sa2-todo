@@ -10,11 +10,25 @@
       <span>{{ config('app.name', 'Sa2 Plus') }}</span>
     </a>
     <nav class="site-nav" aria-label="{{ __('メインメニュー') }}">
+      @php $messagesUnreadCount = (int) ($messagesUnreadCount ?? 0); @endphp
       @forelse($headerNavItems as $navItem)
+        @php
+          $navKey = $navItem['activeKey'] ?? $navItem['key'] ?? '';
+          $isMessagesNav = $navKey === 'messages' || ($navItem['href'] ?? '') === '/messages';
+        @endphp
         <a
           href="{{ $navItem['href'] }}"
-          class="{{ ($active ?? '') === ($navItem['activeKey'] ?? $navItem['key']) ? 'active' : '' }}"
-        >{{ $navItem['headerLabel'] ?? $navItem['label'] }}</a>
+          class="{{ ($active ?? '') === $navKey ? 'active' : '' }}{{ $isMessagesNav && $messagesUnreadCount > 0 ? ' has-nav-badge' : '' }}"
+          @if($isMessagesNav && $messagesUnreadCount > 0)
+            data-nav-unread="messages"
+            aria-label="{{ ($navItem['headerLabel'] ?? $navItem['label']).' '.__('未読 :n', ['n' => $messagesUnreadCount]) }}"
+          @endif
+        >
+          {{ $navItem['headerLabel'] ?? $navItem['label'] }}
+          @if($isMessagesNav && $messagesUnreadCount > 0)
+            <span class="nav-unread-badge" data-messages-unread-badge>{{ $messagesUnreadCount > 99 ? '99+' : $messagesUnreadCount }}</span>
+          @endif
+        </a>
       @empty
         <a href="/dashboard" class="{{ ($active ?? '') === 'dashboard' ? 'active' : '' }}">{{ __('ダッシュボード') }}</a>
         <a href="/todos" class="{{ ($active ?? '') === 'todos' ? 'active' : '' }}">{{ __('Todo') }}</a>
@@ -144,13 +158,24 @@
             </button>
             <div class="nav-dropdown-menu header-more-dropdown" role="menu">
               @foreach($moreNav as $moreItem)
+                @php
+                  $moreKey = $moreItem['activeKey'] ?? $moreItem['key'] ?? '';
+                  $isMessagesMore = $moreKey === 'messages' || ($moreItem['href'] ?? '') === '/messages';
+                @endphp
                 <a
                   href="{{ $moreItem['href'] }}"
-                  class="{{ ($active ?? '') === ($moreItem['activeKey'] ?? $moreItem['key']) ? 'active' : '' }}"
+                  class="{{ ($active ?? '') === $moreKey ? 'active' : '' }}"
                   role="menuitem"
+                  @if($isMessagesMore && $messagesUnreadCount > 0)
+                    data-nav-unread="messages"
+                    aria-label="{{ $moreItem['label'].' '.__('未読 :n', ['n' => $messagesUnreadCount]) }}"
+                  @endif
                 >
                   <span class="header-more-icon" aria-hidden="true">{{ $moreItem['icon'] }}</span>
                   {{ $moreItem['label'] }}
+                  @if($isMessagesMore && $messagesUnreadCount > 0)
+                    <span class="nav-unread-badge" data-messages-unread-badge>{{ $messagesUnreadCount > 99 ? '99+' : $messagesUnreadCount }}</span>
+                  @endif
                 </a>
               @endforeach
               @if(!empty($canSettings) || !empty($canAdminUsers))
