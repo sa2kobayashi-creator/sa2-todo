@@ -374,6 +374,7 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertSee('nav-unread-badge', false)
             ->assertSee('new unread ping', false)
             ->assertSee('is-unread', false)
+            ->assertSee('msg-rail-unread', false)
             ->assertSee('未読', false);
 
         $this->actingAs($bob)->get('/dashboard')

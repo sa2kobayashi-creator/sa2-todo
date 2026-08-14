@@ -84,6 +84,7 @@ class GroupChatService
                         $last = $this->latestInThread($groupId, $peerId, $userId);
                         /** @var User|null $peer */
                         $peer = $presenceById->get($peerId);
+                        $unreadCount = $this->unreadCountForThread($userId, $groupId, $peerId);
 
                         return [
                             'userId' => $peerId,
@@ -98,10 +99,13 @@ class GroupChatService
                                 : null,
                             'lastMessageAt' => $last['at'],
                             'lastMessagePreview' => $last['preview'],
+                            'unreadCount' => $unreadCount,
                         ];
                     })
                     ->values()
                     ->all();
+
+                $channelUnread = $this->unreadCountForThread($userId, $groupId, null);
 
                 return [
                     'id' => $groupId,
@@ -112,6 +116,7 @@ class GroupChatService
                     'memberCount' => (int) ($group['memberCount'] ?? count($members) + 1),
                     'lastMessageAt' => $lastGroup['at'],
                     'lastMessagePreview' => $lastGroup['preview'],
+                    'unreadCount' => $channelUnread,
                     'members' => $members,
                 ];
             })

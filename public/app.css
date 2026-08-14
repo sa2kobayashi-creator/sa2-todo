@@ -16718,10 +16718,46 @@ body.video-page .media-player-stage-spacer {
   border-radius: 14px;
   text-decoration: none;
   color: inherit;
+  position: relative;
 }
 .msg-rail-item:hover,
 .msg-rail-item.is-active {
   background: var(--msg-mint);
+}
+.msg-rail-item.is-unread {
+  background: rgba(220, 38, 38, 0.06);
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+.msg-rail-item.is-unread:hover,
+.msg-rail-item.is-unread.is-active {
+  background: rgba(220, 38, 38, 0.1);
+}
+.msg-rail-item.is-unread .msg-rail-copy strong {
+  font-weight: 800;
+}
+.msg-rail-item.is-unread .msg-rail-copy small {
+  color: #334155;
+  font-weight: 600;
+}
+.msg-rail-unread {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.msg-rail-unread-label {
+  color: #b91c1c;
+  font-weight: 800;
 }
 .msg-rail-badge,
 .msg-avatar {
@@ -17288,7 +17324,7 @@ body.video-page .media-player-stage-spacer {
 }
 .msg-compose-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   min-width: 0;
 }
@@ -17302,30 +17338,37 @@ body.video-page .media-player-stage-spacer {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--msg-line);
-  border-radius: 999px;
+  border-radius: 22px;
   padding: 10px 76px 10px 14px;
   resize: none;
   height: 44px;
   min-height: 44px;
-  max-height: 44px;
-  overflow: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  max-height: 160px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
   font: inherit;
   line-height: 1.35;
   background: #f8fffd;
+  field-sizing: content;
 }
 .msg-compose textarea::-webkit-scrollbar,
 .msg-compose-input-wrap textarea::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  width: 6px;
+  height: 6px;
+}
+.msg-compose textarea::-webkit-scrollbar-thumb,
+.msg-compose-input-wrap textarea::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 999px;
 }
 .msg-compose-inner-actions {
   position: absolute;
   right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 8px;
+  top: auto;
+  transform: none;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -18149,12 +18192,13 @@ body.video-page .media-player-stage-spacer {
   .msg-compose textarea {
     height: 40px;
     min-height: 40px;
-    max-height: 40px;
+    max-height: 140px;
     padding: 8px 68px 8px 12px;
-    border-radius: 999px;
+    border-radius: 20px;
   }
   .msg-compose-inner-actions {
     right: 6px;
+    bottom: 7px;
     gap: 0;
   }
   .msg-compose-emoji,

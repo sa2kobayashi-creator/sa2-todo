@@ -34,10 +34,12 @@
             </div>
           @else
             @foreach($workspace as $room)
-              <section class="msg-rail-group">
+              @php $roomUnread = (int) ($room['unreadCount'] ?? 0); @endphp
+              <section class="msg-rail-group{{ $roomUnread > 0 || collect($room['members'] ?? [])->contains(fn ($m) => (int) ($m['unreadCount'] ?? 0) > 0) ? ' has-unread' : '' }}">
                 <a
                   href="{{ $room['href'] }}"
-                  class="msg-rail-item msg-rail-channel {{ ($activeHref ?? '') === $room['href'] ? 'is-active' : '' }}"
+                  class="msg-rail-item msg-rail-channel {{ ($activeHref ?? '') === $room['href'] ? 'is-active' : '' }}{{ $roomUnread > 0 ? ' is-unread' : '' }}"
+                  @if($roomUnread > 0) aria-label="{{ $room['name'].' '.__('未読 :n', ['n' => $roomUnread]) }}" @endif
                 >
                   <span class="msg-rail-badge" aria-hidden="true">#</span>
                   <span class="msg-rail-copy">
@@ -45,16 +47,28 @@
                       <span class="msg-type-pill msg-type-channel">{{ __('グループチャット') }}</span>
                       {{ $room['name'] }}
                     </strong>
-                    <small>{{ __('グループ全体へのメッセージ') }}</small>
+                    <small>
+                      @if($roomUnread > 0)
+                        {{ __('未読 :n', ['n' => $roomUnread]) }}
+                        @if(!empty($room['lastMessagePreview'])) · {{ $room['lastMessagePreview'] }}@endif
+                      @else
+                        {{ __('グループ全体へのメッセージ') }}
+                      @endif
+                    </small>
                   </span>
+                  @if($roomUnread > 0)
+                    <span class="msg-rail-unread" aria-hidden="true">{{ $roomUnread > 99 ? '99+' : $roomUnread }}</span>
+                  @endif
                 </a>
                 @if(!empty($room['members']))
                   <p class="msg-rail-label">{{ __('メンバー（個別）') }}</p>
                   @foreach($room['members'] as $member)
+                    @php $dmUnread = (int) ($member['unreadCount'] ?? 0); @endphp
                     <a
                       href="{{ $member['href'] }}"
-                      class="msg-rail-item msg-rail-dm {{ ($activeHref ?? '') === $member['href'] ? 'is-active' : '' }}"
+                      class="msg-rail-item msg-rail-dm {{ ($activeHref ?? '') === $member['href'] ? 'is-active' : '' }}{{ $dmUnread > 0 ? ' is-unread' : '' }}"
                       data-presence-user="{{ $member['userId'] }}"
+                      @if($dmUnread > 0) aria-label="{{ $member['displayName'].' '.__('未読 :n', ['n' => $dmUnread]) }}" @endif
                     >
                       <span class="msg-avatar-wrap" aria-hidden="true">
                         <span class="msg-avatar">{{ $member['initials'] }}</span>
@@ -66,15 +80,25 @@
                           {{ $member['displayName'] }}
                         </strong>
                         <small class="msg-presence-label" data-presence-label>
-                          {{ !empty($member['online']) ? __('オンライン') : __('オフライン') }}
-                          @if(empty($member['online']) && !empty($member['lastSeenAt']))
-                            · {{ $member['lastSeenAt'] }}
-                          @endif
-                          @if(!empty($member['lastMessagePreview']))
-                            · {{ $member['lastMessagePreview'] }}
+                          @if($dmUnread > 0)
+                            <span class="msg-rail-unread-label">{{ __('未読 :n', ['n' => $dmUnread]) }}</span>
+                            @if(!empty($member['lastMessagePreview']))
+                              · {{ $member['lastMessagePreview'] }}
+                            @endif
+                          @else
+                            {{ !empty($member['online']) ? __('オンライン') : __('オフライン') }}
+                            @if(empty($member['online']) && !empty($member['lastSeenAt']))
+                              · {{ $member['lastSeenAt'] }}
+                            @endif
+                            @if(!empty($member['lastMessagePreview']))
+                              · {{ $member['lastMessagePreview'] }}
+                            @endif
                           @endif
                         </small>
                       </span>
+                      @if($dmUnread > 0)
+                        <span class="msg-rail-unread" aria-hidden="true">{{ $dmUnread > 99 ? '99+' : $dmUnread }}</span>
+                      @endif
                     </a>
                   @endforeach
                 @endif

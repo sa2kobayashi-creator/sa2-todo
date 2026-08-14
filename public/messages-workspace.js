@@ -347,7 +347,8 @@
           dot.classList.toggle('is-offline', !online)
           dot.title = online ? i18n.online : i18n.offline
         }
-        if (label) {
+        // 未読表示中はプレビュー文言を上書きしない
+        if (label && !el.classList.contains('is-unread')) {
           var parts = label.textContent.split('·').map(function (s) { return s.trim() }).filter(Boolean)
           var msgPreview = parts.length > 1 ? parts[parts.length - 1] : ''
           if (online) {
@@ -447,8 +448,27 @@
     if (body) body.focus()
   }
 
+  function resizeComposeBody() {
+    if (!body) return
+    body.style.height = '0px'
+    var computed = window.getComputedStyle(body)
+    var max = parseInt(computed.maxHeight, 10)
+    if (!max || isNaN(max)) max = 160
+    var next = Math.max(body.scrollHeight, parseInt(computed.minHeight, 10) || 0)
+    if (next > max) {
+      body.style.height = max + 'px'
+      body.style.overflowY = 'auto'
+    } else {
+      body.style.height = next + 'px'
+      body.style.overflowY = 'hidden'
+    }
+  }
+
   function resetCompose() {
-    if (body) body.value = ''
+    if (body) {
+      body.value = ''
+      resizeComposeBody()
+    }
     if (filesInput) filesInput.value = ''
     if (cameraInput) cameraInput.value = ''
     if (names) names.textContent = ''
@@ -1046,6 +1066,7 @@
         var sep = body.value && !/\s$/.test(body.value) ? ' ' : ''
         if (event.results[event.results.length - 1].isFinal) {
           body.value = (body.value || '') + sep + transcript
+          resizeComposeBody()
         }
       }
       try {
@@ -1057,6 +1078,11 @@
   }
 
   thread.scrollTop = thread.scrollHeight
+  if (body) {
+    body.addEventListener('input', resizeComposeBody)
+    window.addEventListener('resize', resizeComposeBody)
+    resizeComposeBody()
+  }
   setInterval(poll, 4000)
   poll()
 
