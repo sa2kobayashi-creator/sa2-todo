@@ -30,6 +30,7 @@
         class="secondary todo-row-action todo-row-icon-btn"
         data-action="duplicate"
         data-todo-id="{{ $row['id'] }}"
+        data-confirm-mobile="{{ __('この ToDo をコピーしますか？') }}"
         title="{{ __('コピー') }}"
         aria-label="{{ __('コピー') }}"
       >
@@ -48,12 +49,14 @@
       @php
         $toggleLabel = ! empty($row['completed']) ? __('戻す') : __('完了');
         $toggleIcon = ! empty($row['completed']) ? '↺' : '✓';
+        $toggleConfirmMobile = empty($row['completed']) ? __('この ToDo を完了にしますか？') : '';
       @endphp
       <button
         type="button"
         class="secondary todo-row-action todo-row-icon-btn"
         data-action="toggle"
         data-todo-id="{{ $row['id'] }}"
+        @if($toggleConfirmMobile !== '') data-confirm-mobile="{{ $toggleConfirmMobile }}" @endif
         title="{{ $toggleLabel }}"
         aria-label="{{ $toggleLabel }}"
       >

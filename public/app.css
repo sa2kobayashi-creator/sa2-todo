@@ -2157,8 +2157,8 @@ a.filter-clear-btn {
 .todo-table .todo-col-date-w { width: 200px; }
 .todo-table .todo-col-title-w { width: auto; }
 .todo-table .todo-col-time-w { width: 108px; }
-.todo-table .todo-col-category-w { width: 72px; }
-.todo-table .todo-col-importance-w { width: 52px; }
+.todo-table .todo-col-category-w { width: 88px; }
+.todo-table .todo-col-importance-w { width: 64px; }
 .todo-table .todo-col-actions-w { width: 160px; }
 
 .todo-bulk-icon {
@@ -2184,6 +2184,24 @@ a.filter-clear-btn {
 .todo-table .todo-col-category,
 .todo-table .todo-col-importance {
   white-space: nowrap;
+  overflow: visible;
+}
+
+.todo-table tbody tr.todo-row td.todo-col-category,
+.todo-table tbody tr.todo-row td.todo-col-importance {
+  overflow: visible;
+}
+
+.todo-table thead th.todo-col-category,
+.todo-table thead th.todo-col-importance {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.todo-table .todo-col-category .category-badge,
+.todo-table .todo-col-importance .importance-badge {
+  display: inline-block;
+  max-width: none;
 }
 
 .todo-table .todo-col-actions {
@@ -10595,7 +10613,7 @@ body.map-page {
   }
 
   #todo-list-panel .todo-table {
-    min-width: 720px;
+    min-width: 780px;
     width: 100%;
   }
 
@@ -10613,15 +10631,15 @@ body.map-page {
   }
 
   #todo-list-panel .todo-table .todo-col-time-w {
-    width: 72px;
+    width: 78px;
   }
 
   #todo-list-panel .todo-table .todo-col-category-w {
-    width: 56px;
+    width: 72px;
   }
 
   #todo-list-panel .todo-table .todo-col-importance-w {
-    width: 44px;
+    width: 56px;
   }
 
   #todo-list-panel .todo-table .todo-col-actions-w {
@@ -10651,6 +10669,25 @@ body.map-page {
   #todo-list-panel .todo-table .todo-col-importance {
     font-size: 11px;
     white-space: nowrap;
+    overflow: visible;
+  }
+
+  #todo-list-panel .todo-table td.todo-col-category,
+  #todo-list-panel .todo-table td.todo-col-importance {
+    overflow: visible;
+  }
+
+  #todo-list-panel .todo-table thead th.todo-col-category,
+  #todo-list-panel .todo-table thead th.todo-col-importance,
+  #todo-list-panel .todo-table thead th.todo-col-time {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #todo-list-panel .todo-table .todo-col-category .category-badge,
+  #todo-list-panel .todo-table .todo-col-importance .importance-badge {
+    padding: 2px 6px;
+    font-size: 10px;
   }
 
   #todo-list-panel .todo-table .todo-col-actions {

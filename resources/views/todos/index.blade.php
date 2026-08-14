@@ -328,6 +328,7 @@
               type="button"
               class="secondary bulk-btn todo-bulk-btn"
               data-bulk-url="/todos/bulk/complete"
+              data-confirm-mobile="{{ __('選択した ToDo を完了にしますか？') }}"
               title="{{ __('一括完了') }}"
               aria-label="{{ __('一括完了') }}"
             >
@@ -338,6 +339,7 @@
               type="button"
               class="secondary bulk-btn todo-bulk-btn"
               data-bulk-url="/todos/bulk/uncomplete"
+              data-confirm-mobile="{{ __('選択した ToDo を未完了に戻しますか？') }}"
               title="{{ __('一括で未完了') }}"
               aria-label="{{ __('一括で未完了') }}"
             >
@@ -359,6 +361,7 @@
               type="button"
               class="secondary bulk-btn todo-bulk-btn"
               data-bulk-url="/todos/bulk/duplicate"
+              data-confirm-mobile="{{ __('選択した ToDo をコピーしますか？') }}"
               title="{{ __('コピー') }}"
               aria-label="{{ __('コピー') }}"
             >
@@ -1579,13 +1582,21 @@
 
         if (categoryPanel) categoryPanel.hidden = true
 
-        function submitBulkAction(url, confirmMsg) {
+        function isTodoPhoneViewport() {
+          return window.matchMedia('(max-width: 768px)').matches
+        }
+
+        function submitBulkAction(url, confirmMsg, confirmMobileMsg) {
           const checked = document.querySelectorAll('.todo-check:checked')
           if (checked.length === 0) {
             window.alert(@json(__('対象が選択されていません')));
             return
           }
-          if (confirmMsg && !window.confirm(confirmMsg)) return
+          let msg = confirmMsg || ''
+          if (!msg && isTodoPhoneViewport() && confirmMobileMsg) {
+            msg = confirmMobileMsg
+          }
+          if (msg && !window.confirm(msg)) return
 
           saveScroll()
           const form = document.createElement('form')
@@ -1634,7 +1645,10 @@
         listPanel?.addEventListener('click', (e) => {
           const btn = e.target.closest('.todo-row-action')
           if (!btn || !rowActionForm) return
-          const confirmMsg = btn.dataset.confirm
+          let confirmMsg = btn.dataset.confirm || ''
+          if (!confirmMsg && isTodoPhoneViewport() && btn.dataset.confirmMobile) {
+            confirmMsg = btn.dataset.confirmMobile
+          }
           if (confirmMsg && !window.confirm(confirmMsg)) return
           saveScroll()
           rowActionForm.action = `/todos/${btn.dataset.todoId}/${btn.dataset.action}`
@@ -1654,7 +1668,11 @@
 
         document.querySelectorAll('.bulk-btn').forEach((btn) => {
           btn.addEventListener('click', () => {
-            submitBulkAction(btn.dataset.bulkUrl, btn.dataset.confirm || '')
+            submitBulkAction(
+              btn.dataset.bulkUrl,
+              btn.dataset.confirm || '',
+              btn.dataset.confirmMobile || ''
+            )
           })
         })
 
