@@ -46,7 +46,17 @@
       <span class="note-card-category">{{ $categoryLabel }}</span>
       <span class="note-card-share">{{ $notePayload['shareLabel'] }}</span>
     </div>
-    @if(!empty($note['title']))<h3 class="note-card-title">{{ $note['title'] }}</h3>@endif
+    @php
+      $titleText = trim((string) ($note['title'] ?? ''));
+      $fallbackTitle = $titleText !== ''
+        ? $titleText
+        : (mb_substr(preg_replace('/\s+/u', ' ', trim((string) ($note['body'] ?? ''))) ?: '', 0, 40) ?: __('（無題）'));
+    @endphp
+    @if($titleText !== '')
+      <h3 class="note-card-title">{{ $titleText }}</h3>
+    @else
+      <h3 class="note-card-title note-card-title-only">{{ $fallbackTitle }}</h3>
+    @endif
     @if(($note['type'] ?? '') === 'checklist' && !empty($note['items']))
       @php
         $checklistPreviewLimit = 20;

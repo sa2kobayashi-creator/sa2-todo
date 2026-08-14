@@ -56,6 +56,7 @@
             <div class="notes-view-toggle notes-view-toggle-inline" role="group" aria-label="{{ __('表示切替') }}">
               <button type="button" class="notes-view-btn is-active" data-view="gallery" title="{{ __('ギャラリー表示') }}" aria-pressed="true" aria-label="{{ __('ギャラリー表示') }}">⊞</button>
               <button type="button" class="notes-view-btn" data-view="list" title="{{ __('リスト表示') }}" aria-pressed="false" aria-label="{{ __('リスト表示') }}">☰</button>
+              <button type="button" class="notes-view-btn" data-view="titles" title="{{ __('タイトル一覧表示') }}" aria-pressed="false" aria-label="{{ __('タイトル一覧表示') }}">一</button>
             </div>
             @if($showArchived)
               <a href="{{ $buildNotesQuery(array_merge($filters, ['archived' => false])) }}" class="button-link secondary notes-archive-link">{{ __('メモに戻る') }}</a>
@@ -542,7 +543,19 @@
 
         function syncColsToggleVisibility(view) {
           if (!colsToggle) return
-          colsToggle.hidden = view === 'list' || isPhoneViewport()
+          colsToggle.hidden = view === 'list' || view === 'titles' || isPhoneViewport()
+        }
+
+        function normalizeView(mode) {
+          if (mode === 'list' || mode === 'titles') return mode
+          return 'gallery'
+        }
+
+        function currentView() {
+          if (!notesContent) return 'gallery'
+          if (notesContent.classList.contains('notes-view-titles')) return 'titles'
+          if (notesContent.classList.contains('notes-view-list')) return 'list'
+          return 'gallery'
         }
 
         function applyCols(count) {
@@ -564,10 +577,12 @@
         }
 
         function applyView(mode) {
-          const view = mode === 'list' ? 'list' : 'gallery'
+          const view = normalizeView(mode)
           if (notesContent) {
-            notesContent.classList.remove('notes-view-gallery', 'notes-view-list')
-            notesContent.classList.add(view === 'list' ? 'notes-view-list' : 'notes-view-gallery')
+            notesContent.classList.remove('notes-view-gallery', 'notes-view-list', 'notes-view-titles')
+            notesContent.classList.add(
+              view === 'list' ? 'notes-view-list' : (view === 'titles' ? 'notes-view-titles' : 'notes-view-gallery')
+            )
           }
           viewButtons.forEach((btn) => {
             const active = btn.dataset.view === view
@@ -590,8 +605,7 @@
         applyView(savedView)
 
         const onPhoneViewportChange = () => {
-          const view = notesContent?.classList.contains('notes-view-list') ? 'list' : 'gallery'
-          syncColsToggleVisibility(view)
+          syncColsToggleVisibility(currentView())
         }
         if (typeof PHONE_MQ.addEventListener === 'function') {
           PHONE_MQ.addEventListener('change', onPhoneViewportChange)

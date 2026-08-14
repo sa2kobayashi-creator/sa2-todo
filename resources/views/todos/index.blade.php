@@ -311,12 +311,60 @@
             <span class="todo-page-summary">{{ $pagination['total'] }}{{ __('件中') }} {{ ($pagination['page'] - 1) * $pagination['perPage'] + 1 }}〜{{ min($pagination['page'] * $pagination['perPage'], $pagination['total']) }}{{ __('件を表示') }}</span>
           @endif
           @if(($displayMode ?? 'list') === 'list')
-          <div class="bulk-actions">
-            <button type="button" class="secondary" id="select-all-btn">{{ __('全選択') }}</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/complete">{{ __('一括完了') }}</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/uncomplete">{{ __('一括で未完了') }}</button>
-            <button type="button" class="danger bulk-btn" data-bulk-url="/todos/bulk/delete" data-confirm="{{ __('選択した ToDo を削除しますか？') }}">{{ __('一括削除') }}</button>
-            <button type="button" class="secondary bulk-btn" data-bulk-url="/todos/bulk/duplicate">{{ __('コピー') }}</button>
+          <div class="bulk-actions todo-bulk-actions">
+            <button
+              type="button"
+              class="secondary todo-bulk-btn"
+              id="select-all-btn"
+              title="{{ __('全選択') }}"
+              aria-label="{{ __('全選択') }}"
+              data-label-select="{{ __('全選択') }}"
+              data-label-clear="{{ __('全解除') }}"
+            >
+              <span class="todo-bulk-icon" aria-hidden="true">☑</span>
+              <span class="todo-bulk-label">{{ __('全選択') }}</span>
+            </button>
+            <button
+              type="button"
+              class="secondary bulk-btn todo-bulk-btn"
+              data-bulk-url="/todos/bulk/complete"
+              title="{{ __('一括完了') }}"
+              aria-label="{{ __('一括完了') }}"
+            >
+              <span class="todo-bulk-icon" aria-hidden="true">✓</span>
+              <span class="todo-bulk-label">{{ __('一括完了') }}</span>
+            </button>
+            <button
+              type="button"
+              class="secondary bulk-btn todo-bulk-btn"
+              data-bulk-url="/todos/bulk/uncomplete"
+              title="{{ __('一括で未完了') }}"
+              aria-label="{{ __('一括で未完了') }}"
+            >
+              <span class="todo-bulk-icon" aria-hidden="true">↺</span>
+              <span class="todo-bulk-label">{{ __('一括で未完了') }}</span>
+            </button>
+            <button
+              type="button"
+              class="danger bulk-btn todo-bulk-btn"
+              data-bulk-url="/todos/bulk/delete"
+              data-confirm="{{ __('選択した ToDo を削除しますか？') }}"
+              title="{{ __('一括削除') }}"
+              aria-label="{{ __('一括削除') }}"
+            >
+              <span class="todo-bulk-icon" aria-hidden="true">🗑</span>
+              <span class="todo-bulk-label">{{ __('一括削除') }}</span>
+            </button>
+            <button
+              type="button"
+              class="secondary bulk-btn todo-bulk-btn"
+              data-bulk-url="/todos/bulk/duplicate"
+              title="{{ __('コピー') }}"
+              aria-label="{{ __('コピー') }}"
+            >
+              <span class="todo-bulk-icon" aria-hidden="true">⧉</span>
+              <span class="todo-bulk-label">{{ __('コピー') }}</span>
+            </button>
           </div>
           @endif
         </div>
@@ -1450,7 +1498,16 @@
         const all = checks()
         const shouldCheck = all.some((c) => !c.checked)
         all.forEach((c) => { c.checked = shouldCheck })
-        selectAllBtn.textContent = shouldCheck ? @json(__('全解除')) : @json(__('全選択'));
+        const nextLabel = shouldCheck
+          ? (selectAllBtn.dataset.labelClear || @json(__('全解除')))
+          : (selectAllBtn.dataset.labelSelect || @json(__('全選択')))
+        const labelEl = selectAllBtn.querySelector('.todo-bulk-label')
+        const iconEl = selectAllBtn.querySelector('.todo-bulk-icon')
+        if (labelEl) labelEl.textContent = nextLabel
+        else selectAllBtn.textContent = nextLabel
+        if (iconEl) iconEl.textContent = shouldCheck ? '☐' : '☑'
+        selectAllBtn.title = nextLabel
+        selectAllBtn.setAttribute('aria-label', nextLabel)
       })
 
       ;(function () {

@@ -25,10 +25,53 @@
   </td>
   <td class="todo-col-actions">
     <div class="todo-row-actions">
-      <button type="button" class="secondary todo-row-action" data-action="duplicate" data-todo-id="{{ $row['id'] }}" title="{{ __('ToDo を複製') }}">{{ __('コピー') }}</button>
-      <a class="button-link secondary mini todo-row-edit" href="{{ $editUrl }}">{{ __('編集') }}</a>
-      <button type="button" class="secondary todo-row-action" data-action="toggle" data-todo-id="{{ $row['id'] }}">{{ !empty($row['completed']) ? __('戻す') : __('完了') }}</button>
-      <button type="button" class="danger todo-row-action" data-action="delete" data-todo-id="{{ $row['id'] }}" data-confirm="{{ __('削除しますか？') }}">{{ __('削除') }}</button>
+      <button
+        type="button"
+        class="secondary todo-row-action todo-row-icon-btn"
+        data-action="duplicate"
+        data-todo-id="{{ $row['id'] }}"
+        title="{{ __('コピー') }}"
+        aria-label="{{ __('コピー') }}"
+      >
+        <span class="todo-row-icon" aria-hidden="true">⧉</span>
+        <span class="todo-row-label">{{ __('コピー') }}</span>
+      </button>
+      <a
+        class="button-link secondary mini todo-row-edit todo-row-icon-btn"
+        href="{{ $editUrl }}"
+        title="{{ __('編集') }}"
+        aria-label="{{ __('編集') }}"
+      >
+        <span class="todo-row-icon" aria-hidden="true">✎</span>
+        <span class="todo-row-label">{{ __('編集') }}</span>
+      </a>
+      @php
+        $toggleLabel = ! empty($row['completed']) ? __('戻す') : __('完了');
+        $toggleIcon = ! empty($row['completed']) ? '↺' : '✓';
+      @endphp
+      <button
+        type="button"
+        class="secondary todo-row-action todo-row-icon-btn"
+        data-action="toggle"
+        data-todo-id="{{ $row['id'] }}"
+        title="{{ $toggleLabel }}"
+        aria-label="{{ $toggleLabel }}"
+      >
+        <span class="todo-row-icon" aria-hidden="true">{{ $toggleIcon }}</span>
+        <span class="todo-row-label">{{ $toggleLabel }}</span>
+      </button>
+      <button
+        type="button"
+        class="danger todo-row-action todo-row-icon-btn"
+        data-action="delete"
+        data-todo-id="{{ $row['id'] }}"
+        data-confirm="{{ __('削除しますか？') }}"
+        title="{{ __('削除') }}"
+        aria-label="{{ __('削除') }}"
+      >
+        <span class="todo-row-icon" aria-hidden="true">🗑</span>
+        <span class="todo-row-label">{{ __('削除') }}</span>
+      </button>
     </div>
   </td>
 </tr>

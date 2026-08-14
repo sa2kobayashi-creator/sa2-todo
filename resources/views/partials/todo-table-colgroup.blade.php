@@ -1,9 +1,9 @@
 <colgroup>
-  <col style="width: 44px" />
-  <col style="width: 200px" />
-  <col />
-  <col style="width: 108px" />
-  <col style="width: 72px" />
-  <col style="width: 52px" />
-  <col style="width: 250px" />
+  <col class="todo-col-check-w" />
+  <col class="todo-col-date-w" />
+  <col class="todo-col-title-w" />
+  <col class="todo-col-time-w" />
+  <col class="todo-col-category-w" />
+  <col class="todo-col-importance-w" />
+  <col class="todo-col-actions-w" />
 </colgroup>
