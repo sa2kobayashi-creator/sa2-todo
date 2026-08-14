@@ -17328,7 +17328,6 @@ body.video-page .media-player-stage-spacer {
   background-image:
     radial-gradient(circle at 15% 20%, rgba(244, 114, 182, 0.28), transparent 40%),
     radial-gradient(circle at 85% 80%, rgba(56, 189, 248, 0.22), transparent 42%);
-  color: #e2e8f0;
 }
 .msg-thread[data-bg="paper"] {
   background-color: #f6f1e7;
@@ -17378,7 +17377,6 @@ body.video-page .media-player-stage-spacer {
   background-image:
     radial-gradient(circle at 20% 15%, rgba(59, 130, 246, 0.35), transparent 42%),
     radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.2), transparent 40%);
-  color: #e2e8f0;
 }
 .msg-thread[data-bg="citrus"] {
   background-color: #fffbeb;
@@ -17403,7 +17401,6 @@ body.video-page .media-player-stage-spacer {
   background-image:
     linear-gradient(160deg, rgba(71, 85, 105, 0.55), transparent 55%),
     radial-gradient(circle at 70% 30%, rgba(148, 163, 184, 0.2), transparent 40%);
-  color: #e5e7eb;
 }
 .msg-thread[data-bg="meadow"] {
   background-color: #f0fdf4;
@@ -17425,6 +17422,31 @@ body.video-page .media-player-stage-spacer {
   display: block;
   height: 0;
   pointer-events: none;
+}
+/* 暗い背景でも吹き出し内は常に濃い文字。外側の名前／ヒントだけ明るくする */
+.msg-thread[data-bg="dusk"] .msg-thread-hint,
+.msg-thread[data-bg="midnight"] .msg-thread-hint,
+.msg-thread[data-bg="slate"] .msg-thread-hint,
+.msg-thread[data-bg="image"] .msg-thread-hint,
+.msg-thread[data-bg="dusk"] .msg-entry-name,
+.msg-thread[data-bg="midnight"] .msg-entry-name,
+.msg-thread[data-bg="slate"] .msg-entry-name,
+.msg-thread[data-bg="image"] .msg-entry-name,
+.msg-thread[data-bg="dusk"] .msg-unread-divider,
+.msg-thread[data-bg="midnight"] .msg-unread-divider,
+.msg-thread[data-bg="slate"] .msg-unread-divider,
+.msg-thread[data-bg="image"] .msg-unread-divider {
+  color: #e2e8f0;
+}
+.msg-thread[data-bg="dusk"] .msg-unread-divider::before,
+.msg-thread[data-bg="dusk"] .msg-unread-divider::after,
+.msg-thread[data-bg="midnight"] .msg-unread-divider::before,
+.msg-thread[data-bg="midnight"] .msg-unread-divider::after,
+.msg-thread[data-bg="slate"] .msg-unread-divider::before,
+.msg-thread[data-bg="slate"] .msg-unread-divider::after,
+.msg-thread[data-bg="image"] .msg-unread-divider::before,
+.msg-thread[data-bg="image"] .msg-unread-divider::after {
+  background: rgba(226, 232, 240, 0.45);
 }
 .msg-bg-hint {
   margin: 0;
@@ -17493,6 +17515,7 @@ body.video-page .media-player-stage-spacer {
   border-radius: 18px 18px 18px 6px;
   background: #fff;
   border: 1px solid var(--msg-line);
+  color: var(--msg-ink, #10231f);
   animation: msgIn 0.28s ease both;
 }
 .msg-bubble.is-mine {
@@ -17632,8 +17655,11 @@ body.video-page .media-player-stage-spacer {
   display: block;
 }
 .msg-file-link {
-  color: inherit;
+  color: var(--msg-ink, #10231f);
   text-decoration: underline;
+}
+.msg-bubble.is-mine .msg-file-link {
+  color: #f0fdfa;
 }
 .msg-file-actions {
   display: flex;
@@ -17645,7 +17671,7 @@ body.video-page .media-player-stage-spacer {
   appearance: none;
   border: 0;
   background: rgba(15, 23, 42, 0.06);
-  color: inherit;
+  color: var(--msg-ink, #10231f);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -17664,6 +17690,7 @@ body.video-page .media-player-stage-spacer {
 }
 .msg-bubble.is-mine .msg-file-action {
   background: rgba(255, 255, 255, 0.22);
+  color: #f0fdfa;
 }
 .msg-bubble.is-mine .msg-file-action:hover {
   background: rgba(255, 255, 255, 0.32);
@@ -17711,7 +17738,13 @@ body.video-page .media-player-stage-spacer {
   -ms-overflow-style: auto;
   font: inherit;
   line-height: 1.35;
+  color: var(--msg-ink, #10231f);
   background: #f8fffd;
+}
+.msg-compose textarea::placeholder,
+.msg-compose-input-wrap textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
 }
 .msg-compose textarea::-webkit-scrollbar,
 .msg-compose-input-wrap textarea::-webkit-scrollbar {
@@ -17919,7 +17952,7 @@ body.video-page .media-player-stage-spacer {
 .msg-act {
   border: 0;
   background: rgba(16, 35, 31, 0.06);
-  color: inherit;
+  color: var(--msg-ink, #10231f);
   border-radius: 999px;
   padding: 4px 9px;
   font-size: 11px;
@@ -17943,6 +17976,7 @@ body.video-page .media-player-stage-spacer {
 }
 .msg-bubble.is-mine .msg-act {
   background: rgba(255, 255, 255, 0.16);
+  color: #f0fdfa;
 }
 .msg-reacts {
   display: flex;
@@ -18217,7 +18251,7 @@ button.msg-icon-tool.is-listening,
   margin-top: 0;
   border: 0;
   background: rgba(16, 35, 31, 0.08);
-  color: inherit;
+  color: var(--msg-ink, #10231f);
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 12px;
@@ -18226,6 +18260,7 @@ button.msg-icon-tool.is-listening,
 }
 .msg-bubble.is-mine .msg-menu-btn {
   background: rgba(255, 255, 255, 0.16);
+  color: #f0fdfa;
 }
 .msg-react-open {
   display: inline-flex;
@@ -18235,9 +18270,9 @@ button.msg-icon-tool.is-listening,
   height: 26px;
   padding: 0;
   border: 1px solid rgba(16, 35, 31, 0.18);
-  border-radius: 50%;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.75);
-  color: inherit;
+  color: var(--msg-ink, #10231f);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -18245,6 +18280,7 @@ button.msg-icon-tool.is-listening,
 .msg-bubble.is-mine .msg-react-open {
   border-color: rgba(255, 255, 255, 0.45);
   background: rgba(255, 255, 255, 0.14);
+  color: #f0fdfa;
 }
 .msg-emoji-grid {
   display: flex;
