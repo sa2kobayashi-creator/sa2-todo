@@ -88,20 +88,38 @@
     } catch (_) {}
   }
 
-  function playBellPartial(freq, start, duration, peakGain) {
-    var osc = audioCtx.createOscillator()
-    var gain = audioCtx.createGain()
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(freq, start)
-    gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(peakGain, start + 0.012)
-    gain.gain.exponentialRampToValueAtTime(peakGain * 0.35, start + duration * 0.35)
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
-    osc.connect(gain)
-    gain.connect(audioCtx.destination)
-    osc.start(start)
-    osc.stop(start + duration + 0.02)
-    ringNodes.push(osc)
+  function playPhoneWarble(start, duration) {
+    // LFO→AudioParam は端末によって「ピピピ」化するので、
+    // 440+480Hz を手動トレモロ（約20Hz）で揺らして「プルプル」にする。
+    var master = audioCtx.createGain()
+    master.gain.setValueAtTime(0, start)
+    master.connect(audioCtx.destination)
+
+    ;[440, 480].forEach(function (freq) {
+      var osc = audioCtx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, start)
+      osc.connect(master)
+      osc.start(start)
+      osc.stop(start + duration + 0.05)
+      ringNodes.push(osc)
+    })
+
+    var pulse = 1 / 20
+    var t = start
+    var end = start + duration
+    master.gain.setValueAtTime(0.0001, t)
+    while (t < end) {
+      var peakAt = t + 0.012
+      var midAt = t + pulse * 0.45
+      var lowAt = t + pulse
+      if (peakAt > end) break
+      master.gain.linearRampToValueAtTime(0.3, Math.min(peakAt, end))
+      if (midAt < end) master.gain.linearRampToValueAtTime(0.12, midAt)
+      if (lowAt < end) master.gain.linearRampToValueAtTime(0.02, lowAt)
+      t = lowAt
+    }
+    master.gain.linearRampToValueAtTime(0.0001, end)
   }
 
   function beepOnce() {
@@ -109,16 +127,11 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       if (audioCtx.state === 'suspended') audioCtx.resume()
       var now = audioCtx.currentTime
-      // 電話風の「リーン・リーン」：倍音付きベルを2連打×2セット
-      ;[0, 0.42, 1.05, 1.47].forEach(function (offset, index) {
-        var start = now + offset
-        var bright = index % 2 === 0
-        playBellPartial(bright ? 880 : 698.5, start, 0.55, 0.32)
-        playBellPartial(bright ? 1760 : 1397, start, 0.45, 0.14)
-        playBellPartial(bright ? 2637 : 2093, start, 0.28, 0.07)
-      })
+      // プルプル～ → 休み → プルプル～
+      playPhoneWarble(now, 1.05)
+      playPhoneWarble(now + 1.4, 1.05)
       try {
-        if (navigator.vibrate) navigator.vibrate([180, 90, 180, 420, 180, 90, 180])
+        if (navigator.vibrate) navigator.vibrate([1000, 300, 1000])
       } catch (_) {}
     } catch (_) {}
   }
@@ -126,7 +139,7 @@
   function startRingtone() {
     stopRingtone()
     beepOnce()
-    ringTimer = setInterval(beepOnce, 2800)
+    ringTimer = setInterval(beepOnce, 4200)
   }
 
   var heldLocalTracks = null
