@@ -107,12 +107,26 @@
     ringTimer = setInterval(beepOnce, 1800)
   }
 
-  function attachTrack(track, container) {
+  function attachTrack(track, container, isLocal) {
     if (!track || !container) return
+    // ローカル音声は自分に聞こえないように付けない（ハウリング防止）
+    if (isLocal && track.kind === 'audio') return
+
     var element = track.attach()
     if (element.tagName === 'VIDEO') {
       element.autoplay = true
       element.playsInline = true
+      element.setAttribute('playsinline', 'true')
+      // PC Chrome は muted なしだとローカルプレビューの自動再生が止まる
+      if (isLocal) {
+        element.muted = true
+        element.setAttribute('muted', 'true')
+        element.classList.add('is-local')
+      }
+      var playPromise = element.play && element.play()
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(function () {})
+      }
     }
     container.appendChild(element)
   }
@@ -120,8 +134,13 @@
   function attachLocalVideoTracks() {
     if (!room || !localContainer) return
     clearTracks(localContainer)
-    room.localParticipant.videoTrackPublications.forEach(function (publication) {
-      if (publication.track) attachTrack(publication.track, localContainer)
+    var publications = room.localParticipant.videoTrackPublications
+    if (!publications) return
+    publications.forEach(function (publication) {
+      var track = publication && publication.track
+      if (track && track.kind === 'video') {
+        attachTrack(track, localContainer, true)
+      }
     })
   }
 
@@ -175,10 +194,21 @@
         dynacast: true,
       })
       room.on(sdk.RoomEvent.TrackSubscribed, function (track) {
-        attachTrack(track, remoteContainer)
+        attachTrack(track, remoteContainer, false)
       })
       room.on(sdk.RoomEvent.TrackUnsubscribed, function (track) {
         track.detach().forEach(function (element) { element.remove() })
+      })
+      room.on(sdk.RoomEvent.LocalTrackPublished, function (publication) {
+        if (publication && publication.track && publication.track.kind === 'video') {
+          attachLocalVideoTracks()
+        }
+      })
+      room.on(sdk.RoomEvent.LocalTrackUnpublished, function (publication) {
+        if (publication && publication.track) {
+          publication.track.detach().forEach(function (element) { element.remove() })
+        }
+        attachLocalVideoTracks()
       })
       room.on(sdk.RoomEvent.ParticipantConnected, function () {
         stopRingtone()
@@ -193,8 +223,19 @@
       })
 
       await room.connect(payload.serverUrl, payload.participantToken)
-      await room.localParticipant.enableCameraAndMicrophone()
+      await room.localParticipant.setCameraEnabled(true)
+      await room.localParticipant.setMicrophoneEnabled(true)
       attachLocalVideoTracks()
+      // ダイアログ表示直後のレイアウト確定後にもう一度貼る（PCで黒画面になる対策）
+      requestAnimationFrame(function () {
+        attachLocalVideoTracks()
+      })
+      setTimeout(function () {
+        attachLocalVideoTracks()
+        if (room && typeof room.startAudio === 'function') {
+          room.startAudio().catch(function () {})
+        }
+      }, 250)
       micEnabled = true
       cameraEnabled = true
       if (micButton) micButton.textContent = 'マイクをオフ'
