@@ -321,7 +321,7 @@
               </div>
               <span class="msg-call-status" id="message-call-status" aria-live="polite">{{ __('接続前') }}</span>
             </div>
-            <p class="msg-call-hint">{{ __('発信すると相手のメッセージ画面に着信が表示されます。') }}</p>
+            <p class="msg-call-hint">{{ __('発信すると相手のメッセージ画面に着信が表示されます。Meet と同様、下の一覧でPC本体のカメラを選べます。') }}</p>
             <div class="msg-call-videos">
               <div class="msg-call-tile msg-call-local">
                 <span>{{ __('自分') }}</span>
@@ -332,6 +332,10 @@
                 <div id="message-call-remote-videos"></div>
               </div>
             </div>
+            <label class="msg-call-device">
+              <span>{{ __('カメラ') }}</span>
+              <select id="message-call-camera-select" aria-label="{{ __('カメラを選択') }}"></select>
+            </label>
             <div class="msg-call-controls">
               <button type="button" class="msg-dialog-cancel" id="message-call-mic">{{ __('マイクをオフ') }}</button>
               <button type="button" class="msg-dialog-cancel" id="message-call-camera">{{ __('カメラをオフ') }}</button>
