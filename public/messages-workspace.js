@@ -430,6 +430,9 @@
         if (!isDirect && data.wallpaper) applyServerWallpaper(data.wallpaper, false)
         if (data.serverTime) sinceIso = data.serverTime
         if (typeof data.unreadCount === 'number') updateMessagesUnreadBadges(data.unreadCount)
+        if (typeof window.__MSG_ON_POLL__ === 'function') {
+          try { window.__MSG_ON_POLL__(data) } catch (e) {}
+        }
       })
       .catch(function () {})
   }

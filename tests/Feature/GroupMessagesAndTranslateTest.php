@@ -462,4 +462,44 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertJsonPath('ok', true)
             ->assertJsonPath('serverUrl', 'wss://sa2-ui.livekit.cloud');
     }
+
+    public function test_call_ring_shows_up_on_peer_poll_and_can_be_declined(): void
+    {
+        config()->set('services.livekit', [
+            'url' => 'wss://sa2-ring.livekit.cloud',
+            'api_key' => 'ring-key',
+            'api_secret' => str_repeat('r', 32),
+        ]);
+
+        $alice = $this->makeUser('alice-ring@example.com', 'Alice');
+        $bob = $this->makeUser('bob-ring@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id.'/dm/'.$bob->id.'/call-token', ['ring' => true])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?peer='.$alice->id.'&after=0')
+            ->assertOk()
+            ->assertJsonPath('incomingCall.fromUserId', $alice->id)
+            ->assertJsonPath('incomingCall.fromName', 'Alice')
+            ->assertJsonPath('incomingCall.href', '/messages/'.$group->id.'/dm/'.$alice->id);
+
+        $this->actingAs($bob)
+            ->postJson('/messages/call-decline')
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->actingAs($bob)
+            ->getJson('/messages/'.$group->id.'/poll?peer='.$alice->id.'&after=0')
+            ->assertOk()
+            ->assertJsonPath('incomingCall', null);
+
+        $this->actingAs($alice)
+            ->getJson('/messages/'.$group->id.'/poll?peer='.$bob->id.'&after=0')
+            ->assertOk()
+            ->assertJsonPath('callDeclined.byUserId', $bob->id);
+    }
 }

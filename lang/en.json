@@ -2623,5 +2623,12 @@
     "LiveKit URL は wss:// または https:// で始まる必要があります。": "LiveKit URL must start with wss:// or https://.",
     "API Secret が短すぎます。LiveKit Cloud の API Secret を貼り付けてください。": "API Secret is too short. Paste the LiveKit Cloud API Secret.",
     "LiveKit 接続に失敗しました: :msg": "LiveKit connection failed: :msg",
-    "LiveKit に接続できました。": "Connected to LiveKit."
+    "LiveKit に接続できました。": "Connected to LiveKit.",
+    "発信すると相手のメッセージ画面に着信が表示されます。": "When you call, an incoming alert appears on the other person's Messages screen.",
+    "着信": "Incoming",
+    "通話の着信": "Incoming call",
+    "応答するとカメラとマイクが使われます。": "Answering will use your camera and microphone.",
+    "拒否": "Decline",
+    "応答": "Answer",
+    "この通話を操作する権限がありません。": "You do not have permission to control this call."
 }

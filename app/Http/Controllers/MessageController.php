@@ -50,6 +50,13 @@ class MessageController extends Controller
             $this->chat->assertMember((int) $user->id, $groupId);
             $this->chat->assertPeer((int) $user->id, $groupId, $userId);
 
+            if ($request->boolean('ring')) {
+                $this->calls->ringDirectCall($user, $groupId, $userId);
+            } else {
+                // 着信側が応答したとき、自分宛の着信表示を消す
+                $this->calls->clearIncoming((int) $user->id);
+            }
+
             return response()->json([
                 'ok' => true,
                 ...$this->calls->tokenForDirectMessage($user, $groupId, $userId),
@@ -59,6 +66,28 @@ class MessageController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
+    }
+
+    public function callCancel(Request $request, int $groupId, int $userId)
+    {
+        $user = $request->user();
+
+        try {
+            $this->chat->assertMember((int) $user->id, $groupId);
+            $this->chat->assertPeer((int) $user->id, $groupId, $userId);
+            $this->calls->cancelDirectCall((int) $user->id, $groupId, $userId);
+
+            return response()->json(['ok' => true]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 403);
+        }
+    }
+
+    public function callDecline(Request $request)
+    {
+        $this->calls->declineIncomingCall((int) $request->user()->id);
+
+        return response()->json(['ok' => true]);
     }
 
     public function store(Request $request, int $groupId)
@@ -127,6 +156,8 @@ class MessageController extends Controller
             'events' => $polled['events'],
             'presence' => $presence,
             'unreadCount' => (int) ($polled['unreadCount'] ?? 0),
+            'incomingCall' => $this->calls->incomingForUser($userId),
+            'callDeclined' => $this->calls->consumeDeclinedNotice($userId),
             'serverTime' => now()->toIso8601String(),
         ];
 

@@ -180,6 +180,8 @@
                   class="msg-call-btn"
                   id="message-call-btn"
                   data-token-url="/messages/{{ $activeGroup['id'] }}/dm/{{ $activePeer['userId'] }}/call-token"
+                  data-cancel-url="/messages/{{ $activeGroup['id'] }}/dm/{{ $activePeer['userId'] }}/call-cancel"
+                  data-peer-name="{{ $activePeer['displayName'] }}"
                   title="{{ __('音声・ビデオ通話') }}"
                   aria-label="{{ __('音声・ビデオ通話') }}"
                 >
@@ -308,31 +310,46 @@
       </form>
     </dialog>
 
-    @if(!empty($isDirect) && !empty($activePeer))
-      <dialog class="msg-dialog msg-call-dialog" id="message-call-dialog">
-        <section class="msg-dialog-card msg-call-card" aria-labelledby="message-call-title">
-          <div class="msg-call-head">
-            <div>
-              <p class="msg-kicker">{{ __('LiveKit 試作') }}</p>
-              <h3 id="message-call-title">{{ $activePeer['displayName'] }} {{ __('と通話') }}</h3>
+    @if(!empty($activeGroup))
+      @if(!empty($isDirect) && !empty($activePeer))
+        <dialog class="msg-dialog msg-call-dialog" id="message-call-dialog">
+          <section class="msg-dialog-card msg-call-card" aria-labelledby="message-call-title">
+            <div class="msg-call-head">
+              <div>
+                <p class="msg-kicker">{{ __('LiveKit 試作') }}</p>
+                <h3 id="message-call-title">{{ $activePeer['displayName'] }} {{ __('と通話') }}</h3>
+              </div>
+              <span class="msg-call-status" id="message-call-status" aria-live="polite">{{ __('接続前') }}</span>
             </div>
-            <span class="msg-call-status" id="message-call-status" aria-live="polite">{{ __('接続前') }}</span>
-          </div>
-          <p class="msg-call-hint">{{ __('相手にもこのDM画面で通話ボタンを押してもらうと接続します。') }}</p>
-          <div class="msg-call-videos">
-            <div class="msg-call-tile msg-call-local">
-              <span>{{ __('自分') }}</span>
-              <div id="message-call-local-video"></div>
+            <p class="msg-call-hint">{{ __('発信すると相手のメッセージ画面に着信が表示されます。') }}</p>
+            <div class="msg-call-videos">
+              <div class="msg-call-tile msg-call-local">
+                <span>{{ __('自分') }}</span>
+                <div id="message-call-local-video"></div>
+              </div>
+              <div class="msg-call-tile">
+                <span id="message-call-remote-label">{{ $activePeer['displayName'] }}</span>
+                <div id="message-call-remote-videos"></div>
+              </div>
             </div>
-            <div class="msg-call-tile">
-              <span>{{ $activePeer['displayName'] }}</span>
-              <div id="message-call-remote-videos"></div>
+            <div class="msg-call-controls">
+              <button type="button" class="msg-dialog-cancel" id="message-call-mic">{{ __('マイクをオフ') }}</button>
+              <button type="button" class="msg-dialog-cancel" id="message-call-camera">{{ __('カメラをオフ') }}</button>
+              <button type="button" class="msg-call-end" id="message-call-end">{{ __('通話を終了') }}</button>
             </div>
-          </div>
-          <div class="msg-call-controls">
-            <button type="button" class="msg-dialog-cancel" id="message-call-mic">{{ __('マイクをオフ') }}</button>
-            <button type="button" class="msg-dialog-cancel" id="message-call-camera">{{ __('カメラをオフ') }}</button>
-            <button type="button" class="msg-call-end" id="message-call-end">{{ __('通話を終了') }}</button>
+          </section>
+        </dialog>
+      @endif
+
+      <dialog class="msg-dialog msg-call-incoming-dialog" id="message-call-incoming-dialog">
+        <section class="msg-dialog-card msg-call-incoming-card" aria-labelledby="message-call-incoming-title">
+          <p class="msg-kicker">{{ __('着信') }}</p>
+          <h3 id="message-call-incoming-title">{{ __('通話の着信') }}</h3>
+          <p class="msg-call-incoming-from" id="message-call-incoming-from"></p>
+          <p class="msg-call-hint">{{ __('応答するとカメラとマイクが使われます。') }}</p>
+          <div class="msg-call-incoming-actions">
+            <button type="button" class="msg-call-decline" id="message-call-decline">{{ __('拒否') }}</button>
+            <button type="button" class="msg-call-accept" id="message-call-accept">{{ __('応答') }}</button>
           </div>
         </section>
       </dialog>
@@ -469,9 +486,7 @@
       }
     </script>
     <script src="{{ asset('messages-workspace.js') }}?v={{ @filemtime(public_path('messages-workspace.js')) ?: time() }}" defer></script>
-    @if(!empty($isDirect) && !empty($activePeer))
-      <script src="{{ asset('messages-call.js') }}?v={{ @filemtime(public_path('messages-call.js')) ?: time() }}" defer></script>
-    @endif
+    <script src="{{ asset('messages-call.js') }}?v={{ @filemtime(public_path('messages-call.js')) ?: time() }}" defer></script>
     @endif
   </body>
 </html>

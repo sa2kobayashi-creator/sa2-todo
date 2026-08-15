@@ -204,6 +204,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->middleware('throttle:30,1')
             ->whereNumber('groupId')
             ->whereNumber('userId');
+        Route::post('/messages/{groupId}/dm/{userId}/call-cancel', [MessageController::class, 'callCancel'])
+            ->middleware('throttle:60,1')
+            ->whereNumber('groupId')
+            ->whereNumber('userId');
+        Route::post('/messages/call-decline', [MessageController::class, 'callDecline'])
+            ->middleware('throttle:60,1');
         Route::get('/messages/{groupId}/dm/{userId}', [MessageController::class, 'showDm'])->whereNumber('groupId')->whereNumber('userId');
         Route::get('/messages/{groupId}', [MessageController::class, 'show'])->whereNumber('groupId');
         Route::post('/messages/{groupId}', [MessageController::class, 'store'])->whereNumber('groupId');

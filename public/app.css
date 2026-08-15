@@ -20200,3 +20200,44 @@ body.dash-home-lightbox-open {
     min-height: 140px;
   }
 }
+
+.msg-call-incoming-dialog {
+  width: min(420px, calc(100vw - 24px));
+}
+.msg-call-incoming-card {
+  text-align: center;
+}
+.msg-call-incoming-from {
+  margin: 8px 0 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f766e;
+  animation: msgCallPulse 1.2s ease-in-out infinite;
+}
+.msg-call-incoming-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.msg-call-accept,
+.msg-call-decline {
+  min-width: 112px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.msg-call-accept {
+  background: #0f766e;
+  color: #fff;
+}
+.msg-call-decline {
+  background: #dc2626;
+  color: #fff;
+}
+@keyframes msgCallPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.72; transform: scale(1.03); }
+}
