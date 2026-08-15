@@ -71,6 +71,17 @@ return [
         'page_name' => env('FACEBOOK_PAGE_NAME'),
     ],
 
+    /*
+    | LiveKit Cloud / self-hosted LiveKit（メッセージDM通話）
+    | 通常は設定画面（外部連携）で保存。未設定時のみ .env を使う。
+    | URL は wss:// 形式。API シークレットはサーバーだけで使用する。
+    */
+    'livekit' => [
+        'url' => env('LIVEKIT_URL'),
+        'api_key' => env('LIVEKIT_API_KEY'),
+        'api_secret' => env('LIVEKIT_API_SECRET'),
+    ],
+
     'translation' => [
         'provider' => env('TRANSLATION_PROVIDER', 'deepl'),
         'api_key' => env('TRANSLATION_API_KEY'),

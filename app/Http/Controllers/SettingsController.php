@@ -9,6 +9,7 @@ use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
 use App\Services\LineMessagingService;
+use App\Services\LiveKitConfigService;
 use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
@@ -30,6 +31,7 @@ class SettingsController extends Controller
         private TravelpayoutsConfigService $travelpayouts,
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
+        private LiveKitConfigService $livekit,
     ) {}
 
     public function index(Request $request)
@@ -75,6 +77,9 @@ class SettingsController extends Controller
                 : null,
             'messengerMessaging' => $messagingSection
                 ? $this->messengerMessaging->formState($request->user())
+                : null,
+            'livekitSettings' => $section === 'integration'
+                ? $this->livekit->formState()
                 : null,
             'footerNavSelected' => $section === 'nav'
                 ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())

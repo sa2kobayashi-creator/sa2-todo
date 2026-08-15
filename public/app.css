@@ -20095,3 +20095,108 @@ body.dash-home-lightbox-open {
     align-items: flex-start;
   }
 }
+
+/* LiveKit DM 通話（試作） */
+.msg-call-btn,
+.msg-call-end {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.msg-call-btn {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: #0f766e;
+  color: #fff;
+}
+.msg-call-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.msg-call-dialog {
+  width: min(720px, calc(100vw - 24px));
+}
+.msg-call-card {
+  width: auto;
+  max-width: none;
+}
+.msg-call-head,
+.msg-call-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.msg-call-head h3 {
+  margin: 0;
+}
+.msg-call-status {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 800;
+}
+.msg-call-hint {
+  margin: 10px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.msg-call-videos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.msg-call-tile {
+  position: relative;
+  min-height: 180px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #10231f;
+  color: #fff;
+}
+.msg-call-tile > span {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  left: 9px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  font-weight: 700;
+}
+.msg-call-tile > div,
+.msg-call-tile video {
+  width: 100%;
+  height: 100%;
+}
+.msg-call-tile video {
+  display: block;
+  min-height: 180px;
+  object-fit: cover;
+}
+.msg-call-controls {
+  margin-top: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.msg-call-end {
+  min-height: 36px;
+  padding: 7px 12px;
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+}
+@media (max-width: 560px) {
+  .msg-call-videos {
+    grid-template-columns: 1fr;
+  }
+  .msg-call-tile,
+  .msg-call-tile video {
+    min-height: 140px;
+  }
+}

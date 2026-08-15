@@ -174,6 +174,20 @@
                   @endif
                 </h2>
               </div>
+              @if(!empty($isDirect) && !empty($activePeer))
+                <button
+                  type="button"
+                  class="msg-call-btn"
+                  id="message-call-btn"
+                  data-token-url="/messages/{{ $activeGroup['id'] }}/dm/{{ $activePeer['userId'] }}/call-token"
+                  title="{{ __('音声・ビデオ通話') }}"
+                  aria-label="{{ __('音声・ビデオ通話') }}"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M6.62 10.79a15.46 15.46 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24 11.36 11.36 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.36 11.36 0 0 0 .57 3.57 1 1 0 0 1-.24 1.02l-2.21 2.2Z"/>
+                  </svg>
+                </button>
+              @endif
               <button type="button" class="msg-bg-btn" id="message-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
                   <path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
@@ -293,6 +307,36 @@
         <button type="submit" class="msg-dialog-cancel" value="cancel">{{ __('閉じる') }}</button>
       </form>
     </dialog>
+
+    @if(!empty($isDirect) && !empty($activePeer))
+      <dialog class="msg-dialog msg-call-dialog" id="message-call-dialog">
+        <section class="msg-dialog-card msg-call-card" aria-labelledby="message-call-title">
+          <div class="msg-call-head">
+            <div>
+              <p class="msg-kicker">{{ __('LiveKit 試作') }}</p>
+              <h3 id="message-call-title">{{ $activePeer['displayName'] }} {{ __('と通話') }}</h3>
+            </div>
+            <span class="msg-call-status" id="message-call-status" aria-live="polite">{{ __('接続前') }}</span>
+          </div>
+          <p class="msg-call-hint">{{ __('相手にもこのDM画面で通話ボタンを押してもらうと接続します。') }}</p>
+          <div class="msg-call-videos">
+            <div class="msg-call-tile msg-call-local">
+              <span>{{ __('自分') }}</span>
+              <div id="message-call-local-video"></div>
+            </div>
+            <div class="msg-call-tile">
+              <span>{{ $activePeer['displayName'] }}</span>
+              <div id="message-call-remote-videos"></div>
+            </div>
+          </div>
+          <div class="msg-call-controls">
+            <button type="button" class="msg-dialog-cancel" id="message-call-mic">{{ __('マイクをオフ') }}</button>
+            <button type="button" class="msg-dialog-cancel" id="message-call-camera">{{ __('カメラをオフ') }}</button>
+            <button type="button" class="msg-call-end" id="message-call-end">{{ __('通話を終了') }}</button>
+          </div>
+        </section>
+      </dialog>
+    @endif
 
     <dialog class="msg-dialog" id="message-emoji-dialog">
       <form method="dialog" class="msg-dialog-card">
@@ -425,6 +469,9 @@
       }
     </script>
     <script src="{{ asset('messages-workspace.js') }}?v={{ @filemtime(public_path('messages-workspace.js')) ?: time() }}" defer></script>
+    @if(!empty($isDirect) && !empty($activePeer))
+      <script src="{{ asset('messages-call.js') }}?v={{ @filemtime(public_path('messages-call.js')) ?: time() }}" defer></script>
+    @endif
     @endif
   </body>
 </html>

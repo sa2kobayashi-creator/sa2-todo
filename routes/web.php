@@ -21,6 +21,7 @@ use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\MessengerWebhookController;
+use App\Http\Controllers\LiveKitSettingsController;
 use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
 use App\Http\Controllers\MessageController;
@@ -199,6 +200,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/messages/items/{id}/translate', [MessageController::class, 'translate'])->middleware('throttle:ai-translate')->whereNumber('id');
         Route::get('/messages/{groupId}/wallpaper', [MessageController::class, 'wallpaperFile'])->whereNumber('groupId');
         Route::post('/messages/{groupId}/wallpaper', [MessageController::class, 'updateWallpaper'])->whereNumber('groupId');
+        Route::post('/messages/{groupId}/dm/{userId}/call-token', [MessageController::class, 'callToken'])
+            ->middleware('throttle:30,1')
+            ->whereNumber('groupId')
+            ->whereNumber('userId');
         Route::get('/messages/{groupId}/dm/{userId}', [MessageController::class, 'showDm'])->whereNumber('groupId')->whereNumber('userId');
         Route::get('/messages/{groupId}', [MessageController::class, 'show'])->whereNumber('groupId');
         Route::post('/messages/{groupId}', [MessageController::class, 'store'])->whereNumber('groupId');
@@ -347,6 +352,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
         Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
         Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
+        Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);
+        Route::post('/settings/api/livekit/test', [LiveKitSettingsController::class, 'test']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');

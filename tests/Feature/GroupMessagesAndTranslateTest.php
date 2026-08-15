@@ -391,4 +391,75 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertOk()
             ->assertDontSee('nav-unread-badge', false);
     }
+
+    public function test_dm_members_can_request_a_livekit_call_token(): void
+    {
+        config()->set('services.livekit', [
+            'url' => 'wss://sa2-test.livekit.cloud',
+            'api_key' => 'test-key',
+            'api_secret' => str_repeat('s', 32),
+        ]);
+
+        $alice = $this->makeUser('alice-call@example.com', 'Alice');
+        $bob = $this->makeUser('bob-call@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($alice)
+            ->get('/messages/'.$group->id.'/dm/'.$bob->id)
+            ->assertOk()
+            ->assertSee('message-call-btn', false);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id.'/dm/'.$bob->id.'/call-token')
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('serverUrl', 'wss://sa2-test.livekit.cloud')
+            ->assertJsonPath('roomName', 'sa2-dm-'.$group->id.'-'.$alice->id.'-'.$bob->id)
+            ->assertJsonStructure(['participantToken']);
+
+        $outsider = $this->makeUser('outsider-call@example.com');
+        $this->actingAs($outsider)
+            ->postJson('/messages/'.$group->id.'/dm/'.$bob->id.'/call-token')
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_save_livekit_settings_from_integration_page(): void
+    {
+        $admin = $this->makeUser('admin-livekit@example.com', 'Admin', UserRole::Admin);
+        $alice = $this->makeUser('alice-livekit-ui@example.com', 'Alice');
+        $bob = $this->makeUser('bob-livekit-ui@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $this->actingAs($admin)
+            ->get('/settings?section=integration')
+            ->assertOk()
+            ->assertSee('livekit-call', false)
+            ->assertSee('LiveKit 通話', false);
+
+        $this->actingAs($admin)
+            ->post('/settings/api/livekit', [
+                'enabled' => '1',
+                'url' => 'wss://sa2-ui.livekit.cloud',
+                'api_key' => 'APItestkey',
+                'api_secret' => str_repeat('u', 32),
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('media_storage_settings', [
+            'provider' => 'livekit',
+            'enabled' => 1,
+        ]);
+
+        config()->set('services.livekit', [
+            'url' => '',
+            'api_key' => '',
+            'api_secret' => '',
+        ]);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id.'/dm/'.$bob->id.'/call-token')
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('serverUrl', 'wss://sa2-ui.livekit.cloud');
+    }
 }

@@ -435,6 +435,7 @@
       @elseif(($section ?? '') === 'integration')
       @include('settings.partials.line-messaging')
       @include('settings.partials.facebook-messenger')
+      @include('settings.partials.livekit')
       <div class="panel storage-settings" id="google-calendar">
         <h2>{{ __('Googleカレンダー') }}</h2>
         <p class="hint">{{ __('個人の Google カレンダー連携はマイページで行います。スタンダード／ライトユーザーも自分のアカウントを接続できます。') }}</p>

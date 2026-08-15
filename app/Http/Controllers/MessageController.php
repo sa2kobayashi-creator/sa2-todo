@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\UsageLimitExceededException;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\GroupChatService;
+use App\Services\LiveKitCallService;
 use App\Services\PhotoService;
 use App\Services\TranslationService;
 use App\Services\UserUsageLimitService;
@@ -20,6 +21,7 @@ class MessageController extends Controller
         private GroupChatService $chat,
         private UserUsageLimitService $usageLimits,
         private PhotoService $photos,
+        private LiveKitCallService $calls,
     ) {}
 
     public function index(Request $request)
@@ -38,6 +40,25 @@ class MessageController extends Controller
     public function showDm(Request $request, int $groupId, int $userId)
     {
         return $this->renderThread($request, $groupId, $userId);
+    }
+
+    public function callToken(Request $request, int $groupId, int $userId)
+    {
+        $user = $request->user();
+
+        try {
+            $this->chat->assertMember((int) $user->id, $groupId);
+            $this->chat->assertPeer((int) $user->id, $groupId, $userId);
+
+            return response()->json([
+                'ok' => true,
+                ...$this->calls->tokenForDirectMessage($user, $groupId, $userId),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 403);
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
     }
 
     public function store(Request $request, int $groupId)

@@ -44,6 +44,9 @@ class MediaStorageSetting extends Model
     /** Facebook Page / Messenger（ToDo 通知） */
     public const PROVIDER_FACEBOOK = 'facebook';
 
+    /** LiveKit Cloud / self-hosted（メッセージDM通話） */
+    public const PROVIDER_LIVEKIT = 'livekit';
+
     /** 新規登録の招待コード（管理画面で設定） */
     public const PROVIDER_REGISTRATION = 'registration';
 
