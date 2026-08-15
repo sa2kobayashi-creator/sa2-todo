@@ -29,6 +29,7 @@ use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
@@ -103,6 +104,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/calendar', [DashboardController::class, 'calendarRedirect']);
     Route::get('/api/holiday-dates', HolidayDatesController::class);
+    Route::get('/api/push/vapid-public-key', [PushSubscriptionController::class, 'publicKey'])
+        ->middleware('throttle:30,1');
+    Route::post('/api/push/subscribe', [PushSubscriptionController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::post('/api/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])
+        ->middleware('throttle:10,1');
 
     Route::get('/todos', [TodoController::class, 'index']);
     Route::post('/todos', [TodoController::class, 'store']);

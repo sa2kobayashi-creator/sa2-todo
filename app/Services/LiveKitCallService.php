@@ -13,7 +13,10 @@ class LiveKitCallService
 {
     private const INVITE_TTL_SECONDS = 90;
 
-    public function __construct(private LiveKitConfigService $config) {}
+    public function __construct(
+        private LiveKitConfigService $config,
+        private WebPushService $push,
+    ) {}
 
     public function isConfigured(): bool
     {
@@ -77,6 +80,15 @@ class LiveKitCallService
 
         Cache::put($this->inviteKey($roomName), $payload, now()->addSeconds(self::INVITE_TTL_SECONDS));
         Cache::put($this->incomingKey($peerUserId), $payload, now()->addSeconds(self::INVITE_TTL_SECONDS));
+        $peer = User::query()->find($peerUserId);
+        if ($peer !== null) {
+            $this->push->notify($peer, [
+                'title' => __('通話の着信'),
+                'body' => (string) $fromUser->display_name.__(' から通話がかかっています'),
+                'url' => '/messages/'.$groupId.'/dm/'.$fromId,
+                'tag' => 'sa2-call-'.$roomName,
+            ]);
+        }
 
         return $payload;
     }

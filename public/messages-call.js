@@ -568,8 +568,8 @@
     showIncoming(call)
   }
 
-  // 会話を選んでいない一覧画面でも、ユーザー宛の着信を見逃さない。
-  if (!document.getElementById('message-thread')) {
+  // メッセージ以外の画面でも着信を拾う（会話スレッド poll がある場合も併用可）
+  if (incomingDialog) {
     function pollIncomingCall() {
       fetch('/messages/incoming-call', {
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },

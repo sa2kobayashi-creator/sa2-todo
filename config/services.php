@@ -82,6 +82,16 @@ return [
         'api_secret' => env('LIVEKIT_API_SECRET'),
     ],
 
+    /*
+    | Web Push / Android TWA 通知委任
+    | Firebase Console の Web Push 証明書で生成した VAPID 鍵を利用する。
+    */
+    'web_push' => [
+        'subject' => env('WEB_PUSH_VAPID_SUBJECT'),
+        'public_key' => env('WEB_PUSH_VAPID_PUBLIC_KEY'),
+        'private_key' => env('WEB_PUSH_VAPID_PRIVATE_KEY'),
+    ],
+
     'translation' => [
         'provider' => env('TRANSLATION_PROVIDER', 'deepl'),
         'api_key' => env('TRANSLATION_API_KEY'),

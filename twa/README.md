@@ -123,3 +123,27 @@ keytool -list -v -keystore android.keystore -alias android
 | `public/manifest.webmanifest` | PWA / TWA の元 |
 | `public/.well-known/assetlinks.json` | サイト↔アプリの紐付け |
 | `twa/twa-manifest.json` | Bubblewrap 設定のたたき台 |
+
+## 通話の着信通知（Web Push / Firebase）
+
+Sa2 Plus は **Web Push を本線**にします。Android TWA は `enableNotifications: true` により Chrome の通知委任を利用するため、Web版と同じ購読情報でアプリ未起動時にも着信を表示できます。Firebase Cloud Messaging をネイティブSDKで二重実装する必要はありません。
+
+1. Firebase Console で Web Push 証明書（VAPID）を生成する
+2. 本番 `.env` に次を設定する（秘密鍵はコミットしない）
+
+```dotenv
+WEB_PUSH_VAPID_SUBJECT=mailto:admin@example.com
+WEB_PUSH_VAPID_PUBLIC_KEY=
+WEB_PUSH_VAPID_PRIVATE_KEY=
+```
+
+3. 本番を反映後、アプリの **設定 → 通知設定 → 通話の着信通知を登録** で端末ごとに許可する
+4. TWA を再ビルド・再配布する
+
+```powershell
+cd twa
+npx @bubblewrap/cli update
+npx @bubblewrap/cli build
+```
+
+通知をタップすると該当DMを開き、90秒間有効な着信中であれば応答できます。端末の通知権限や省電力設定によっては通知が遅延・抑止される場合があります。

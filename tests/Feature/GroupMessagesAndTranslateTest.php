@@ -508,4 +508,28 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertOk()
             ->assertJsonPath('callDeclined.byUserId', $bob->id);
     }
+
+    public function test_user_can_save_a_web_push_subscription(): void
+    {
+        $user = $this->makeUser('push@example.com', 'Push User');
+        $endpoint = 'https://fcm.googleapis.com/fcm/send/example-subscription';
+
+        $this->actingAs($user)
+            ->postJson('/api/push/subscribe', [
+                'endpoint' => $endpoint,
+                'expirationTime' => null,
+                'keys' => [
+                    'p256dh' => 'example-public-key',
+                    'auth' => 'example-auth-token',
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('ok', true);
+
+        $this->assertDatabaseHas('push_subscriptions', [
+            'user_id' => $user->id,
+            'endpoint_hash' => hash('sha256', $endpoint),
+            'content_encoding' => 'aes128gcm',
+        ]);
+    }
 }

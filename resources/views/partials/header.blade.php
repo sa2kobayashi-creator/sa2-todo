@@ -306,3 +306,6 @@
   })()
 </script>
 @include('partials.mobile-nav', ['active' => $active ?? ''])
+@if(!empty($currentUser) && !empty($canMessages))
+  @include('partials.incoming-call')
+@endif

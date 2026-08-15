@@ -1,5 +1,5 @@
 /* Sa2 Plus app PWA - installability only; do not cache authenticated HTML/API */
-const CACHE = 'sa2-app-shell-v1'
+const CACHE = 'sa2-app-shell-v2'
 const PRECACHE = [
   '/manifest.webmanifest',
   '/offline.html',
@@ -80,6 +80,46 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => cached || offlineResponse())
 
       return cached || fetched
+    })
+  )
+})
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch (_) {
+    data = {}
+  }
+
+  const title = data.title || 'Sa2 Plus'
+  const options = {
+    body: data.body || '新しい通知があります。',
+    icon: '/icons/pwa-192.png',
+    badge: '/icons/pwa-192.png',
+    tag: data.tag || 'sa2-notification',
+    renotify: true,
+    data: { url: data.url || '/messages' },
+    vibrate: [180, 90, 180, 300, 180],
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = new URL(
+    (event.notification.data && event.notification.data.url) || '/messages',
+    self.location.origin
+  ).href
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url === targetUrl && 'focus' in client) return client.focus()
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl)
+      return undefined
     })
   )
 })

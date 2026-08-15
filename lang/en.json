@@ -2630,5 +2630,14 @@
     "応答するとカメラとマイクが使われます。": "Answering will use your camera and microphone.",
     "拒否": "Decline",
     "応答": "Answer",
-    "この通話を操作する権限がありません。": "You do not have permission to control this call."
+    "この通話を操作する権限がありません。": "You do not have permission to control this call.",
+    "プッシュ通知はまだ設定されていません。": "Push notifications are not configured yet.",
+    " から通話がかかっています": " is calling you",
+    "通話の着信を、アプリを閉じているときにも端末通知で受け取れます。チャネル設定と個人連携は外部連携から行います。": "Receive incoming call notifications even when the app is closed. Configure channels and personal links under Integrations.",
+    "利用可能": "Available",
+    "管理者のVAPID設定待ち": "Waiting for administrator VAPID setup",
+    "通話の着信通知を登録": "Enable incoming call notifications",
+    "この端末で通知を許可してください。": "Allow notifications on this device.",
+    "通知サーバーが未設定です。": "The notification server is not configured.",
+    "Android TWA とWeb版の両方で利用できます。端末の通知許可をオンにしてください。": "Available in both Android TWA and the web app. Enable notifications on your device."
 }

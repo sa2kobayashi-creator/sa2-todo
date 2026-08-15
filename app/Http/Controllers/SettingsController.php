@@ -14,6 +14,7 @@ use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
 use App\Services\TravelpayoutsConfigService;
+use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
 use Illuminate\Http\Request;
 
@@ -32,6 +33,7 @@ class SettingsController extends Controller
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
         private LiveKitConfigService $livekit,
+        private WebPushService $webPush,
     ) {}
 
     public function index(Request $request)
@@ -52,7 +54,7 @@ class SettingsController extends Controller
             'nextHolidayYear' => $year + 1,
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
             'lineConfigured' => $this->lineMessaging->isConfigured(),
-            'pushConfigured' => false,
+            'pushConfigured' => $this->webPush->isConfigured(),
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
