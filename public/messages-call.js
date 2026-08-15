@@ -107,6 +107,8 @@
     ringTimer = setInterval(beepOnce, 1800)
   }
 
+  var heldLocalTracks = null
+
   function attachTrack(track, container, isLocal) {
     if (!track || !container) return
     // ローカル音声は自分に聞こえないように付けない（ハウリング防止）
@@ -120,6 +122,7 @@
       // PC Chrome は muted なしだとローカルプレビューの自動再生が止まる
       if (isLocal) {
         element.muted = true
+        element.defaultMuted = true
         element.setAttribute('muted', 'true')
         element.classList.add('is-local')
       }
@@ -131,16 +134,47 @@
     container.appendChild(element)
   }
 
-  function attachLocalVideoTracks() {
-    if (!room || !localContainer) return
+  function showLocalPreview(track) {
+    if (!localContainer || !track) return
+    // 既に同じプレビューがある場合は play だけ再試行（detach/reattach で黒画面になるのを防ぐ）
+    var existing = localContainer.querySelector('video.is-local')
+    if (existing) {
+      existing.muted = true
+      var playPromise = existing.play && existing.play()
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(function () {})
+      }
+      return
+    }
     clearTracks(localContainer)
+    attachTrack(track, localContainer, true)
+  }
+
+  function stopHeldLocalTracks() {
+    if (!heldLocalTracks) return
+    heldLocalTracks.forEach(function (track) {
+      try {
+        track.detach().forEach(function (el) { el.remove() })
+      } catch (_) {}
+      try { track.stop() } catch (_) {}
+    })
+    heldLocalTracks = null
+  }
+
+  function attachLocalVideoTracks() {
+    if (!localContainer) return
+    if (heldLocalTracks) {
+      heldLocalTracks.forEach(function (track) {
+        if (track.kind === 'video') showLocalPreview(track)
+      })
+      return
+    }
+    if (!room) return
     var publications = room.localParticipant.videoTrackPublications
     if (!publications) return
     publications.forEach(function (publication) {
       var track = publication && publication.track
-      if (track && track.kind === 'video') {
-        attachTrack(track, localContainer, true)
-      }
+      if (track && track.kind === 'video') showLocalPreview(track)
     })
   }
 
@@ -158,6 +192,7 @@
       try { room.disconnect() } catch (_) {}
       room = null
     }
+    stopHeldLocalTracks()
     clearTracks(localContainer)
     clearTracks(remoteContainer)
     if (options.cancelRing !== false && isCaller) {
@@ -182,13 +217,29 @@
     if (callButton) callButton.disabled = true
     setStatus(asCaller ? '呼び出し中…' : '接続準備中…')
     if (dialog) openEl(dialog)
+    clearTracks(localContainer)
+    clearTracks(remoteContainer)
 
     try {
+      var sdk = await loadSdk()
+
+      // 接続前にカメラを開き、PCでもすぐ自分の映像を出す
+      try {
+        heldLocalTracks = await sdk.createLocalTracks({
+          audio: true,
+          video: true,
+        })
+      } catch (_) {
+        throw new Error('カメラまたはマイクを利用できません。ブラウザとPCのカメラ許可を確認してください。')
+      }
+      heldLocalTracks.forEach(function (track) {
+        if (track.kind === 'video') showLocalPreview(track)
+      })
+
       var result = await postJson(tokenUrl, asCaller ? { ring: true } : {})
       var payload = result.payload
       if (!result.ok || !payload.ok) throw new Error(payload.message || '通話の準備に失敗しました。')
 
-      var sdk = await loadSdk()
       room = new sdk.Room({
         adaptiveStream: true,
         dynacast: true,
@@ -199,23 +250,11 @@
       room.on(sdk.RoomEvent.TrackUnsubscribed, function (track) {
         track.detach().forEach(function (element) { element.remove() })
       })
-      room.on(sdk.RoomEvent.LocalTrackPublished, function (publication) {
-        if (publication && publication.track && publication.track.kind === 'video') {
-          attachLocalVideoTracks()
-        }
-      })
-      room.on(sdk.RoomEvent.LocalTrackUnpublished, function (publication) {
-        if (publication && publication.track) {
-          publication.track.detach().forEach(function (element) { element.remove() })
-        }
-        attachLocalVideoTracks()
-      })
       room.on(sdk.RoomEvent.ParticipantConnected, function () {
         stopRingtone()
         setStatus('接続中')
       })
       room.on(sdk.RoomEvent.Disconnected, function () {
-        clearTracks(localContainer)
         clearTracks(remoteContainer)
         setStatus('通話を終了しました')
         inCall = false
@@ -223,19 +262,14 @@
       })
 
       await room.connect(payload.serverUrl, payload.participantToken)
-      await room.localParticipant.setCameraEnabled(true)
-      await room.localParticipant.setMicrophoneEnabled(true)
-      attachLocalVideoTracks()
-      // ダイアログ表示直後のレイアウト確定後にもう一度貼る（PCで黒画面になる対策）
-      requestAnimationFrame(function () {
-        attachLocalVideoTracks()
-      })
-      setTimeout(function () {
-        attachLocalVideoTracks()
-        if (room && typeof room.startAudio === 'function') {
-          room.startAudio().catch(function () {})
-        }
-      }, 250)
+      for (var i = 0; i < heldLocalTracks.length; i++) {
+        await room.localParticipant.publishTrack(heldLocalTracks[i])
+      }
+      showLocalPreview(heldLocalTracks.filter(function (t) { return t.kind === 'video' })[0])
+      if (typeof room.startAudio === 'function') {
+        room.startAudio().catch(function () {})
+      }
+
       micEnabled = true
       cameraEnabled = true
       if (micButton) micButton.textContent = 'マイクをオフ'
