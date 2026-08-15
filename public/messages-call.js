@@ -27,6 +27,7 @@
   var activeIncoming = null
   var ringTimer = 0
   var audioCtx = null
+  var ringNodes = []
 
   function setStatus(text) {
     if (status) status.textContent = text
@@ -77,6 +78,30 @@
   function stopRingtone() {
     clearInterval(ringTimer)
     ringTimer = 0
+    ringNodes.forEach(function (node) {
+      try { node.stop() } catch (_) {}
+      try { node.disconnect() } catch (_) {}
+    })
+    ringNodes = []
+    try {
+      if (navigator.vibrate) navigator.vibrate(0)
+    } catch (_) {}
+  }
+
+  function playBellPartial(freq, start, duration, peakGain) {
+    var osc = audioCtx.createOscillator()
+    var gain = audioCtx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(freq, start)
+    gain.gain.setValueAtTime(0.0001, start)
+    gain.gain.exponentialRampToValueAtTime(peakGain, start + 0.012)
+    gain.gain.exponentialRampToValueAtTime(peakGain * 0.35, start + duration * 0.35)
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+    osc.start(start)
+    osc.stop(start + duration + 0.02)
+    ringNodes.push(osc)
   }
 
   function beepOnce() {
@@ -84,28 +109,24 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       if (audioCtx.state === 'suspended') audioCtx.resume()
       var now = audioCtx.currentTime
-      // 高低2音のベルチャイム。小さな単音ビープより着信と分かりやすくする。
-      ;[0, 0.28].forEach(function (offset) {
-        var osc = audioCtx.createOscillator()
-        var gain = audioCtx.createGain()
+      // 電話風の「リーン・リーン」：倍音付きベルを2連打×2セット
+      ;[0, 0.42, 1.05, 1.47].forEach(function (offset, index) {
         var start = now + offset
-        osc.type = 'triangle'
-        osc.frequency.setValueAtTime(offset ? 1046.5 : 1318.5, start)
-        gain.gain.setValueAtTime(0.0001, start)
-        gain.gain.exponentialRampToValueAtTime(0.2, start + 0.015)
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45)
-        osc.connect(gain)
-        gain.connect(audioCtx.destination)
-        osc.start(start)
-        osc.stop(start + 0.48)
+        var bright = index % 2 === 0
+        playBellPartial(bright ? 880 : 698.5, start, 0.55, 0.32)
+        playBellPartial(bright ? 1760 : 1397, start, 0.45, 0.14)
+        playBellPartial(bright ? 2637 : 2093, start, 0.28, 0.07)
       })
+      try {
+        if (navigator.vibrate) navigator.vibrate([180, 90, 180, 420, 180, 90, 180])
+      } catch (_) {}
     } catch (_) {}
   }
 
   function startRingtone() {
     stopRingtone()
     beepOnce()
-    ringTimer = setInterval(beepOnce, 2100)
+    ringTimer = setInterval(beepOnce, 2800)
   }
 
   var heldLocalTracks = null
