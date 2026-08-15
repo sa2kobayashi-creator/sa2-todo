@@ -481,6 +481,12 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertJsonPath('ok', true);
 
         $this->actingAs($bob)
+            ->getJson('/messages/incoming-call')
+            ->assertOk()
+            ->assertJsonPath('incomingCall.fromUserId', $alice->id)
+            ->assertJsonPath('incomingCall.href', '/messages/'.$group->id.'/dm/'.$alice->id);
+
+        $this->actingAs($bob)
             ->getJson('/messages/'.$group->id.'/poll?peer='.$alice->id.'&after=0')
             ->assertOk()
             ->assertJsonPath('incomingCall.fromUserId', $alice->id)

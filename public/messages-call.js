@@ -27,7 +27,6 @@
   var activeIncoming = null
   var ringTimer = 0
   var audioCtx = null
-  var ringOsc = null
 
   function setStatus(text) {
     if (status) status.textContent = text
@@ -78,34 +77,35 @@
   function stopRingtone() {
     clearInterval(ringTimer)
     ringTimer = 0
-    if (ringOsc) {
-      try { ringOsc.stop() } catch (_) {}
-      ringOsc = null
-    }
   }
 
   function beepOnce() {
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       if (audioCtx.state === 'suspended') audioCtx.resume()
-      var osc = audioCtx.createOscillator()
-      var gain = audioCtx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = 880
-      gain.gain.value = 0.05
-      osc.connect(gain)
-      gain.connect(audioCtx.destination)
-      osc.start()
-      setTimeout(function () {
-        try { osc.stop() } catch (_) {}
-      }, 220)
+      var now = audioCtx.currentTime
+      // 高低2音のベルチャイム。小さな単音ビープより着信と分かりやすくする。
+      ;[0, 0.28].forEach(function (offset) {
+        var osc = audioCtx.createOscillator()
+        var gain = audioCtx.createGain()
+        var start = now + offset
+        osc.type = 'triangle'
+        osc.frequency.setValueAtTime(offset ? 1046.5 : 1318.5, start)
+        gain.gain.setValueAtTime(0.0001, start)
+        gain.gain.exponentialRampToValueAtTime(0.2, start + 0.015)
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45)
+        osc.connect(gain)
+        gain.connect(audioCtx.destination)
+        osc.start(start)
+        osc.stop(start + 0.48)
+      })
     } catch (_) {}
   }
 
   function startRingtone() {
     stopRingtone()
     beepOnce()
-    ringTimer = setInterval(beepOnce, 1800)
+    ringTimer = setInterval(beepOnce, 2100)
   }
 
   var heldLocalTracks = null
@@ -532,6 +532,23 @@
       return
     }
     showIncoming(call)
+  }
+
+  // 会話を選んでいない一覧画面でも、ユーザー宛の着信を見逃さない。
+  if (!document.getElementById('message-thread')) {
+    function pollIncomingCall() {
+      fetch('/messages/incoming-call', {
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+      })
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (data && data.ok) window.__MSG_ON_POLL__(data)
+        })
+        .catch(function () {})
+    }
+    pollIncomingCall()
+    setInterval(pollIncomingCall, 4000)
   }
 
   if (callButton) {

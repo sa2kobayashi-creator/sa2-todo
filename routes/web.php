@@ -190,6 +190,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(EnsureFeature::class.':messages')->group(function () {
         Route::get('/messages', [MessageController::class, 'index']);
+        Route::get('/messages/incoming-call', [MessageController::class, 'incomingCall'])
+            ->middleware('throttle:30,1');
         Route::get('/messages/attachments/{id}/file', [MessageController::class, 'attachmentFile'])->whereNumber('id');
         Route::get('/messages/attachments/{id}/download', [MessageController::class, 'attachmentDownload'])->whereNumber('id');
         Route::post('/messages/attachments/{id}/to-photos', [MessageController::class, 'attachmentSaveToPhotos'])->whereNumber('id');

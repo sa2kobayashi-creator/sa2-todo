@@ -173,6 +173,17 @@ class MessageController extends Controller
         return response()->json($payload);
     }
 
+    /**
+     * 会話未選択のメッセージ一覧でも、ユーザー宛の着信を確認する。
+     */
+    public function incomingCall(Request $request)
+    {
+        return response()->json([
+            'ok' => true,
+            'incomingCall' => $this->calls->incomingForUser((int) $request->user()->id),
+        ]);
+    }
+
     public function updateWallpaper(Request $request, int $groupId)
     {
         $userId = (int) $request->user()->id;
