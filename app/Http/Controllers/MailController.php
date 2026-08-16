@@ -26,20 +26,30 @@ class MailController extends Controller
         $folder = (string) $request->query('folder', 'INBOX');
         $uid = (int) $request->query('uid', 0);
         $page = max(1, (int) $request->query('page', 1));
+        $tab = (string) $request->query('tab', 'inbox');
+        if (! in_array($tab, ['inbox', 'accounts', 'domain'], true)) {
+            $tab = 'inbox';
+        }
 
         $accountList = $this->accounts->listForUser($user);
         $selected = null;
         foreach ($accountList as $acc) {
-            if ($accountId === 0 || $acc->id === $accountId) {
+            if ($accountId > 0 && $acc->id === $accountId) {
                 $selected = $acc;
                 break;
             }
+            if ($accountId === 0 && $selected === null) {
+                $selected = $acc;
+            }
+        }
+        if ($accountId > 0 && $selected === null && $accountList !== []) {
+            $selected = $accountList[0];
         }
 
-        // IMAP はページ描画を止めない（AJAX /mailbox で取得）
         return view('mail.index', [
             'accounts' => array_map(fn ($a) => $a->toClientArray(), $accountList),
             'selectedAccountId' => $selected?->id,
+            'editAccountId' => $accountId > 0 ? $accountId : ($selected?->id),
             'folders' => [],
             'folder' => $folder !== '' ? $folder : 'INBOX',
             'messages' => [],
@@ -47,7 +57,7 @@ class MailController extends Controller
             'page' => $page,
             'uid' => $uid,
             'mailError' => null,
-            'loadMailboxAsync' => $selected !== null && ! $request->boolean('compose') && (string) $request->query('tab', 'inbox') === 'inbox',
+            'loadMailboxAsync' => $tab === 'inbox' && $selected !== null && ! $request->boolean('compose'),
             'domainRequests' => array_map(
                 fn ($r) => $r->toPublicArray(),
                 $this->domainMail->listForUser($user)
@@ -59,7 +69,7 @@ class MailController extends Controller
             'lolipopWebmailUrl' => (string) config('mail_domain.lolipop.webmail_url'),
             'gmailHelpUrl' => (string) config('mail_domain.gmail.help_url'),
             'compose' => $request->boolean('compose'),
-            'tab' => (string) $request->query('tab', 'inbox'),
+            'tab' => $tab,
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -119,7 +129,7 @@ class MailController extends Controller
             $result = $this->accounts->testConnection($request->user(), (int) $account->id, $this->client);
             if (! $result['ok']) {
                 return $this->redirectWithMessage(
-                    '/mail?account='.$account->id.'&tab=accounts',
+                    '/mail?tab=accounts&account='.$account->id,
                     $result['message'],
                     'error'
                 );
@@ -132,30 +142,31 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail', __('メールアカウントを追加しました。'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('メールアカウントを追加しました。'));
     }
 
     public function updateAccount(Request $request, int $id)
     {
+        $returnTo = '/mail?tab=accounts&account='.$id;
         try {
             $this->accounts->update($request->user(), $id, $request->all());
-            if (filled($request->input('password'))) {
+            if (filled($request->input('password')) || $request->boolean('test_after_save')) {
                 $result = $this->accounts->testConnection($request->user(), $id, $this->client);
                 if (! $result['ok']) {
-                    return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', $result['message'], 'error');
+                    return $this->redirectWithMessage($returnTo, $result['message'], 'error');
                 }
 
-                return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', __('パスワードを更新し、接続に成功しました。'));
+                return $this->redirectWithMessage($returnTo, __('アカウントを保存し、接続に成功しました。'));
             }
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
 
-            return $this->redirectWithMessage('/mail?tab=accounts', $msg, 'error');
+            return $this->redirectWithMessage($returnTo, $msg, 'error');
         } catch (\Throwable $e) {
-            return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?account='.$id, __('メールアカウントを更新しました。'));
+        return $this->redirectWithMessage($returnTo, __('メールアカウントを更新しました。'));
     }
 
     public function destroyAccount(Request $request, int $id)
@@ -166,17 +177,18 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail', __('メールアカウントを削除しました。'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('メールアカウントを削除しました。'));
     }
 
     public function testAccount(Request $request, int $id)
     {
         $result = $this->accounts->testConnection($request->user(), $id, $this->client);
+        $returnTo = '/mail?tab=accounts&account='.$id;
         if ($result['ok']) {
-            return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', $result['message']);
+            return $this->redirectWithMessage($returnTo, $result['message']);
         }
 
-        return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', $result['message'], 'error');
+        return $this->redirectWithMessage($returnTo, $result['message'], 'error');
     }
 
     public function send(Request $request, int $id)

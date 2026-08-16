@@ -18,7 +18,7 @@
       @php $tab = $tab ?? 'inbox'; @endphp
       <nav class="mail-tabs" aria-label="{{ __('メールメニュー') }}">
         <a href="/mail" class="{{ $tab === 'inbox' || $tab === '' ? 'active' : '' }}">{{ __('受信箱') }}</a>
-        <a href="/mail?tab=accounts" class="{{ $tab === 'accounts' ? 'active' : '' }}">{{ __('アカウント設定') }}</a>
+        <a href="/mail?tab=accounts{{ !empty($selectedAccountId) ? '&account='.$selectedAccountId : '' }}" class="{{ $tab === 'accounts' ? 'active' : '' }}">{{ __('アカウント設定') }}</a>
         <a href="/mail?tab=domain" class="{{ $tab === 'domain' ? 'active' : '' }}">{{ __('@:domain 申請', ['domain' => $mailDomain]) }}</a>
       </nav>
 
@@ -26,7 +26,7 @@
         <section class="panel">
           <h2>{{ __('メールアカウント') }}</h2>
           <p class="hint">
-            {{ __('Gmail・独自ドメイン・その他のIMAP/SMTPアカウントを登録できます。パスワードは暗号化して保存し、画面には再表示しません。') }}
+            {{ __('Gmail・独自ドメイン・その他のIMAP/SMTPアカウントを登録・編集できます。パスワードは暗号化して保存し、画面には再表示しません。') }}
           </p>
           <p class="banner notice">
             {{ __('Gmailは通常のパスワードでは接続できません。「Googleアカウント → セキュリティ → 2段階認証 → アプリパスワード」で発行した16桁を入力してください。') }}
@@ -38,37 +38,81 @@
           @if(!empty($accounts))
             <ul class="mail-account-list">
               @foreach($accounts as $acc)
-                <li>
-                  <strong>{{ $acc['label'] }}</strong>
-                  <span>{{ $acc['email'] }}（{{ $acc['provider'] }}）</span>
-                  <div class="mail-account-actions">
-                    <a class="button-link secondary" href="/mail?account={{ $acc['id'] }}">{{ __('開く') }}</a>
-                    <form method="post" action="/mail/accounts/{{ $acc['id'] }}/test">@csrf<button type="submit" class="secondary">{{ __('接続テスト') }}</button></form>
-                    <form method="post" action="/mail/accounts/{{ $acc['id'] }}/delete" onsubmit="return confirm(@json(__('このアカウントを削除しますか？')))">@csrf<button type="submit" class="danger">{{ __('削除') }}</button></form>
+                @php $isEditTarget = (int) ($editAccountId ?? 0) === (int) $acc['id']; @endphp
+                <li class="mail-account-card{{ $isEditTarget ? ' is-editing' : '' }}" id="mail-account-{{ $acc['id'] }}">
+                  <div class="mail-account-card-head">
+                    <div>
+                      <strong>{{ $acc['label'] }}</strong>
+                      <span>{{ $acc['email'] }}（{{ $acc['provider'] }}）</span>
+                    </div>
+                    <div class="mail-account-actions">
+                      <a class="button-link secondary" href="/mail?account={{ $acc['id'] }}">{{ __('開く') }}</a>
+                      <a class="button-link secondary" href="/mail?tab=accounts&account={{ $acc['id'] }}#mail-account-{{ $acc['id'] }}">{{ __('編集') }}</a>
+                      <form method="post" action="/mail/accounts/{{ $acc['id'] }}/test">@csrf<button type="submit" class="secondary">{{ __('接続テスト') }}</button></form>
+                      <form method="post" action="/mail/accounts/{{ $acc['id'] }}/delete" onsubmit="return confirm(@json(__('このアカウントを削除しますか？')))">@csrf<button type="submit" class="danger">{{ __('削除') }}</button></form>
+                    </div>
                   </div>
-                  <form method="post" action="/mail/accounts/{{ $acc['id'] }}/update" class="mail-reauth-form">
-                    @csrf
-                    <input type="hidden" name="label" value="{{ $acc['label'] }}" />
-                    <input type="hidden" name="email" value="{{ $acc['email'] }}" />
-                    <input type="hidden" name="provider" value="{{ $acc['provider'] }}" />
-                    <input type="hidden" name="username" value="{{ $acc['username'] }}" />
-                    <input type="hidden" name="imap_host" value="{{ $acc['imapHost'] }}" />
-                    <input type="hidden" name="imap_port" value="{{ $acc['imapPort'] }}" />
-                    <input type="hidden" name="imap_encryption" value="{{ $acc['imapEncryption'] }}" />
-                    <input type="hidden" name="smtp_host" value="{{ $acc['smtpHost'] }}" />
-                    <input type="hidden" name="smtp_port" value="{{ $acc['smtpPort'] }}" />
-                    <input type="hidden" name="smtp_encryption" value="{{ $acc['smtpEncryption'] }}" />
-                    <label>{{ __('パスワードを再設定') }}
-                      <input type="password" name="password" required autocomplete="new-password" placeholder="{{ $acc['provider'] === 'gmail' ? __('アプリパスワード16桁') : __('メールパスワード') }}" />
-                    </label>
-                    <button type="submit" class="secondary">{{ __('保存して接続テスト') }}</button>
-                  </form>
+
+                  <details class="mail-account-edit" @if($isEditTarget) open @endif>
+                    <summary>{{ __('アカウント設定を編集') }}</summary>
+                    <form method="post" action="/mail/accounts/{{ $acc['id'] }}/update" class="mail-account-form">
+                      @csrf
+                      <label>{{ __('表示名') }}
+                        <input type="text" name="label" value="{{ $acc['label'] }}" required />
+                      </label>
+                      <label>{{ __('メールアドレス') }}
+                        <input type="email" name="email" value="{{ $acc['email'] }}" required />
+                      </label>
+                      <label>{{ __('プリセット') }}
+                        <select name="provider">
+                          <option value="gmail" @selected($acc['provider'] === 'gmail')>Gmail</option>
+                          <option value="lolipop" @selected($acc['provider'] === 'lolipop')>{{ __('ロリポップ / @:domain', ['domain' => $mailDomain]) }}</option>
+                          <option value="custom" @selected($acc['provider'] === 'custom')>{{ __('カスタム') }}</option>
+                        </select>
+                      </label>
+                      <label>{{ __('ユーザー名') }}
+                        <input type="text" name="username" value="{{ $acc['username'] }}" required />
+                      </label>
+                      <label>{{ __('パスワード / アプリパスワード') }}
+                        <input type="password" name="password" autocomplete="new-password" placeholder="{{ __('変更する場合のみ入力') }}" />
+                      </label>
+                      <p class="hint">{{ __('パスワードを空のまま保存すると、現在のパスワードを維持します。') }}</p>
+                      <div class="mail-server-grid">
+                        <label>{{ __('IMAPホスト') }}<input type="text" name="imap_host" value="{{ $acc['imapHost'] }}" required /></label>
+                        <label>{{ __('IMAPポート') }}<input type="number" name="imap_port" value="{{ $acc['imapPort'] }}" required /></label>
+                        <label>{{ __('IMAP暗号化') }}
+                          <select name="imap_encryption">
+                            <option value="ssl" @selected($acc['imapEncryption'] === 'ssl')>SSL</option>
+                            <option value="tls" @selected($acc['imapEncryption'] === 'tls')>TLS</option>
+                            <option value="none" @selected($acc['imapEncryption'] === 'none')>{{ __('なし') }}</option>
+                          </select>
+                        </label>
+                        <label>{{ __('SMTPホスト') }}<input type="text" name="smtp_host" value="{{ $acc['smtpHost'] }}" required /></label>
+                        <label>{{ __('SMTPポート') }}<input type="number" name="smtp_port" value="{{ $acc['smtpPort'] }}" required /></label>
+                        <label>{{ __('SMTP暗号化') }}
+                          <select name="smtp_encryption">
+                            <option value="ssl" @selected($acc['smtpEncryption'] === 'ssl')>SSL</option>
+                            <option value="tls" @selected($acc['smtpEncryption'] === 'tls')>TLS</option>
+                            <option value="none" @selected($acc['smtpEncryption'] === 'none')>{{ __('なし') }}</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label class="mail-inline-check">
+                        <input type="checkbox" name="test_after_save" value="1" checked />
+                        {{ __('保存後に接続テストする') }}
+                      </label>
+                      <button type="submit">{{ __('このアカウントを保存') }}</button>
+                    </form>
+                  </details>
+
                   @if(!empty($acc['lastTestMessage']))
                     <p class="hint {{ ($acc['lastTestStatus'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">{{ $acc['lastTestMessage'] }}</p>
                   @endif
                 </li>
               @endforeach
             </ul>
+          @else
+            <p class="hint">{{ __('まだアカウントがありません。下のフォームから追加してください。') }}</p>
           @endif
 
           <h3>{{ __('アカウントを追加') }}</h3>
@@ -96,11 +140,11 @@
                 </select>
               </label>
               <label>{{ __('SMTPホスト') }}<input type="text" name="smtp_host" id="mail-smtp-host" value="smtp.gmail.com" required /></label>
-              <label>{{ __('SMTPポート') }}<input type="number" name="smtp_port" id="mail-smtp-port" value="465" required /></label>
+              <label>{{ __('SMTPポート') }}<input type="number" name="smtp_port" id="mail-smtp-port" value="587" required /></label>
               <label>{{ __('SMTP暗号化') }}
                 <select name="smtp_encryption" id="mail-smtp-enc">
-                  <option value="ssl" selected>SSL</option>
-                  <option value="tls">TLS</option>
+                  <option value="ssl">SSL</option>
+                  <option value="tls" selected>TLS</option>
                   <option value="none">{{ __('なし') }}</option>
                 </select>
               </label>
@@ -187,7 +231,7 @@
             <ul class="mail-folder-nav" id="mail-folder-nav">
               <li class="hint" id="mail-folder-placeholder">{{ !empty($selectedAccountId) ? __('読み込み中…') : '' }}</li>
             </ul>
-            <a class="mail-settings-link" href="/mail?tab=accounts">{{ __('アカウント設定') }}</a>
+            <a class="mail-settings-link" href="/mail?tab=accounts{{ !empty($selectedAccountId) ? '&account='.$selectedAccountId : '' }}">{{ __('アカウント設定') }}</a>
           </aside>
 
           <div class="mail-list-pane">

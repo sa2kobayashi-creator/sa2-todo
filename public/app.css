@@ -20472,6 +20472,37 @@ body.dash-home-lightbox-open {
   flex: 1 1 220px;
   margin: 0;
 }
+.mail-account-card {
+  list-style: none;
+}
+.mail-account-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.mail-account-card.is-editing {
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f0fdfa;
+}
+.mail-account-edit {
+  margin-top: 10px;
+}
+.mail-account-edit summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #0f766e;
+  margin-bottom: 8px;
+}
+.mail-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
 .mail-loading {
   display: flex;
   align-items: center;
