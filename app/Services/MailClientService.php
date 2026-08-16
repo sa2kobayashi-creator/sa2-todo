@@ -565,13 +565,7 @@ class MailClientService
         }
 
         try {
-            $from = $message->getFrom();
-            if ($from && count($from) > 0) {
-                $fromText = (string) ($from[0]->mail ?? $from[0]->mailbox ?? '');
-                if ($fromText === '' && isset($from[0]->personal)) {
-                    $fromText = (string) $from[0]->personal;
-                }
-            }
+            $fromText = $this->firstAddressEmail($message->getFrom());
         } catch (\Throwable) {
         }
 
@@ -735,12 +729,61 @@ class MailClientService
         return [
             'uid' => (int) $message->getUid(),
             'subject' => $subject,
-            'from' => $from && count($from) > 0 ? (string) ($from[0]->mail ?? '') : '',
-            'to' => $to && count($to) > 0 ? (string) ($to[0]->mail ?? '') : '',
+            'from' => $this->firstAddressEmail($from),
+            'to' => $this->firstAddressEmail($to),
             'date' => $date ? $date->toDate()->format('c') : null,
             'bodyHtml' => $bodies['html'],
             'bodyText' => $bodies['text'],
         ];
+    }
+
+    private function firstAddressEmail(mixed $addresses): string
+    {
+        if ($addresses === null || $addresses === false || $addresses === '') {
+            return '';
+        }
+
+        $first = null;
+        if (is_object($addresses) && method_exists($addresses, 'first')) {
+            try {
+                $first = $addresses->first();
+            } catch (\Throwable) {
+                $first = null;
+            }
+        } elseif (is_array($addresses)) {
+            $first = $addresses[0] ?? null;
+        } elseif ($addresses instanceof \Countable && $addresses instanceof \ArrayAccess) {
+            try {
+                if (count($addresses) > 0) {
+                    $first = $addresses[0] ?? null;
+                }
+            } catch (\Throwable) {
+                $first = null;
+            }
+        } else {
+            $first = $addresses;
+        }
+
+        if ($first === null || $first === false || $first === '') {
+            return '';
+        }
+
+        if (is_object($first)) {
+            $mail = trim((string) ($first->mail ?? $first->mailbox ?? ''));
+            if ($mail !== '') {
+                return $mail;
+            }
+            if (isset($first->personal)) {
+                return trim((string) $first->personal);
+            }
+            if (method_exists($first, '__toString')) {
+                return $this->extractEmail(trim((string) $first));
+            }
+
+            return '';
+        }
+
+        return is_scalar($first) ? $this->extractEmail(trim((string) $first)) : '';
     }
 
     /**
