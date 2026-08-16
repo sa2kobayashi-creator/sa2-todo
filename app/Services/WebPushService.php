@@ -11,20 +11,18 @@ use Throwable;
 
 class WebPushService
 {
+    public function __construct(private WebPushConfigService $config) {}
+
     public function isConfigured(): bool
     {
-        $config = config('services.web_push');
-
-        return filled($config['public_key'] ?? null)
-            && filled($config['private_key'] ?? null)
-            && filled($config['subject'] ?? null);
+        return $this->config->isReady();
     }
 
     public function publicKey(): ?string
     {
-        return $this->isConfigured()
-            ? (string) config('services.web_push.public_key')
-            : null;
+        $key = $this->config->publicKey();
+
+        return $key !== '' ? $key : null;
     }
 
     /**
@@ -49,9 +47,9 @@ class WebPushService
         try {
             $webPush = new WebPush([
                 'VAPID' => [
-                    'subject' => (string) config('services.web_push.subject'),
-                    'publicKey' => (string) config('services.web_push.public_key'),
-                    'privateKey' => (string) config('services.web_push.private_key'),
+                    'subject' => $this->config->subject(),
+                    'publicKey' => $this->config->publicKey(),
+                    'privateKey' => $this->config->privateKey(),
                 ],
             ]);
 
@@ -62,36 +60,36 @@ class WebPushService
 
             foreach ($subscriptions as $subscription) {
                 try {
-                $report = $webPush->sendOneNotification(
-                    Subscription::create([
-                        'endpoint' => $subscription->endpoint,
-                        'publicKey' => $subscription->public_key,
-                        'authToken' => $subscription->auth_token,
-                        'contentEncoding' => $subscription->content_encoding,
-                    ]),
-                    $message,
-                    [
-                        'TTL' => 90,
-                        'urgency' => 'high',
-                        'topic' => substr($payload['tag'], 0, 32),
-                    ],
-                );
+                    $report = $webPush->sendOneNotification(
+                        Subscription::create([
+                            'endpoint' => $subscription->endpoint,
+                            'publicKey' => $subscription->public_key,
+                            'authToken' => $subscription->auth_token,
+                            'contentEncoding' => $subscription->content_encoding,
+                        ]),
+                        $message,
+                        [
+                            'TTL' => 90,
+                            'urgency' => 'high',
+                            'topic' => substr($payload['tag'], 0, 32),
+                        ],
+                    );
 
-                if ($report->isSuccess()) {
-                    $subscription->forceFill(['last_used_at' => now()])->save();
-                    continue;
-                }
+                    if ($report->isSuccess()) {
+                        $subscription->forceFill(['last_used_at' => now()])->save();
+                        continue;
+                    }
 
-                if ($report->isSubscriptionExpired()) {
-                    $subscription->delete();
-                    continue;
-                }
+                    if ($report->isSubscriptionExpired()) {
+                        $subscription->delete();
+                        continue;
+                    }
 
-                Log::warning('Web Push delivery failed.', [
-                    'user_id' => $user->id,
-                    'endpoint_hash' => $subscription->endpoint_hash,
-                    'reason' => $report->getReason(),
-                ]);
+                    Log::warning('Web Push delivery failed.', [
+                        'user_id' => $user->id,
+                        'endpoint_hash' => $subscription->endpoint_hash,
+                        'reason' => $report->getReason(),
+                    ]);
                 } catch (Throwable $e) {
                     Log::warning('Web Push delivery errored.', [
                         'user_id' => $user->id,

@@ -22,6 +22,7 @@ use App\Http\Controllers\MapController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\MessengerWebhookController;
 use App\Http\Controllers\LiveKitSettingsController;
+use App\Http\Controllers\WebPushSettingsController;
 use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
 use App\Http\Controllers\MessageController;
@@ -369,6 +370,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
         Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);
         Route::post('/settings/api/livekit/test', [LiveKitSettingsController::class, 'test']);
+        Route::post('/settings/api/web-push', [WebPushSettingsController::class, 'update']);
+        Route::post('/settings/api/web-push/test', [WebPushSettingsController::class, 'test']);
+        Route::post('/settings/api/web-push/generate', [WebPushSettingsController::class, 'generate']);
 
         Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
             ->where('provider', 'r2|cloudinary|backblaze|pipeline');

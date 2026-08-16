@@ -532,4 +532,40 @@ class GroupMessagesAndTranslateTest extends TestCase
             'content_encoding' => 'aes128gcm',
         ]);
     }
+
+    public function test_admin_can_save_web_push_settings_in_integrations(): void
+    {
+        $admin = $this->makeUser('push-admin@example.com', 'Push Admin', UserRole::Admin);
+        $publicKey = rtrim(strtr(base64_encode("\x04".str_repeat("\0", 64)), '+/', '-_'), '=');
+        $privateKey = rtrim(strtr(base64_encode(str_repeat("\1", 32)), '+/', '-_'), '=');
+
+        $this->actingAs($admin)
+            ->get('/settings?section=integration')
+            ->assertOk()
+            ->assertSee('web-push', false)
+            ->assertSee('Web Push', false);
+
+        $this->actingAs($admin)
+            ->post('/settings/api/web-push', [
+                'enabled' => '1',
+                'subject' => 'mailto:admin@example.com',
+                'public_key' => $publicKey,
+                'private_key' => $privateKey,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('media_storage_settings', [
+            'provider' => 'web_push',
+            'enabled' => 1,
+        ]);
+
+        config()->set('services.web_push', [
+            'subject' => '',
+            'public_key' => '',
+            'private_key' => '',
+        ]);
+
+        $this->assertTrue(app(\App\Services\WebPushService::class)->isConfigured());
+        $this->assertSame($publicKey, app(\App\Services\WebPushService::class)->publicKey());
+    }
 }

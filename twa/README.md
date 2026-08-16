@@ -128,8 +128,8 @@ keytool -list -v -keystore android.keystore -alias android
 
 Sa2 Plus は **Web Push を本線**にします。Android TWA は `enableNotifications: true` により Chrome の通知委任を利用するため、Web版と同じ購読情報でアプリ未起動時にも着信を表示できます。Firebase Cloud Messaging をネイティブSDKで二重実装する必要はありません。
 
-1. Firebase Console で Web Push 証明書（VAPID）を生成する
-2. 本番 `.env` に次を設定する（秘密鍵はコミットしない）
+1. **設定 → 外部連携 → Web Push 着信通知** で VAPID を登録する（「鍵を生成」または Firebase Console の Web Push 証明書を貼付）
+2. （任意）本番 `.env` にフォールバック用の鍵を置く（通常は不要）
 
 ```dotenv
 WEB_PUSH_VAPID_SUBJECT=mailto:admin@example.com
@@ -139,7 +139,6 @@ WEB_PUSH_VAPID_PRIVATE_KEY=
 
 3. 本番を反映後、アプリの **設定 → 通知設定 → 通話の着信通知を登録** で端末ごとに許可する
 4. TWA を再ビルド・再配布する
-
 ```powershell
 cd twa
 npx @bubblewrap/cli update

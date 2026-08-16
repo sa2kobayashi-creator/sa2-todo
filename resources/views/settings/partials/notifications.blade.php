@@ -4,7 +4,7 @@
 @endphp
 <div class="panel" id="notification-channels">
   <h2>{{ __('通知設定') }}</h2>
-  <p class="hint">{{ __('通話の着信を、アプリを閉じているときにも端末通知で受け取れます。チャネル設定と個人連携は外部連携から行います。') }}</p>
+  <p class="hint">{{ __('通話の着信を、アプリを閉じているときにも端末通知で受け取れます。VAPID サーバー設定は外部連携から行います。') }}</p>
 
   <dl class="photos-usage-result-dl" style="margin: 0 0 12px;">
     <div>
@@ -47,7 +47,7 @@
 
   <p class="hint">{{ __('配信は cron で php artisan todos:send-reminders を1分ごと（または5分ごと）に実行してください。') }}</p>
   <div class="storage-form-actions">
-    <a class="button-link secondary" href="/settings?section=integration#line-messaging">{{ __('外部連携を開く') }}</a>
+    <a class="button-link secondary" href="/settings?section=integration#web-push">{{ __('外部連携の Web Push 設定') }}</a>
   </div>
 </div>
 @if(!empty($pushConfigured))

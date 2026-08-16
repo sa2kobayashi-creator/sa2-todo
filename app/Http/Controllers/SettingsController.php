@@ -14,6 +14,7 @@ use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
 use App\Services\MediaStorageConfigService;
 use App\Services\TravelpayoutsConfigService;
+use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class SettingsController extends Controller
         private MessengerMessagingService $messengerMessaging,
         private LiveKitConfigService $livekit,
         private WebPushService $webPush,
+        private WebPushConfigService $webPushConfig,
     ) {}
 
     public function index(Request $request)
@@ -82,6 +84,9 @@ class SettingsController extends Controller
                 : null,
             'livekitSettings' => $section === 'integration'
                 ? $this->livekit->formState()
+                : null,
+            'webPushSettings' => $section === 'integration'
+                ? $this->webPushConfig->formState()
                 : null,
             'footerNavSelected' => $section === 'nav'
                 ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())

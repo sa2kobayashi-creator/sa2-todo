@@ -47,6 +47,9 @@ class MediaStorageSetting extends Model
     /** LiveKit Cloud / self-hosted（メッセージDM通話） */
     public const PROVIDER_LIVEKIT = 'livekit';
 
+    /** Web Push / Android TWA 着信通知（VAPID） */
+    public const PROVIDER_WEB_PUSH = 'web_push';
+
     /** 新規登録の招待コード（管理画面で設定） */
     public const PROVIDER_REGISTRATION = 'registration';
 
