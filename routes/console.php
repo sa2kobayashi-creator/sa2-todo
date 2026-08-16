@@ -32,10 +32,10 @@ Schedule::command(\App\Console\Commands\SendTodoReminders::class)
     ->everyMinute()
     ->withoutOverlapping();
 
-// 一覧はローカルDBから即時表示し、IMAP は15分ごとに差分を取得する
+// 一覧はローカルDBから即時表示。1回のcronで1アカウントだけ同期（ロリポップ向け短時間実行）
 Schedule::command(SyncMailMetadata::class)
-    ->everyFifteenMinutes()
-    ->withoutOverlapping(14);
+    ->everyFiveMinutes()
+    ->withoutOverlapping(4);
 
 // Seat Sale は深夜〜早朝（JST）に出ることが多いため、夜間は30分ごと・昼間は2時間ごと
 Schedule::command(FetchTravelPromos::class)
