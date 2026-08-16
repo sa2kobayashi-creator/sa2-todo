@@ -2767,5 +2767,6 @@
     "メール認証に失敗しました。メールアドレス・パスワード・IMAP/SMTP設定を確認してください。": "Mail authentication failed. Check the email, password, and IMAP/SMTP settings.",
     "メール認証に失敗しました。メールアドレス・パスワード・IMAP設定を確認してください。": "Mail authentication failed. Check the email, password, and IMAP settings.",
     "メールサーバへの接続に失敗しました。": "Failed to connect to the mail server.",
-    "メール用ライブラリ（webklex/php-imap）が未インストールです。サーバで composer install を実行してください。": "Mail library (webklex/php-imap) is missing. Run composer install on the server."
+    "メール用ライブラリ（webklex/php-imap）が未インストールです。サーバで composer install を実行してください。": "Mail library (webklex/php-imap) is missing. Run composer install on the server.",
+    "メールフォルダの読み込みに失敗しました。空のフォルダか、サーバ応答が不完全な可能性があります。接続テスト後にもう一度開いてください。": "Failed to load the mail folder. It may be empty or the server returned an incomplete response. Run a connection test and open it again."
 }
