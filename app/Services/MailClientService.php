@@ -226,6 +226,28 @@ class MailClientService
     }
 
     /**
+     * 本文取得（キャッシュ付き）。UI のメールクリック用。
+     *
+     * @return array{uid: int, subject: string, from: string, to: string, date: ?string, bodyHtml: string, bodyText: string}
+     */
+    public function readMessage(MailAccount $account, string $folderPath, int $uid, bool $refresh = false): array
+    {
+        $folderPath = $folderPath !== '' ? $folderPath : 'INBOX';
+        $key = 'mail:mb:'.$account->user_id.':'.$account->id.':msg:'.md5($folderPath.'|'.$uid);
+        if (! $refresh) {
+            $cached = Cache::get($key);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $message = $this->message($account, $folderPath, $uid);
+        Cache::put($key, $message, now()->addSeconds(self::MESSAGE_CACHE_SECONDS));
+
+        return $message;
+    }
+
+    /**
      * @param  array{to: string, subject: string, body: string}  $payload
      */
     public function send(MailAccount $account, array $payload): void
@@ -647,40 +669,129 @@ class MailClientService
     {
         $folder = $this->openFolder($client, $folderPath);
         $message = null;
-        try {
-            $message = $folder->messages()->getMessageByUid($uid);
-        } catch (\Throwable $e) {
+        $lastError = null;
+
+        foreach ([
+            fn () => $folder->messages()->setFetchBody(true)->setFetchFlags(true)->leaveUnread()->getMessageByUid($uid),
+            fn () => $folder->messages()->setFetchBody(true)->setFetchFlags(true)->leaveUnread()->getMessageByMsgn($uid),
+        ] as $loader) {
             try {
-                $message = $folder->messages()->getMessageByMsgn($uid);
-            } catch (\Throwable $e2) {
-                if ($this->isEmptyImapResponse($e) || $this->isEmptyImapResponse($e2)) {
-                    throw new \InvalidArgumentException(__('メールが見つかりません。'));
+                $message = $loader();
+                if ($message) {
+                    break;
                 }
-                throw $e;
+            } catch (\Throwable $e) {
+                $lastError = $e;
             }
         }
+
         if (! $message) {
+            if ($lastError && $this->isEmptyImapResponse($lastError)) {
+                throw new \InvalidArgumentException(__('メールが見つかりません。'));
+            }
+            if ($lastError) {
+                throw new \RuntimeException($lastError->getMessage() !== '' ? $lastError->getMessage() : __('メールの読み込みに失敗しました。'), 0, $lastError);
+            }
             throw new \InvalidArgumentException(__('メールが見つかりません。'));
         }
 
-        $from = $message->getFrom();
-        $to = $message->getTo();
-        $date = $message->getDate();
-        $html = (string) ($message->getHTMLBody() ?: '');
-        $text = (string) ($message->getTextBody() ?: '');
-        if ($html === '' && $text !== '') {
-            $html = nl2br(e($text));
+        // 一覧取得時に本文なしで作られたインスタンス向けに再取得を試みる
+        try {
+            if (method_exists($message, 'parseBody') && $message->getHTMLBody() === '' && $message->getTextBody() === '') {
+                $message->setFetchBodyOption(true);
+                $message->parseBody();
+            }
+        } catch (\Throwable) {
+            // ヘッダのみでも返す
+        }
+
+        $bodies = $this->extractMessageBodies($message);
+        $from = null;
+        $to = null;
+        $date = null;
+        try {
+            $from = $message->getFrom();
+        } catch (\Throwable) {
+        }
+        try {
+            $to = $message->getTo();
+        } catch (\Throwable) {
+        }
+        try {
+            $date = $message->getDate();
+        } catch (\Throwable) {
+        }
+
+        $subject = __('(件名なし)');
+        try {
+            $rawSubject = $message->getSubject();
+            $subjectText = trim((string) $rawSubject);
+            if ($subjectText !== '') {
+                $subject = $subjectText;
+            }
+        } catch (\Throwable) {
         }
 
         return [
             'uid' => (int) $message->getUid(),
-            'subject' => (string) ($message->getSubject() ?: __('(件名なし)')),
-            'from' => $from && count($from) > 0 ? (string) $from[0]->mail : '',
-            'to' => $to && count($to) > 0 ? (string) $to[0]->mail : '',
+            'subject' => $subject,
+            'from' => $from && count($from) > 0 ? (string) ($from[0]->mail ?? '') : '',
+            'to' => $to && count($to) > 0 ? (string) ($to[0]->mail ?? '') : '',
             'date' => $date ? $date->toDate()->format('c') : null,
-            'bodyHtml' => $html,
-            'bodyText' => $text,
+            'bodyHtml' => $bodies['html'],
+            'bodyText' => $bodies['text'],
         ];
+    }
+
+    /**
+     * @return array{html: string, text: string}
+     */
+    private function extractMessageBodies(Message $message): array
+    {
+        $html = '';
+        $text = '';
+        try {
+            $html = (string) ($message->getHTMLBody() ?: '');
+        } catch (\Throwable) {
+        }
+        try {
+            $text = (string) ($message->getTextBody() ?: '');
+        } catch (\Throwable) {
+        }
+
+        if ($html === '' && $text === '') {
+            try {
+                $bodies = $message->getBodies();
+                if (is_array($bodies)) {
+                    $html = (string) ($bodies['html'] ?? '');
+                    $text = (string) ($bodies['text'] ?? '');
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($html === '' && $text === '') {
+            try {
+                $raw = trim((string) $message->getRawBody());
+                if ($raw !== '') {
+                    // ヘッダ付き raw の場合は本文っぽい部分だけ拾う
+                    if (preg_match('/\r?\n\r?\n(.*)$/s', $raw, $m)) {
+                        $raw = trim($m[1]);
+                    }
+                    $text = $raw;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($html === '' && $text !== '') {
+            $html = nl2br(e($text));
+        }
+        if ($html === '') {
+            $html = '<p class="hint">'.e(__('(本文なし)')).'</p>';
+        }
+
+        return ['html' => $html, 'text' => $text];
     }
 
     private function connect(MailAccount $account)
@@ -695,7 +806,7 @@ class MailClientService
         $cm = new ClientManager([
             'options' => [
                 'fetch' => IMAP::FT_PEEK,
-                'fetch_body' => false,
+                'fetch_body' => true,
                 'fetch_flags' => true,
                 'fetch_order' => 'desc',
                 'soft_fail' => true,
@@ -714,7 +825,7 @@ class MailClientService
             'password' => $creds['password'],
             'protocol' => 'imap',
             'authentication' => null,
-            'timeout' => 20,
+            'timeout' => 30,
         ]);
 
         try {
@@ -731,7 +842,7 @@ class MailClientService
                     'password' => $creds['password'],
                     'protocol' => 'imap',
                     'authentication' => null,
-                    'timeout' => 20,
+                    'timeout' => 30,
                 ]);
                 $client->connect();
             } catch (\Throwable $e2) {
@@ -798,7 +909,7 @@ class MailClientService
             || str_contains($lower, 'timed out')
             || str_contains($lower, 'timeout')) {
             return $isGmail
-                ? __('Gmailへの接続がタイムアウトしました。サーバから imap.gmail.com:993 へ出られるか、アプリパスワードを確認してください。')
+                ? __('Gmailの受信（IMAP）がタイムアウトしました。ロリポップ等では imap.gmail.com:993 が遮断されることがあります。送信（SMTP）だけ通る場合も同様です。受信は @sa2-plus.com か、サーバ側で IMAP 外向きが許可されているか確認してください。')
                 : __('メールサーバへの接続がタイムアウトしました。');
         }
 
@@ -807,7 +918,7 @@ class MailClientService
             || str_contains($lower, 'failed to connect')
             || str_contains($lower, 'could not connect')) {
             return $isGmail
-                ? __('Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性があります。')
+                ? __('Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性が高く、送信（SMTP）は成功しても受信だけ失敗することがあります。')
                 : __('メールサーバに接続できません。ホスト・ポート・ファイアウォールを確認してください。');
         }
 

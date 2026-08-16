@@ -123,6 +123,41 @@ class MailController extends Controller
         }
     }
 
+    public function message(Request $request, int $id)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $folder = (string) $request->query('folder', 'INBOX');
+            $uid = (int) $request->query('uid', 0);
+            $refresh = $request->boolean('refresh');
+            if ($uid < 1) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => __('メールが見つかりません。'),
+                ], 422);
+            }
+
+            $message = $this->client->readMessage($account, $folder, $uid, $refresh);
+
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('mail.message_failed', [
+                'account_id' => $id,
+                'user_id' => $request->user()?->id,
+                'uid' => (int) $request->query('uid', 0),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('メールの読み込みに失敗しました。'),
+            ], 422);
+        }
+    }
+
     public function storeAccount(Request $request)
     {
         try {

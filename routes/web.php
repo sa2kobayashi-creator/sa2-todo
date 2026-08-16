@@ -231,6 +231,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(EnsureFeature::class.':mail')->group(function () {
         Route::get('/mail', [MailController::class, 'index']);
         Route::get('/mail/accounts/{id}/mailbox', [MailController::class, 'mailbox'])->whereNumber('id')->middleware('throttle:60,1');
+        Route::get('/mail/accounts/{id}/message', [MailController::class, 'message'])->whereNumber('id')->middleware('throttle:60,1');
         Route::post('/mail/accounts', [MailController::class, 'storeAccount'])->middleware('throttle:20,1');
         Route::post('/mail/accounts/{id}/update', [MailController::class, 'updateAccount'])->whereNumber('id');
         Route::post('/mail/accounts/{id}/delete', [MailController::class, 'destroyAccount'])->whereNumber('id');

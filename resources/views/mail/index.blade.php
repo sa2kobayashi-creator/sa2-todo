@@ -34,6 +34,9 @@
               <a href="{{ $gmailHelpUrl }}" target="_blank" rel="noopener noreferrer">{{ __('Gmailアプリパスワードの作り方') }}</a>
             @endif
           </p>
+          <p class="hint">
+            {{ __('注意: ロリポップ等の共有サーバでは Gmail の受信（IMAP:993）だけが遮断され、送信（SMTP）は成功することがあります。受信は @sa2-plus.com の利用を推奨します。') }}
+          </p>
 
           @if(!empty($accounts))
             <ul class="mail-account-list">
@@ -331,7 +334,9 @@
           date: @json(__('日時')),
           empty: @json(__('メールがありません。')),
           fail: @json(__('メールの読み込みに失敗しました。')),
-          timeout: @json(__('Gmailへの接続がタイムアウトしました。サーバから imap.gmail.com:993 へ出られるか、アプリパスワードを確認してください。')),
+          timeout: @json(__('メールの読み込みがタイムアウトしました。しばらくして再読み込みしてください。')),
+          bodyFail: @json(__('本文の読み込みに失敗しました。')),
+          loadingBody: @json(__('本文を読み込んでいます…')),
         };
 
         let state = {
@@ -411,6 +416,7 @@
           messages.forEach((row) => {
             const li = document.createElement('li');
             if (!row.seen) li.className = 'is-unread';
+            if (Number(row.uid) === Number(state.uid)) li.classList.add('is-active');
             const a = document.createElement('a');
             a.href = '#';
             a.innerHTML = '<span class="mail-from"></span><span class="mail-subject"></span><span class="mail-date"></span>';
@@ -420,7 +426,9 @@
             a.addEventListener('click', (e) => {
               e.preventDefault();
               state.uid = row.uid;
-              loadMailbox();
+              list.querySelectorAll('li.is-active').forEach((el) => el.classList.remove('is-active'));
+              li.classList.add('is-active');
+              loadMessage();
             });
             li.appendChild(a);
             list.appendChild(li);
@@ -432,8 +440,10 @@
           if (!message) {
             readEmpty.hidden = false;
             readContent.hidden = true;
+            readEmpty.textContent = state._bodyHint || @json(__('メールを選択すると内容が表示されます。'));
             return;
           }
+          state._bodyHint = '';
           readEmpty.hidden = true;
           readContent.hidden = false;
           document.getElementById('mail-read-subject').textContent = message.subject || '';
@@ -442,7 +452,61 @@
           document.getElementById('mail-read-date').textContent = message.date
             ? (labels.date + ': ' + formatDate(message.date))
             : '';
-          document.getElementById('mail-read-body').innerHTML = message.bodyHtml || '';
+          document.getElementById('mail-read-body').innerHTML = message.bodyHtml || ('<p class="hint">' + @json(__('(本文なし)')) + '</p>');
+        }
+
+        function loadMessage(options) {
+          if (!state.uid) {
+            renderMessage(null);
+            return;
+          }
+          const forceRefresh = !!(options && options.refresh);
+          state._bodyHint = labels.loadingBody;
+          renderMessage(null);
+          showBanner(errEl, '');
+          const params = new URLSearchParams({
+            folder: state.folder || 'INBOX',
+            uid: String(state.uid || 0),
+          });
+          if (forceRefresh) params.set('refresh', '1');
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 45000);
+          fetch('/mail/accounts/' + accountId + '/message?' + params.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            signal: controller.signal,
+          })
+            .then(async (res) => {
+              let data = null;
+              try {
+                data = await res.json();
+              } catch (_) {
+                throw new Error(labels.bodyFail);
+              }
+              return { res, data };
+            })
+            .then(({ data }) => {
+              if (!data || data.ok === false || !data.message) {
+                state._bodyHint = (data && data.message) || labels.bodyFail;
+                showBanner(errEl, state._bodyHint);
+                renderMessage(null);
+                return;
+              }
+              renderMessage(data.message);
+              const url = new URL(window.location.href);
+              url.searchParams.set('account', accountId);
+              url.searchParams.set('folder', state.folder);
+              url.searchParams.set('uid', String(state.uid));
+              url.searchParams.delete('tab');
+              window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
+            })
+            .catch((err) => {
+              const isAbort = err && (err.name === 'AbortError' || String(err).includes('AbortError'));
+              state._bodyHint = isAbort ? labels.timeout : ((err && err.message) || labels.bodyFail);
+              showBanner(errEl, state._bodyHint);
+              renderMessage(null);
+            })
+            .finally(() => clearTimeout(timer));
         }
 
         function loadMailbox(options) {
@@ -453,7 +517,7 @@
           const params = new URLSearchParams({
             folder: state.folder || 'INBOX',
             page: String(state.page || 1),
-            uid: String(state.uid || 0),
+            uid: '0',
           });
           if (forceRefresh) params.set('refresh', '1');
           const controller = new AbortController();
@@ -483,17 +547,21 @@
               state.folder = data.folder || state.folder;
               renderFolders(data.folders || [], state.folder);
               renderMessages(data.messages || []);
-              renderMessage(data.message || null);
               if (nextWrap) nextWrap.hidden = !(data.messages && data.messages.length >= 30);
               if (data.notice) showBanner(noticeEl, data.notice);
               const url = new URL(window.location.href);
               url.searchParams.set('account', accountId);
               url.searchParams.set('folder', state.folder);
               url.searchParams.delete('tab');
-              if (state.uid) url.searchParams.set('uid', String(state.uid));
-              else url.searchParams.delete('uid');
               if (state.page > 1) url.searchParams.set('page', String(state.page));
               else url.searchParams.delete('page');
+              if (state.uid) {
+                url.searchParams.set('uid', String(state.uid));
+                loadMessage({ refresh: forceRefresh });
+              } else {
+                url.searchParams.delete('uid');
+                renderMessage(null);
+              }
               window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
             })
             .catch((err) => {

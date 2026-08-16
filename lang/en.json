@@ -2783,7 +2783,14 @@
     "このアカウントを保存": "Save this account",
     "まだアカウントがありません。下のフォームから追加してください。": "No accounts yet. Add one with the form below.",
     "Gmailへの接続がタイムアウトしました。サーバから imap.gmail.com:993 へ出られるか、アプリパスワードを確認してください。": "Timed out connecting to Gmail. Check outbound access to imap.gmail.com:993 and your app password.",
+    "Gmailの受信（IMAP）がタイムアウトしました。ロリポップ等では imap.gmail.com:993 が遮断されることがあります。送信（SMTP）だけ通る場合も同様です。受信は @sa2-plus.com か、サーバ側で IMAP 外向きが許可されているか確認してください。": "Gmail IMAP timed out. Shared hosts (e.g. Lolipop) often block imap.gmail.com:993 even when SMTP send works. Prefer @sa2-plus.com for reading, or ask the host to allow outbound IMAP.",
     "メールサーバへの接続がタイムアウトしました。": "Timed out connecting to the mail server.",
     "Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性があります。": "Cannot reach Gmail IMAP (imap.gmail.com:993). The host may block outbound mail connections.",
-    "メールサーバに接続できません。ホスト・ポート・ファイアウォールを確認してください。": "Cannot connect to the mail server. Check host, port, and firewall."
+    "Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性が高く、送信（SMTP）は成功しても受信だけ失敗することがあります。": "Cannot reach Gmail IMAP (imap.gmail.com:993). Shared hosts often block outbound IMAP while SMTP still works.",
+    "メールサーバに接続できません。ホスト・ポート・ファイアウォールを確認してください。": "Cannot connect to the mail server. Check host, port, and firewall.",
+    "注意: ロリポップ等の共有サーバでは Gmail の受信（IMAP:993）だけが遮断され、送信（SMTP）は成功することがあります。受信は @sa2-plus.com の利用を推奨します。": "Note: On shared hosts like Lolipop, Gmail IMAP (993) may be blocked while SMTP send still works. Prefer @sa2-plus.com for receiving mail.",
+    "メールの読み込みがタイムアウトしました。しばらくして再読み込みしてください。": "Mail loading timed out. Please reload shortly.",
+    "本文の読み込みに失敗しました。": "Failed to load the message body.",
+    "本文を読み込んでいます…": "Loading message body…",
+    "(本文なし)": "(No body)"
 }
