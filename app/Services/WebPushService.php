@@ -77,6 +77,7 @@ class WebPushService
 
                     if ($report->isSuccess()) {
                         $subscription->forceFill(['last_used_at' => now()])->save();
+                        app(IntegrationUsageService::class)->increment('web_push', 'deliveries');
                         continue;
                     }
 

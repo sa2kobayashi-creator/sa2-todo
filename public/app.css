@@ -20279,6 +20279,33 @@ body.dash-home-lightbox-open {
   gap: 12px;
   margin-top: 16px;
 }
+.usage-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+.usage-overview-card {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #dbe5e1;
+  border-radius: 12px;
+  background: #f8fbfa;
+}
+.usage-overview-card strong { color: #10231f; }
+.usage-overview-card span,
+.usage-overview-card a { font-size: 12px; color: #64748b; }
+.usage-overview-card b { color: #0f766e; font-size: 14px; }
+.usage-overview-card a { color: #0369a1; font-weight: 700; }
+.usage-overview-card.is-off {
+  opacity: 0.72;
+  background: #f1f5f4;
+}
+.usage-overview-card.is-over {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.usage-overview-card.is-over b { color: #b45309; }
 .msg-call-accept,
 .msg-call-decline {
   min-width: 112px;

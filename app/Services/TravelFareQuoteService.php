@@ -150,6 +150,8 @@ class TravelFareQuoteService
         $comparePhp = $travel->compareFares($compareRtPhp, $owSumPhp);
         $compareJpy = $travel->compareFares($compareRtJpy, $owSumJpy);
 
+        app(IntegrationUsageService::class)->increment('travelpayouts');
+
         return [
             'origin' => $origin,
             'destination' => $destination,

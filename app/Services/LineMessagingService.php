@@ -103,6 +103,8 @@ class LineMessagingService
             ];
         }
 
+        app(IntegrationUsageService::class)->increment('line', 'messages');
+
         return ['ok' => true, 'message' => 'sent'];
     }
 

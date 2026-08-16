@@ -11,6 +11,7 @@
     <a href="/settings?section=enhance" @class(['active' => $navActive === 'settings' && $navSection === 'enhance'])>{{ __('API設定') }}</a>
     <a href="/settings?section=integration" @class(['active' => $navActive === 'settings' && $navSection === 'integration'])>{{ __('外部連携') }}</a>
     <a href="/settings?section=notifications" @class(['active' => $navActive === 'settings' && $navSection === 'notifications'])>{{ __('通知設定') }}</a>
+    <a href="/settings?section=usage" @class(['active' => $navActive === 'settings' && $navSection === 'usage'])>{{ __('使用量') }}</a>
   @endif
   @if(!empty($canAdminUsers))
     <a href="/admin/users" @class(['active' => $navActive === 'admin'])>{{ __('ユーザー管理') }}</a>

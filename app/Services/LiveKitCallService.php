@@ -90,6 +90,8 @@ class LiveKitCallService
             ]);
         }
 
+        app(IntegrationUsageService::class)->increment('livekit', 'calls');
+
         return $payload;
     }
 

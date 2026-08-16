@@ -122,6 +122,8 @@ class MessengerMessagingService
             ];
         }
 
+        app(IntegrationUsageService::class)->increment('facebook', 'messages');
+
         return ['ok' => true, 'message' => 'sent'];
     }
 }

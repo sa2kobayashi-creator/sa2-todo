@@ -62,6 +62,8 @@ class GoogleCalendarService
             throw new \RuntimeException(__('カレンダー一覧の取得に失敗しました。権限を再許可するため再連携してください。'));
         }
 
+        app(IntegrationUsageService::class)->increment('google_calendar');
+
         $items = $response->json('items');
         if (! is_array($items)) {
             return [];
@@ -202,6 +204,8 @@ class GoogleCalendarService
             throw new \RuntimeException(__('Google カレンダーへの予定作成に失敗しました。'));
         }
 
+        app(IntegrationUsageService::class)->increment('google_calendar');
+
         $data = $response->json();
         if (! is_array($data)) {
             $data = [];
@@ -247,6 +251,8 @@ class GoogleCalendarService
             throw new \RuntimeException(__('Google カレンダーの予定更新に失敗しました。'));
         }
 
+        app(IntegrationUsageService::class)->increment('google_calendar');
+
         $data = $response->json();
         $meet = is_array($data) ? $this->extractMeetLink($data) : null;
 
@@ -276,6 +282,8 @@ class GoogleCalendarService
             ]);
             throw new \RuntimeException(__('Google カレンダーの予定削除に失敗しました。'));
         }
+
+        app(IntegrationUsageService::class)->increment('google_calendar');
     }
 
     /**

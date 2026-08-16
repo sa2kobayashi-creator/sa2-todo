@@ -11,7 +11,7 @@
   </head>
   <body>
     @include('partials.header', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
-    <main class="page-main {{ in_array(($section ?? ''), ['integration', 'storage', 'enhance'], true) ? '' : 'page-main-narrow' }}">
+    <main class="page-main {{ in_array(($section ?? ''), ['integration', 'storage', 'enhance', 'usage'], true) ? '' : 'page-main-narrow' }}">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
@@ -19,6 +19,8 @@
 
       @if(($section ?? 'holidays') === 'nav')
         @include('settings.partials.nav')
+      @elseif(($section ?? 'holidays') === 'usage')
+        @include('settings.partials.usage')
       @elseif(($section ?? 'holidays') === 'holidays')
       <div class="panel" id="weekday-holidays">
         <h2>{{ __('曜日による休日') }}</h2>

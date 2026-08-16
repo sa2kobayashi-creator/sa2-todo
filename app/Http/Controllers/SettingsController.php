@@ -12,7 +12,9 @@ use App\Services\LineMessagingService;
 use App\Services\LiveKitConfigService;
 use App\Services\MessengerMessagingService;
 use App\Services\HolidayService;
+use App\Services\IntegrationUsageService;
 use App\Services\MediaStorageConfigService;
+use App\Services\PhotoService;
 use App\Services\TravelpayoutsConfigService;
 use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
@@ -36,6 +38,8 @@ class SettingsController extends Controller
         private LiveKitConfigService $livekit,
         private WebPushService $webPush,
         private WebPushConfigService $webPushConfig,
+        private IntegrationUsageService $integrationUsage,
+        private PhotoService $photos,
     ) {}
 
     public function index(Request $request)
@@ -57,6 +61,12 @@ class SettingsController extends Controller
             'settingsPath' => fn (?string $sec = null, ?int $y = null) => $this->settingsPath($sec ?? $section, $y ?? $year),
             'lineConfigured' => $this->lineMessaging->isConfigured(),
             'pushConfigured' => $this->webPush->isConfigured(),
+            'integrationUsage' => $section === 'usage'
+                ? $this->integrationUsage->summary()
+                : null,
+            'storageStats' => $section === 'usage'
+                ? $this->photos->storageStats((int) $request->user()->id)
+                : null,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
@@ -223,7 +233,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

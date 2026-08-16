@@ -1272,7 +1272,7 @@
     "使用状況表示": "Show usage",
     "使用状況閉じる": "Hide usage",
     "使用率": "Usage",
-    "使用量": "Used",
+    "使用量": "Usage",
     "使用量の取得に失敗しました": "Failed to fetch usage",
     "使用量の取得に失敗しました: :msg": "Failed to fetch usage: :msg",
     "使用量の取得に失敗しました。": "Failed to fetch usage.",
@@ -2659,5 +2659,13 @@
     "VAPID 鍵の生成に失敗しました: :msg": "Failed to generate VAPID keys: :msg",
     "鍵を生成しました。入力欄に反映したので「有効にする」をオンにして保存してください。": "Keys generated and filled in. Enable the feature and save.",
     "通話の着信を、アプリを閉じているときにも端末通知で受け取れます。VAPID サーバー設定は外部連携から行います。": "Receive incoming call notifications even when the app is closed. Configure the VAPID server under Integrations.",
-    "外部連携の Web Push 設定": "Web Push settings in Integrations"
+    "外部連携の Web Push 設定": "Web Push settings in Integrations",
+    "外部連携の使用量": "Integration usage",
+    "外部連携のアプリ内利用回数と、ストレージの使用状況をまとめて確認できます。請求額・残高の詳細は各公式コンソールも参照してください。": "Review in-app integration call counts and storage usage here. For balances and invoices, also check each provider’s official console.",
+    "本日・今月はアプリ側で成功を記録できた回数です。残高・請求額は各サービスの公式コンソールで確認してください。": "Today and this month show successful requests recorded by the app. Check each service's official console for balances and billing.",
+    "本日 :count / 今月 :month": "Today: :count / This month: :month",
+    "登録 :count 台": ":count registered device(s)",
+    "公式コンソールを開く": "Open official console",
+    "ストレージ設定を開く": "Open storage settings",
+    "Photos を開く": "Open Photos"
 }

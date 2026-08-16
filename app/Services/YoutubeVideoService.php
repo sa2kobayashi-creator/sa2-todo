@@ -211,6 +211,8 @@ class YoutubeVideoService
             ];
         }
 
+        app(IntegrationUsageService::class)->increment('youtube');
+
         return [
             'ok' => true,
             'items' => $items,
