@@ -100,16 +100,23 @@ class MailMetadataSyncService
 
     private function prune(MailAccount $account, string $folderPath): void
     {
-        $ids = MailMessageHeader::query()
+        // MySQL は OFFSET 単独が使えず LIMIT 必須のため、残す ID を先に取る
+        $keepIds = MailMessageHeader::query()
             ->where('mail_account_id', $account->id)
             ->where('folder_path', $folderPath)
             ->orderByDesc('received_at')
             ->orderByDesc('imap_uid')
-            ->skip(self::KEEP_PER_FOLDER)
+            ->limit(self::KEEP_PER_FOLDER)
             ->pluck('id');
 
-        if ($ids->isNotEmpty()) {
-            MailMessageHeader::query()->whereIn('id', $ids)->delete();
+        $query = MailMessageHeader::query()
+            ->where('mail_account_id', $account->id)
+            ->where('folder_path', $folderPath);
+
+        if ($keepIds->isNotEmpty()) {
+            $query->whereNotIn('id', $keepIds);
         }
+
+        $query->delete();
     }
 }
