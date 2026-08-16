@@ -84,7 +84,15 @@ class MailController extends Controller
     public function storeAccount(Request $request)
     {
         try {
-            $this->accounts->create($request->user(), $request->all());
+            $account = $this->accounts->create($request->user(), $request->all());
+            $result = $this->accounts->testConnection($request->user(), (int) $account->id, $this->client);
+            if (! $result['ok']) {
+                return $this->redirectWithMessage(
+                    '/mail?account='.$account->id.'&tab=accounts',
+                    $result['message'],
+                    'error'
+                );
+            }
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
 
@@ -100,6 +108,14 @@ class MailController extends Controller
     {
         try {
             $this->accounts->update($request->user(), $id, $request->all());
+            if (filled($request->input('password'))) {
+                $result = $this->accounts->testConnection($request->user(), $id, $this->client);
+                if (! $result['ok']) {
+                    return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', $result['message'], 'error');
+                }
+
+                return $this->redirectWithMessage('/mail?account='.$id.'&tab=accounts', __('パスワードを更新し、接続に成功しました。'));
+            }
         } catch (ValidationException $e) {
             $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
 

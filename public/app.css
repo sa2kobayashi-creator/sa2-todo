@@ -20461,8 +20461,17 @@ body.dash-home-lightbox-open {
 .mail-status-provisioned { background: #d1fae5; color: #065f46; }
 .mail-status-rejected,
 .mail-status-suspended { background: #fee2e2; color: #991b1b; }
-.hint.is-ok { color: #0f766e; }
-.hint.is-fail { color: #b91c1c; }
+.mail-reauth-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  margin-top: 8px;
+}
+.mail-reauth-form label {
+  flex: 1 1 220px;
+  margin: 0;
+}
 @media (max-width: 960px) {
   .mail-shell {
     grid-template-columns: 1fr;

@@ -27,6 +27,9 @@
           <h2>{{ __('メールアカウント') }}</h2>
           <p class="hint">
             {{ __('Gmail・独自ドメイン・その他のIMAP/SMTPアカウントを登録できます。パスワードは暗号化して保存し、画面には再表示しません。') }}
+          </p>
+          <p class="banner notice">
+            {{ __('Gmailは通常のパスワードでは接続できません。「Googleアカウント → セキュリティ → 2段階認証 → アプリパスワード」で発行した16桁を入力してください。') }}
             @if(!empty($gmailHelpUrl))
               <a href="{{ $gmailHelpUrl }}" target="_blank" rel="noopener noreferrer">{{ __('Gmailアプリパスワードの作り方') }}</a>
             @endif
@@ -43,6 +46,23 @@
                     <form method="post" action="/mail/accounts/{{ $acc['id'] }}/test">@csrf<button type="submit" class="secondary">{{ __('接続テスト') }}</button></form>
                     <form method="post" action="/mail/accounts/{{ $acc['id'] }}/delete" onsubmit="return confirm(@json(__('このアカウントを削除しますか？')))">@csrf<button type="submit" class="danger">{{ __('削除') }}</button></form>
                   </div>
+                  <form method="post" action="/mail/accounts/{{ $acc['id'] }}/update" class="mail-reauth-form">
+                    @csrf
+                    <input type="hidden" name="label" value="{{ $acc['label'] }}" />
+                    <input type="hidden" name="email" value="{{ $acc['email'] }}" />
+                    <input type="hidden" name="provider" value="{{ $acc['provider'] }}" />
+                    <input type="hidden" name="username" value="{{ $acc['username'] }}" />
+                    <input type="hidden" name="imap_host" value="{{ $acc['imapHost'] }}" />
+                    <input type="hidden" name="imap_port" value="{{ $acc['imapPort'] }}" />
+                    <input type="hidden" name="imap_encryption" value="{{ $acc['imapEncryption'] }}" />
+                    <input type="hidden" name="smtp_host" value="{{ $acc['smtpHost'] }}" />
+                    <input type="hidden" name="smtp_port" value="{{ $acc['smtpPort'] }}" />
+                    <input type="hidden" name="smtp_encryption" value="{{ $acc['smtpEncryption'] }}" />
+                    <label>{{ __('パスワードを再設定') }}
+                      <input type="password" name="password" required autocomplete="new-password" placeholder="{{ $acc['provider'] === 'gmail' ? __('アプリパスワード16桁') : __('メールパスワード') }}" />
+                    </label>
+                    <button type="submit" class="secondary">{{ __('保存して接続テスト') }}</button>
+                  </form>
                   @if(!empty($acc['lastTestMessage']))
                     <p class="hint {{ ($acc['lastTestStatus'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">{{ $acc['lastTestMessage'] }}</p>
                   @endif
@@ -225,7 +245,7 @@
     <script>
       (function () {
         const presets = {
-          gmail: { imap_host: 'imap.gmail.com', imap_port: 993, imap_encryption: 'ssl', smtp_host: 'smtp.gmail.com', smtp_port: 465, smtp_encryption: 'ssl' },
+          gmail: { imap_host: 'imap.gmail.com', imap_port: 993, imap_encryption: 'ssl', smtp_host: 'smtp.gmail.com', smtp_port: 587, smtp_encryption: 'tls' },
           lolipop: { imap_host: 'imap.lolipop.jp', imap_port: 993, imap_encryption: 'ssl', smtp_host: 'smtp.lolipop.jp', smtp_port: 465, smtp_encryption: 'ssl' },
           custom: { imap_host: '', imap_port: 993, imap_encryption: 'ssl', smtp_host: '', smtp_port: 465, smtp_encryption: 'ssl' }
         };

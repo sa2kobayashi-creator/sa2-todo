@@ -152,10 +152,6 @@ class MailAccountService
      * @param  array<string, mixed>  $input
      * @return array<string, mixed>
      */
-    /**
-     * @param  array<string, mixed>  $input
-     * @return array<string, mixed>
-     */
     private function validated(User $user, array $input, bool $requirePassword, ?MailAccount $existing = null): array
     {
         $provider = (string) ($input['provider'] ?? 'custom');
@@ -189,8 +185,13 @@ class MailAccountService
         $data = $validator->validated();
         $data['email'] = strtolower(trim($data['email']));
         $data['username'] = trim($data['username']);
-        if (($data['provider'] ?? '') === 'gmail' && ($data['username'] ?? '') === '') {
+        if (($data['provider'] ?? '') === 'gmail') {
+            // Gmail はユーザー名にメールアドレス全体が必要
             $data['username'] = $data['email'];
+        }
+        if (array_key_exists('password', $data) && is_string($data['password'])) {
+            // Gmail アプリパスワードは「xxxx xxxx xxxx xxxx」表示のため空白を除去
+            $data['password'] = preg_replace('/\s+/u', '', $data['password']) ?? $data['password'];
         }
 
         $dup = MailAccount::query()

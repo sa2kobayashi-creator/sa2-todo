@@ -144,19 +144,30 @@ class MailClientService
             throw new \InvalidArgumentException(__('件名を入力してください。'));
         }
 
-        $dsn = $this->smtpDsn($account);
-        $transport = Transport::fromDsn($dsn);
-        $email = (new Email())
-            ->from(new Address($account->email, $account->label ?: $account->email))
-            ->to($to)
-            ->subject($subject)
-            ->text($body);
+        try {
+            $dsn = $this->smtpDsn($account);
+            $transport = Transport::fromDsn($dsn);
+            $email = (new Email())
+                ->from(new Address($account->email, $account->label ?: $account->email))
+                ->to($to)
+                ->subject($subject)
+                ->text($body);
 
-        $transport->send($email);
+            $transport->send($email);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException($this->friendlyConnectError($account, $e), 0, $e);
+        }
     }
 
     private function connect(MailAccount $account)
     {
+        if (! class_exists(ClientManager::class)) {
+            throw new \RuntimeException(
+                __('メール用ライブラリ（webklex/php-imap）が未インストールです。サーバで composer install を実行してください。')
+            );
+        }
+
+        $creds = $this->credentials($account);
         $cm = new ClientManager([]);
         $encryption = $account->imap_encryption === 'none' ? false : $account->imap_encryption;
 
@@ -165,15 +176,67 @@ class MailClientService
             'port' => $account->imap_port,
             'encryption' => $encryption,
             'validate_cert' => true,
-            'username' => $account->username,
-            'password' => $account->password,
+            'username' => $creds['username'],
+            'password' => $creds['password'],
             'protocol' => 'imap',
             'authentication' => null,
         ]);
 
-        $client->connect();
+        try {
+            $client->connect();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException($this->friendlyConnectError($account, $e), 0, $e);
+        }
 
         return $client;
+    }
+
+    /**
+     * @return array{username: string, password: string}
+     */
+    private function credentials(MailAccount $account): array
+    {
+        $username = trim((string) $account->username);
+        $password = preg_replace('/\s+/u', '', (string) $account->password) ?? (string) $account->password;
+        $email = strtolower(trim((string) $account->email));
+
+        if ($account->provider === 'gmail'
+            || str_ends_with($email, '@gmail.com')
+            || str_ends_with($email, '@googlemail.com')) {
+            $username = $email;
+        }
+
+        return [
+            'username' => $username,
+            'password' => $password,
+        ];
+    }
+
+    private function friendlyConnectError(MailAccount $account, \Throwable $e): string
+    {
+        $raw = $e->getMessage();
+        $lower = strtolower($raw);
+        $isGmail = $account->provider === 'gmail'
+            || str_ends_with(strtolower($account->email), '@gmail.com')
+            || str_ends_with(strtolower($account->email), '@googlemail.com');
+
+        if (str_contains($lower, 'authenticationfailed')
+            || str_contains($lower, 'invalid credentials')
+            || str_contains($lower, 'badcredentials')
+            || str_contains($lower, 'username and password not accepted')
+            || str_contains($lower, '535')
+            || str_contains($lower, 'auth')) {
+            if ($isGmail) {
+                return __('Gmailの認証に失敗しました。通常のログインパスワードではなく「アプリパスワード」（16桁）を使い、2段階認証を有効にしてください。アカウント設定でパスワードを再設定し、接続テスト後に送信してください。');
+            }
+            if ($account->provider === 'lolipop' || $account->is_sa2_plus_mailbox) {
+                return __('ロリポップ／@sa2-plus.com の認証に失敗しました。メールアドレス全体をユーザー名にし、メールボックス作成時のパスワードを確認してください。');
+            }
+
+            return __('メール認証に失敗しました。メールアドレス・パスワード・IMAP/SMTP設定を確認してください。');
+        }
+
+        return $raw !== '' ? $raw : __('メールサーバへの接続に失敗しました。');
     }
 
     private function openFolder($client, string $folderPath): Folder
@@ -188,8 +251,23 @@ class MailClientService
 
     private function smtpDsn(MailAccount $account): string
     {
-        $user = rawurlencode($account->username);
-        $pass = rawurlencode($account->password);
+        $creds = $this->credentials($account);
+        $user = rawurlencode($creds['username']);
+        $pass = rawurlencode($creds['password']);
+        $email = strtolower(trim((string) $account->email));
+        $isGmail = $account->provider === 'gmail'
+            || str_ends_with($email, '@gmail.com')
+            || str_ends_with($email, '@googlemail.com');
+
+        // Gmail は 587/STARTTLS + LOGIN 固定（XOAUTH2 を使わない）
+        if ($isGmail) {
+            return sprintf(
+                'smtp://%s:%s@smtp.gmail.com:587?encryption=tls&auth_mode=login',
+                $user,
+                $pass
+            );
+        }
+
         $host = $account->smtp_host;
         $port = $account->smtp_port;
         $enc = $account->smtp_encryption;
@@ -201,11 +279,13 @@ class MailClientService
         };
 
         $dsn = sprintf('%s://%s:%s@%s:%d', $scheme, $user, $pass, $host, $port);
+        $query = ['auth_mode' => 'login'];
         if ($enc === 'tls') {
-            $dsn .= '?encryption=tls';
+            $query['encryption'] = 'tls';
         } elseif ($enc === 'none') {
-            $dsn .= '?verify_peer=0';
+            $query['verify_peer'] = '0';
         }
+        $dsn .= '?'.http_build_query($query);
 
         return $dsn;
     }

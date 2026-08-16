@@ -30,8 +30,8 @@ return [
         'imap_port' => 993,
         'imap_encryption' => 'ssl',
         'smtp_host' => 'smtp.gmail.com',
-        'smtp_port' => 465,
-        'smtp_encryption' => 'ssl',
+        'smtp_port' => 587,
+        'smtp_encryption' => 'tls',
         'help_url' => 'https://support.google.com/accounts/answer/185833',
     ],
 ];

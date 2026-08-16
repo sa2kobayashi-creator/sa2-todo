@@ -2754,5 +2754,18 @@
     "却下できる状態ではありません。": "This request cannot be rejected.",
     "作成済みにできる状態ではありません。": "This request cannot be marked provisioned.",
     "停止できるのは作成済みのみです。": "Only provisioned mailboxes can be suspended.",
-    "開く": "Open"
+    "開く": "Open",
+    "Gmailは通常のパスワードでは接続できません。「Googleアカウント → セキュリティ → 2段階認証 → アプリパスワード」で発行した16桁を入力してください。": "Gmail will not accept your normal login password. Create a 16-digit app password under Google Account → Security → 2-Step Verification → App passwords.",
+    "パスワードを再設定": "Reset password",
+    "アプリパスワード16桁": "16-digit app password",
+    "メールパスワード": "Mailbox password",
+    "保存して接続テスト": "Save and test connection",
+    "パスワードを更新し、接続に成功しました。": "Password updated and connection succeeded.",
+    "Gmailの認証に失敗しました。通常のログインパスワードではなく「アプリパスワード」（16桁）を使い、2段階認証を有効にしてください。空白は自動で除去されます。": "Gmail authentication failed. Use a 16-digit App Password (not your normal login password) with 2-Step Verification enabled. Spaces are removed automatically.",
+    "Gmailの認証に失敗しました。通常のログインパスワードではなく「アプリパスワード」（16桁）を使い、2段階認証を有効にしてください。アカウント設定でパスワードを再設定し、接続テスト後に送信してください。": "Gmail authentication failed. Use a 16-digit App Password (not your normal login password) with 2-Step Verification enabled. Reset the password in Account settings, run a connection test, then send again.",
+    "ロリポップ／@sa2-plus.com の認証に失敗しました。メールアドレス全体をユーザー名にし、メールボックス作成時のパスワードを確認してください。": "Lolipop / @sa2-plus.com authentication failed. Use the full email as the username and the mailbox password set at creation time.",
+    "メール認証に失敗しました。メールアドレス・パスワード・IMAP/SMTP設定を確認してください。": "Mail authentication failed. Check the email, password, and IMAP/SMTP settings.",
+    "メール認証に失敗しました。メールアドレス・パスワード・IMAP設定を確認してください。": "Mail authentication failed. Check the email, password, and IMAP settings.",
+    "メールサーバへの接続に失敗しました。": "Failed to connect to the mail server.",
+    "メール用ライブラリ（webklex/php-imap）が未インストールです。サーバで composer install を実行してください。": "Mail library (webklex/php-imap) is missing. Run composer install on the server."
 }
