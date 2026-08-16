@@ -952,7 +952,7 @@ class MailClientService
             || str_contains($lower, 'timed out')
             || str_contains($lower, 'timeout')) {
             return $isGmail
-                ? __('Gmailの受信（IMAP）がタイムアウトしました。ロリポップ等では imap.gmail.com:993 が遮断されることがあります。送信（SMTP）だけ通る場合も同様です。受信は @sa2-plus.com か、サーバ側で IMAP 外向きが許可されているか確認してください。')
+                ? __('Gmailの受信（IMAP）がタイムアウトしました。共有サーバでは外向き IMAP が制限されることがあります。送信（SMTP）だけ通る場合も同様です。受信は @:domain の利用を推奨します。', ['domain' => config('mail_domain.domain')])
                 : __('メールサーバへの接続がタイムアウトしました。');
         }
 
@@ -961,7 +961,7 @@ class MailClientService
             || str_contains($lower, 'failed to connect')
             || str_contains($lower, 'could not connect')) {
             return $isGmail
-                ? __('Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性が高く、送信（SMTP）は成功しても受信だけ失敗することがあります。')
+                ? __('Gmail IMAP に接続できません。共有サーバの外向き通信制限の可能性が高く、送信（SMTP）は成功しても受信だけ失敗することがあります。受信は @:domain をご利用ください。', ['domain' => config('mail_domain.domain')])
                 : __('メールサーバに接続できません。ホスト・ポート・ファイアウォールを確認してください。');
         }
 
@@ -975,7 +975,7 @@ class MailClientService
                 return __('Gmailの認証に失敗しました。通常のログインパスワードではなく「アプリパスワード」（16桁）を使い、2段階認証を有効にしてください。アカウント設定でパスワードを再設定し、接続テスト後に送信してください。');
             }
             if ($account->provider === 'lolipop' || $account->is_sa2_plus_mailbox) {
-                return __('ロリポップ／@sa2-plus.com の認証に失敗しました。メールアドレス全体をユーザー名にし、メールボックス作成時のパスワードを確認してください。');
+                return __('@:domain の認証に失敗しました。メールアドレス全体をユーザー名にし、メールボックス作成時のパスワードを確認してください。', ['domain' => config('mail_domain.domain')]);
             }
 
             return __('メール認証に失敗しました。メールアドレス・パスワード・IMAP/SMTP設定を確認してください。');

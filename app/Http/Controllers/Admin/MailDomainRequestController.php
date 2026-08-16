@@ -37,7 +37,7 @@ class MailDomainRequestController extends Controller
 
         return $this->redirectWithMessage(
             '/admin/mail-requests',
-            __('申請を承認しました。ロリポップ管理画面で手動作成してください（APIは近日公開予定）。')
+            __('申請を承認しました。ホスティング管理画面で手動作成してください（自動作成APIは近日公開予定）。')
         );
     }
 

@@ -54,6 +54,7 @@ class MailAccount extends Model
             'label' => $this->label,
             'email' => $this->email,
             'provider' => $this->provider,
+            'providerLabel' => $this->providerLabel(),
             'imapHost' => $this->imap_host,
             'imapPort' => $this->imap_port,
             'imapEncryption' => $this->imap_encryption,
@@ -69,5 +70,14 @@ class MailAccount extends Model
             'lastSyncStatus' => $this->last_sync_status,
             'lastSyncMessage' => $this->last_sync_message,
         ];
+    }
+
+    public function providerLabel(): string
+    {
+        return match ($this->provider) {
+            'gmail' => 'Gmail',
+            'lolipop' => '@'.(string) config('mail_domain.domain', 'sa2-plus.com'),
+            default => (string) __('カスタム'),
+        };
     }
 }

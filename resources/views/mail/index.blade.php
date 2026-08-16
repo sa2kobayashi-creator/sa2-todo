@@ -37,7 +37,7 @@
             {{ __('次の本対策: Gmail API + OAuth を導入し、共有サーバの IMAP 制限を回避して受信・本文表示を安定させる（OAuth 取得後に実装予定）。') }}
           </p>
           <p class="hint">
-            {{ __('注意: ロリポップ等の共有サーバでは Gmail の受信（IMAP:993）だけが遮断され、送信（SMTP）は成功することがあります。受信は @sa2-plus.com の利用を推奨します。') }}
+            {{ __('注意: 共有サーバでは Gmail の受信（IMAP）だけが遅くなったり失敗したりし、送信（SMTP）は成功することがあります。受信は @:domain の利用を推奨します。', ['domain' => $mailDomain]) }}
           </p>
 
           @if(!empty($accounts))
@@ -48,7 +48,7 @@
                   <div class="mail-account-card-head">
                     <div>
                       <strong>{{ $acc['label'] }}</strong>
-                      <span>{{ $acc['email'] }}（{{ $acc['provider'] }}）</span>
+                      <span>{{ $acc['email'] }}（{{ $acc['providerLabel'] ?? $acc['provider'] }}）</span>
                     </div>
                     <div class="mail-account-actions">
                       <a class="button-link secondary" href="/mail?account={{ $acc['id'] }}">{{ __('開く') }}</a>
@@ -71,7 +71,7 @@
                       <label>{{ __('プリセット') }}
                         <select name="provider">
                           <option value="gmail" @selected($acc['provider'] === 'gmail')>Gmail</option>
-                          <option value="lolipop" @selected($acc['provider'] === 'lolipop')>{{ __('ロリポップ / @:domain', ['domain' => $mailDomain]) }}</option>
+                          <option value="lolipop" @selected($acc['provider'] === 'lolipop')>{{ __('@:domain', ['domain' => $mailDomain]) }}</option>
                           <option value="custom" @selected($acc['provider'] === 'custom')>{{ __('カスタム') }}</option>
                         </select>
                       </label>
@@ -82,6 +82,15 @@
                         <input type="password" name="password" autocomplete="new-password" placeholder="{{ __('変更する場合のみ入力') }}" />
                       </label>
                       <p class="hint">{{ __('パスワードを空のまま保存すると、現在のパスワードを維持します。') }}</p>
+                      @if(($acc['provider'] ?? '') === 'lolipop')
+                        <p class="hint">{{ __('サーバ設定は @:domain 用に自動適用されます。', ['domain' => $mailDomain]) }}</p>
+                        <input type="hidden" name="imap_host" value="{{ $acc['imapHost'] }}" />
+                        <input type="hidden" name="imap_port" value="{{ $acc['imapPort'] }}" />
+                        <input type="hidden" name="imap_encryption" value="{{ $acc['imapEncryption'] }}" />
+                        <input type="hidden" name="smtp_host" value="{{ $acc['smtpHost'] }}" />
+                        <input type="hidden" name="smtp_port" value="{{ $acc['smtpPort'] }}" />
+                        <input type="hidden" name="smtp_encryption" value="{{ $acc['smtpEncryption'] }}" />
+                      @else
                       <div class="mail-server-grid">
                         <label>{{ __('IMAPホスト') }}<input type="text" name="imap_host" value="{{ $acc['imapHost'] }}" required /></label>
                         <label>{{ __('IMAPポート') }}<input type="number" name="imap_port" value="{{ $acc['imapPort'] }}" required /></label>
@@ -102,6 +111,7 @@
                           </select>
                         </label>
                       </div>
+                      @endif
                       <label class="mail-inline-check">
                         <input type="checkbox" name="test_after_save" value="1" checked />
                         {{ __('保存後に接続テストする') }}
@@ -125,17 +135,18 @@
             @csrf
             <label>{{ __('プリセット') }}
               <select name="provider" id="mail-provider">
+                <option value="lolipop" selected>{{ __('@:domain', ['domain' => $mailDomain]) }}</option>
                 <option value="gmail">Gmail</option>
-                <option value="lolipop">{{ __('ロリポップ / @:domain', ['domain' => $mailDomain]) }}</option>
                 <option value="custom">{{ __('カスタム') }}</option>
               </select>
             </label>
-            <label>{{ __('表示名') }}<input type="text" name="label" required placeholder="Gmail" /></label>
-            <label>{{ __('メールアドレス') }}<input type="email" name="email" required id="mail-email" /></label>
-            <label>{{ __('ユーザー名') }}<input type="text" name="username" required id="mail-username" /></label>
+            <label>{{ __('表示名') }}<input type="text" name="label" required placeholder="{{ $mailDomain }}" /></label>
+            <label>{{ __('メールアドレス') }}<input type="email" name="email" required id="mail-email" placeholder="info@{{ $mailDomain }}" /></label>
+            <label>{{ __('ユーザー名') }}<input type="text" name="username" required id="mail-username" placeholder="info@{{ $mailDomain }}" /></label>
             <label>{{ __('パスワード / アプリパスワード') }}<input type="password" name="password" required autocomplete="new-password" /></label>
-            <div class="mail-server-grid" id="mail-server-fields">
-              <label>{{ __('IMAPホスト') }}<input type="text" name="imap_host" id="mail-imap-host" value="imap.gmail.com" required /></label>
+            <p class="hint" id="mail-domain-server-hint">{{ __('サーバ設定は @:domain 用に自動適用されます。', ['domain' => $mailDomain]) }}</p>
+            <div class="mail-server-grid" id="mail-server-fields" hidden>
+              <label>{{ __('IMAPホスト') }}<input type="text" name="imap_host" id="mail-imap-host" value="imap.lolipop.jp" required /></label>
               <label>{{ __('IMAPポート') }}<input type="number" name="imap_port" id="mail-imap-port" value="993" required /></label>
               <label>{{ __('IMAP暗号化') }}
                 <select name="imap_encryption" id="mail-imap-enc">
@@ -144,12 +155,12 @@
                   <option value="none">{{ __('なし') }}</option>
                 </select>
               </label>
-              <label>{{ __('SMTPホスト') }}<input type="text" name="smtp_host" id="mail-smtp-host" value="smtp.gmail.com" required /></label>
-              <label>{{ __('SMTPポート') }}<input type="number" name="smtp_port" id="mail-smtp-port" value="587" required /></label>
+              <label>{{ __('SMTPホスト') }}<input type="text" name="smtp_host" id="mail-smtp-host" value="smtp.lolipop.jp" required /></label>
+              <label>{{ __('SMTPポート') }}<input type="number" name="smtp_port" id="mail-smtp-port" value="465" required /></label>
               <label>{{ __('SMTP暗号化') }}
                 <select name="smtp_encryption" id="mail-smtp-enc">
-                  <option value="ssl">SSL</option>
-                  <option value="tls" selected>TLS</option>
+                  <option value="ssl" selected>SSL</option>
+                  <option value="tls">TLS</option>
                   <option value="none">{{ __('なし') }}</option>
                 </select>
               </label>
@@ -161,7 +172,7 @@
         <section class="panel">
           <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
           <p class="banner notice">
-            {{ __('ロリポップのメールアカウント自動作成 API は近日公開予定です。公開までは管理者が管理画面で手動作成します。') }}
+            {{ __('@:domain メールボックスの自動作成は近日公開予定です。公開までは管理者が手動で作成します。', ['domain' => $mailDomain]) }}
           </p>
           <p class="hint">
             {{ __('契約あたり無料枠は :count 件です。承認後に作成され、Outlook やスマホの標準メーラー（IMAP/SMTP）でも利用できます。主UIは本アプリのメーラーです。', ['count' => $freeQuota]) }}
@@ -330,8 +341,14 @@
             document.getElementById('mail-smtp-host').value = p.smtp_host;
             document.getElementById('mail-smtp-port').value = p.smtp_port;
             document.getElementById('mail-smtp-enc').value = p.smtp_encryption;
+            const fields = document.getElementById('mail-server-fields');
+            const hint = document.getElementById('mail-domain-server-hint');
+            const hideServers = provider.value === 'lolipop';
+            if (fields) fields.hidden = hideServers;
+            if (hint) hint.hidden = !hideServers;
           };
           provider.addEventListener('change', apply);
+          apply();
           if (email && username) {
             email.addEventListener('change', () => {
               if (!username.value) username.value = email.value;
