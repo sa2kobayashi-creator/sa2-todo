@@ -55,6 +55,7 @@
             @if(!empty($canAdminUsers))
               <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
               <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
+              <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
             @endif
           </div>
         </div>
@@ -215,6 +216,7 @@
                     @if(!empty($canAdminUsers))
                       <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
                       <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
+                      <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
                     @endif
                   </div>
                 </div>

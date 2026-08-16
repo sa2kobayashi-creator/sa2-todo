@@ -11,6 +11,7 @@ enum MenuFeature: string
     case Music = 'music';
     case Video = 'video';
     case Messages = 'messages';
+    case Mail = 'mail';
     case Translate = 'translate';
 
     public function label(): string
@@ -23,6 +24,7 @@ enum MenuFeature: string
             self::Music => '音楽',
             self::Video => '動画',
             self::Messages => 'メッセージ',
+            self::Mail => 'メール',
             self::Translate => '翻訳',
         };
     }

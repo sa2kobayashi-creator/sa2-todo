@@ -29,6 +29,7 @@ class FooterNav
             'notes' => ['label' => 'メモ', 'headerLabel' => 'メモ', 'href' => '/notes', 'icon' => '📝', 'feature' => null],
             'photos' => ['label' => 'Photos', 'headerLabel' => 'Photos', 'href' => '/photos', 'icon' => '🖼', 'feature' => null],
             'messages' => ['label' => 'メッセージ', 'headerLabel' => 'メッセージ', 'href' => '/messages', 'icon' => '💬', 'feature' => 'messages'],
+            'mail' => ['label' => 'メール', 'headerLabel' => 'メール', 'href' => '/mail', 'icon' => '✉', 'feature' => 'mail'],
             'finance' => ['label' => '入出金', 'headerLabel' => '入出金経費', 'href' => '/finance', 'icon' => '💰', 'feature' => 'finance'],
             'music' => ['label' => '音楽', 'headerLabel' => '音楽', 'href' => '/music', 'icon' => '♪', 'feature' => 'music'],
             'video' => ['label' => '動画', 'headerLabel' => '動画', 'href' => '/video', 'icon' => '▶', 'feature' => 'video'],

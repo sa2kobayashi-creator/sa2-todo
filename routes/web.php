@@ -25,7 +25,8 @@ use App\Http\Controllers\LiveKitSettingsController;
 use App\Http\Controllers\WebPushSettingsController;
 use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
-use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MailController;
+use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NoteController;
@@ -226,6 +227,16 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::get('/messages/{groupId}/poll', [MessageController::class, 'poll'])->whereNumber('groupId');
     });
 
+    Route::middleware(EnsureFeature::class.':mail')->group(function () {
+        Route::get('/mail', [MailController::class, 'index']);
+        Route::post('/mail/accounts', [MailController::class, 'storeAccount'])->middleware('throttle:20,1');
+        Route::post('/mail/accounts/{id}/update', [MailController::class, 'updateAccount'])->whereNumber('id');
+        Route::post('/mail/accounts/{id}/delete', [MailController::class, 'destroyAccount'])->whereNumber('id');
+        Route::post('/mail/accounts/{id}/test', [MailController::class, 'testAccount'])->whereNumber('id')->middleware('throttle:10,1');
+        Route::post('/mail/accounts/{id}/send', [MailController::class, 'send'])->whereNumber('id')->middleware('throttle:30,1');
+        Route::post('/mail/domain-requests', [MailController::class, 'requestDomain'])->middleware('throttle:3,60');
+    });
+
     Route::middleware([\App\Http\Middleware\EnsureFeature::class.':translate', \App\Http\Middleware\RequireSuperAdmin::class])->group(function () {
         Route::get('/translate', [TranslateController::class, 'index']);
         Route::post('/translate', [TranslateController::class, 'translate'])->middleware('throttle:ai-translate');
@@ -417,5 +428,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/groups/{id}/reject', [AdminGroupController::class, 'reject'])->whereNumber('id');
         Route::post('/admin/groups/{id}/menus', [AdminGroupController::class, 'updateMenus'])->whereNumber('id');
         Route::post('/admin/groups/{id}/delete', [AdminGroupController::class, 'destroy'])->whereNumber('id');
+
+        Route::get('/admin/mail-requests', [AdminMailDomainRequestController::class, 'index']);
+        Route::post('/admin/mail-requests/{id}/approve', [AdminMailDomainRequestController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/mail-requests/{id}/reject', [AdminMailDomainRequestController::class, 'reject'])->whereNumber('id');
+        Route::post('/admin/mail-requests/{id}/provision', [AdminMailDomainRequestController::class, 'provision'])->whereNumber('id');
+        Route::post('/admin/mail-requests/{id}/suspend', [AdminMailDomainRequestController::class, 'suspend'])->whereNumber('id');
     });
 });

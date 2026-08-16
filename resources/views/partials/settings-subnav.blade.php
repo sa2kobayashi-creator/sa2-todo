@@ -16,5 +16,6 @@
   @if(!empty($canAdminUsers))
     <a href="/admin/users" @class(['active' => $navActive === 'admin'])>{{ __('ユーザー管理') }}</a>
     <a href="/admin/groups" @class(['active' => $navActive === 'admin-groups'])>{{ __('グループ管理') }}</a>
+    <a href="/admin/mail-requests" @class(['active' => $navActive === 'admin-mail'])>{{ __('メール申請') }}</a>
   @endif
 </nav>
