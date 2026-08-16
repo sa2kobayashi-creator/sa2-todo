@@ -25,6 +25,7 @@ use App\Http\Controllers\LiveKitSettingsController;
 use App\Http\Controllers\WebPushSettingsController;
 use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\MediaStorageSettingsController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
 use App\Http\Controllers\MusicController;
