@@ -248,6 +248,9 @@
                 </div>
               </form>
             @else
+              <div class="mail-list-toolbar">
+                <button type="button" class="button-link secondary" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+              </div>
               <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
                 <span class="mail-loading-spinner" aria-hidden="true"></span>
                 <span>{{ __('メールを読み込んでいます…') }}</span>
@@ -328,6 +331,7 @@
           date: @json(__('日時')),
           empty: @json(__('メールがありません。')),
           fail: @json(__('メールの読み込みに失敗しました。')),
+          timeout: @json(__('Gmailへの接続がタイムアウトしました。サーバから imap.gmail.com:993 へ出られるか、アプリパスワードを確認してください。')),
         };
 
         let state = {
@@ -441,7 +445,8 @@
           document.getElementById('mail-read-body').innerHTML = message.bodyHtml || '';
         }
 
-        function loadMailbox() {
+        function loadMailbox(options) {
+          const forceRefresh = !!(options && options.refresh);
           setLoading(true);
           showBanner(errEl, '');
           showBanner(noticeEl, '');
@@ -450,14 +455,23 @@
             page: String(state.page || 1),
             uid: String(state.uid || 0),
           });
+          if (forceRefresh) params.set('refresh', '1');
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 25000);
+          const timer = setTimeout(() => controller.abort(), 45000);
           fetch('/mail/accounts/' + accountId + '/mailbox?' + params.toString(), {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
             signal: controller.signal,
           })
-            .then((res) => res.json().then((data) => ({ res, data })))
+            .then(async (res) => {
+              let data = null;
+              try {
+                data = await res.json();
+              } catch (_) {
+                throw new Error(labels.fail);
+              }
+              return { res, data };
+            })
             .then(({ res, data }) => {
               if (!data || data.ok === false) {
                 showBanner(errEl, (data && data.message) || labels.fail);
@@ -482,8 +496,9 @@
               else url.searchParams.delete('page');
               window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
             })
-            .catch(() => {
-              showBanner(errEl, labels.fail);
+            .catch((err) => {
+              const isAbort = err && (err.name === 'AbortError' || String(err).includes('AbortError'));
+              showBanner(errEl, isAbort ? labels.timeout : ((err && err.message) || labels.fail));
               renderFolders([], state.folder);
               renderMessages([]);
               renderMessage(null);
@@ -500,6 +515,11 @@
             state.uid = 0;
             loadMailbox();
           });
+        }
+
+        const refreshBtn = document.getElementById('mail-refresh-btn');
+        if (refreshBtn) {
+          refreshBtn.addEventListener('click', () => loadMailbox({ refresh: true }));
         }
 
         loadMailbox();

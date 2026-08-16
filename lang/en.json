@@ -2771,6 +2771,7 @@
     "メールフォルダの読み込みに失敗しました。空のフォルダか、サーバ応答が不完全な可能性があります。接続テスト後にもう一度開いてください。": "Failed to load the mail folder. It may be empty or the server returned an incomplete response. Run a connection test and open it again.",
     "読み込み中…": "Loading…",
     "メールを読み込んでいます…": "Loading mail…",
+    "再読み込み": "Refresh",
     "メールの読み込みに失敗しました。": "Failed to load mail.",
     "メールを取得できませんでした（空の応答）。しばらくして再読み込みしてください。": "Could not fetch mail (empty response). Please reload shortly.",
     "Gmail・独自ドメイン・その他のIMAP/SMTPアカウントを登録・編集できます。パスワードは暗号化して保存し、画面には再表示しません。": "Add and edit Gmail, custom-domain, or other IMAP/SMTP accounts. Passwords are encrypted and never shown again.",
@@ -2781,5 +2782,8 @@
     "保存後に接続テストする": "Test connection after saving",
     "このアカウントを保存": "Save this account",
     "まだアカウントがありません。下のフォームから追加してください。": "No accounts yet. Add one with the form below.",
-    "アカウントを保存し、接続に成功しました。": "Account saved and connection succeeded."
+    "Gmailへの接続がタイムアウトしました。サーバから imap.gmail.com:993 へ出られるか、アプリパスワードを確認してください。": "Timed out connecting to Gmail. Check outbound access to imap.gmail.com:993 and your app password.",
+    "メールサーバへの接続がタイムアウトしました。": "Timed out connecting to the mail server.",
+    "Gmail IMAP（imap.gmail.com:993）に接続できません。レンタルサーバの外向き通信制限の可能性があります。": "Cannot reach Gmail IMAP (imap.gmail.com:993). The host may block outbound mail connections.",
+    "メールサーバに接続できません。ホスト・ポート・ファイアウォールを確認してください。": "Cannot connect to the mail server. Check host, port, and firewall."
 }

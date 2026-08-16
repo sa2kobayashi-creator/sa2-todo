@@ -20400,6 +20400,11 @@ body.dash-home-lightbox-open {
   overflow: auto;
   background: #fbfcfd;
 }
+.mail-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 0;
+}
 .mail-message-list li a {
   display: grid;
   grid-template-columns: 1fr auto;

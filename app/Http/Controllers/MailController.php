@@ -7,6 +7,7 @@ use App\Services\MailAccountService;
 use App\Services\MailClientService;
 use App\Services\Sa2PlusMailboxService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class MailController extends Controller
@@ -81,26 +82,26 @@ class MailController extends Controller
             $folder = (string) $request->query('folder', 'INBOX');
             $uid = (int) $request->query('uid', 0);
             $page = max(1, (int) $request->query('page', 1));
+            $refresh = $request->boolean('refresh');
 
-            $folders = $this->client->folders($account);
-            if ($folder === '' && $folders !== []) {
-                $folder = $folders[0]['path'];
-            }
-            $messages = $this->client->messages($account, $folder !== '' ? $folder : 'INBOX', $page);
-            $message = null;
-            if ($uid > 0) {
-                $message = $this->client->message($account, $folder !== '' ? $folder : 'INBOX', $uid);
-            }
+            $snapshot = $this->client->mailboxSnapshot($account, $folder, $page, $uid, 30, $refresh);
 
             return response()->json([
                 'ok' => true,
-                'folders' => $folders,
-                'folder' => $folder !== '' ? $folder : 'INBOX',
-                'messages' => $messages,
-                'message' => $message,
+                'folders' => $snapshot['folders'],
+                'folder' => $snapshot['folder'],
+                'messages' => $snapshot['messages'],
+                'message' => $snapshot['message'],
                 'page' => $page,
+                'cached' => (bool) ($snapshot['cached'] ?? false),
             ]);
         } catch (\Throwable $e) {
+            Log::warning('mail.mailbox_failed', [
+                'account_id' => $id,
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+            ]);
+
             $msg = $e->getMessage();
             $lower = strtolower($msg);
             if (str_contains($lower, 'empty response') || str_contains($lower, 'command failed to process')) {
@@ -149,7 +150,8 @@ class MailController extends Controller
     {
         $returnTo = '/mail?tab=accounts&account='.$id;
         try {
-            $this->accounts->update($request->user(), $id, $request->all());
+            $account = $this->accounts->update($request->user(), $id, $request->all());
+            $this->client->forgetAccountCache($account);
             if (filled($request->input('password')) || $request->boolean('test_after_save')) {
                 $result = $this->accounts->testConnection($request->user(), $id, $this->client);
                 if (! $result['ok']) {
@@ -172,6 +174,8 @@ class MailController extends Controller
     public function destroyAccount(Request $request, int $id)
     {
         try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $this->client->forgetAccountCache($account);
             $this->accounts->delete($request->user(), $id);
         } catch (\Throwable $e) {
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
@@ -196,6 +200,7 @@ class MailController extends Controller
         try {
             $account = $this->accounts->findOwned($request->user(), $id);
             $this->client->send($account, $request->only(['to', 'subject', 'body']));
+            $this->client->forgetAccountCache($account);
         } catch (\Throwable $e) {
             return $this->redirectWithMessage('/mail?account='.$id.'&compose=1', $e->getMessage(), 'error');
         }
