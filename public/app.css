@@ -20472,6 +20472,29 @@ body.dash-home-lightbox-open {
   flex: 1 1 220px;
   margin: 0;
 }
+.mail-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+.mail-loading[hidden] { display: none !important; }
+.mail-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: mailSpin 0.8s linear infinite;
+}
+@keyframes mailSpin {
+  to { transform: rotate(360deg); }
+}
+.hint.is-ok { color: #0f766e; }
+.hint.is-fail { color: #b91c1c; }
 @media (max-width: 960px) {
   .mail-shell {
     grid-template-columns: 1fr;

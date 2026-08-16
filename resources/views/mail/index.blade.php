@@ -157,7 +157,16 @@
           @endif
         </section>
       @else
-        <section class="mail-shell">
+        <div id="mail-async-error" class="banner error" hidden></div>
+        <div id="mail-async-notice" class="banner notice" hidden></div>
+        <section class="mail-shell" id="mail-shell"
+          data-account-id="{{ $selectedAccountId ?? '' }}"
+          data-folder="{{ $folder ?? 'INBOX' }}"
+          data-uid="{{ (int) ($uid ?? 0) }}"
+          data-page="{{ (int) ($page ?? 1) }}"
+          data-async="{{ !empty($loadMailboxAsync) ? '1' : '0' }}"
+          data-compose="{{ !empty($compose) ? '1' : '0' }}"
+        >
           <aside class="mail-sidebar">
             <div class="mail-sidebar-head">
               <strong>{{ __('アカウント') }}</strong>
@@ -174,19 +183,10 @@
                 <li class="hint">{{ __('アカウントを追加してください。') }}</li>
               @endforelse
             </ul>
-            @if(!empty($folders))
-              <strong class="mail-folder-title">{{ __('フォルダ') }}</strong>
-              <ul class="mail-folder-nav">
-                @foreach($folders as $f)
-                  <li>
-                    <a
-                      href="/mail?account={{ $selectedAccountId }}&folder={{ urlencode($f['path']) }}"
-                      class="{{ $folder === $f['path'] ? 'active' : '' }}"
-                    >{{ $f['name'] }} <span>{{ $f['messages'] }}</span></a>
-                  </li>
-                @endforeach
-              </ul>
-            @endif
+            <strong class="mail-folder-title">{{ __('フォルダ') }}</strong>
+            <ul class="mail-folder-nav" id="mail-folder-nav">
+              <li class="hint" id="mail-folder-placeholder">{{ !empty($selectedAccountId) ? __('読み込み中…') : '' }}</li>
+            </ul>
             <a class="mail-settings-link" href="/mail?tab=accounts">{{ __('アカウント設定') }}</a>
           </aside>
 
@@ -204,39 +204,32 @@
                 </div>
               </form>
             @else
-              <ul class="mail-message-list">
-                @forelse($messages as $row)
-                  <li class="{{ empty($row['seen']) ? 'is-unread' : '' }}">
-                    <a href="/mail?account={{ $selectedAccountId }}&folder={{ urlencode($folder) }}&uid={{ $row['uid'] }}">
-                      <span class="mail-from">{{ $row['from'] }}</span>
-                      <span class="mail-subject">{{ $row['subject'] }}</span>
-                      <span class="mail-date">{{ $row['date'] ? \Illuminate\Support\Carbon::parse($row['date'])->timezone(config('app.timezone'))->format('m/d H:i') : '' }}</span>
-                    </a>
-                  </li>
-                @empty
-                  <li class="hint">{{ $selectedAccountId ? __('メールがありません。') : __('左からアカウントを選ぶか、アカウントを追加してください。') }}</li>
-                @endforelse
+              <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
+                <span class="mail-loading-spinner" aria-hidden="true"></span>
+                <span>{{ __('メールを読み込んでいます…') }}</span>
+              </div>
+              <ul class="mail-message-list" id="mail-message-list">
+                @if(empty($selectedAccountId))
+                  <li class="hint">{{ __('左からアカウントを選ぶか、アカウントを追加してください。') }}</li>
+                @endif
               </ul>
-              @if(!empty($selectedAccountId) && count($messages) >= 30)
-                <a class="button-link secondary" href="/mail?account={{ $selectedAccountId }}&folder={{ urlencode($folder) }}&page={{ $page + 1 }}">{{ __('次のページ') }}</a>
-              @endif
+              <div id="mail-next-page" hidden>
+                <button type="button" class="button-link secondary" id="mail-next-page-btn">{{ __('次のページ') }}</button>
+              </div>
             @endif
           </div>
 
-          <div class="mail-read-pane">
-            @if(!empty($message))
+          <div class="mail-read-pane" id="mail-read-pane">
+            <p class="hint mail-read-empty" id="mail-read-empty">{{ __('メールを選択すると内容が表示されます。') }}</p>
+            <div id="mail-read-content" hidden>
               <header class="mail-read-header">
-                <h2>{{ $message['subject'] }}</h2>
-                <p>{{ __('差出人') }}: {{ $message['from'] }}</p>
-                <p>{{ __('宛先') }}: {{ $message['to'] }}</p>
-                @if(!empty($message['date']))
-                  <p>{{ __('日時') }}: {{ \Illuminate\Support\Carbon::parse($message['date'])->timezone(config('app.timezone'))->format('Y-m-d H:i') }}</p>
-                @endif
+                <h2 id="mail-read-subject"></h2>
+                <p id="mail-read-from"></p>
+                <p id="mail-read-to"></p>
+                <p id="mail-read-date"></p>
               </header>
-              <div class="mail-read-body">{!! $message['bodyHtml'] !!}</div>
-            @else
-              <p class="hint mail-read-empty">{{ __('メールを選択すると内容が表示されます。') }}</p>
-            @endif
+              <div class="mail-read-body" id="mail-read-body"></div>
+            </div>
           </div>
         </section>
       @endif
@@ -252,22 +245,220 @@
         const provider = document.getElementById('mail-provider');
         const email = document.getElementById('mail-email');
         const username = document.getElementById('mail-username');
-        if (!provider) return;
-        const apply = () => {
-          const p = presets[provider.value] || presets.custom;
-          document.getElementById('mail-imap-host').value = p.imap_host;
-          document.getElementById('mail-imap-port').value = p.imap_port;
-          document.getElementById('mail-imap-enc').value = p.imap_encryption;
-          document.getElementById('mail-smtp-host').value = p.smtp_host;
-          document.getElementById('mail-smtp-port').value = p.smtp_port;
-          document.getElementById('mail-smtp-enc').value = p.smtp_encryption;
+        if (provider) {
+          const apply = () => {
+            const p = presets[provider.value] || presets.custom;
+            document.getElementById('mail-imap-host').value = p.imap_host;
+            document.getElementById('mail-imap-port').value = p.imap_port;
+            document.getElementById('mail-imap-enc').value = p.imap_encryption;
+            document.getElementById('mail-smtp-host').value = p.smtp_host;
+            document.getElementById('mail-smtp-port').value = p.smtp_port;
+            document.getElementById('mail-smtp-enc').value = p.smtp_encryption;
+          };
+          provider.addEventListener('change', apply);
+          if (email && username) {
+            email.addEventListener('change', () => {
+              if (!username.value) username.value = email.value;
+            });
+          }
+        }
+
+        const shell = document.getElementById('mail-shell');
+        if (!shell || shell.getAttribute('data-async') !== '1' || shell.getAttribute('data-compose') === '1') return;
+
+        const accountId = shell.getAttribute('data-account-id');
+        if (!accountId) return;
+
+        const loading = document.getElementById('mail-loading');
+        const folderNav = document.getElementById('mail-folder-nav');
+        const list = document.getElementById('mail-message-list');
+        const errEl = document.getElementById('mail-async-error');
+        const noticeEl = document.getElementById('mail-async-notice');
+        const nextWrap = document.getElementById('mail-next-page');
+        const nextBtn = document.getElementById('mail-next-page-btn');
+        const readEmpty = document.getElementById('mail-read-empty');
+        const readContent = document.getElementById('mail-read-content');
+        const labels = {
+          from: @json(__('差出人')),
+          to: @json(__('宛先')),
+          date: @json(__('日時')),
+          empty: @json(__('メールがありません。')),
+          fail: @json(__('メールの読み込みに失敗しました。')),
         };
-        provider.addEventListener('change', apply);
-        if (email && username) {
-          email.addEventListener('change', () => {
-            if (!username.value) username.value = email.value;
+
+        let state = {
+          folder: shell.getAttribute('data-folder') || 'INBOX',
+          page: parseInt(shell.getAttribute('data-page') || '1', 10) || 1,
+          uid: parseInt(shell.getAttribute('data-uid') || '0', 10) || 0,
+        };
+
+        function setLoading(on) {
+          if (loading) loading.hidden = !on;
+        }
+
+        function showBanner(el, text) {
+          if (!el) return;
+          if (!text) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+          }
+          el.hidden = false;
+          el.textContent = text;
+        }
+
+        function formatDate(iso) {
+          if (!iso) return '';
+          try {
+            const d = new Date(iso);
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return m + '/' + day + ' ' + h + ':' + min;
+          } catch (_) {
+            return '';
+          }
+        }
+
+        function renderFolders(folders, active) {
+          if (!folderNav) return;
+          folderNav.innerHTML = '';
+          (folders || []).forEach((f) => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = '#';
+            a.className = f.path === active ? 'active' : '';
+            a.innerHTML = '<span></span> <span></span>';
+            a.children[0].textContent = f.name || f.path;
+            a.children[1].textContent = String(f.messages ?? '');
+            a.addEventListener('click', (e) => {
+              e.preventDefault();
+              state.folder = f.path;
+              state.page = 1;
+              state.uid = 0;
+              loadMailbox();
+            });
+            li.appendChild(a);
+            folderNav.appendChild(li);
+          });
+          if (!(folders || []).length) {
+            const li = document.createElement('li');
+            li.className = 'hint';
+            li.textContent = 'INBOX';
+            folderNav.appendChild(li);
+          }
+        }
+
+        function renderMessages(messages) {
+          if (!list) return;
+          list.innerHTML = '';
+          if (!(messages || []).length) {
+            const li = document.createElement('li');
+            li.className = 'hint';
+            li.textContent = labels.empty;
+            list.appendChild(li);
+            return;
+          }
+          messages.forEach((row) => {
+            const li = document.createElement('li');
+            if (!row.seen) li.className = 'is-unread';
+            const a = document.createElement('a');
+            a.href = '#';
+            a.innerHTML = '<span class="mail-from"></span><span class="mail-subject"></span><span class="mail-date"></span>';
+            a.querySelector('.mail-from').textContent = row.from || '';
+            a.querySelector('.mail-subject').textContent = row.subject || '';
+            a.querySelector('.mail-date').textContent = formatDate(row.date);
+            a.addEventListener('click', (e) => {
+              e.preventDefault();
+              state.uid = row.uid;
+              loadMailbox();
+            });
+            li.appendChild(a);
+            list.appendChild(li);
           });
         }
+
+        function renderMessage(message) {
+          if (!readEmpty || !readContent) return;
+          if (!message) {
+            readEmpty.hidden = false;
+            readContent.hidden = true;
+            return;
+          }
+          readEmpty.hidden = true;
+          readContent.hidden = false;
+          document.getElementById('mail-read-subject').textContent = message.subject || '';
+          document.getElementById('mail-read-from').textContent = labels.from + ': ' + (message.from || '');
+          document.getElementById('mail-read-to').textContent = labels.to + ': ' + (message.to || '');
+          document.getElementById('mail-read-date').textContent = message.date
+            ? (labels.date + ': ' + formatDate(message.date))
+            : '';
+          document.getElementById('mail-read-body').innerHTML = message.bodyHtml || '';
+        }
+
+        function loadMailbox() {
+          setLoading(true);
+          showBanner(errEl, '');
+          showBanner(noticeEl, '');
+          const params = new URLSearchParams({
+            folder: state.folder || 'INBOX',
+            page: String(state.page || 1),
+            uid: String(state.uid || 0),
+          });
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 25000);
+          fetch('/mail/accounts/' + accountId + '/mailbox?' + params.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            signal: controller.signal,
+          })
+            .then((res) => res.json().then((data) => ({ res, data })))
+            .then(({ res, data }) => {
+              if (!data || data.ok === false) {
+                showBanner(errEl, (data && data.message) || labels.fail);
+                renderFolders([], state.folder);
+                renderMessages([]);
+                renderMessage(null);
+                return;
+              }
+              state.folder = data.folder || state.folder;
+              renderFolders(data.folders || [], state.folder);
+              renderMessages(data.messages || []);
+              renderMessage(data.message || null);
+              if (nextWrap) nextWrap.hidden = !(data.messages && data.messages.length >= 30);
+              if (data.notice) showBanner(noticeEl, data.notice);
+              const url = new URL(window.location.href);
+              url.searchParams.set('account', accountId);
+              url.searchParams.set('folder', state.folder);
+              url.searchParams.delete('tab');
+              if (state.uid) url.searchParams.set('uid', String(state.uid));
+              else url.searchParams.delete('uid');
+              if (state.page > 1) url.searchParams.set('page', String(state.page));
+              else url.searchParams.delete('page');
+              window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
+            })
+            .catch(() => {
+              showBanner(errEl, labels.fail);
+              renderFolders([], state.folder);
+              renderMessages([]);
+              renderMessage(null);
+            })
+            .finally(() => {
+              clearTimeout(timer);
+              setLoading(false);
+            });
+        }
+
+        if (nextBtn) {
+          nextBtn.addEventListener('click', () => {
+            state.page += 1;
+            state.uid = 0;
+            loadMailbox();
+          });
+        }
+
+        loadMailbox();
       })();
     </script>
     @include('partials.mobile-nav')

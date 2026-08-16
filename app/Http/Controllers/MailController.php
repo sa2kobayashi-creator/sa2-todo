@@ -36,35 +36,18 @@ class MailController extends Controller
             }
         }
 
-        $folders = [];
-        $messages = [];
-        $message = null;
-        $mailError = null;
-
-        if ($selected) {
-            try {
-                $folders = $this->client->folders($selected);
-                if ($folder === '' && $folders !== []) {
-                    $folder = $folders[0]['path'];
-                }
-                $messages = $this->client->messages($selected, $folder, $page);
-                if ($uid > 0) {
-                    $message = $this->client->message($selected, $folder, $uid);
-                }
-            } catch (\Throwable $e) {
-                $mailError = $e->getMessage();
-            }
-        }
-
+        // IMAP はページ描画を止めない（AJAX /mailbox で取得）
         return view('mail.index', [
             'accounts' => array_map(fn ($a) => $a->toClientArray(), $accountList),
             'selectedAccountId' => $selected?->id,
-            'folders' => $folders,
-            'folder' => $folder,
-            'messages' => $messages,
-            'message' => $message,
+            'folders' => [],
+            'folder' => $folder !== '' ? $folder : 'INBOX',
+            'messages' => [],
+            'message' => null,
             'page' => $page,
-            'mailError' => $mailError,
+            'uid' => $uid,
+            'mailError' => null,
+            'loadMailboxAsync' => $selected !== null && ! $request->boolean('compose') && (string) $request->query('tab', 'inbox') === 'inbox',
             'domainRequests' => array_map(
                 fn ($r) => $r->toPublicArray(),
                 $this->domainMail->listForUser($user)
@@ -79,6 +62,54 @@ class MailController extends Controller
             'tab' => (string) $request->query('tab', 'inbox'),
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function mailbox(Request $request, int $id)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $folder = (string) $request->query('folder', 'INBOX');
+            $uid = (int) $request->query('uid', 0);
+            $page = max(1, (int) $request->query('page', 1));
+
+            $folders = $this->client->folders($account);
+            if ($folder === '' && $folders !== []) {
+                $folder = $folders[0]['path'];
+            }
+            $messages = $this->client->messages($account, $folder !== '' ? $folder : 'INBOX', $page);
+            $message = null;
+            if ($uid > 0) {
+                $message = $this->client->message($account, $folder !== '' ? $folder : 'INBOX', $uid);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'folders' => $folders,
+                'folder' => $folder !== '' ? $folder : 'INBOX',
+                'messages' => $messages,
+                'message' => $message,
+                'page' => $page,
+            ]);
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            $lower = strtolower($msg);
+            if (str_contains($lower, 'empty response') || str_contains($lower, 'command failed to process')) {
+                return response()->json([
+                    'ok' => true,
+                    'folders' => [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]],
+                    'folder' => 'INBOX',
+                    'messages' => [],
+                    'message' => null,
+                    'page' => 1,
+                    'notice' => __('メールを取得できませんでした（空の応答）。しばらくして再読み込みしてください。'),
+                ]);
+            }
+
+            return response()->json([
+                'ok' => false,
+                'message' => $msg !== '' ? $msg : __('メールの読み込みに失敗しました。'),
+            ], 422);
+        }
     }
 
     public function storeAccount(Request $request)
