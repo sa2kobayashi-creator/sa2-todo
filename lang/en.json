@@ -857,6 +857,7 @@
     "ズームアウト": "Zoom out",
     "ズームイン": "Zoom in",
     "セッションの有効期限が切れました。お手数ですが、もう一度お試しください。": "Your session expired. Sorry for the inconvenience, please try again.",
+    "操作が短時間に集中しました。しばらく待ってからもう一度お試しください。": "Too many actions in a short time. Please wait a moment and try again.",
     "セッションの有効期限が切れました。ページを再読み込みしてから再実行してください。": "Your session expired. Reload the page and run again.",
     "セール情報を取得しました（新規 :created \/ 更新 :updated）。": "Fetched sales (new :created \/ updated :updated).",
     "セール／プロモ監視": "Sale \/ promo watch",

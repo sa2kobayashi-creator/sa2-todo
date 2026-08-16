@@ -230,13 +230,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(EnsureFeature::class.':mail')->group(function () {
         Route::get('/mail', [MailController::class, 'index']);
-        Route::get('/mail/accounts/{id}/mailbox', [MailController::class, 'mailbox'])->whereNumber('id')->middleware('throttle:60,1');
-        Route::get('/mail/accounts/{id}/message', [MailController::class, 'message'])->whereNumber('id')->middleware('throttle:60,1');
-        Route::post('/mail/accounts', [MailController::class, 'storeAccount'])->middleware('throttle:20,1');
+        Route::get('/mail/accounts/{id}/mailbox', [MailController::class, 'mailbox'])->whereNumber('id')->middleware('throttle:mail-mailbox');
+        Route::get('/mail/accounts/{id}/message', [MailController::class, 'message'])->whereNumber('id')->middleware('throttle:mail-mailbox');
+        Route::post('/mail/accounts', [MailController::class, 'storeAccount'])->middleware('throttle:mail-account-write');
         Route::post('/mail/accounts/{id}/update', [MailController::class, 'updateAccount'])->whereNumber('id');
         Route::post('/mail/accounts/{id}/delete', [MailController::class, 'destroyAccount'])->whereNumber('id');
-        Route::post('/mail/accounts/{id}/test', [MailController::class, 'testAccount'])->whereNumber('id')->middleware('throttle:10,1');
-        Route::post('/mail/accounts/{id}/send', [MailController::class, 'send'])->whereNumber('id')->middleware('throttle:30,1');
+        Route::post('/mail/accounts/{id}/test', [MailController::class, 'testAccount'])->whereNumber('id')->middleware('throttle:mail-test');
+        Route::post('/mail/accounts/{id}/send', [MailController::class, 'send'])->whereNumber('id')->middleware('throttle:mail-send');
         Route::post('/mail/domain-requests', [MailController::class, 'requestDomain'])->middleware('throttle:3,60');
     });
 

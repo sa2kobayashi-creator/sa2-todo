@@ -29,20 +29,29 @@ return Application::configure(basePath: dirname(__DIR__))
         // 419 のまま素っ気ないエラー画面を出さず、元の画面へ理由付きで戻す。
         // TokenMismatchException は Laravel が先に 419 の HttpException へ変換するため、そちらを受ける。
         $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
-            if ($e->getStatusCode() !== 419) {
+            $status = $e->getStatusCode();
+            if ($status !== 419 && $status !== 429) {
                 return null;
             }
 
-            $message = __('セッションの有効期限が切れました。お手数ですが、もう一度お試しください。');
+            $message = $status === 419
+                ? __('セッションの有効期限が切れました。お手数ですが、もう一度お試しください。')
+                : __('操作が短時間に集中しました。しばらく待ってからもう一度お試しください。');
 
             if ($request->expectsJson()) {
-                return response()->json(['message' => $message], 419);
+                return response()->json(['message' => $message], $status);
             }
 
             $referer = (string) $request->headers->get('referer', '');
             $target = str_starts_with($referer, $request->getSchemeAndHttpHost())
                 ? $referer
                 : url('/');
+
+            // メール接続テストの 429 は設定タブへ戻す
+            if ($status === 429 && str_contains($request->path(), 'mail/accounts') && str_ends_with($request->path(), '/test')) {
+                $accountId = (int) $request->route('id');
+                $target = url('/mail?tab=accounts'.($accountId > 0 ? '&account='.$accountId : ''));
+            }
 
             $separator = str_contains($target, '?') ? '&' : '?';
 

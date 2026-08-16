@@ -62,5 +62,22 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('media-upload', fn (Request $request) => $unlimited
             ? Limit::none()
             : Limit::perMinute(60)->by((string) ($request->user()?->id ?: $request->ip())));
+
+        // mail 系はユーザー共通キーを共有しない（mailbox 読み込みで接続テストが 429 になるのを防ぐ）
+        RateLimiter::for('mail-test', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(30)->by('mail-test|'.($request->user()?->id ?: $request->ip())));
+
+        RateLimiter::for('mail-mailbox', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(120)->by('mail-mailbox|'.($request->user()?->id ?: $request->ip())));
+
+        RateLimiter::for('mail-send', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(30)->by('mail-send|'.($request->user()?->id ?: $request->ip())));
+
+        RateLimiter::for('mail-account-write', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(30)->by('mail-account-write|'.($request->user()?->id ?: $request->ip())));
     }
 }
