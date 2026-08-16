@@ -104,7 +104,17 @@ class MailClientService
                 }
             }
 
-            $messages = $this->messagesWithClient($client, $account, $folderPath, $page, $perPage);
+            $listed = $this->messagesWithClient($client, $account, $folderPath, $page, $perPage);
+            $messages = $listed['messages'];
+            $exists = $listed['exists'];
+
+            foreach ($folders as $i => $folderRow) {
+                if (($folderRow['path'] ?? '') === $folderPath) {
+                    $folders[$i]['messages'] = $exists;
+                    break;
+                }
+            }
+
             $message = null;
             if ($uid > 0) {
                 try {
@@ -123,11 +133,14 @@ class MailClientService
                 }
             }
 
-            Cache::put($foldersKey, $folders, now()->addSeconds(self::LIST_CACHE_SECONDS));
-            Cache::put($listKey, [
-                'folder' => $folderPath,
-                'messages' => $messages,
-            ], now()->addSeconds(self::LIST_CACHE_SECONDS));
+            // 件数があるのに空一覧だった場合はキャッシュしない（失敗の固定化を防ぐ）
+            if (! ($exists > 0 && $messages === [])) {
+                Cache::put($foldersKey, $folders, now()->addSeconds(self::LIST_CACHE_SECONDS));
+                Cache::put($listKey, [
+                    'folder' => $folderPath,
+                    'messages' => $messages,
+                ], now()->addSeconds(self::LIST_CACHE_SECONDS));
+            }
 
             return [
                 'folders' => $folders,
@@ -193,7 +206,7 @@ class MailClientService
     {
         $client = $this->connect($account);
         try {
-            return $this->messagesWithClient($client, $account, $folderPath, $page, $perPage);
+            return $this->messagesWithClient($client, $account, $folderPath, $page, $perPage)['messages'];
         } finally {
             $client->disconnect();
         }
@@ -305,26 +318,147 @@ class MailClientService
     }
 
     /**
-     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>
+     * @return array{
+     *   messages: list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>,
+     *   exists: int
+     * }
      */
     private function messagesWithClient($client, MailAccount $account, string $folderPath, int $page, int $perPage): array
     {
         $folder = $this->openFolder($client, $folderPath);
         $page = max(1, $page);
         $perPage = max(1, min(50, $perPage));
+        $exists = 0;
 
         try {
             $status = $folder->examine();
-            if ((int) ($status['exists'] ?? 0) === 0) {
-                return [];
+            $exists = (int) ($status['exists'] ?? 0);
+            if ($exists === 0) {
+                return ['messages' => [], 'exists' => 0];
             }
         } catch (\Throwable $e) {
-            if ($this->isEmptyImapResponse($e)) {
-                return [];
+            if (! $this->isEmptyImapResponse($e)) {
+                Log::warning('mail.examine_failed', [
+                    'account_id' => $account->id,
+                    'folder' => $folderPath,
+                    'error' => $e->getMessage(),
+                ]);
             }
-            // examine 失敗でも取得を試す
+            // examine 失敗時は exists 不明のまま取得を試す
         }
 
+        if ($exists > 0) {
+            $rows = $this->messagesViaMsgn($folder, $page, $perPage, $exists);
+            if ($rows !== []) {
+                return ['messages' => $rows, 'exists' => max($exists, count($rows))];
+            }
+        }
+
+        $rows = $this->messagesViaQuery($folder, $account, $page, $perPage);
+        if ($rows !== []) {
+            return ['messages' => $rows, 'exists' => max($exists, count($rows))];
+        }
+
+        if ($exists > 0) {
+            $rows = $this->messagesViaOverview($folder, $page, $perPage, $exists);
+            if ($rows !== []) {
+                return ['messages' => $rows, 'exists' => max($exists, count($rows))];
+            }
+
+            Log::warning('mail.messages_empty_despite_exists', [
+                'account_id' => $account->id,
+                'folder' => $folderPath,
+                'exists' => $exists,
+            ]);
+        }
+
+        return ['messages' => [], 'exists' => $exists];
+    }
+
+    /**
+     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>
+     */
+    private function messagesViaOverview(Folder $folder, int $page, int $perPage, int $exists): array
+    {
+        if ($exists < 1) {
+            return [];
+        }
+
+        $end = $exists - (($page - 1) * $perPage);
+        $start = max(1, $end - $perPage + 1);
+        if ($end < 1) {
+            return [];
+        }
+
+        try {
+            $overview = $folder->overview($start.':'.$end);
+        } catch (\Throwable $e) {
+            Log::warning('mail.overview_failed', [
+                'folder' => (string) $folder->path,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if (! is_array($overview) || $overview === []) {
+            return [];
+        }
+
+        $uidMap = $this->msgnToUidMap($folder);
+        $rows = [];
+        foreach (array_reverse($overview, true) as $msgn => $attrs) {
+            if (! is_array($attrs)) {
+                continue;
+            }
+            $msgn = (int) $msgn;
+            $uid = (int) ($this->attrValue($attrs, 'uid') ?: ($uidMap[$msgn] ?? 0));
+            if ($uid < 1) {
+                $uid = $msgn;
+            }
+            $from = $this->attrValue($attrs, 'from') ?: $this->attrValue($attrs, 'fromaddress');
+            $dateRaw = $this->attrValue($attrs, 'date');
+            $flags = strtolower($this->attrValue($attrs, 'flags').' '.$this->attrValue($attrs, 'flag'));
+            $subject = $this->attrValue($attrs, 'subject');
+            $rows[] = [
+                'uid' => $uid,
+                'subject' => $subject !== '' ? $subject : __('(件名なし)'),
+                'from' => $this->extractEmail($from),
+                'date' => $this->normalizeDateString($dateRaw),
+                'seen' => str_contains($flags, 'seen'),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, int> msgn => uid
+     */
+    private function msgnToUidMap(Folder $folder): array
+    {
+        try {
+            $folder->getClient()->openFolder($folder->path);
+            $data = $folder->getClient()->getConnection()->getUid()->data();
+            if (! is_array($data)) {
+                return [];
+            }
+            $map = [];
+            foreach ($data as $msgn => $uid) {
+                $map[(int) $msgn] = (int) $uid;
+            }
+
+            return $map;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>
+     */
+    private function messagesViaQuery(Folder $folder, MailAccount $account, int $page, int $perPage): array
+    {
         try {
             $query = $folder->messages()
                 ->all()
@@ -335,33 +469,175 @@ class MailClientService
                 ->limit($perPage, $page);
             $collection = $query->get();
         } catch (\Throwable $e) {
-            if ($this->isEmptyImapResponse($e)) {
-                return [];
-            }
-            throw new \RuntimeException($this->friendlyConnectError($account, $e), 0, $e);
+            Log::warning('mail.messages_query_failed', [
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
         }
 
         $rows = [];
         foreach ($collection as $message) {
             /** @var Message $message */
+            $rows[] = $this->messageToListRow($message);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>
+     */
+    private function messagesViaMsgn(Folder $folder, int $page, int $perPage, int $exists): array
+    {
+        if ($exists < 1) {
+            return [];
+        }
+
+        $end = $exists - (($page - 1) * $perPage);
+        $start = max(1, $end - $perPage + 1);
+        if ($end < 1) {
+            return [];
+        }
+
+        $rows = [];
+        for ($msgn = $end; $msgn >= $start; $msgn--) {
             try {
-                $from = $message->getFrom();
-                $fromText = $from && count($from) > 0 ? (string) $from[0]->mail : '';
-                $date = $message->getDate();
-                $flags = $message->getFlags();
-                $rows[] = [
-                    'uid' => (int) $message->getUid(),
-                    'subject' => (string) ($message->getSubject() ?: __('(件名なし)')),
-                    'from' => $fromText,
-                    'date' => $date ? $date->toDate()->format('c') : null,
-                    'seen' => (bool) ($flags?->get('seen') ?? false),
-                ];
-            } catch (\Throwable) {
-                continue;
+                $message = $folder->messages()
+                    ->setFetchBody(false)
+                    ->setFetchFlags(true)
+                    ->leaveUnread()
+                    ->getMessageByMsgn($msgn);
+                if ($message) {
+                    $row = $this->messageToListRow($message);
+                    if ($row['uid'] > 0) {
+                        $rows[] = $row;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('mail.message_msgn_failed', [
+                    'msgn' => $msgn,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @return array{uid: int, subject: string, from: string, date: ?string, seen: bool}
+     */
+    private function messageToListRow(Message $message): array
+    {
+        $fromText = '';
+        $subject = __('(件名なし)');
+        $date = null;
+        $seen = false;
+        $uid = 0;
+
+        try {
+            $uid = (int) $message->getUid();
+        } catch (\Throwable) {
+        }
+
+        try {
+            $from = $message->getFrom();
+            if ($from && count($from) > 0) {
+                $fromText = (string) ($from[0]->mail ?? $from[0]->mailbox ?? '');
+                if ($fromText === '' && isset($from[0]->personal)) {
+                    $fromText = (string) $from[0]->personal;
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            $rawSubject = $message->getSubject();
+            $subjectText = is_object($rawSubject) && method_exists($rawSubject, '__toString')
+                ? trim((string) $rawSubject)
+                : trim((string) $rawSubject);
+            if ($subjectText !== '') {
+                $subject = $subjectText;
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            $dateObj = $message->getDate();
+            if ($dateObj) {
+                $date = $dateObj->toDate()->format('c');
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            $flags = $message->getFlags();
+            $seen = (bool) ($flags?->get('seen') ?? false);
+        } catch (\Throwable) {
+        }
+
+        return [
+            'uid' => $uid,
+            'subject' => $subject,
+            'from' => $fromText,
+            'date' => $date,
+            'seen' => $seen,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     */
+    private function attrValue(array $attrs, string $key): string
+    {
+        if (! array_key_exists($key, $attrs)) {
+            return '';
+        }
+        $value = $attrs[$key];
+        if (is_object($value) && method_exists($value, '__toString')) {
+            return trim((string) $value);
+        }
+        if (is_array($value)) {
+            $first = $value[0] ?? null;
+            if (is_object($first) && isset($first->mail)) {
+                return trim((string) $first->mail);
+            }
+            if (is_scalar($first)) {
+                return trim((string) $first);
+            }
+
+            return '';
+        }
+
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    private function extractEmail(string $raw): string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return '';
+        }
+        if (preg_match('/<([^>]+)>/', $raw, $m)) {
+            return trim($m[1]);
+        }
+
+        return $raw;
+    }
+
+    private function normalizeDateString(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+        try {
+            return \Carbon\Carbon::parse($raw)->format('c');
+        } catch (\Throwable) {
+            return $raw;
+        }
     }
 
     /**
@@ -370,13 +646,18 @@ class MailClientService
     private function messageWithClient($client, string $folderPath, int $uid): array
     {
         $folder = $this->openFolder($client, $folderPath);
+        $message = null;
         try {
             $message = $folder->messages()->getMessageByUid($uid);
         } catch (\Throwable $e) {
-            if ($this->isEmptyImapResponse($e)) {
-                throw new \InvalidArgumentException(__('メールが見つかりません。'));
+            try {
+                $message = $folder->messages()->getMessageByMsgn($uid);
+            } catch (\Throwable $e2) {
+                if ($this->isEmptyImapResponse($e) || $this->isEmptyImapResponse($e2)) {
+                    throw new \InvalidArgumentException(__('メールが見つかりません。'));
+                }
+                throw $e;
             }
-            throw $e;
         }
         if (! $message) {
             throw new \InvalidArgumentException(__('メールが見つかりません。'));
