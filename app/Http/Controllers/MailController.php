@@ -35,22 +35,18 @@ class MailController extends Controller
         }
 
         $accountList = $this->accounts->listForUser($user);
-        $selected = null;
-        foreach ($accountList as $acc) {
-            if ($accountId > 0 && $acc->id === $accountId) {
-                $selected = $acc;
-                break;
-            }
-            if ($accountId === 0 && $selected === null) {
-                $selected = $acc;
-            }
-        }
-        if ($accountId > 0 && $selected === null && $accountList !== []) {
-            $selected = $accountList[0];
-        }
+        $selected = $this->accounts->preferDefault($user, $accountId);
 
         return view('mail.index', [
             'accounts' => array_map(fn ($a) => $a->toClientArray(), $accountList),
+            'primaryAccounts' => array_values(array_filter(
+                array_map(fn ($a) => $a->toClientArray(), $accountList),
+                fn ($a) => ! empty($a['isSa2PlusMailbox'])
+            )),
+            'otherAccounts' => array_values(array_filter(
+                array_map(fn ($a) => $a->toClientArray(), $accountList),
+                fn ($a) => empty($a['isSa2PlusMailbox'])
+            )),
             'selectedAccountId' => $selected?->id,
             'editAccountId' => $accountId > 0 ? $accountId : ($selected?->id),
             'folders' => [],
@@ -139,13 +135,13 @@ class MailController extends Controller
                     'messages' => [],
                     'message' => null,
                     'page' => 1,
-                    'notice' => __('ăĄăźăŤăĺĺžă§ăăžăăă§ăăďźçŠşăŽĺżç­ďźăăă°ăăăăŚĺčŞ­ăżčžźăżăăŚăă ăăă'),
+                    'notice' => __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄşÂÂÄşĹžÂÄÂÂ§ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ§ÄÂÂÄÂÂÄĹşÂĂ§Ĺ ĹÄÂĹ˝ÄşĹźÂĂ§Â­ÂÄĹşÂÄÂÂÄÂÂÄÂÂ°ÄÂÂÄÂÂÄÂÂÄÂĹÄşÂÂÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ'),
                 ]);
             }
 
             return response()->json([
                 'ok' => false,
-                'message' => $msg !== '' ? $msg : __('ăĄăźăŤăŽčŞ­ăżčžźăżăŤĺ¤ąćăăžăăă'),
+                'message' => $msg !== '' ? $msg : __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂĹ˝ÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
             ], 422);
         }
     }
@@ -160,7 +156,7 @@ class MailController extends Controller
             if ($uid < 1) {
                 return response()->json([
                     'ok' => false,
-                    'message' => __('ăĄăźăŤăčŚă¤ăăăžăăă'),
+                    'message' => __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄĹÂÄÂÂ¤ÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
                 ], 422);
             }
 
@@ -180,7 +176,7 @@ class MailController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('ăĄăźăŤăŽčŞ­ăżčžźăżăŤĺ¤ąćăăžăăă'),
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂĹ˝ÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
             ], 422);
         }
     }
@@ -198,14 +194,14 @@ class MailController extends Controller
                 );
             }
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('ĺĽĺĺĺŽšăç˘şčŞăăŚăă ăăă');
+            $msg = collect($e->errors())->flatten()->first() ?: __('ÄşÂÄ˝ÄşÂÂÄşÂÂÄşĹ˝ĹĄÄÂÂĂ§ËĹÄĹÂÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ');
 
             return $this->redirectWithMessage('/mail?tab=accounts', $msg, 'error');
         } catch (\Throwable $e) {
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?tab=accounts', __('ăĄăźăŤă˘ăŤăŚăłăăčż˝ĺ ăăžăăă'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄĹźËÄşÂÂ ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
     }
 
     public function updateAccount(Request $request, int $id)
@@ -220,17 +216,17 @@ class MailController extends Controller
                     return $this->redirectWithMessage($returnTo, $result['message'], 'error');
                 }
 
-                return $this->redirectWithMessage($returnTo, __('ă˘ăŤăŚăłăăäżĺ­ăăćĽçśăŤćĺăăžăăă'));
+                return $this->redirectWithMessage($returnTo, __('ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂĂ¤ĹźÂÄşÂ­ÂÄÂÂÄÂÂÄÂÄ˝Ă§ĹÂÄÂĹ¤ÄÂÂÄşÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
             }
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('ĺĽĺĺĺŽšăç˘şčŞăăŚăă ăăă');
+            $msg = collect($e->errors())->flatten()->first() ?: __('ÄşÂÄ˝ÄşÂÂÄşÂÂÄşĹ˝ĹĄÄÂÂĂ§ËĹÄĹÂÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ');
 
             return $this->redirectWithMessage($returnTo, $msg, 'error');
         } catch (\Throwable $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, __('ăĄăźăŤă˘ăŤăŚăłăăć´ć°ăăžăăă'));
+        return $this->redirectWithMessage($returnTo, __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄÂÂ´ÄÂÂ°ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
     }
 
     public function destroyAccount(Request $request, int $id)
@@ -243,7 +239,7 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?tab=accounts', __('ăĄăźăŤă˘ăŤăŚăłăăĺé¤ăăžăăă'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄşÂÂĂŠÂÂ¤ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
     }
 
     public function testAccount(Request $request, int $id)
@@ -267,7 +263,7 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?account='.$id.'&compose=1', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?account='.$id, __('éäżĄăăžăăă'));
+        return $this->redirectWithMessage('/mail?account='.$id, __('ĂŠÂÂĂ¤ĹźÄÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
     }
 
     public function requestDomain(Request $request)
@@ -275,7 +271,7 @@ class MailController extends Controller
         try {
             $this->domainMail->request($request->user(), $request->all());
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('çłčŤăŤĺ¤ąćăăžăăă');
+            $msg = collect($e->errors())->flatten()->first() ?: __('Ă§ÂĹÄĹ¤ÂÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ');
 
             return $this->redirectWithMessage('/mail?tab=domain', $msg, 'error');
         } catch (\Throwable $e) {
@@ -284,7 +280,7 @@ class MailController extends Controller
 
         return $this->redirectWithMessage(
             '/mail?tab=domain',
-            __('çłčŤăĺăäťăăžăăăçŽĄçčăŽćżčŞĺžăćĺă§ăĄăźăŤăăăŻăšăä˝ćăăăžăă')
+            __('Ă§ÂĹÄĹ¤ÂÄÂÂÄşÂÂÄÂÂĂ¤ĹĽÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂĂ§Ĺ˝ÄĂ§ÂÂÄÂÂÄÂĹ˝ÄÂĹźÄĹÂÄşĹžÂÄÂÂÄÂÂÄşÂÂÄÂÂ§ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄÂÂÄÂĹťÄÂĹĄÄÂÂĂ¤ËÂÄÂÂÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂ')
         );
     }
 }

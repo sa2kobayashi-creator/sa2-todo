@@ -20394,6 +20394,29 @@ body.dash-home-lightbox-open {
 .mail-account-nav a.active,
 .mail-folder-nav a.active { background: #d9efe9; color: #0f766e; font-weight: 700; }
 .mail-folder-title { font-size: 12px; color: #64748b; margin-top: 8px; }
+.mail-account-group-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+.mail-other-accounts {
+  margin-top: 8px;
+}
+.mail-other-accounts > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 700;
+  list-style: none;
+}
+.mail-other-accounts > summary::-webkit-details-marker { display: none; }
+.mail-other-accounts > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform .15s ease;
+}
+.mail-other-accounts[open] > summary::before { transform: rotate(90deg); }
+.mail-other-accounts .mail-account-nav { margin-top: 6px; }
 .mail-settings-link { font-size: 12px; color: #0369a1; margin-top: 10px; }
 .mail-list-pane {
   border-right: 1px solid #dbe5e1;

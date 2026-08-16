@@ -14,10 +14,35 @@ class MailAccountService
     {
         return MailAccount::query()
             ->where('user_id', $user->id)
+            ->orderByDesc('is_sa2_plus_mailbox')
             ->orderBy('label')
             ->orderBy('id')
             ->get()
             ->all();
+    }
+
+    public function preferDefault(User $user, int $accountId = 0): ?MailAccount
+    {
+        $list = $this->listForUser($user);
+        if ($list === []) {
+            return null;
+        }
+
+        if ($accountId > 0) {
+            foreach ($list as $acc) {
+                if ($acc->id === $accountId) {
+                    return $acc;
+                }
+            }
+        }
+
+        foreach ($list as $acc) {
+            if ($acc->is_sa2_plus_mailbox) {
+                return $acc;
+            }
+        }
+
+        return $list[0];
     }
 
     public function findOwned(User $user, int $id): MailAccount

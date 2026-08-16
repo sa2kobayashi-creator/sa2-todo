@@ -221,15 +221,39 @@
                 <a href="/mail?account={{ $selectedAccountId }}&compose=1">{{ __('新規作成') }}</a>
               @endif
             </div>
-            <ul class="mail-account-nav">
-              @forelse($accounts as $acc)
-                <li>
-                  <a href="/mail?account={{ $acc['id'] }}" class="{{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
-                </li>
-              @empty
+            @php
+              $primaryAccounts = $primaryAccounts ?? [];
+              $otherAccounts = $otherAccounts ?? [];
+              $otherSelected = collect($otherAccounts)->contains(fn ($a) => (int) $a['id'] === (int) ($selectedAccountId ?? 0));
+            @endphp
+            @if($primaryAccounts !== [] || $otherAccounts !== [])
+              @if($primaryAccounts !== [])
+                <strong class="mail-account-group-title">@sa2-plus.com</strong>
+                <ul class="mail-account-nav">
+                  @foreach($primaryAccounts as $acc)
+                    <li>
+                      <a href="/mail?account={{ $acc['id'] }}" class="{{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                    </li>
+                  @endforeach
+                </ul>
+              @endif
+              @if($otherAccounts !== [])
+                <details class="mail-other-accounts" @if($otherSelected || $primaryAccounts === []) open @endif>
+                  <summary>{{ __('その他のアカウント') }}</summary>
+                  <ul class="mail-account-nav">
+                    @foreach($otherAccounts as $acc)
+                      <li>
+                        <a href="/mail?account={{ $acc['id'] }}" class="{{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                      </li>
+                    @endforeach
+                  </ul>
+                </details>
+              @endif
+            @else
+              <ul class="mail-account-nav">
                 <li class="hint">{{ __('アカウントを追加してください。') }}</li>
-              @endforelse
-            </ul>
+              </ul>
+            @endif
             <strong class="mail-folder-title">{{ __('フォルダ') }}</strong>
             <ul class="mail-folder-nav" id="mail-folder-nav">
               <li class="hint" id="mail-folder-placeholder">{{ !empty($selectedAccountId) ? __('読み込み中…') : '' }}</li>
