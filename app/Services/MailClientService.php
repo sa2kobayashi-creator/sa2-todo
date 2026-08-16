@@ -15,9 +15,9 @@ use Webklex\PHPIMAP\Message;
 
 class MailClientService
 {
-    private const LIST_CACHE_SECONDS = 180;
+    private const LIST_CACHE_SECONDS = 1800;
 
-    private const MESSAGE_CACHE_SECONDS = 300;
+    private const MESSAGE_CACHE_SECONDS = 3600;
 
     public function ping(MailAccount $account): void
     {

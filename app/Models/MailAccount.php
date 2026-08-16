@@ -24,6 +24,9 @@ class MailAccount extends Model
         'last_tested_at',
         'last_test_status',
         'last_test_message',
+            'last_synced_at',
+            'last_sync_status',
+            'last_sync_message',
     ];
 
     protected function casts(): array
@@ -34,6 +37,7 @@ class MailAccount extends Model
             'password' => 'encrypted',
             'is_sa2_plus_mailbox' => 'boolean',
             'last_tested_at' => 'datetime',
+            'last_synced_at' => 'datetime',
         ];
     }
 
@@ -61,6 +65,9 @@ class MailAccount extends Model
             'lastTestedAt' => $this->last_tested_at?->toIso8601String(),
             'lastTestStatus' => $this->last_test_status,
             'lastTestMessage' => $this->last_test_message,
+            'lastSyncedAt' => $this->last_synced_at?->toIso8601String(),
+            'lastSyncStatus' => $this->last_sync_status,
+            'lastSyncMessage' => $this->last_sync_message,
         ];
     }
 }

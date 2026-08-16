@@ -3,6 +3,7 @@
 use App\Console\Commands\ArchivePhotosToBackblaze;
 use App\Console\Commands\CheckTravelAlerts;
 use App\Console\Commands\FetchTravelPromos;
+use App\Console\Commands\SyncMailMetadata;
 use App\Console\Commands\TickPhotoColdArchive;
 use App\Services\PhotoColdArchiveRunService;
 use Illuminate\Foundation\Inspiring;
@@ -30,6 +31,11 @@ Schedule::command(CheckTravelAlerts::class)
 Schedule::command(\App\Console\Commands\SendTodoReminders::class)
     ->everyMinute()
     ->withoutOverlapping();
+
+// 一覧はローカルDBから即時表示し、IMAP は15分ごとに差分を取得する
+Schedule::command(SyncMailMetadata::class)
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(14);
 
 // Seat Sale は深夜〜早朝（JST）に出ることが多いため、夜間は30分ごと・昼間は2時間ごと
 Schedule::command(FetchTravelPromos::class)
