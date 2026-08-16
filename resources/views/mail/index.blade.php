@@ -33,6 +33,8 @@
             @if(!empty($gmailHelpUrl))
               <a href="{{ $gmailHelpUrl }}" target="_blank" rel="noopener noreferrer">{{ __('Gmailアプリパスワードの作り方') }}</a>
             @endif
+            <br>
+            {{ __('次の本対策: Gmail API + OAuth を導入し、共有サーバの IMAP 制限を回避して受信・本文表示を安定させる（OAuth 取得後に実装予定）。') }}
           </p>
           <p class="hint">
             {{ __('注意: ロリポップ等の共有サーバでは Gmail の受信（IMAP:993）だけが遮断され、送信（SMTP）は成功することがあります。受信は @sa2-plus.com の利用を推奨します。') }}

@@ -2758,6 +2758,7 @@
     "停止できるのは作成済みのみです。": "Only provisioned mailboxes can be suspended.",
     "開く": "Open",
     "Gmailは通常のパスワードでは接続できません。「Googleアカウント → セキュリティ → 2段階認証 → アプリパスワード」で発行した16桁を入力してください。": "Gmail will not accept your normal login password. Create a 16-digit app password under Google Account → Security → 2-Step Verification → App passwords.",
+    "次の本対策: Gmail API + OAuth を導入し、共有サーバの IMAP 制限を回避して受信・本文表示を安定させる（OAuth 取得後に実装予定）。": "Next major fix: add Gmail API + OAuth to bypass shared-host IMAP limits and stabilize inbox/body loading (planned after OAuth credentials are ready).",
     "パスワードを再設定": "Reset password",
     "アプリパスワード16桁": "16-digit app password",
     "メールパスワード": "Mailbox password",
