@@ -231,10 +231,10 @@ class MailClientService
     {
         $aliases = match ($kind) {
             'inbox' => ['INBOX'],
-            'sent' => ['Sent', 'Sent Messages', 'Sent Mail', 'INBOX.Sent', '[Gmail]/Sent Mail'],
-            'drafts' => ['Drafts', 'Draft', 'INBOX.Drafts', '[Gmail]/Drafts'],
-            'spam' => ['Junk', 'Spam', 'Bulk Mail', 'INBOX.Junk', 'INBOX.Spam', '[Gmail]/Spam'],
-            'trash' => ['Trash', 'Deleted Messages', 'INBOX.Trash', '[Gmail]/Trash'],
+            'sent' => ['INBOX.Sent', 'Sent', 'Sent Messages', 'Sent Mail', '[Gmail]/Sent Mail'],
+            'drafts' => ['INBOX.Drafts', 'Drafts', 'Draft', '[Gmail]/Drafts'],
+            'spam' => ['INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam', '[Gmail]/Spam'],
+            'trash' => ['INBOX.Trash', 'Trash', 'Deleted Messages', '[Gmail]/Trash'],
             default => [],
         };
         if ($requested !== '' && ! in_array($requested, $aliases, true)) {
@@ -480,7 +480,7 @@ class MailClientService
     }
 
     /**
-     * @return list<array{name: string, path: string, messages: int}>
+     * @return list<array{name: string, path: string, messages: int, kind: string}>
      */
     private function listFoldersLight($client, MailAccount $account): array
     {
@@ -490,33 +490,18 @@ class MailClientService
             $folderList = $client->getFolders(false);
         } catch (\Throwable $e) {
             if ($this->isEmptyImapResponse($e)) {
-                return [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]];
+                return [$this->withFolderKind(['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0])];
             }
             throw new \RuntimeException($this->friendlyConnectError($account, $e), 0, $e);
         }
 
-        foreach ($folderList as $folder) {
-            /** @var Folder $folder */
-            $name = (string) $folder->name;
-            $path = (string) $folder->path;
-            if ($path === '' && $name === '') {
-                continue;
-            }
-            // Gmail の深いラベルは省略して主要フォルダを優先
-            if ($this->isGmailAccount($account) && str_contains($path, '/') && ! str_starts_with($path, '[Gmail]')) {
-                continue;
-            }
-            $row = [
-                'name' => $name !== '' ? $name : $path,
-                'path' => $path !== '' ? $path : $name,
-                'messages' => 0,
-            ];
-            $out[] = $this->withFolderKind($row);
-        }
+        $this->collectFoldersRecursive($folderList, $account, $out);
 
         if ($out === []) {
             $out[] = $this->withFolderKind(['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]);
         }
+
+        $out = $this->enrichMissingSystemFolders($client, $account, $out);
 
         usort($out, function (array $a, array $b) {
             $kindOrder = [
@@ -538,6 +523,183 @@ class MailClientService
         });
 
         return array_slice($out, 0, 60);
+    }
+
+    /**
+     * @param  mixed  $folderList
+     * @param  list<array{name: string, path: string, messages: int, kind: string}>  $out
+     */
+    private function collectFoldersRecursive($folderList, MailAccount $account, array &$out, int $depth = 0): void
+    {
+        if ($depth > 8 || $folderList === null) {
+            return;
+        }
+
+        foreach ($folderList as $folder) {
+            if (! is_object($folder)) {
+                continue;
+            }
+            $name = (string) ($folder->name ?? '');
+            $path = (string) ($folder->path ?? '');
+            if ($path === '' && $name === '') {
+                continue;
+            }
+            // Gmail の深いユーザーラベルは省略（[Gmail]/* は残す）
+            $skipDeepGmail = $this->isGmailAccount($account)
+                && str_contains($path, '/')
+                && ! str_starts_with($path, '[Gmail]');
+
+            if (! $skipDeepGmail) {
+                $row = [
+                    'name' => $name !== '' ? $name : $path,
+                    'path' => $path !== '' ? $path : $name,
+                    'messages' => 0,
+                ];
+                $pathKey = $row['path'];
+                $exists = false;
+                foreach ($out as $existing) {
+                    if (($existing['path'] ?? '') === $pathKey) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (! $exists) {
+                    $out[] = $this->withFolderKind($row);
+                }
+            }
+
+            $children = $folder->children ?? null;
+            if ($children) {
+                $this->collectFoldersRecursive($children, $account, $out, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * LIST に載らない標準フォルダを別名で探して補完する。
+     *
+     * @param  list<array{name: string, path: string, messages: int, kind: string}>  $out
+     * @return list<array{name: string, path: string, messages: int, kind: string}>
+     */
+    private function enrichMissingSystemFolders($client, MailAccount $account, array $out): array
+    {
+        $have = [];
+        foreach ($out as $row) {
+            $kind = (string) ($row['kind'] ?? 'other');
+            if ($kind !== 'other' && $kind !== 'label') {
+                $have[$kind] = true;
+            }
+        }
+
+        foreach (['sent', 'drafts', 'spam', 'trash'] as $kind) {
+            if (! empty($have[$kind])) {
+                continue;
+            }
+            foreach ($this->preferredSystemPaths($account, $kind) as $candidate) {
+                try {
+                    $folder = $client->getFolderByPath($candidate);
+                    if (! $folder) {
+                        $folder = $client->getFolder($candidate);
+                    }
+                    if (! $folder) {
+                        continue;
+                    }
+                    $name = (string) ($folder->name ?? $candidate);
+                    $path = (string) ($folder->path ?? $candidate);
+                    $out[] = $this->withFolderKind([
+                        'name' => $name !== '' ? $name : $path,
+                        'path' => $path !== '' ? $path : $candidate,
+                        'messages' => 0,
+                    ]);
+                    $have[$kind] = true;
+                    break;
+                } catch (\Throwable) {
+                    // try next alias
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * サイドバー用の標準5フォルダ（実在パス優先、なければ推奨パス）。
+     *
+     * @param  list<array{name?: string, path?: string, kind?: string, messages?: int}>  $listed
+     * @return list<array{name: string, path: string, messages: int, kind: string}>
+     */
+    public function systemFolderMenu(MailAccount $account, array $listed): array
+    {
+        $labels = [
+            'inbox' => 'INBOX',
+            'sent' => 'Sent',
+            'drafts' => 'Drafts',
+            'spam' => 'Junk',
+            'trash' => 'Trash',
+        ];
+        $menu = [];
+        foreach (['inbox', 'sent', 'drafts', 'spam', 'trash'] as $kind) {
+            $found = null;
+            foreach ($listed as $row) {
+                $rowKind = (string) ($row['kind'] ?? $this->folderKind((string) ($row['path'] ?? ''), (string) ($row['name'] ?? '')));
+                if ($rowKind === $kind) {
+                    $found = $row;
+                    break;
+                }
+            }
+            if ($found) {
+                $menu[] = [
+                    'name' => (string) ($found['name'] ?? $labels[$kind]),
+                    'path' => (string) ($found['path'] ?? $labels[$kind]),
+                    'messages' => (int) ($found['messages'] ?? 0),
+                    'kind' => $kind,
+                ];
+                continue;
+            }
+            $path = $this->preferredSystemPaths($account, $kind)[0] ?? $labels[$kind];
+            $menu[] = [
+                'name' => $labels[$kind],
+                'path' => $path,
+                'messages' => 0,
+                'kind' => $kind,
+            ];
+        }
+
+        return $menu;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function preferredSystemPaths(MailAccount $account, string $kind): array
+    {
+        $isDomain = $account->provider === 'lolipop' || $account->is_sa2_plus_mailbox;
+        $isGmail = $this->isGmailAccount($account);
+
+        return match ($kind) {
+            'inbox' => ['INBOX'],
+            'sent' => $isGmail
+                ? ['[Gmail]/Sent Mail', 'Sent Mail', 'Sent']
+                : ($isDomain
+                    ? ['INBOX.Sent', 'Sent', 'INBOX.Sent Messages', 'Sent Messages']
+                    : ['Sent', 'INBOX.Sent', 'Sent Messages', '[Gmail]/Sent Mail']),
+            'drafts' => $isGmail
+                ? ['[Gmail]/Drafts', 'Drafts', 'Draft']
+                : ($isDomain
+                    ? ['INBOX.Drafts', 'Drafts', 'INBOX.Draft']
+                    : ['Drafts', 'INBOX.Drafts', '[Gmail]/Drafts']),
+            'spam' => $isGmail
+                ? ['[Gmail]/Spam', 'Spam', 'Junk']
+                : ($isDomain
+                    ? ['INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam']
+                    : ['Junk', 'Spam', 'INBOX.Junk', '[Gmail]/Spam']),
+            'trash' => $isGmail
+                ? ['[Gmail]/Trash', 'Trash']
+                : ($isDomain
+                    ? ['INBOX.Trash', 'Trash', 'INBOX.Deleted Messages']
+                    : ['Trash', 'INBOX.Trash', '[Gmail]/Trash']),
+            default => [$kind],
+        };
     }
 
     /**

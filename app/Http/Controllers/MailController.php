@@ -123,6 +123,27 @@ class MailController extends Controller
                 );
             }
 
+            $systemFolders = $this->client->systemFolderMenu($account, $folders);
+
+            // 独自ドメインで標準フォルダが未作成なら、開くときに作る
+            if (($account->is_sa2_plus_mailbox || $account->provider === 'lolipop') && $folder !== 'INBOX') {
+                $kind = $this->client->folderKind($folder, $folder);
+                if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label'], true)) {
+                    try {
+                        $this->client->ensureFolder($account, $folder);
+                        $folders = $this->client->listFolders($account, true);
+                        $systemFolders = $this->client->systemFolderMenu($account, $folders);
+                        $folder = $this->client->resolveFolderPath($folders, $folder);
+                    } catch (\Throwable $e) {
+                        Log::warning('mail.ensure_folder_failed', [
+                            'account_id' => $account->id,
+                            'folder' => $folder,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
             // メタデータ同期は INBOX のみ。他フォルダは IMAP を直接読む
             if ($folder === 'INBOX') {
                 $storedMessages = $this->metadataSync->page($account, $folder, $page);
@@ -134,10 +155,17 @@ class MailController extends Controller
                             break;
                         }
                     }
+                    foreach ($systemFolders as $i => $folderRow) {
+                        if (($folderRow['path'] ?? '') === $folder) {
+                            $systemFolders[$i]['messages'] = $count;
+                            break;
+                        }
+                    }
 
                     return response()->json([
                         'ok' => true,
                         'folders' => $folders,
+                        'systemFolders' => $systemFolders,
                         'labels' => $labels,
                         'folder' => $folder,
                         'messages' => $storedMessages,
@@ -156,9 +184,12 @@ class MailController extends Controller
                 $this->metadataSync->syncInbox($account);
             }
 
+            $responseFolders = $snapshot['folders'] !== [] ? $snapshot['folders'] : $folders;
+
             return response()->json([
                 'ok' => true,
-                'folders' => $snapshot['folders'] !== [] ? $snapshot['folders'] : $folders,
+                'folders' => $responseFolders,
+                'systemFolders' => $this->client->systemFolderMenu($account, $responseFolders),
                 'labels' => $labels,
                 'folder' => $snapshot['folder'],
                 'messages' => $snapshot['messages'],

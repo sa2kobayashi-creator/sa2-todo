@@ -639,18 +639,22 @@
           return (folders || []).find((f) => kindOf(f) === kind) || null;
         }
 
-        function buildStandardFolders(folders, labels) {
-          const items = [];
+        function buildStandardFolders(folders, labels, systemFolders) {
           const order = ['inbox', 'sent', 'drafts', 'spam', 'trash'];
-          const inboxFallback = { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 };
-          order.forEach((kind) => {
+          const fromApi = Array.isArray(systemFolders) ? systemFolders : [];
+          const defaults = {
+            inbox: { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 },
+            sent: { name: 'Sent', path: 'INBOX.Sent', kind: 'sent', messages: 0 },
+            drafts: { name: 'Drafts', path: 'INBOX.Drafts', kind: 'drafts', messages: 0 },
+            spam: { name: 'Junk', path: 'INBOX.Junk', kind: 'spam', messages: 0 },
+            trash: { name: 'Trash', path: 'INBOX.Trash', kind: 'trash', messages: 0 },
+          };
+          const items = order.map((kind) => {
+            const fromSystem = fromApi.find((f) => kindOf(f) === kind);
+            if (fromSystem) return fromSystem;
             const found = pickByKind(folders, kind);
-            if (found) {
-              items.push(found);
-              return;
-            }
-            // 実在しないパスを捏造しない（サーバが INBOX に落とす原因になる）
-            if (kind === 'inbox') items.push(inboxFallback);
+            if (found) return found;
+            return defaults[kind];
           });
           const labelFolders = [];
           (labels || []).forEach((lab) => {
@@ -667,7 +671,6 @@
             if (labelFolders.some((x) => x.path === f.path)) return;
             labelFolders.push(f);
           });
-          // その他の実フォルダも「その他」として出す
           const used = new Set(items.map((f) => f.path).concat(labelFolders.map((f) => f.path)));
           const others = (folders || []).filter((f) => {
             const k = kindOf(f);
@@ -676,11 +679,11 @@
           return { system: items, labels: labelFolders, others };
         }
 
-        function renderFolders(folders, labels, active) {
+        function renderFolders(folders, labels, active, systemFolders) {
           const nav = shell.querySelector('[data-account-folders="' + accountId + '"]');
           if (!nav) return;
           nav.innerHTML = '';
-          const built = buildStandardFolders(folders, labels || labelsByAccount[accountId] || []);
+          const built = buildStandardFolders(folders, labels || labelsByAccount[accountId] || [], systemFolders);
           const appendLink = (folder, parent) => {
             const li = document.createElement('li');
             const a = document.createElement('a');
@@ -853,13 +856,13 @@
             .then(({ data }) => {
               if (!data || data.ok === false) {
                 showBanner(errEl, (data && data.message) || i18n.fail);
-                renderFolders([], [], state.folder);
+                renderFolders([], [], state.folder, []);
                 renderMessages([]);
                 renderMessage(null);
                 return;
               }
               state.folder = data.folder || state.folder;
-              renderFolders(data.folders || [], data.labels || [], state.folder);
+              renderFolders(data.folders || [], data.labels || [], state.folder, data.systemFolders || []);
               renderMessages(data.messages || []);
               if (nextWrap) nextWrap.hidden = !(data.messages && data.messages.length >= 30);
               if (data.notice) showBanner(noticeEl, data.notice);
@@ -881,7 +884,7 @@
             .catch((err) => {
               const isAbort = err && (err.name === 'AbortError' || String(err).includes('AbortError'));
               showBanner(errEl, isAbort ? i18n.timeout : ((err && err.message) || i18n.fail));
-              renderFolders([], [], state.folder);
+              renderFolders([], [], state.folder, []);
               renderMessages([]);
               renderMessage(null);
             })
