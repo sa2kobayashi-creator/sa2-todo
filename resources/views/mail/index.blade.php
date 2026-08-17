@@ -644,10 +644,10 @@
           const fromApi = Array.isArray(systemFolders) ? systemFolders : [];
           const defaults = {
             inbox: { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 },
-            sent: { name: 'Sent', path: 'Sa2.Sent', kind: 'sent', messages: 0 },
-            drafts: { name: 'Drafts', path: 'Sa2.Drafts', kind: 'drafts', messages: 0 },
-            spam: { name: 'Junk', path: 'Sa2.Spam', kind: 'spam', messages: 0 },
-            trash: { name: 'Trash', path: 'Sa2.Trash', kind: 'trash', messages: 0 },
+            sent: { name: 'Sent', path: 'INBOX.Sa2.Sent', kind: 'sent', messages: 0 },
+            drafts: { name: 'Drafts', path: 'INBOX.Sa2.Drafts', kind: 'drafts', messages: 0 },
+            spam: { name: 'Junk', path: 'INBOX.Sa2.Junk', kind: 'spam', messages: 0 },
+            trash: { name: 'Trash', path: 'INBOX.Sa2.Trash', kind: 'trash', messages: 0 },
           };
           const items = order.map((kind) => {
             const fromSystem = fromApi.find((f) => kindOf(f) === kind);

@@ -35,7 +35,8 @@ class MailClientService
         Cache::forget($prefix.'folders');
         foreach ([
             'INBOX',
-            'Sa2.Sent', 'Sa2.Drafts', 'Sa2.Spam', 'Sa2.Trash',
+            'Sa2.Sent', 'Sa2.Drafts', 'Sa2.Spam', 'Sa2.Junk', 'Sa2.Trash',
+            'INBOX.Sa2.Sent', 'INBOX.Sa2.Drafts', 'INBOX.Sa2.Junk', 'INBOX.Sa2.Trash',
             'Sent', '[Gmail]/Sent Mail',
             'Drafts', '[Gmail]/Drafts',
             'Junk', 'Spam', '[Gmail]/Spam',
@@ -82,32 +83,100 @@ class MailClientService
 
         $client = $this->connect($account);
         try {
-            try {
-                $existing = $client->getFolderByPath($folderPath);
-                if ($existing) {
-                    return;
-                }
-            } catch (\Throwable) {
-                // create below
+            if ($this->folderExistsOnClient($client, $folderPath)) {
+                return;
             }
 
-            $parts = preg_split('/[\\.\\/]/', $folderPath) ?: [];
-            $built = '';
-            foreach ($parts as $part) {
-                $part = trim((string) $part);
-                if ($part === '') {
-                    continue;
-                }
-                $built = $built === '' ? $part : $built.'.'.$part;
+            $delimiter = $this->imapDelimiter($client);
+            $candidates = [$folderPath];
+            // 共有サーバではルート直下より INBOX 配下が作れることが多い
+            if (! str_starts_with(strtoupper($folderPath), 'INBOX'.$delimiter)
+                && strcasecmp($folderPath, 'INBOX') !== 0
+                && ! str_starts_with(strtoupper($folderPath), 'INBOX.')) {
+                $candidates[] = 'INBOX'.$delimiter.ltrim(str_replace(['.', '/'], $delimiter, $folderPath), $delimiter);
+            }
+            // ドット／スラッシュ両対応
+            $alt = str_replace('.', '/', $folderPath);
+            if ($alt !== $folderPath) {
+                $candidates[] = $alt;
+            }
+            $altDot = str_replace('/', '.', $folderPath);
+            if ($altDot !== $folderPath) {
+                $candidates[] = $altDot;
+            }
+
+            $lastError = null;
+            foreach (array_values(array_unique($candidates)) as $candidate) {
                 try {
-                    $client->getFolderByPath($built);
-                } catch (\Throwable) {
-                    $client->createFolder($built, true);
+                    $this->createFolderPathOnClient($client, $candidate, $delimiter);
+                    if ($this->folderExistsOnClient($client, $candidate)) {
+                        $this->forgetAccountCache($account);
+
+                        return;
+                    }
+                } catch (\Throwable $e) {
+                    $lastError = $e;
                 }
             }
-            $this->forgetAccountCache($account);
+
+            throw new \RuntimeException(
+                __('フォルダ「:folder」を作成できませんでした。', ['folder' => $folderPath])
+                    .($lastError ? ' '.$lastError->getMessage() : ''),
+                0,
+                $lastError
+            );
         } finally {
             $client->disconnect();
+        }
+    }
+
+    private function imapDelimiter($client): string
+    {
+        try {
+            if (method_exists($client, 'getDelimiter')) {
+                $d = $client->getDelimiter();
+                if (is_string($d) && $d !== '') {
+                    return $d;
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        return '.';
+    }
+
+    private function folderExistsOnClient($client, string $folderPath): bool
+    {
+        try {
+            if ($client->getFolderByPath($folderPath)) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+        try {
+            if ($client->getFolder($folderPath)) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        return false;
+    }
+
+    private function createFolderPathOnClient($client, string $folderPath, string $delimiter): void
+    {
+        $parts = preg_split('/[\\.\\/]/', $folderPath) ?: [];
+        $built = '';
+        foreach ($parts as $part) {
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+            $built = $built === '' ? $part : $built.$delimiter.$part;
+            if ($this->folderExistsOnClient($client, $built)) {
+                continue;
+            }
+            $client->createFolder($built, true);
         }
     }
 
@@ -149,12 +218,13 @@ class MailClientService
     public function folderKind(string $path, string $name = ''): string
     {
         $rawPath = trim($path);
-        $lowerPath = mb_strtolower($rawPath);
-        if (str_starts_with($lowerPath, 'sa2.')) {
+        $lowerPath = mb_strtolower(str_replace('/', '.', $rawPath));
+        // アプリ管理: Sa2.* / INBOX.Sa2.*
+        if (preg_match('/(?:^|[.])sa2[.]/i', $lowerPath) === 1) {
             return match (true) {
                 str_ends_with($lowerPath, '.sent') => 'sent',
                 str_ends_with($lowerPath, '.drafts'), str_ends_with($lowerPath, '.draft') => 'drafts',
-                str_ends_with($lowerPath, '.spam'), str_ends_with($lowerPath, '.junk') => 'spam',
+                str_ends_with($lowerPath, '.junk'), str_ends_with($lowerPath, '.spam'), str_ends_with($lowerPath, '.meiwaku') => 'spam',
                 str_ends_with($lowerPath, '.trash') => 'trash',
                 default => 'other',
             };
@@ -191,15 +261,15 @@ class MailClientService
 
     /**
      * アプリが管理する標準フォルダ（独自ドメイン専用）。
-     * ロリポップの INBOX.Sent / 迷惑メール制御とは分離する。
+     * INBOX 配下に置き、迷惑メール名は予約語になりやすい Spam を避けて Junk にする。
      */
     public function appSystemFolderPath(string $kind): ?string
     {
         return match ($kind) {
-            'sent' => 'Sa2.Sent',
-            'drafts' => 'Sa2.Drafts',
-            'spam' => 'Sa2.Spam',
-            'trash' => 'Sa2.Trash',
+            'sent' => 'INBOX.Sa2.Sent',
+            'drafts' => 'INBOX.Sa2.Drafts',
+            'spam' => 'INBOX.Sa2.Junk',
+            'trash' => 'INBOX.Sa2.Trash',
             default => null,
         };
     }
@@ -219,8 +289,16 @@ class MailClientService
             if ($path === null) {
                 continue;
             }
-            $this->ensureFolder($account, $path);
-            $paths[] = $path;
+            try {
+                $this->ensureFolder($account, $path);
+                $paths[] = $path;
+            } catch (\Throwable $e) {
+                Log::warning('mail.ensure_app_folder_failed', [
+                    'account_id' => $account->id,
+                    'folder' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
         $this->forgetAccountCache($account);
 
@@ -233,7 +311,7 @@ class MailClientService
     public function isHostManagedSystemFolder(string $path, string $name = ''): bool
     {
         $probe = mb_strtolower(trim($path !== '' ? $path : $name));
-        if ($probe === '' || str_starts_with($probe, 'sa2.') || str_starts_with($probe, 'labels.')) {
+        if ($probe === '' || str_starts_with($probe, 'sa2.') || str_starts_with($probe, 'inbox.sa2.') || str_starts_with($probe, 'labels.')) {
             return false;
         }
         if ($probe === 'inbox') {
@@ -311,10 +389,10 @@ class MailClientService
     {
         $aliases = match ($kind) {
             'inbox' => ['INBOX'],
-            'sent' => ['Sa2.Sent', 'INBOX.Sent', 'Sent', 'Sent Messages', 'Sent Mail', '[Gmail]/Sent Mail'],
-            'drafts' => ['Sa2.Drafts', 'INBOX.Drafts', 'Drafts', 'Draft', '[Gmail]/Drafts'],
-            'spam' => ['Sa2.Spam', 'INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam', '[Gmail]/Spam'],
-            'trash' => ['Sa2.Trash', 'INBOX.Trash', 'Trash', 'Deleted Messages', '[Gmail]/Trash'],
+            'sent' => ['INBOX.Sa2.Sent', 'Sa2.Sent', 'INBOX.Sent', 'Sent', 'Sent Messages', 'Sent Mail', '[Gmail]/Sent Mail'],
+            'drafts' => ['INBOX.Sa2.Drafts', 'Sa2.Drafts', 'INBOX.Drafts', 'Drafts', 'Draft', '[Gmail]/Drafts'],
+            'spam' => ['INBOX.Sa2.Junk', 'Sa2.Junk', 'Sa2.Spam', 'INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam', '[Gmail]/Spam'],
+            'trash' => ['INBOX.Sa2.Trash', 'Sa2.Trash', 'INBOX.Trash', 'Trash', 'Deleted Messages', '[Gmail]/Trash'],
             default => [],
         };
         if ($requested !== '' && ! in_array($requested, $aliases, true)) {
@@ -879,7 +957,7 @@ class MailClientService
                     ? ['[Gmail]/Drafts', 'Drafts', 'Draft']
                     : ['Drafts', 'INBOX.Drafts', '[Gmail]/Drafts']),
             'spam' => $isDomain
-                ? array_values(array_filter([$appPath, 'Sa2.Spam']))
+                ? array_values(array_filter([$appPath, 'INBOX.Sa2.Junk', 'Sa2.Junk']))
                 : ($isGmail
                     ? ['[Gmail]/Spam', 'Spam', 'Junk']
                     : ['Junk', 'Spam', 'INBOX.Junk', '[Gmail]/Spam']),

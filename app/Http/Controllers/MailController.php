@@ -143,7 +143,9 @@ class MailController extends Controller
                 $kind = $this->client->folderKind($folder, $folder);
                 if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label'], true)
                     || str_starts_with($folder, 'Sa2.')
-                    || str_starts_with($folder, 'Labels.')) {
+                    || str_starts_with($folder, 'INBOX.Sa2.')
+                    || str_starts_with($folder, 'Labels.')
+                    || str_starts_with($folder, 'INBOX.Labels.')) {
                     try {
                         $this->client->ensureFolder($account, $folder);
                         $folders = $this->client->listFolders($account, true);
