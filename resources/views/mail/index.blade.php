@@ -457,11 +457,11 @@
         <p class="hint">{{ __('独自ドメイン用の移動先フォルダを作成します。') }}</p>
         <label class="mail-folder-dialog-label">
           {{ __('フォルダ名') }}
-          <input type="text" id="mail-folder-name-input" maxlength="120" required placeholder="{{ __('例: 仕事') }}" autocomplete="off" />
+          <input type="text" id="mail-folder-name-input" maxlength="120" placeholder="{{ __('例: 仕事') }}" autocomplete="off" />
         </label>
         <p class="hint error" id="mail-folder-dialog-error" hidden></p>
         <div class="mail-bg-actions">
-          <button type="submit" class="mail-toolbar-btn" value="cancel">{{ __('キャンセル') }}</button>
+          <button type="button" class="mail-toolbar-btn" id="mail-folder-dialog-cancel">{{ __('キャンセル') }}</button>
           <button type="button" class="mail-toolbar-btn is-solid" id="mail-folder-create-submit">{{ __('作成') }}</button>
         </div>
       </form>
@@ -1255,8 +1255,16 @@
           const dialog = document.getElementById('mail-folder-dialog');
           const input = document.getElementById('mail-folder-name-input');
           const submit = document.getElementById('mail-folder-create-submit');
+          const cancel = document.getElementById('mail-folder-dialog-cancel');
           const err = document.getElementById('mail-folder-dialog-error');
           if (!dialog || !submit || !input) return;
+
+          if (cancel) {
+            cancel.addEventListener('click', (e) => {
+              e.preventDefault();
+              dialog.close();
+            });
+          }
 
           const createFolder = async () => {
             const name = (input.value || '').trim();
