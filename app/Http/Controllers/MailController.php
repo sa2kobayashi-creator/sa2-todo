@@ -113,6 +113,19 @@ class MailController extends Controller
                 $folders = [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0, 'kind' => 'inbox']];
             }
 
+            // 独自ドメイン: アプリ管理フォルダ（Sa2.Sent 等）を必ず用意
+            if ($this->client->isDomainMailbox($account)) {
+                try {
+                    $this->client->ensureAppSystemFolders($account);
+                    $folders = $this->client->listFolders($account, true);
+                } catch (\Throwable $e) {
+                    Log::warning('mail.ensure_app_system_folders_failed', [
+                        'account_id' => $account->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             $folder = $this->client->resolveFolderPath($folders, $folder);
 
             $labels = [];
@@ -125,10 +138,12 @@ class MailController extends Controller
 
             $systemFolders = $this->client->systemFolderMenu($account, $folders);
 
-            // 独自ドメインで標準フォルダが未作成なら、開くときに作る
-            if (($account->is_sa2_plus_mailbox || $account->provider === 'lolipop') && $folder !== 'INBOX') {
+            // ラベルなど、まだ無いアプリフォルダを開くときに作成
+            if ($this->client->isDomainMailbox($account) && $folder !== 'INBOX') {
                 $kind = $this->client->folderKind($folder, $folder);
-                if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label'], true)) {
+                if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label'], true)
+                    || str_starts_with($folder, 'Sa2.')
+                    || str_starts_with($folder, 'Labels.')) {
                     try {
                         $this->client->ensureFolder($account, $folder);
                         $folders = $this->client->listFolders($account, true);

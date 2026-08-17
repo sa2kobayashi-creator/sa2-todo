@@ -35,6 +35,7 @@ class MailClientService
         Cache::forget($prefix.'folders');
         foreach ([
             'INBOX',
+            'Sa2.Sent', 'Sa2.Drafts', 'Sa2.Spam', 'Sa2.Trash',
             'Sent', '[Gmail]/Sent Mail',
             'Drafts', '[Gmail]/Drafts',
             'Junk', 'Spam', '[Gmail]/Spam',
@@ -147,6 +148,18 @@ class MailClientService
 
     public function folderKind(string $path, string $name = ''): string
     {
+        $rawPath = trim($path);
+        $lowerPath = mb_strtolower($rawPath);
+        if (str_starts_with($lowerPath, 'sa2.')) {
+            return match (true) {
+                str_ends_with($lowerPath, '.sent') => 'sent',
+                str_ends_with($lowerPath, '.drafts'), str_ends_with($lowerPath, '.draft') => 'drafts',
+                str_ends_with($lowerPath, '.spam'), str_ends_with($lowerPath, '.junk') => 'spam',
+                str_ends_with($lowerPath, '.trash') => 'trash',
+                default => 'other',
+            };
+        }
+
         $probe = mb_strtolower(trim(($path !== '' ? $path : '').' '.($name !== '' ? $name : '')));
         $probe = str_replace(['＿', '　'], ['', ''], $probe);
         if ($probe === 'inbox' || str_contains($probe, '受信')) {
@@ -169,6 +182,73 @@ class MailClientService
         }
 
         return 'other';
+    }
+
+    public function isDomainMailbox(MailAccount $account): bool
+    {
+        return $account->provider === 'lolipop' || (bool) $account->is_sa2_plus_mailbox;
+    }
+
+    /**
+     * アプリが管理する標準フォルダ（独自ドメイン専用）。
+     * ロリポップの INBOX.Sent / 迷惑メール制御とは分離する。
+     */
+    public function appSystemFolderPath(string $kind): ?string
+    {
+        return match ($kind) {
+            'sent' => 'Sa2.Sent',
+            'drafts' => 'Sa2.Drafts',
+            'spam' => 'Sa2.Spam',
+            'trash' => 'Sa2.Trash',
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function ensureAppSystemFolders(MailAccount $account): array
+    {
+        if (! $this->isDomainMailbox($account)) {
+            return [];
+        }
+
+        $paths = [];
+        foreach (['sent', 'drafts', 'spam', 'trash'] as $kind) {
+            $path = $this->appSystemFolderPath($kind);
+            if ($path === null) {
+                continue;
+            }
+            $this->ensureFolder($account, $path);
+            $paths[] = $path;
+        }
+        $this->forgetAccountCache($account);
+
+        return $paths;
+    }
+
+    /**
+     * ホスティング側の標準フォルダか（アプリの Sa2.* とは別物）。
+     */
+    public function isHostManagedSystemFolder(string $path, string $name = ''): bool
+    {
+        $probe = mb_strtolower(trim($path !== '' ? $path : $name));
+        if ($probe === '' || str_starts_with($probe, 'sa2.') || str_starts_with($probe, 'labels.')) {
+            return false;
+        }
+        if ($probe === 'inbox') {
+            return false;
+        }
+
+        $hostNames = [
+            'sent', 'sent messages', 'sent mail', 'inbox.sent', 'inbox.sent messages',
+            'drafts', 'draft', 'inbox.drafts', 'inbox.draft',
+            'junk', 'spam', 'bulk mail', 'inbox.junk', 'inbox.spam',
+            'trash', 'deleted messages', 'inbox.trash', 'inbox.deleted messages',
+            '[gmail]/sent mail', '[gmail]/drafts', '[gmail]/spam', '[gmail]/trash',
+        ];
+
+        return in_array($probe, $hostNames, true);
     }
 
     /**
@@ -231,10 +311,10 @@ class MailClientService
     {
         $aliases = match ($kind) {
             'inbox' => ['INBOX'],
-            'sent' => ['INBOX.Sent', 'Sent', 'Sent Messages', 'Sent Mail', '[Gmail]/Sent Mail'],
-            'drafts' => ['INBOX.Drafts', 'Drafts', 'Draft', '[Gmail]/Drafts'],
-            'spam' => ['INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam', '[Gmail]/Spam'],
-            'trash' => ['INBOX.Trash', 'Trash', 'Deleted Messages', '[Gmail]/Trash'],
+            'sent' => ['Sa2.Sent', 'INBOX.Sent', 'Sent', 'Sent Messages', 'Sent Mail', '[Gmail]/Sent Mail'],
+            'drafts' => ['Sa2.Drafts', 'INBOX.Drafts', 'Drafts', 'Draft', '[Gmail]/Drafts'],
+            'spam' => ['Sa2.Spam', 'INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam', '[Gmail]/Spam'],
+            'trash' => ['Sa2.Trash', 'INBOX.Trash', 'Trash', 'Deleted Messages', '[Gmail]/Trash'],
             default => [],
         };
         if ($requested !== '' && ! in_array($requested, $aliases, true)) {
@@ -474,8 +554,41 @@ class MailClientService
                 ->text($body);
 
             $transport->send($email);
+
+            if ($this->isDomainMailbox($account)) {
+                try {
+                    $this->appendToAppSent($account, $email);
+                } catch (\Throwable $e) {
+                    Log::warning('mail.append_sent_failed', [
+                        'account_id' => $account->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         } catch (\Throwable $e) {
             throw new \RuntimeException($this->friendlyConnectError($account, $e), 0, $e);
+        }
+    }
+
+    private function appendToAppSent(MailAccount $account, Email $email): void
+    {
+        $path = $this->appSystemFolderPath('sent');
+        if ($path === null) {
+            return;
+        }
+        $this->ensureFolder($account, $path);
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $path);
+            $raw = $email->toString();
+            if (method_exists($folder, 'append')) {
+                $folder->append($raw, ['\Seen']);
+            } else {
+                $client->getConnection()->appendMessage($folder->path, $raw, ['\Seen']);
+            }
+            $this->forgetAccountCache($account);
+        } finally {
+            $client->disconnect();
         }
     }
 
@@ -501,7 +614,44 @@ class MailClientService
             $out[] = $this->withFolderKind(['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]);
         }
 
-        $out = $this->enrichMissingSystemFolders($client, $account, $out);
+        if ($this->isDomainMailbox($account)) {
+            // ロリポップ側の Sent/Junk 等はサイドバー標準枠に使わない（アプリの Sa2.* を正とする）
+            $out = array_values(array_filter(
+                $out,
+                fn (array $row) => ! $this->isHostManagedSystemFolder(
+                    (string) ($row['path'] ?? ''),
+                    (string) ($row['name'] ?? '')
+                )
+            ));
+            foreach (['sent', 'drafts', 'spam', 'trash'] as $kind) {
+                $appPath = $this->appSystemFolderPath($kind);
+                if ($appPath === null) {
+                    continue;
+                }
+                $exists = false;
+                foreach ($out as $row) {
+                    if (($row['path'] ?? '') === $appPath) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (! $exists) {
+                    $out[] = $this->withFolderKind([
+                        'name' => match ($kind) {
+                            'sent' => 'Sent',
+                            'drafts' => 'Drafts',
+                            'spam' => 'Spam',
+                            'trash' => 'Trash',
+                            default => $appPath,
+                        },
+                        'path' => $appPath,
+                        'messages' => 0,
+                    ]);
+                }
+            }
+        } else {
+            $out = $this->enrichMissingSystemFolders($client, $account, $out);
+        }
 
         usort($out, function (array $a, array $b) {
             $kindOrder = [
@@ -638,7 +788,31 @@ class MailClientService
             'trash' => 'Trash',
         ];
         $menu = [];
+        $isDomain = $this->isDomainMailbox($account);
+
         foreach (['inbox', 'sent', 'drafts', 'spam', 'trash'] as $kind) {
+            if ($kind === 'inbox') {
+                $menu[] = [
+                    'name' => 'INBOX',
+                    'path' => 'INBOX',
+                    'messages' => (int) ($this->findListedPath($listed, 'INBOX')['messages'] ?? 0),
+                    'kind' => 'inbox',
+                ];
+                continue;
+            }
+
+            if ($isDomain) {
+                $path = $this->appSystemFolderPath($kind) ?? ($labels[$kind] ?? $kind);
+                $hit = $this->findListedPath($listed, $path);
+                $menu[] = [
+                    'name' => $labels[$kind],
+                    'path' => $path,
+                    'messages' => (int) ($hit['messages'] ?? 0),
+                    'kind' => $kind,
+                ];
+                continue;
+            }
+
             $found = null;
             foreach ($listed as $row) {
                 $rowKind = (string) ($row['kind'] ?? $this->folderKind((string) ($row['path'] ?? ''), (string) ($row['name'] ?? '')));
@@ -669,34 +843,50 @@ class MailClientService
     }
 
     /**
+     * @param  list<array{name?: string, path?: string, messages?: int}>  $listed
+     * @return array{name?: string, path?: string, messages?: int}|null
+     */
+    private function findListedPath(array $listed, string $path): ?array
+    {
+        foreach ($listed as $row) {
+            if (($row['path'] ?? '') === $path) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<string>
      */
     private function preferredSystemPaths(MailAccount $account, string $kind): array
     {
-        $isDomain = $account->provider === 'lolipop' || $account->is_sa2_plus_mailbox;
+        $isDomain = $this->isDomainMailbox($account);
         $isGmail = $this->isGmailAccount($account);
+        $appPath = $this->appSystemFolderPath($kind);
 
         return match ($kind) {
             'inbox' => ['INBOX'],
-            'sent' => $isGmail
-                ? ['[Gmail]/Sent Mail', 'Sent Mail', 'Sent']
-                : ($isDomain
-                    ? ['INBOX.Sent', 'Sent', 'INBOX.Sent Messages', 'Sent Messages']
+            'sent' => $isDomain
+                ? array_values(array_filter([$appPath, 'INBOX.Sent', 'Sent']))
+                : ($isGmail
+                    ? ['[Gmail]/Sent Mail', 'Sent Mail', 'Sent']
                     : ['Sent', 'INBOX.Sent', 'Sent Messages', '[Gmail]/Sent Mail']),
-            'drafts' => $isGmail
-                ? ['[Gmail]/Drafts', 'Drafts', 'Draft']
-                : ($isDomain
-                    ? ['INBOX.Drafts', 'Drafts', 'INBOX.Draft']
+            'drafts' => $isDomain
+                ? array_values(array_filter([$appPath, 'INBOX.Drafts', 'Drafts']))
+                : ($isGmail
+                    ? ['[Gmail]/Drafts', 'Drafts', 'Draft']
                     : ['Drafts', 'INBOX.Drafts', '[Gmail]/Drafts']),
-            'spam' => $isGmail
-                ? ['[Gmail]/Spam', 'Spam', 'Junk']
-                : ($isDomain
-                    ? ['INBOX.Junk', 'INBOX.Spam', 'Junk', 'Spam']
+            'spam' => $isDomain
+                ? array_values(array_filter([$appPath, 'Sa2.Spam']))
+                : ($isGmail
+                    ? ['[Gmail]/Spam', 'Spam', 'Junk']
                     : ['Junk', 'Spam', 'INBOX.Junk', '[Gmail]/Spam']),
-            'trash' => $isGmail
-                ? ['[Gmail]/Trash', 'Trash']
-                : ($isDomain
-                    ? ['INBOX.Trash', 'Trash', 'INBOX.Deleted Messages']
+            'trash' => $isDomain
+                ? array_values(array_filter([$appPath, 'INBOX.Trash', 'Trash']))
+                : ($isGmail
+                    ? ['[Gmail]/Trash', 'Trash']
                     : ['Trash', 'INBOX.Trash', '[Gmail]/Trash']),
             default => [$kind],
         };
