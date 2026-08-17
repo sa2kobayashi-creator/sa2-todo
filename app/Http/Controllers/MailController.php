@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\MailAccountService;
 use App\Services\MailClientService;
+use App\Services\MailLabelService;
 use App\Services\MailMetadataSyncService;
 use App\Services\Sa2PlusMailboxService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class MailController extends Controller
         private MailAccountService $accounts,
         private MailClientService $client,
         private MailMetadataSyncService $metadataSync,
+        private MailLabelService $labels,
         private Sa2PlusMailboxService $domainMail,
     ) {}
 
@@ -36,17 +38,30 @@ class MailController extends Controller
 
         $accountList = $this->accounts->listForUser($user);
         $selected = $this->accounts->preferDefault($user, $accountId);
+        $accountArrays = array_map(fn ($a) => $a->toClientArray(), $accountList);
+
+        $labelsByAccount = [];
+        foreach ($accountList as $acc) {
+            if (! $acc->is_sa2_plus_mailbox) {
+                continue;
+            }
+            $labelsByAccount[$acc->id] = array_map(
+                fn ($label) => $label->toClientArray(),
+                $this->labels->listForAccount($acc)
+            );
+        }
 
         return view('mail.index', [
-            'accounts' => array_map(fn ($a) => $a->toClientArray(), $accountList),
+            'accounts' => $accountArrays,
             'primaryAccounts' => array_values(array_filter(
-                array_map(fn ($a) => $a->toClientArray(), $accountList),
+                $accountArrays,
                 fn ($a) => ! empty($a['isSa2PlusMailbox'])
             )),
             'otherAccounts' => array_values(array_filter(
-                array_map(fn ($a) => $a->toClientArray(), $accountList),
+                $accountArrays,
                 fn ($a) => empty($a['isSa2PlusMailbox'])
             )),
+            'labelsByAccount' => $labelsByAccount,
             'selectedAccountId' => $selected?->id,
             'editAccountId' => $accountId > 0 ? $accountId : ($selected?->id),
             'folders' => [],
@@ -86,13 +101,39 @@ class MailController extends Controller
                 $this->metadataSync->syncInbox($account);
             }
 
+            $folders = [];
+            try {
+                $folders = $this->client->listFolders($account, $refresh);
+            } catch (\Throwable $e) {
+                Log::warning('mail.folders_for_mailbox_failed', [
+                    'account_id' => $account->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $folders = [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0, 'kind' => 'inbox']];
+            }
+
+            $labels = [];
+            if ($account->is_sa2_plus_mailbox) {
+                $labels = array_map(
+                    fn ($label) => $label->toClientArray(),
+                    $this->labels->listForAccount($account)
+                );
+            }
+
             $storedMessages = $this->metadataSync->page($account, $folder, $page);
             if ($storedMessages !== []) {
                 $count = $this->metadataSync->count($account, $folder);
+                foreach ($folders as $i => $folderRow) {
+                    if (($folderRow['path'] ?? '') === $folder) {
+                        $folders[$i]['messages'] = $count;
+                        break;
+                    }
+                }
 
                 return response()->json([
                     'ok' => true,
-                    'folders' => [['name' => $folder, 'path' => $folder, 'messages' => $count]],
+                    'folders' => $folders,
+                    'labels' => $labels,
                     'folder' => $folder,
                     'messages' => $storedMessages,
                     'message' => null,
@@ -111,7 +152,8 @@ class MailController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'folders' => $snapshot['folders'],
+                'folders' => $snapshot['folders'] !== [] ? $snapshot['folders'] : $folders,
+                'labels' => $labels,
                 'folder' => $snapshot['folder'],
                 'messages' => $snapshot['messages'],
                 'message' => $snapshot['message'],
@@ -130,18 +172,19 @@ class MailController extends Controller
             if (str_contains($lower, 'empty response') || str_contains($lower, 'command failed to process')) {
                 return response()->json([
                     'ok' => true,
-                    'folders' => [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]],
+                    'folders' => [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0, 'kind' => 'inbox']],
+                    'labels' => [],
                     'folder' => 'INBOX',
                     'messages' => [],
                     'message' => null,
                     'page' => 1,
-                    'notice' => __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄşÂÂÄşĹžÂÄÂÂ§ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ§ÄÂÂÄÂÂÄĹşÂĂ§Ĺ ĹÄÂĹ˝ÄşĹźÂĂ§Â­ÂÄĹşÂÄÂÂÄÂÂÄÂÂ°ÄÂÂÄÂÂÄÂÂÄÂĹÄşÂÂÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ'),
+                    'notice' => __('一覧を取得できませんでした。しばらくして再読み込みしてください。'),
                 ]);
             }
 
             return response()->json([
                 'ok' => false,
-                'message' => $msg !== '' ? $msg : __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂĹ˝ÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
+                'message' => $msg !== '' ? $msg : __('メールの読み込みに失敗しました。'),
             ], 422);
         }
     }
@@ -156,7 +199,7 @@ class MailController extends Controller
             if ($uid < 1) {
                 return response()->json([
                     'ok' => false,
-                    'message' => __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄĹÂÄÂÂ¤ÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
+                    'message' => __('メールが選ばれていません。'),
                 ], 422);
             }
 
@@ -176,7 +219,7 @@ class MailController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂĹ˝ÄĹÂ­ÄÂĹźÄĹžĹşÄÂĹźÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'),
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('メールの読み込みに失敗しました。'),
             ], 422);
         }
     }
@@ -194,14 +237,14 @@ class MailController extends Controller
                 );
             }
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('ÄşÂÄ˝ÄşÂÂÄşÂÂÄşĹ˝ĹĄÄÂÂĂ§ËĹÄĹÂÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ');
+            $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
 
             return $this->redirectWithMessage('/mail?tab=accounts', $msg, 'error');
         } catch (\Throwable $e) {
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?tab=accounts', __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄĹźËÄşÂÂ ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('メールアカウントを追加しました。'));
     }
 
     public function updateAccount(Request $request, int $id)
@@ -216,17 +259,17 @@ class MailController extends Controller
                     return $this->redirectWithMessage($returnTo, $result['message'], 'error');
                 }
 
-                return $this->redirectWithMessage($returnTo, __('ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂĂ¤ĹźÂÄşÂ­ÂÄÂÂÄÂÂÄÂÄ˝Ă§ĹÂÄÂĹ¤ÄÂÂÄşÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
+                return $this->redirectWithMessage($returnTo, __('アカウントを更新し、接続に成功しました。'));
             }
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('ÄşÂÄ˝ÄşÂÂÄşÂÂÄşĹ˝ĹĄÄÂÂĂ§ËĹÄĹÂÄÂÂÄÂĹÄÂÂÄÂÂ ÄÂÂÄÂÂÄÂÂ');
+            $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
 
             return $this->redirectWithMessage($returnTo, $msg, 'error');
         } catch (\Throwable $e) {
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄÂÂ´ÄÂÂ°ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
+        return $this->redirectWithMessage($returnTo, __('メールアカウントを更新しました。'));
     }
 
     public function destroyAccount(Request $request, int $id)
@@ -239,7 +282,7 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?tab=accounts', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?tab=accounts', __('ÄÂÄÄÂĹşÄÂĹ¤ÄÂËÄÂĹ¤ÄÂĹÄÂĹÄÂÂÄÂÂÄşÂÂĂŠÂÂ¤ÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
+        return $this->redirectWithMessage('/mail?tab=accounts', __('メールアカウントを削除しました。'));
     }
 
     public function testAccount(Request $request, int $id)
@@ -263,7 +306,63 @@ class MailController extends Controller
             return $this->redirectWithMessage('/mail?account='.$id.'&compose=1', $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage('/mail?account='.$id, __('ĂŠÂÂĂ¤ĹźÄÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ'));
+        return $this->redirectWithMessage('/mail?account='.$id, __('送信しました。'));
+    }
+
+    public function storeLabel(Request $request, int $id)
+    {
+        $returnTo = '/mail?tab=accounts&account='.$id;
+        try {
+            $this->labels->create($request->user(), $id, $request->all());
+        } catch (ValidationException $e) {
+            $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
+
+            return $this->redirectWithMessage($returnTo, $msg, 'error');
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ラベルを作成しました。'));
+    }
+
+    public function destroyLabel(Request $request, int $id, int $labelId)
+    {
+        $returnTo = '/mail?tab=accounts&account='.$id;
+        try {
+            $this->labels->delete($request->user(), $id, $labelId);
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('ラベルを削除しました。'));
+    }
+
+    public function storeLabelRule(Request $request, int $id, int $labelId)
+    {
+        $returnTo = '/mail?tab=accounts&account='.$id;
+        try {
+            $this->labels->addRule($request->user(), $id, $labelId, $request->all());
+        } catch (ValidationException $e) {
+            $msg = collect($e->errors())->flatten()->first() ?: __('入力内容を確認してください。');
+
+            return $this->redirectWithMessage($returnTo, $msg, 'error');
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('振り分けルールを追加しました。'));
+    }
+
+    public function destroyLabelRule(Request $request, int $id, int $ruleId)
+    {
+        $returnTo = '/mail?tab=accounts&account='.$id;
+        try {
+            $this->labels->deleteRule($request->user(), $id, $ruleId);
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('振り分けルールを削除しました。'));
     }
 
     public function requestDomain(Request $request)
@@ -271,7 +370,7 @@ class MailController extends Controller
         try {
             $this->domainMail->request($request->user(), $request->all());
         } catch (ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first() ?: __('Ă§ÂĹÄĹ¤ÂÄÂĹ¤ÄşÂ¤ÄÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂ');
+            $msg = collect($e->errors())->flatten()->first() ?: __('申請に失敗しました。');
 
             return $this->redirectWithMessage('/mail?tab=domain', $msg, 'error');
         } catch (\Throwable $e) {
@@ -280,7 +379,7 @@ class MailController extends Controller
 
         return $this->redirectWithMessage(
             '/mail?tab=domain',
-            __('Ă§ÂĹÄĹ¤ÂÄÂÂÄşÂÂÄÂÂĂ¤ĹĽÂÄÂÂÄÂĹžÄÂÂÄÂÂÄÂÂĂ§Ĺ˝ÄĂ§ÂÂÄÂÂÄÂĹ˝ÄÂĹźÄĹÂÄşĹžÂÄÂÂÄÂÂÄşÂÂÄÂÂ§ÄÂÄÄÂĹşÄÂĹ¤ÄÂÂÄÂÂÄÂĹťÄÂĹĄÄÂÂĂ¤ËÂÄÂÂÄÂÂÄÂÂÄÂĹžÄÂÂÄÂÂ')
+            __('申請を受け付けました。管理者の承認後、メールボックスが準備されます。')
         );
     }
 }

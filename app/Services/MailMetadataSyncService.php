@@ -10,16 +10,31 @@ class MailMetadataSyncService
 {
     private const KEEP_PER_FOLDER = 500;
 
-    public function __construct(private MailClientService $client) {}
+    public function __construct(
+        private MailClientService $client,
+        private MailLabelService $labels,
+    ) {}
 
     /**
-     * @return array{synced: int, exists: int}
+     * @return array{synced: int, exists: int, moved: int}
      */
     public function syncInbox(MailAccount $account): array
     {
         try {
             $snapshot = $this->client->mailboxSnapshot($account, 'INBOX', 1, 0, 50, true);
             $rows = $snapshot['messages'];
+            $moved = 0;
+            if ($account->is_sa2_plus_mailbox && $rows !== []) {
+                $moved = $this->labels->applyRulesToInbox($account, $rows);
+                if ($moved > 0) {
+                    $snapshot = $this->client->mailboxSnapshot($account, 'INBOX', 1, 0, 50, true);
+                    $rows = $snapshot['messages'];
+                    MailMessageHeader::query()
+                        ->where('mail_account_id', $account->id)
+                        ->where('folder_path', 'INBOX')
+                        ->delete();
+                }
+            }
             $now = now();
 
             foreach ($rows as $row) {
@@ -45,13 +60,21 @@ class MailMetadataSyncService
             }
 
             $this->prune($account, 'INBOX');
+            $syncMsg = __('同期済み（:count 件）', ['count' => count($rows)]);
+            if ($moved > 0) {
+                $syncMsg .= ' / '.__('振り分け :count 件', ['count' => $moved]);
+            }
             $account->forceFill([
                 'last_synced_at' => $now,
                 'last_sync_status' => 'ok',
-                'last_sync_message' => __('同期済み（:count 件）', ['count' => count($rows)]),
+                'last_sync_message' => $syncMsg,
             ])->save();
 
-            return ['synced' => count($rows), 'exists' => (int) ($snapshot['folders'][0]['messages'] ?? count($rows))];
+            return [
+                'synced' => count($rows),
+                'exists' => (int) ($snapshot['folders'][0]['messages'] ?? count($rows)),
+                'moved' => $moved,
+            ];
         } catch (\Throwable $e) {
             Log::warning('mail.metadata_sync_failed', [
                 'account_id' => $account->id,

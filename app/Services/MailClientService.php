@@ -33,11 +33,141 @@ class MailClientService
     {
         $prefix = 'mail:mb:'.$account->user_id.':'.$account->id.':';
         Cache::forget($prefix.'folders');
-        foreach (['INBOX', 'Sent', '[Gmail]/Sent Mail', 'Drafts', '[Gmail]/Drafts', 'Trash', '[Gmail]/Trash'] as $folder) {
+        foreach ([
+            'INBOX',
+            'Sent', '[Gmail]/Sent Mail',
+            'Drafts', '[Gmail]/Drafts',
+            'Junk', 'Spam', '[Gmail]/Spam',
+            'Trash', '[Gmail]/Trash',
+        ] as $folder) {
             for ($page = 1; $page <= 5; $page++) {
                 Cache::forget($prefix.'list:'.md5($folder.'|'.$page.'|30'));
             }
         }
+    }
+
+    /**
+     * キャッシュ優先のフォルダ一覧（なければ軽量 LIST）。
+     *
+     * @return list<array{name: string, path: string, messages: int, kind?: string}>
+     */
+    public function listFolders(MailAccount $account, bool $refresh = false): array
+    {
+        $foldersKey = 'mail:mb:'.$account->user_id.':'.$account->id.':folders';
+        if (! $refresh) {
+            $cached = Cache::get($foldersKey);
+            if (is_array($cached) && $cached !== []) {
+                return array_map(fn (array $row) => $this->withFolderKind($row), $cached);
+            }
+        }
+
+        $client = $this->connect($account);
+        try {
+            $folders = $this->listFoldersLight($client, $account);
+            Cache::put($foldersKey, $folders, now()->addSeconds(self::LIST_CACHE_SECONDS));
+
+            return array_map(fn (array $row) => $this->withFolderKind($row), $folders);
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    public function ensureFolder(MailAccount $account, string $folderPath): void
+    {
+        $folderPath = trim($folderPath);
+        if ($folderPath === '' || strcasecmp($folderPath, 'INBOX') === 0) {
+            return;
+        }
+
+        $client = $this->connect($account);
+        try {
+            try {
+                $existing = $client->getFolderByPath($folderPath);
+                if ($existing) {
+                    return;
+                }
+            } catch (\Throwable) {
+                // create below
+            }
+
+            $parts = preg_split('/[\\.\\/]/', $folderPath) ?: [];
+            $built = '';
+            foreach ($parts as $part) {
+                $part = trim((string) $part);
+                if ($part === '') {
+                    continue;
+                }
+                $built = $built === '' ? $part : $built.'.'.$part;
+                try {
+                    $client->getFolderByPath($built);
+                } catch (\Throwable) {
+                    $client->createFolder($built, true);
+                }
+            }
+            $this->forgetAccountCache($account);
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    public function moveMessage(MailAccount $account, string $fromFolder, int $uid, string $toFolder): void
+    {
+        if ($uid < 1 || $fromFolder === '' || $toFolder === '') {
+            throw new \InvalidArgumentException(__('移動先が不正です。'));
+        }
+        if ($fromFolder === $toFolder) {
+            return;
+        }
+
+        $this->ensureFolder($account, $toFolder);
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $fromFolder);
+            $message = $folder->query()->getMessageByUid($uid);
+            if (! $message) {
+                throw new \RuntimeException(__('メールが見つかりません。'));
+            }
+            $message->move($toFolder);
+            $this->forgetAccountCache($account);
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    /**
+     * @param  array{name: string, path: string, messages: int}  $row
+     * @return array{name: string, path: string, messages: int, kind: string}
+     */
+    private function withFolderKind(array $row): array
+    {
+        $row['kind'] = $this->folderKind((string) ($row['path'] ?? ''), (string) ($row['name'] ?? ''));
+
+        return $row;
+    }
+
+    public function folderKind(string $path, string $name = ''): string
+    {
+        $probe = mb_strtolower(trim($path !== '' ? $path : $name));
+        if ($probe === 'inbox') {
+            return 'inbox';
+        }
+        if (str_contains($probe, 'sent')) {
+            return 'sent';
+        }
+        if (str_contains($probe, 'draft')) {
+            return 'drafts';
+        }
+        if (str_contains($probe, 'junk') || str_contains($probe, 'spam')) {
+            return 'spam';
+        }
+        if (str_contains($probe, 'trash') || str_contains($probe, 'bin') || str_contains($probe, 'deleted')) {
+            return 'trash';
+        }
+        if (str_starts_with($probe, 'labels.') || str_starts_with($probe, 'labels/')) {
+            return 'label';
+        }
+
+        return 'other';
     }
 
     /**
@@ -305,30 +435,30 @@ class MailClientService
             if ($this->isGmailAccount($account) && str_contains($path, '/') && ! str_starts_with($path, '[Gmail]')) {
                 continue;
             }
-            $out[] = [
+            $row = [
                 'name' => $name !== '' ? $name : $path,
                 'path' => $path !== '' ? $path : $name,
                 'messages' => 0,
             ];
+            $out[] = $this->withFolderKind($row);
         }
 
         if ($out === []) {
-            $out[] = ['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0];
+            $out[] = $this->withFolderKind(['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0]);
         }
 
         usort($out, function (array $a, array $b) {
-            $priority = [
-                'INBOX' => 0,
-                'Sent' => 1,
-                'Sent Mail' => 1,
-                '[Gmail]/Sent Mail' => 1,
-                'Drafts' => 2,
-                '[Gmail]/Drafts' => 2,
-                'Trash' => 3,
-                '[Gmail]/Trash' => 3,
+            $kindOrder = [
+                'inbox' => 0,
+                'sent' => 1,
+                'drafts' => 2,
+                'spam' => 3,
+                'trash' => 4,
+                'label' => 5,
+                'other' => 6,
             ];
-            $pa = $priority[$a['name']] ?? $priority[$a['path']] ?? 50;
-            $pb = $priority[$b['name']] ?? $priority[$b['path']] ?? 50;
+            $pa = $kindOrder[$a['kind'] ?? 'other'] ?? 6;
+            $pb = $kindOrder[$b['kind'] ?? 'other'] ?? 6;
             if ($pa !== $pb) {
                 return $pa <=> $pb;
             }
@@ -336,7 +466,7 @@ class MailClientService
             return strcasecmp($a['name'], $b['name']);
         });
 
-        return array_slice($out, 0, 40);
+        return array_slice($out, 0, 60);
     }
 
     /**

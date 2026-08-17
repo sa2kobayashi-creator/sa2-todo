@@ -237,6 +237,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/mail/accounts/{id}/delete', [MailController::class, 'destroyAccount'])->whereNumber('id');
         Route::post('/mail/accounts/{id}/test', [MailController::class, 'testAccount'])->whereNumber('id')->middleware('throttle:mail-test');
         Route::post('/mail/accounts/{id}/send', [MailController::class, 'send'])->whereNumber('id')->middleware('throttle:mail-send');
+        Route::post('/mail/accounts/{id}/labels', [MailController::class, 'storeLabel'])->whereNumber('id')->middleware('throttle:mail-account-write');
+        Route::post('/mail/accounts/{id}/labels/{labelId}/delete', [MailController::class, 'destroyLabel'])->whereNumber('id')->whereNumber('labelId');
+        Route::post('/mail/accounts/{id}/labels/{labelId}/rules', [MailController::class, 'storeLabelRule'])->whereNumber('id')->whereNumber('labelId')->middleware('throttle:mail-account-write');
+        Route::post('/mail/accounts/{id}/label-rules/{ruleId}/delete', [MailController::class, 'destroyLabelRule'])->whereNumber('id')->whereNumber('ruleId');
         Route::post('/mail/domain-requests', [MailController::class, 'requestDomain'])->middleware('throttle:3,60');
     });
 

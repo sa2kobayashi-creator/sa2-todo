@@ -123,6 +123,57 @@
                   @if(!empty($acc['lastTestMessage']))
                     <p class="hint {{ ($acc['lastTestStatus'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">{{ $acc['lastTestMessage'] }}</p>
                   @endif
+
+                  @if(!empty($acc['isSa2PlusMailbox']))
+                    @php $accLabels = $labelsByAccount[$acc['id']] ?? []; @endphp
+                    <div class="mail-label-panel">
+                      <h4>{{ __('ラベル・自動振り分け') }}</h4>
+                      <p class="hint">{{ __('@:domain アカウント専用です。同期時にルールへ一致した受信メールをラベルフォルダへ移します。', ['domain' => $mailDomain]) }}</p>
+                      <form method="post" action="/mail/accounts/{{ $acc['id'] }}/labels" class="mail-label-create">
+                        @csrf
+                        <label>{{ __('ラベル名') }}<input type="text" name="name" required maxlength="80" placeholder="{{ __('例: 請求') }}" /></label>
+                        <label>{{ __('色') }}<input type="color" name="color" value="#0f766e" /></label>
+                        <button type="submit">{{ __('ラベルを作成') }}</button>
+                      </form>
+                      @if($accLabels !== [])
+                        <ul class="mail-label-manage-list">
+                          @foreach($accLabels as $lab)
+                            <li>
+                              <div class="mail-label-manage-head">
+                                <span class="mail-label-swatch" style="--mail-label-color: {{ $lab['color'] }}"></span>
+                                <strong>{{ $lab['name'] }}</strong>
+                                <code>{{ $lab['folderPath'] }}</code>
+                                <form method="post" action="/mail/accounts/{{ $acc['id'] }}/labels/{{ $lab['id'] }}/delete" onsubmit="return confirm(@json(__('このラベルを削除しますか？')))">@csrf<button type="submit" class="danger">{{ __('削除') }}</button></form>
+                              </div>
+                              <ul class="mail-rule-list">
+                                @foreach(($lab['rules'] ?? []) as $rule)
+                                  <li>
+                                    <span>{{ $rule['matchField'] === 'from' ? __('差出人') : __('件名') }}
+                                      {{ $rule['matchOperator'] === 'equals' ? __('が一致') : __('を含む') }}:
+                                      {{ $rule['matchValue'] }}</span>
+                                    <form method="post" action="/mail/accounts/{{ $acc['id'] }}/label-rules/{{ $rule['id'] }}/delete">@csrf<button type="submit" class="secondary">{{ __('ルール削除') }}</button></form>
+                                  </li>
+                                @endforeach
+                              </ul>
+                              <form method="post" action="/mail/accounts/{{ $acc['id'] }}/labels/{{ $lab['id'] }}/rules" class="mail-rule-form">
+                                @csrf
+                                <select name="match_field">
+                                  <option value="from">{{ __('差出人') }}</option>
+                                  <option value="subject">{{ __('件名') }}</option>
+                                </select>
+                                <select name="match_operator">
+                                  <option value="contains">{{ __('を含む') }}</option>
+                                  <option value="equals">{{ __('が一致') }}</option>
+                                </select>
+                                <input type="text" name="match_value" required maxlength="255" placeholder="{{ __('例: billing@') }}" />
+                                <button type="submit" class="secondary">{{ __('ルール追加') }}</button>
+                              </form>
+                            </li>
+                          @endforeach
+                        </ul>
+                      @endif
+                    </div>
+                  @endif
                 </li>
               @endforeach
             </ul>
@@ -219,76 +270,92 @@
       @else
         <div id="mail-async-error" class="banner error" hidden></div>
         <div id="mail-async-notice" class="banner notice" hidden></div>
-        <section class="mail-shell" id="mail-shell"
+        <section class="mail-shell mail-shell-v2" id="mail-shell"
           data-account-id="{{ $selectedAccountId ?? '' }}"
           data-folder="{{ $folder ?? 'INBOX' }}"
           data-uid="{{ (int) ($uid ?? 0) }}"
           data-page="{{ (int) ($page ?? 1) }}"
           data-async="{{ !empty($loadMailboxAsync) ? '1' : '0' }}"
           data-compose="{{ !empty($compose) ? '1' : '0' }}"
+          data-labels='@json($labelsByAccount ?? [])'
         >
-          <aside class="mail-sidebar">
+          <aside class="mail-sidebar" id="mail-sidebar">
             <div class="mail-sidebar-head">
-              <strong>{{ __('アカウント') }}</strong>
+              <strong>{{ __('メール') }}</strong>
               @if(!empty($selectedAccountId))
-                <a href="/mail?account={{ $selectedAccountId }}&compose=1">{{ __('新規作成') }}</a>
+                <a class="mail-compose-btn" href="/mail?account={{ $selectedAccountId }}&compose=1">{{ __('新規作成') }}</a>
               @endif
             </div>
             @php
               $primaryAccounts = $primaryAccounts ?? [];
               $otherAccounts = $otherAccounts ?? [];
               $otherSelected = collect($otherAccounts)->contains(fn ($a) => (int) $a['id'] === (int) ($selectedAccountId ?? 0));
+              $allNavAccounts = array_merge($primaryAccounts, $otherAccounts);
             @endphp
-            @if($primaryAccounts !== [] || $otherAccounts !== [])
+            <div class="mail-account-trees" id="mail-account-trees">
               @if($primaryAccounts !== [])
-                <strong class="mail-account-group-title">@sa2-plus.com</strong>
-                <ul class="mail-account-nav">
-                  @foreach($primaryAccounts as $acc)
-                    <li>
-                      <a href="/mail?account={{ $acc['id'] }}" class="{{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
-                    </li>
-                  @endforeach
-                </ul>
+                <p class="mail-account-group-title">&#64;{{ $mailDomain }}</p>
+                @foreach($primaryAccounts as $acc)
+                  <details class="mail-account-tree" data-account-id="{{ $acc['id'] }}" @if((int)$selectedAccountId === (int)$acc['id']) open @endif>
+                    <summary>
+                      <a href="/mail?account={{ $acc['id'] }}" class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                    </summary>
+                    <ul class="mail-folder-nav mail-folder-nav-nested" data-account-folders="{{ $acc['id'] }}">
+                      @if((int)$selectedAccountId === (int)$acc['id'])
+                        <li class="hint" data-folder-placeholder>{{ __('読み込み中…') }}</li>
+                      @endif
+                    </ul>
+                  </details>
+                @endforeach
               @endif
               @if($otherAccounts !== [])
                 <details class="mail-other-accounts" @if($otherSelected || $primaryAccounts === []) open @endif>
                   <summary>{{ __('その他のアカウント') }}</summary>
-                  <ul class="mail-account-nav">
-                    @foreach($otherAccounts as $acc)
-                      <li>
-                        <a href="/mail?account={{ $acc['id'] }}" class="{{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
-                      </li>
-                    @endforeach
-                  </ul>
+                  @foreach($otherAccounts as $acc)
+                    <details class="mail-account-tree" data-account-id="{{ $acc['id'] }}" @if((int)$selectedAccountId === (int)$acc['id']) open @endif>
+                      <summary>
+                        <a href="/mail?account={{ $acc['id'] }}" class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                      </summary>
+                      <ul class="mail-folder-nav mail-folder-nav-nested" data-account-folders="{{ $acc['id'] }}">
+                        @if((int)$selectedAccountId === (int)$acc['id'])
+                          <li class="hint" data-folder-placeholder>{{ __('読み込み中…') }}</li>
+                        @endif
+                      </ul>
+                    </details>
+                  @endforeach
                 </details>
               @endif
-            @else
-              <ul class="mail-account-nav">
-                <li class="hint">{{ __('アカウントを追加してください。') }}</li>
-              </ul>
-            @endif
-            <strong class="mail-folder-title">{{ __('フォルダ') }}</strong>
-            <ul class="mail-folder-nav" id="mail-folder-nav">
-              <li class="hint" id="mail-folder-placeholder">{{ !empty($selectedAccountId) ? __('読み込み中…') : '' }}</li>
-            </ul>
-            <a class="mail-settings-link" href="/mail?tab=accounts{{ !empty($selectedAccountId) ? '&account='.$selectedAccountId : '' }}">{{ __('アカウント設定') }}</a>
+              @if($allNavAccounts === [])
+                <p class="hint">{{ __('アカウントを追加してください。') }}</p>
+              @endif
+            </div>
           </aside>
 
-          <div class="mail-list-pane">
+          <div class="mail-split" data-resize="sidebar" role="separator" aria-orientation="vertical" aria-label="{{ __('サイドバー幅') }}"></div>
+
+          <div class="mail-list-pane" id="mail-list-pane">
             @if(!empty($compose) && !empty($selectedAccountId))
-              <form method="post" action="/mail/accounts/{{ $selectedAccountId }}/send" class="mail-compose">
+              <form method="post" action="/mail/accounts/{{ $selectedAccountId }}/send" class="mail-compose mail-compose-v2">
                 @csrf
-                <h2>{{ __('新規メール') }}</h2>
-                <label>{{ __('宛先') }}<input type="email" name="to" required /></label>
-                <label>{{ __('件名') }}<input type="text" name="subject" required /></label>
-                <label>{{ __('本文') }}<textarea name="body" rows="12" required></textarea></label>
-                <div class="mail-compose-actions">
-                  <button type="submit">{{ __('送信') }}</button>
+                <header class="mail-compose-head">
+                  <div>
+                    <p class="mail-compose-kicker">{{ __('新規メール') }}</p>
+                    <h2>{{ __('メッセージを作成') }}</h2>
+                  </div>
                   <a class="button-link secondary" href="/mail?account={{ $selectedAccountId }}">{{ __('キャンセル') }}</a>
+                </header>
+                <div class="mail-compose-fields">
+                  <label class="mail-compose-row"><span>{{ __('宛先') }}</span><input type="email" name="to" required placeholder="name@example.com" /></label>
+                  <label class="mail-compose-row"><span>{{ __('件名') }}</span><input type="text" name="subject" required /></label>
+                  <label class="mail-compose-body"><span>{{ __('本文') }}</span><textarea name="body" rows="14" required></textarea></label>
+                </div>
+                <div class="mail-compose-actions">
+                  <button type="submit" class="mail-compose-send">{{ __('送信') }}</button>
                 </div>
               </form>
             @else
               <div class="mail-list-toolbar">
+                <strong id="mail-folder-title">{{ __('受信トレイ') }}</strong>
                 <button type="button" class="button-link secondary" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
               </div>
               <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
@@ -305,6 +372,8 @@
               </div>
             @endif
           </div>
+
+          <div class="mail-split" data-resize="list" role="separator" aria-orientation="vertical" aria-label="{{ __('一覧幅') }}"></div>
 
           <div class="mail-read-pane" id="mail-read-pane">
             <p class="hint mail-read-empty" id="mail-read-empty">{{ __('メールを選択すると内容が表示されます。') }}</p>
@@ -357,13 +426,61 @@
         }
 
         const shell = document.getElementById('mail-shell');
-        if (!shell || shell.getAttribute('data-async') !== '1' || shell.getAttribute('data-compose') === '1') return;
+        if (!shell) return;
+
+        // Resizable panes
+        (function initResize() {
+          const KEY = 'mail.pane.widths.v1';
+          let saved = null;
+          try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) {}
+          const sidebarW = Math.max(180, Math.min(420, Number(saved && saved.sidebar) || 248));
+          const listW = Math.max(240, Math.min(560, Number(saved && saved.list) || 360));
+          shell.style.setProperty('--mail-sidebar-w', sidebarW + 'px');
+          shell.style.setProperty('--mail-list-w', listW + 'px');
+
+          function bind(handle, which) {
+            if (!handle) return;
+            handle.addEventListener('pointerdown', (e) => {
+              e.preventDefault();
+              handle.setPointerCapture(e.pointerId);
+              const startX = e.clientX;
+              const startSidebar = parseFloat(getComputedStyle(shell).getPropertyValue('--mail-sidebar-w')) || sidebarW;
+              const startList = parseFloat(getComputedStyle(shell).getPropertyValue('--mail-list-w')) || listW;
+              const onMove = (ev) => {
+                const dx = ev.clientX - startX;
+                if (which === 'sidebar') {
+                  const w = Math.max(180, Math.min(420, startSidebar + dx));
+                  shell.style.setProperty('--mail-sidebar-w', w + 'px');
+                } else {
+                  const w = Math.max(240, Math.min(560, startList + dx));
+                  shell.style.setProperty('--mail-list-w', w + 'px');
+                }
+              };
+              const onUp = (ev) => {
+                handle.releasePointerCapture(ev.pointerId);
+                handle.removeEventListener('pointermove', onMove);
+                handle.removeEventListener('pointerup', onUp);
+                try {
+                  localStorage.setItem(KEY, JSON.stringify({
+                    sidebar: parseFloat(getComputedStyle(shell).getPropertyValue('--mail-sidebar-w')) || 248,
+                    list: parseFloat(getComputedStyle(shell).getPropertyValue('--mail-list-w')) || 360,
+                  }));
+                } catch (_) {}
+              };
+              handle.addEventListener('pointermove', onMove);
+              handle.addEventListener('pointerup', onUp);
+            });
+          }
+          bind(shell.querySelector('[data-resize="sidebar"]'), 'sidebar');
+          bind(shell.querySelector('[data-resize="list"]'), 'list');
+        })();
+
+        if (shell.getAttribute('data-async') !== '1' || shell.getAttribute('data-compose') === '1') return;
 
         const accountId = shell.getAttribute('data-account-id');
         if (!accountId) return;
 
         const loading = document.getElementById('mail-loading');
-        const folderNav = document.getElementById('mail-folder-nav');
         const list = document.getElementById('mail-message-list');
         const errEl = document.getElementById('mail-async-error');
         const noticeEl = document.getElementById('mail-async-notice');
@@ -371,7 +488,11 @@
         const nextBtn = document.getElementById('mail-next-page-btn');
         const readEmpty = document.getElementById('mail-read-empty');
         const readContent = document.getElementById('mail-read-content');
-        const labels = {
+        const folderTitle = document.getElementById('mail-folder-title');
+        const labelsByAccount = (() => {
+          try { return JSON.parse(shell.getAttribute('data-labels') || '{}'); } catch (_) { return {}; }
+        })();
+        const i18n = {
           from: @json(__('差出人')),
           to: @json(__('宛先')),
           date: @json(__('日時')),
@@ -380,6 +501,13 @@
           timeout: @json(__('メールの読み込みがタイムアウトしました。しばらくして再読み込みしてください。')),
           bodyFail: @json(__('本文の読み込みに失敗しました。')),
           loadingBody: @json(__('本文を読み込んでいます…')),
+          inbox: @json(__('受信トレイ')),
+          sent: @json(__('送信済み')),
+          drafts: @json(__('下書き')),
+          spam: @json(__('迷惑メール')),
+          trash: @json(__('ゴミ箱')),
+          labels: @json(__('ラベル')),
+          other: @json(__('その他')),
         };
 
         let state = {
@@ -417,33 +545,103 @@
           }
         }
 
-        function renderFolders(folders, active) {
-          if (!folderNav) return;
-          folderNav.innerHTML = '';
+        function kindOf(folder) {
+          if (folder && folder.kind) return folder.kind;
+          const probe = String((folder && (folder.path || folder.name)) || '').toLowerCase();
+          if (probe === 'inbox') return 'inbox';
+          if (probe.includes('sent')) return 'sent';
+          if (probe.includes('draft')) return 'drafts';
+          if (probe.includes('junk') || probe.includes('spam')) return 'spam';
+          if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted')) return 'trash';
+          if (probe.startsWith('labels.') || probe.startsWith('labels/')) return 'label';
+          return 'other';
+        }
+
+        function displayName(folder) {
+          const kind = kindOf(folder);
+          if (kind === 'inbox') return i18n.inbox;
+          if (kind === 'sent') return i18n.sent;
+          if (kind === 'drafts') return i18n.drafts;
+          if (kind === 'spam') return i18n.spam;
+          if (kind === 'trash') return i18n.trash;
+          if (kind === 'label') {
+            const path = String(folder.path || folder.name || '');
+            return path.replace(/^Labels[./]/i, '') || folder.name || path;
+          }
+          return folder.name || folder.path;
+        }
+
+        function pickByKind(folders, kind) {
+          return (folders || []).find((f) => kindOf(f) === kind) || null;
+        }
+
+        function buildStandardFolders(folders, labels) {
+          const items = [];
+          const order = ['inbox', 'sent', 'drafts', 'spam', 'trash'];
+          const defaults = {
+            inbox: { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 },
+            sent: { name: 'Sent', path: 'Sent', kind: 'sent', messages: 0 },
+            drafts: { name: 'Drafts', path: 'Drafts', kind: 'drafts', messages: 0 },
+            spam: { name: 'Junk', path: 'Junk', kind: 'spam', messages: 0 },
+            trash: { name: 'Trash', path: 'Trash', kind: 'trash', messages: 0 },
+          };
+          order.forEach((kind) => {
+            items.push(pickByKind(folders, kind) || defaults[kind]);
+          });
+          const labelFolders = [];
+          (labels || []).forEach((lab) => {
+            labelFolders.push({
+              name: lab.name,
+              path: lab.folderPath,
+              kind: 'label',
+              messages: 0,
+              color: lab.color,
+            });
+          });
           (folders || []).forEach((f) => {
+            if (kindOf(f) !== 'label') return;
+            if (labelFolders.some((x) => x.path === f.path)) return;
+            labelFolders.push(f);
+          });
+          return { system: items, labels: labelFolders };
+        }
+
+        function renderFolders(folders, labels, active) {
+          const nav = shell.querySelector('[data-account-folders="' + accountId + '"]');
+          if (!nav) return;
+          nav.innerHTML = '';
+          const built = buildStandardFolders(folders, labels || labelsByAccount[accountId] || []);
+          const appendLink = (folder, parent) => {
             const li = document.createElement('li');
             const a = document.createElement('a');
             a.href = '#';
-            a.className = f.path === active ? 'active' : '';
-            a.innerHTML = '<span></span> <span></span>';
-            a.children[0].textContent = f.name || f.path;
-            a.children[1].textContent = String(f.messages ?? '');
+            a.className = folder.path === active ? 'active' : '';
+            a.dataset.folderPath = folder.path;
+            if (folder.color) a.style.setProperty('--mail-label-color', folder.color);
+            a.innerHTML = '<span class="mail-folder-dot"></span><span class="mail-folder-name"></span><span class="mail-folder-count"></span>';
+            a.querySelector('.mail-folder-name').textContent = displayName(folder);
+            a.querySelector('.mail-folder-count').textContent = folder.messages ? String(folder.messages) : '';
             a.addEventListener('click', (e) => {
               e.preventDefault();
-              state.folder = f.path;
+              state.folder = folder.path;
               state.page = 1;
               state.uid = 0;
+              if (folderTitle) folderTitle.textContent = displayName(folder);
               loadMailbox();
             });
             li.appendChild(a);
-            folderNav.appendChild(li);
-          });
-          if (!(folders || []).length) {
-            const li = document.createElement('li');
-            li.className = 'hint';
-            li.textContent = 'INBOX';
-            folderNav.appendChild(li);
+            parent.appendChild(li);
+          };
+          built.system.forEach((f) => appendLink(f, nav));
+          if (built.labels.length) {
+            const head = document.createElement('li');
+            head.className = 'mail-folder-section';
+            head.textContent = i18n.labels;
+            nav.appendChild(head);
+            built.labels.forEach((f) => appendLink(f, nav));
           }
+          const current = [...built.system, ...built.labels].find((f) => f.path === active);
+          if (folderTitle) folderTitle.textContent = displayName(current || built.system[0]);
         }
 
         function renderMessages(messages) {
@@ -452,7 +650,7 @@
           if (!(messages || []).length) {
             const li = document.createElement('li');
             li.className = 'hint';
-            li.textContent = labels.empty;
+            li.textContent = i18n.empty;
             list.appendChild(li);
             return;
           }
@@ -490,10 +688,10 @@
           readEmpty.hidden = true;
           readContent.hidden = false;
           document.getElementById('mail-read-subject').textContent = message.subject || '';
-          document.getElementById('mail-read-from').textContent = labels.from + ': ' + (message.from || '');
-          document.getElementById('mail-read-to').textContent = labels.to + ': ' + (message.to || '');
+          document.getElementById('mail-read-from').textContent = i18n.from + ': ' + (message.from || '');
+          document.getElementById('mail-read-to').textContent = i18n.to + ': ' + (message.to || '');
           document.getElementById('mail-read-date').textContent = message.date
-            ? (labels.date + ': ' + formatDate(message.date))
+            ? (i18n.date + ': ' + formatDate(message.date))
             : '';
           document.getElementById('mail-read-body').innerHTML = message.bodyHtml || ('<p class="hint">' + @json(__('(本文なし)')) + '</p>');
         }
@@ -504,7 +702,7 @@
             return;
           }
           const forceRefresh = !!(options && options.refresh);
-          state._bodyHint = labels.loadingBody;
+          state._bodyHint = i18n.loadingBody;
           renderMessage(null);
           showBanner(errEl, '');
           const params = new URLSearchParams({
@@ -521,16 +719,12 @@
           })
             .then(async (res) => {
               let data = null;
-              try {
-                data = await res.json();
-              } catch (_) {
-                throw new Error(labels.bodyFail);
-              }
+              try { data = await res.json(); } catch (_) { throw new Error(i18n.bodyFail); }
               return { res, data };
             })
             .then(({ data }) => {
               if (!data || data.ok === false || !data.message) {
-                state._bodyHint = (data && data.message) || labels.bodyFail;
+                state._bodyHint = (data && data.message) || i18n.bodyFail;
                 showBanner(errEl, state._bodyHint);
                 renderMessage(null);
                 return;
@@ -545,7 +739,7 @@
             })
             .catch((err) => {
               const isAbort = err && (err.name === 'AbortError' || String(err).includes('AbortError'));
-              state._bodyHint = isAbort ? labels.timeout : ((err && err.message) || labels.bodyFail);
+              state._bodyHint = isAbort ? i18n.timeout : ((err && err.message) || i18n.bodyFail);
               showBanner(errEl, state._bodyHint);
               renderMessage(null);
             })
@@ -572,23 +766,19 @@
           })
             .then(async (res) => {
               let data = null;
-              try {
-                data = await res.json();
-              } catch (_) {
-                throw new Error(labels.fail);
-              }
+              try { data = await res.json(); } catch (_) { throw new Error(i18n.fail); }
               return { res, data };
             })
-            .then(({ res, data }) => {
+            .then(({ data }) => {
               if (!data || data.ok === false) {
-                showBanner(errEl, (data && data.message) || labels.fail);
-                renderFolders([], state.folder);
+                showBanner(errEl, (data && data.message) || i18n.fail);
+                renderFolders([], [], state.folder);
                 renderMessages([]);
                 renderMessage(null);
                 return;
               }
               state.folder = data.folder || state.folder;
-              renderFolders(data.folders || [], state.folder);
+              renderFolders(data.folders || [], data.labels || [], state.folder);
               renderMessages(data.messages || []);
               if (nextWrap) nextWrap.hidden = !(data.messages && data.messages.length >= 30);
               if (data.notice) showBanner(noticeEl, data.notice);
@@ -609,8 +799,8 @@
             })
             .catch((err) => {
               const isAbort = err && (err.name === 'AbortError' || String(err).includes('AbortError'));
-              showBanner(errEl, isAbort ? labels.timeout : ((err && err.message) || labels.fail));
-              renderFolders([], state.folder);
+              showBanner(errEl, isAbort ? i18n.timeout : ((err && err.message) || i18n.fail));
+              renderFolders([], [], state.folder);
               renderMessages([]);
               renderMessage(null);
             })
