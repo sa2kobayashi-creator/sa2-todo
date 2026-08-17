@@ -367,17 +367,21 @@
             @else
               <div class="mail-list-toolbar">
                 <strong id="mail-folder-title">{{ __('受信トレイ') }}</strong>
-                <div class="mail-list-toolbar-actions">
-                  <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
-                  <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
-                </div>
-              </div>
-              <div class="mail-list-ops" id="mail-list-ops">
                 <div class="mail-filter-row" id="mail-filter-row">
                   <input type="search" id="mail-filter-from" class="mail-filter-input" placeholder="{{ __('差出人で絞り込み') }}" autocomplete="off" />
                   <input type="search" id="mail-filter-subject" class="mail-filter-input" placeholder="{{ __('件名で絞り込み') }}" autocomplete="off" />
                   <button type="button" class="mail-toolbar-btn" id="mail-filter-clear">{{ __('クリア') }}</button>
                 </div>
+                <div class="mail-list-toolbar-actions">
+                  <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
+                  <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+                </div>
+              </div>
+              <div class="mail-list-head" id="mail-list-head" hidden>
+                <label class="mail-select-all">
+                  <input type="checkbox" id="mail-select-all" />
+                  <span>{{ __('すべて選択') }}</span>
+                </label>
                 <div class="mail-bulk-bar" id="mail-bulk-bar" hidden>
                   <span class="mail-bulk-count" id="mail-bulk-count"></span>
                   <button type="button" class="mail-toolbar-btn" data-bulk="read">{{ __('既読') }}</button>
@@ -388,12 +392,6 @@
                   <button type="button" class="mail-toolbar-btn" data-bulk="spam" id="mail-spam-btn">{{ __('迷惑メール') }}</button>
                   <button type="button" class="mail-toolbar-btn" data-bulk="not_spam" id="mail-not-spam-btn" hidden>{{ __('迷惑ではない') }}</button>
                 </div>
-              </div>
-              <div class="mail-list-head" id="mail-list-head" hidden>
-                <label class="mail-select-all">
-                  <input type="checkbox" id="mail-select-all" />
-                  <span>{{ __('すべて選択') }}</span>
-                </label>
               </div>
               <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
                 <span class="mail-loading-spinner" aria-hidden="true"></span>
