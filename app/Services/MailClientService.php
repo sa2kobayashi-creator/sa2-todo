@@ -147,27 +147,101 @@ class MailClientService
 
     public function folderKind(string $path, string $name = ''): string
     {
-        $probe = mb_strtolower(trim($path !== '' ? $path : $name));
-        if ($probe === 'inbox') {
+        $probe = mb_strtolower(trim(($path !== '' ? $path : '').' '.($name !== '' ? $name : '')));
+        $probe = str_replace(['＿', '　'], ['', ''], $probe);
+        if ($probe === 'inbox' || str_contains($probe, '受信')) {
             return 'inbox';
         }
-        if (str_contains($probe, 'sent')) {
+        if (str_contains($probe, 'sent') || str_contains($probe, '送信')) {
             return 'sent';
         }
-        if (str_contains($probe, 'draft')) {
+        if (str_contains($probe, 'draft') || str_contains($probe, '下書き')) {
             return 'drafts';
         }
-        if (str_contains($probe, 'junk') || str_contains($probe, 'spam')) {
+        if (str_contains($probe, 'junk') || str_contains($probe, 'spam') || str_contains($probe, '迷惑')) {
             return 'spam';
         }
-        if (str_contains($probe, 'trash') || str_contains($probe, 'bin') || str_contains($probe, 'deleted')) {
+        if (str_contains($probe, 'trash') || str_contains($probe, 'bin') || str_contains($probe, 'deleted') || str_contains($probe, 'ごみ') || str_contains($probe, 'ゴミ箱') || str_contains($probe, '削除')) {
             return 'trash';
         }
-        if (str_starts_with($probe, 'labels.') || str_starts_with($probe, 'labels/')) {
+        if (str_starts_with(mb_strtolower(trim($path)), 'labels.') || str_starts_with(mb_strtolower(trim($path)), 'labels/')) {
             return 'label';
         }
 
         return 'other';
+    }
+
+    /**
+     * 要求されたフォルダを実在パスへ解決（なければ kind / 別名で探す。安易に INBOX へ落とさない）。
+     *
+     * @param  list<array{name?: string, path?: string, kind?: string}>  $folders
+     */
+    public function resolveFolderPath(array $folders, string $requested): string
+    {
+        $requested = trim($requested);
+        if ($requested === '') {
+            return 'INBOX';
+        }
+
+        foreach ($folders as $folder) {
+            $path = (string) ($folder['path'] ?? '');
+            $name = (string) ($folder['name'] ?? '');
+            if ($path === $requested || $name === $requested) {
+                return $path !== '' ? $path : $name;
+            }
+        }
+
+        foreach ($folders as $folder) {
+            $path = (string) ($folder['path'] ?? '');
+            $name = (string) ($folder['name'] ?? '');
+            if (strcasecmp($path, $requested) === 0 || strcasecmp($name, $requested) === 0) {
+                return $path !== '' ? $path : $name;
+            }
+        }
+
+        $wantedKind = $this->folderKind($requested, $requested);
+        if ($wantedKind !== 'other' && $wantedKind !== 'label') {
+            foreach ($folders as $folder) {
+                $path = (string) ($folder['path'] ?? '');
+                $name = (string) ($folder['name'] ?? '');
+                $kind = (string) ($folder['kind'] ?? $this->folderKind($path, $name));
+                if ($kind === $wantedKind && $path !== '') {
+                    return $path;
+                }
+            }
+        }
+
+        foreach ($this->folderAliases($wantedKind, $requested) as $alias) {
+            foreach ($folders as $folder) {
+                $path = (string) ($folder['path'] ?? '');
+                $name = (string) ($folder['name'] ?? '');
+                if ($path === $alias || $name === $alias || strcasecmp($path, $alias) === 0) {
+                    return $path !== '' ? $path : $name;
+                }
+            }
+        }
+
+        return $requested;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function folderAliases(string $kind, string $requested): array
+    {
+        $aliases = match ($kind) {
+            'inbox' => ['INBOX'],
+            'sent' => ['Sent', 'Sent Messages', 'Sent Mail', 'INBOX.Sent', '[Gmail]/Sent Mail'],
+            'drafts' => ['Drafts', 'Draft', 'INBOX.Drafts', '[Gmail]/Drafts'],
+            'spam' => ['Junk', 'Spam', 'Bulk Mail', 'INBOX.Junk', 'INBOX.Spam', '[Gmail]/Spam'],
+            'trash' => ['Trash', 'Deleted Messages', 'INBOX.Trash', '[Gmail]/Trash'],
+            default => [],
+        };
+        if ($requested !== '' && ! in_array($requested, $aliases, true)) {
+            array_unshift($aliases, $requested);
+        }
+
+        return $aliases;
     }
 
     /**
@@ -228,10 +302,7 @@ class MailClientService
             }
 
             if ($folders !== []) {
-                $paths = array_column($folders, 'path');
-                if (! in_array($folderPath, $paths, true)) {
-                    $folderPath = in_array('INBOX', $paths, true) ? 'INBOX' : ($paths[0] ?? 'INBOX');
-                }
+                $folderPath = $this->resolveFolderPath($folders, $folderPath);
             }
 
             $listed = $this->messagesWithClient($client, $account, $folderPath, $page, $perPage);
@@ -1117,11 +1188,33 @@ class MailClientService
     private function openFolder($client, string $folderPath): Folder
     {
         $path = $folderPath !== '' ? $folderPath : 'INBOX';
-        try {
-            return $client->getFolderByPath($path);
-        } catch (\Throwable) {
-            return $client->getFolder('INBOX');
+        $candidates = array_values(array_unique(array_filter([
+            $path,
+            ...$this->folderAliases($this->folderKind($path, $path), $path),
+        ])));
+
+        $last = null;
+        foreach ($candidates as $candidate) {
+            try {
+                return $client->getFolderByPath($candidate);
+            } catch (\Throwable $e) {
+                $last = $e;
+                try {
+                    $folder = $client->getFolder($candidate);
+                    if ($folder) {
+                        return $folder;
+                    }
+                } catch (\Throwable $e2) {
+                    $last = $e2;
+                }
+            }
         }
+
+        throw new \RuntimeException(
+            __('フォルダ「:folder」を開けませんでした。', ['folder' => $path]),
+            0,
+            $last
+        );
     }
 
     private function smtpDsn(MailAccount $account): string

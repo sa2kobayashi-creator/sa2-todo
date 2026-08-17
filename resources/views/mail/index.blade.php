@@ -356,7 +356,10 @@
             @else
               <div class="mail-list-toolbar">
                 <strong id="mail-folder-title">{{ __('受信トレイ') }}</strong>
-                <button type="button" class="button-link secondary" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+                <div class="mail-list-toolbar-actions">
+                  <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
+                  <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+                </div>
               </div>
               <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
                 <span class="mail-loading-spinner" aria-hidden="true"></span>
@@ -368,7 +371,7 @@
                 @endif
               </ul>
               <div id="mail-next-page" hidden>
-                <button type="button" class="button-link secondary" id="mail-next-page-btn">{{ __('次のページ') }}</button>
+                <button type="button" class="mail-toolbar-btn" id="mail-next-page-btn">{{ __('次のページ') }}</button>
               </div>
             @endif
           </div>
@@ -390,6 +393,31 @@
         </section>
       @endif
     </main>
+
+    <dialog class="mail-dialog" id="mail-bg-dialog">
+      <form method="dialog" class="mail-dialog-card">
+        <h3>{{ __('メール背景') }}</h3>
+        <p class="hint">{{ __('一覧と本文の背景は、この端末だけに保存されます（メッセージ機能と同様）。') }}</p>
+        <div class="mail-bg-presets" id="mail-bg-presets">
+          <button type="button" class="mail-bg-preset" data-bg="default" title="{{ __('標準') }}"><span>{{ __('標準') }}</span></button>
+          <button type="button" class="mail-bg-preset is-mint" data-bg="mint" title="{{ __('ミント') }}"><span>{{ __('ミント') }}</span></button>
+          <button type="button" class="mail-bg-preset is-sky" data-bg="sky" title="{{ __('スカイ') }}"><span>{{ __('スカイ') }}</span></button>
+          <button type="button" class="mail-bg-preset is-ocean" data-bg="ocean" title="{{ __('オーシャン') }}"><span>{{ __('オーシャン') }}</span></button>
+          <button type="button" class="mail-bg-preset is-aurora" data-bg="aurora" title="{{ __('オーロラ') }}"><span>{{ __('オーロラ') }}</span></button>
+          <button type="button" class="mail-bg-preset is-forest" data-bg="forest" title="{{ __('フォレスト') }}"><span>{{ __('フォレスト') }}</span></button>
+          <button type="button" class="mail-bg-preset is-sakura" data-bg="sakura" title="{{ __('サクラ') }}"><span>{{ __('サクラ') }}</span></button>
+          <button type="button" class="mail-bg-preset is-paper" data-bg="paper" title="{{ __('ペーパー') }}"><span>{{ __('ペーパー') }}</span></button>
+          <button type="button" class="mail-bg-preset is-sand" data-bg="sand" title="{{ __('サンド') }}"><span>{{ __('サンド') }}</span></button>
+          <button type="button" class="mail-bg-preset is-dusk" data-bg="dusk" title="{{ __('ダスク') }}"><span>{{ __('ダスク') }}</span></button>
+          <button type="button" class="mail-bg-preset is-midnight" data-bg="midnight" title="{{ __('ミッドナイト') }}"><span>{{ __('ミッドナイト') }}</span></button>
+          <button type="button" class="mail-bg-preset is-plain" data-bg="plain" title="{{ __('シンプル') }}"><span>{{ __('シンプル') }}</span></button>
+        </div>
+        <div class="mail-bg-actions">
+          <button type="button" class="mail-toolbar-btn" id="mail-bg-clear">{{ __('背景をクリア') }}</button>
+          <button type="submit" class="mail-toolbar-btn is-solid" value="cancel">{{ __('閉じる') }}</button>
+        </div>
+      </form>
+    </dialog>
 
     <script>
       (function () {
@@ -427,6 +455,42 @@
 
         const shell = document.getElementById('mail-shell');
         if (!shell) return;
+
+        // Background presets (local, like Messages)
+        (function initMailBackground() {
+          const KEY = 'mail.bg.preset.v1';
+          const dialog = document.getElementById('mail-bg-dialog');
+          const openBtn = document.getElementById('mail-bg-btn');
+          const clearBtn = document.getElementById('mail-bg-clear');
+          const presets = document.getElementById('mail-bg-presets');
+          const apply = (name) => {
+            const value = name && name !== 'default' ? name : '';
+            if (value) shell.setAttribute('data-mail-bg', value);
+            else shell.removeAttribute('data-mail-bg');
+            try { localStorage.setItem(KEY, value || 'default'); } catch (_) {}
+            if (presets) {
+              presets.querySelectorAll('.mail-bg-preset').forEach((btn) => {
+                btn.classList.toggle('is-active', (btn.getAttribute('data-bg') || '') === (value || 'default'));
+              });
+            }
+          };
+          let saved = 'default';
+          try { saved = localStorage.getItem(KEY) || 'default'; } catch (_) {}
+          apply(saved);
+          if (openBtn && dialog) {
+            openBtn.addEventListener('click', () => {
+              if (typeof dialog.showModal === 'function') dialog.showModal();
+            });
+          }
+          if (presets) {
+            presets.addEventListener('click', (e) => {
+              const btn = e.target.closest('.mail-bg-preset');
+              if (!btn) return;
+              apply(btn.getAttribute('data-bg') || 'default');
+            });
+          }
+          if (clearBtn) clearBtn.addEventListener('click', () => apply('default'));
+        })();
 
         // Resizable panes
         (function initResize() {
@@ -547,13 +611,13 @@
 
         function kindOf(folder) {
           if (folder && folder.kind) return folder.kind;
-          const probe = String((folder && (folder.path || folder.name)) || '').toLowerCase();
-          if (probe === 'inbox') return 'inbox';
-          if (probe.includes('sent')) return 'sent';
-          if (probe.includes('draft')) return 'drafts';
-          if (probe.includes('junk') || probe.includes('spam')) return 'spam';
-          if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted')) return 'trash';
-          if (probe.startsWith('labels.') || probe.startsWith('labels/')) return 'label';
+          const probe = String((folder && ((folder.path || '') + ' ' + (folder.name || ''))) || '').toLowerCase();
+          if (probe === 'inbox' || probe.includes('受信')) return 'inbox';
+          if (probe.includes('sent') || probe.includes('送信')) return 'sent';
+          if (probe.includes('draft') || probe.includes('下書き')) return 'drafts';
+          if (probe.includes('junk') || probe.includes('spam') || probe.includes('迷惑')) return 'spam';
+          if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted') || probe.includes('ごみ') || probe.includes('ゴミ箱') || probe.includes('削除')) return 'trash';
+          if (probe.trim().startsWith('labels.') || probe.trim().startsWith('labels/')) return 'label';
           return 'other';
         }
 
@@ -578,15 +642,15 @@
         function buildStandardFolders(folders, labels) {
           const items = [];
           const order = ['inbox', 'sent', 'drafts', 'spam', 'trash'];
-          const defaults = {
-            inbox: { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 },
-            sent: { name: 'Sent', path: 'Sent', kind: 'sent', messages: 0 },
-            drafts: { name: 'Drafts', path: 'Drafts', kind: 'drafts', messages: 0 },
-            spam: { name: 'Junk', path: 'Junk', kind: 'spam', messages: 0 },
-            trash: { name: 'Trash', path: 'Trash', kind: 'trash', messages: 0 },
-          };
+          const inboxFallback = { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 };
           order.forEach((kind) => {
-            items.push(pickByKind(folders, kind) || defaults[kind]);
+            const found = pickByKind(folders, kind);
+            if (found) {
+              items.push(found);
+              return;
+            }
+            // 実在しないパスを捏造しない（サーバが INBOX に落とす原因になる）
+            if (kind === 'inbox') items.push(inboxFallback);
           });
           const labelFolders = [];
           (labels || []).forEach((lab) => {
@@ -603,7 +667,13 @@
             if (labelFolders.some((x) => x.path === f.path)) return;
             labelFolders.push(f);
           });
-          return { system: items, labels: labelFolders };
+          // その他の実フォルダも「その他」として出す
+          const used = new Set(items.map((f) => f.path).concat(labelFolders.map((f) => f.path)));
+          const others = (folders || []).filter((f) => {
+            const k = kindOf(f);
+            return k === 'other' && f.path && !used.has(f.path);
+          });
+          return { system: items, labels: labelFolders, others };
         }
 
         function renderFolders(folders, labels, active) {
@@ -623,10 +693,13 @@
             a.querySelector('.mail-folder-count').textContent = folder.messages ? String(folder.messages) : '';
             a.addEventListener('click', (e) => {
               e.preventDefault();
+              e.stopPropagation();
               state.folder = folder.path;
               state.page = 1;
               state.uid = 0;
               if (folderTitle) folderTitle.textContent = displayName(folder);
+              nav.querySelectorAll('a.active').forEach((el) => el.classList.remove('active'));
+              a.classList.add('active');
               loadMailbox();
             });
             li.appendChild(a);
@@ -640,8 +713,16 @@
             nav.appendChild(head);
             built.labels.forEach((f) => appendLink(f, nav));
           }
-          const current = [...built.system, ...built.labels].find((f) => f.path === active);
-          if (folderTitle) folderTitle.textContent = displayName(current || built.system[0]);
+          if (built.others && built.others.length) {
+            const head = document.createElement('li');
+            head.className = 'mail-folder-section';
+            head.textContent = i18n.other;
+            nav.appendChild(head);
+            built.others.forEach((f) => appendLink(f, nav));
+          }
+          const all = [...built.system, ...built.labels, ...(built.others || [])];
+          const current = all.find((f) => f.path === active);
+          if (folderTitle) folderTitle.textContent = displayName(current || built.system[0] || { path: active, name: active });
         }
 
         function renderMessages(messages) {

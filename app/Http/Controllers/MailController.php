@@ -93,6 +93,7 @@ class MailController extends Controller
         try {
             $account = $this->accounts->findOwned($request->user(), $id);
             $folder = (string) $request->query('folder', 'INBOX');
+            $folder = $folder !== '' ? $folder : 'INBOX';
             $uid = (int) $request->query('uid', 0);
             $page = max(1, (int) $request->query('page', 1));
             $refresh = $request->boolean('refresh');
@@ -112,6 +113,8 @@ class MailController extends Controller
                 $folders = [['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0, 'kind' => 'inbox']];
             }
 
+            $folder = $this->client->resolveFolderPath($folders, $folder);
+
             $labels = [];
             if ($account->is_sa2_plus_mailbox) {
                 $labels = array_map(
@@ -120,28 +123,31 @@ class MailController extends Controller
                 );
             }
 
-            $storedMessages = $this->metadataSync->page($account, $folder, $page);
-            if ($storedMessages !== []) {
-                $count = $this->metadataSync->count($account, $folder);
-                foreach ($folders as $i => $folderRow) {
-                    if (($folderRow['path'] ?? '') === $folder) {
-                        $folders[$i]['messages'] = $count;
-                        break;
+            // メタデータ同期は INBOX のみ。他フォルダは IMAP を直接読む
+            if ($folder === 'INBOX') {
+                $storedMessages = $this->metadataSync->page($account, $folder, $page);
+                if ($storedMessages !== []) {
+                    $count = $this->metadataSync->count($account, $folder);
+                    foreach ($folders as $i => $folderRow) {
+                        if (($folderRow['path'] ?? '') === $folder) {
+                            $folders[$i]['messages'] = $count;
+                            break;
+                        }
                     }
-                }
 
-                return response()->json([
-                    'ok' => true,
-                    'folders' => $folders,
-                    'labels' => $labels,
-                    'folder' => $folder,
-                    'messages' => $storedMessages,
-                    'message' => null,
-                    'page' => $page,
-                    'cached' => true,
-                    'syncedAt' => $account->fresh()->last_synced_at?->toIso8601String(),
-                    'syncStatus' => $account->last_sync_status,
-                ]);
+                    return response()->json([
+                        'ok' => true,
+                        'folders' => $folders,
+                        'labels' => $labels,
+                        'folder' => $folder,
+                        'messages' => $storedMessages,
+                        'message' => null,
+                        'page' => $page,
+                        'cached' => true,
+                        'syncedAt' => $account->fresh()->last_synced_at?->toIso8601String(),
+                        'syncStatus' => $account->last_sync_status,
+                    ]);
+                }
             }
 
             $snapshot = $this->client->mailboxSnapshot($account, $folder, $page, $uid, 30, $refresh);
@@ -194,6 +200,7 @@ class MailController extends Controller
         try {
             $account = $this->accounts->findOwned($request->user(), $id);
             $folder = (string) $request->query('folder', 'INBOX');
+            $folder = $folder !== '' ? $folder : 'INBOX';
             $uid = (int) $request->query('uid', 0);
             $refresh = $request->boolean('refresh');
             if ($uid < 1) {
@@ -201,6 +208,13 @@ class MailController extends Controller
                     'ok' => false,
                     'message' => __('メールが選ばれていません。'),
                 ], 422);
+            }
+
+            try {
+                $folders = $this->client->listFolders($account, false);
+                $folder = $this->client->resolveFolderPath($folders, $folder);
+            } catch (\Throwable) {
+                // keep requested folder
             }
 
             $message = $this->client->readMessage($account, $folder, $uid, $refresh);

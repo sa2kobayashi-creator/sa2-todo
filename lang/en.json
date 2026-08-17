@@ -2833,5 +2833,8 @@
     "振り分けルールを追加しました。": "Auto-sort rule added.",
     "振り分けルールを削除しました。": "Auto-sort rule deleted.",
     "申請に失敗しました。": "Request failed.",
-    "申請を受け付けました。管理者の承認後、メールボックスが準備されます。": "Request received. The mailbox will be prepared after admin approval."
+    "申請を受け付けました。管理者の承認後、メールボックスが準備されます。": "Request received. The mailbox will be prepared after admin approval.",
+    "メール背景": "Mail background",
+    "一覧と本文の背景は、この端末だけに保存されます（メッセージ機能と同様）。": "List and reading pane backgrounds are saved on this device only (same idea as Messages).",
+    "フォルダ「:folder」を開けませんでした。": "Could not open folder \":folder\"."
 }
