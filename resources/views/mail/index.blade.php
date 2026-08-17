@@ -451,6 +451,22 @@
       </form>
     </dialog>
 
+    <dialog class="mail-dialog" id="mail-folder-dialog">
+      <form method="dialog" class="mail-dialog-card" id="mail-folder-form">
+        <h3>{{ __('フォルダ追加') }}</h3>
+        <p class="hint">{{ __('独自ドメイン用の移動先フォルダを作成します。') }}</p>
+        <label class="mail-folder-dialog-label">
+          {{ __('フォルダ名') }}
+          <input type="text" id="mail-folder-name-input" maxlength="120" required placeholder="{{ __('例: 仕事') }}" autocomplete="off" />
+        </label>
+        <p class="hint error" id="mail-folder-dialog-error" hidden></p>
+        <div class="mail-bg-actions">
+          <button type="submit" class="mail-toolbar-btn" value="cancel">{{ __('キャンセル') }}</button>
+          <button type="button" class="mail-toolbar-btn is-solid" id="mail-folder-create-submit">{{ __('作成') }}</button>
+        </div>
+      </form>
+    </dialog>
+
     <script>
       (function () {
         const presets = {
@@ -915,23 +931,24 @@
           if (isSa2Plus) {
             const createLi = document.createElement('li');
             createLi.className = 'mail-folder-create';
-            createLi.innerHTML = '<input type="text" maxlength="120" placeholder="' + i18n.folderName + '" /><button type="button" class="mail-toolbar-btn">' + i18n.folderCreate + '</button>';
-            const input = createLi.querySelector('input');
-            const btn = createLi.querySelector('button');
-            btn.addEventListener('click', async () => {
-              const name = (input.value || '').trim();
-              if (!name) return;
-              try {
-                const data = await postJson('/mail/accounts/' + accountId + '/folders', { name });
-                if (data.folder) {
-                  state.userFolders = [...(state.userFolders || []), data.folder];
-                  input.value = '';
-                  loadMailbox({ refresh: true });
-                }
-              } catch (err) {
-                showBanner(errEl, (err && err.message) || i18n.actionFail);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mail-toolbar-btn';
+            btn.textContent = i18n.folderCreate;
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const dialog = document.getElementById('mail-folder-dialog');
+              const input = document.getElementById('mail-folder-name-input');
+              const err = document.getElementById('mail-folder-dialog-error');
+              if (err) { err.hidden = true; err.textContent = ''; }
+              if (input) input.value = '';
+              if (dialog && typeof dialog.showModal === 'function') {
+                dialog.showModal();
+                setTimeout(() => input && input.focus(), 0);
               }
             });
+            createLi.appendChild(btn);
             nav.appendChild(createLi);
           }
           if (built.labels.length) {
@@ -1233,6 +1250,55 @@
             runBulk(action);
           });
         }
+
+        (function initFolderDialog() {
+          const dialog = document.getElementById('mail-folder-dialog');
+          const input = document.getElementById('mail-folder-name-input');
+          const submit = document.getElementById('mail-folder-create-submit');
+          const err = document.getElementById('mail-folder-dialog-error');
+          if (!dialog || !submit || !input) return;
+
+          const createFolder = async () => {
+            const name = (input.value || '').trim();
+            if (!name) {
+              if (err) {
+                err.hidden = false;
+                err.textContent = i18n.folderName;
+              }
+              input.focus();
+              return;
+            }
+            submit.disabled = true;
+            if (err) { err.hidden = true; err.textContent = ''; }
+            try {
+              const data = await postJson('/mail/accounts/' + accountId + '/folders', { name });
+              if (data.folder) {
+                state.userFolders = [...(state.userFolders || []), data.folder];
+                input.value = '';
+                dialog.close();
+                loadMailbox({ refresh: true });
+              }
+            } catch (e) {
+              if (err) {
+                err.hidden = false;
+                err.textContent = (e && e.message) || i18n.actionFail;
+              }
+            } finally {
+              submit.disabled = false;
+            }
+          };
+
+          submit.addEventListener('click', (e) => {
+            e.preventDefault();
+            createFolder();
+          });
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              createFolder();
+            }
+          });
+        })();
 
         renderMoveTargets();
         updateBulkUi();
