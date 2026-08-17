@@ -13,6 +13,7 @@ class MailMetadataSyncService
     public function __construct(
         private MailClientService $client,
         private MailLabelService $labels,
+        private MailSenderRuleService $senderRules,
     ) {}
 
     /**
@@ -25,7 +26,9 @@ class MailMetadataSyncService
             $rows = $snapshot['messages'];
             $moved = 0;
             if ($account->is_sa2_plus_mailbox && $rows !== []) {
-                $moved = $this->labels->applyRulesToInbox($account, $rows);
+                $movedSender = $this->senderRules->applyRulesToMessages($account, $rows);
+                $movedLabel = $this->labels->applyRulesToInbox($account, $rows);
+                $moved = $movedSender + $movedLabel;
                 if ($moved > 0) {
                     $snapshot = $this->client->mailboxSnapshot($account, 'INBOX', 1, 0, 50, true);
                     $rows = $snapshot['messages'];
@@ -54,6 +57,7 @@ class MailMetadataSyncService
                         'from_address' => mb_substr((string) ($row['from'] ?? ''), 0, 512),
                         'received_at' => filled($row['date'] ?? null) ? $row['date'] : null,
                         'is_seen' => (bool) ($row['seen'] ?? false),
+                        'is_flagged' => (bool) ($row['flagged'] ?? false),
                         'synced_at' => $now,
                     ]
                 );
@@ -92,7 +96,7 @@ class MailMetadataSyncService
     }
 
     /**
-     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool}>
+     * @return list<array{uid: int, subject: string, from: string, date: ?string, seen: bool, flagged: bool}>
      */
     public function page(MailAccount $account, string $folderPath = 'INBOX', int $page = 1, int $perPage = 30): array
     {
@@ -109,6 +113,7 @@ class MailMetadataSyncService
                 'from' => $header->from_address ?: '',
                 'date' => $header->received_at?->toIso8601String(),
                 'seen' => $header->is_seen,
+                'flagged' => (bool) $header->is_flagged,
             ])
             ->all();
     }

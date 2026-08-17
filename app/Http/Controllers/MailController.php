@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MailFolder;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\MailAccountService;
+use App\Services\MailActionService;
 use App\Services\MailClientService;
+use App\Services\MailFolderService;
 use App\Services\MailLabelService;
 use App\Services\MailMetadataSyncService;
 use App\Services\Sa2PlusMailboxService;
@@ -21,6 +24,8 @@ class MailController extends Controller
         private MailClientService $client,
         private MailMetadataSyncService $metadataSync,
         private MailLabelService $labels,
+        private MailFolderService $folders,
+        private MailActionService $actions,
         private Sa2PlusMailboxService $domainMail,
     ) {}
 
@@ -41,6 +46,7 @@ class MailController extends Controller
         $accountArrays = array_map(fn ($a) => $a->toClientArray(), $accountList);
 
         $labelsByAccount = [];
+        $userFoldersByAccount = [];
         foreach ($accountList as $acc) {
             if (! $acc->is_sa2_plus_mailbox) {
                 continue;
@@ -48,6 +54,10 @@ class MailController extends Controller
             $labelsByAccount[$acc->id] = array_map(
                 fn ($label) => $label->toClientArray(),
                 $this->labels->listForAccount($acc)
+            );
+            $userFoldersByAccount[$acc->id] = array_map(
+                fn ($folder) => $folder->toClientArray(),
+                $this->folders->listForAccount($acc)
             );
         }
 
@@ -62,6 +72,7 @@ class MailController extends Controller
                 fn ($a) => empty($a['isSa2PlusMailbox'])
             )),
             'labelsByAccount' => $labelsByAccount,
+            'userFoldersByAccount' => $userFoldersByAccount,
             'selectedAccountId' => $selected?->id,
             'editAccountId' => $accountId > 0 ? $accountId : ($selected?->id),
             'folders' => [],
@@ -129,10 +140,15 @@ class MailController extends Controller
             $folder = $this->client->resolveFolderPath($folders, $folder);
 
             $labels = [];
+            $userFolders = [];
             if ($account->is_sa2_plus_mailbox) {
                 $labels = array_map(
                     fn ($label) => $label->toClientArray(),
                     $this->labels->listForAccount($account)
+                );
+                $userFolders = array_map(
+                    fn ($folder) => $folder->toClientArray(),
+                    $this->folders->listForAccount($account)
                 );
             }
 
@@ -141,11 +157,13 @@ class MailController extends Controller
             // ラベルなど、まだ無いアプリフォルダを開くときに作成
             if ($this->client->isDomainMailbox($account) && $folder !== 'INBOX') {
                 $kind = $this->client->folderKind($folder, $folder);
-                if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label'], true)
+                if (in_array($kind, ['sent', 'drafts', 'spam', 'trash', 'label', 'folder'], true)
                     || str_starts_with($folder, 'Sa2.')
                     || str_starts_with($folder, 'INBOX.Sa2.')
                     || str_starts_with($folder, 'Labels.')
-                    || str_starts_with($folder, 'INBOX.Labels.')) {
+                    || str_starts_with($folder, 'INBOX.Labels.')
+                    || str_starts_with($folder, 'Folders.')
+                    || str_starts_with($folder, 'INBOX.Folders.')) {
                     try {
                         $this->client->ensureFolder($account, $folder);
                         $folders = $this->client->listFolders($account, true);
@@ -184,6 +202,9 @@ class MailController extends Controller
                         'folders' => $folders,
                         'systemFolders' => $systemFolders,
                         'labels' => $labels,
+                        'userFolders' => $userFolders,
+                        'isSa2Plus' => true,
+                        'archivePath' => $this->client->appSystemFolderPath('archive'),
                         'folder' => $folder,
                         'messages' => $storedMessages,
                         'message' => null,
@@ -208,6 +229,9 @@ class MailController extends Controller
                 'folders' => $responseFolders,
                 'systemFolders' => $this->client->systemFolderMenu($account, $responseFolders),
                 'labels' => $labels,
+                'userFolders' => $userFolders,
+                'isSa2Plus' => (bool) $account->is_sa2_plus_mailbox,
+                'archivePath' => $account->is_sa2_plus_mailbox ? $this->client->appSystemFolderPath('archive') : null,
                 'folder' => $snapshot['folder'],
                 'messages' => $snapshot['messages'],
                 'message' => $snapshot['message'],
@@ -425,6 +449,120 @@ class MailController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('振り分けルールを削除しました。'));
+    }
+
+    public function bulkMessages(Request $request, int $id)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $validated = $request->validate([
+                'folder' => ['nullable', 'string', 'max:255'],
+                'uids' => ['required', 'array', 'min:1', 'max:50'],
+                'uids.*' => ['integer', 'min:1'],
+                'action' => ['required', 'string', 'in:read,unread,delete,archive,spam,not_spam,move'],
+                'targetFolder' => ['nullable', 'string', 'max:255'],
+                'registerSender' => ['sometimes', 'boolean'],
+            ]);
+
+            $folder = (string) ($validated['folder'] ?? 'INBOX');
+            $result = $this->actions->bulk(
+                $account,
+                $folder !== '' ? $folder : 'INBOX',
+                $validated['uids'],
+                $validated['action'],
+                $validated['targetFolder'] ?? null,
+                (bool) ($validated['registerSender'] ?? false),
+            );
+
+            if ($folder === 'INBOX' && $account->is_sa2_plus_mailbox) {
+                try {
+                    $this->metadataSync->syncInbox($account);
+                } catch (\Throwable) {
+                    // 操作自体は成功している場合がある
+                }
+            }
+
+            return response()->json([
+                'ok' => true,
+                'processed' => $result['ok'],
+                'failed' => $result['failed'],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('操作に失敗しました。'),
+            ], 422);
+        }
+    }
+
+    public function starMessage(Request $request, int $id)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $validated = $request->validate([
+                'folder' => ['nullable', 'string', 'max:255'],
+                'uid' => ['required', 'integer', 'min:1'],
+                'flagged' => ['required', 'boolean'],
+            ]);
+
+            $folder = (string) ($validated['folder'] ?? 'INBOX');
+            $this->actions->toggleStar(
+                $account,
+                $folder !== '' ? $folder : 'INBOX',
+                (int) $validated['uid'],
+                (bool) $validated['flagged'],
+            );
+
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('操作に失敗しました。'),
+            ], 422);
+        }
+    }
+
+    public function storeFolder(Request $request, int $id)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:120'],
+            ]);
+            $folder = $this->folders->create($account, $validated['name']);
+
+            return response()->json([
+                'ok' => true,
+                'folder' => $folder->toClientArray(),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('フォルダの作成に失敗しました。'),
+            ], 422);
+        }
+    }
+
+    public function destroyFolder(Request $request, int $id, int $folderId)
+    {
+        try {
+            $account = $this->accounts->findOwned($request->user(), $id);
+            $folder = MailFolder::query()
+                ->where('mail_account_id', $account->id)
+                ->whereKey($folderId)
+                ->first();
+            if (! $folder) {
+                throw new \InvalidArgumentException(__('フォルダが見つかりません。'));
+            }
+            $this->folders->delete($account, $folder);
+
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : __('フォルダの削除に失敗しました。'),
+            ], 422);
+        }
     }
 
     public function requestDomain(Request $request)

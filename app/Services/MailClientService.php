@@ -204,6 +204,58 @@ class MailClientService
         }
     }
 
+    public function setMessageFlag(MailAccount $account, string $folderPath, int $uid, string $flag, bool $set): void
+    {
+        if ($uid < 1 || $folderPath === '') {
+            throw new \InvalidArgumentException(__('メールが不正です。'));
+        }
+
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $folderPath);
+            $message = $folder->messages()
+                ->setFetchBody(false)
+                ->setFetchFlags(true)
+                ->getMessageByUid($uid);
+            if (! $message) {
+                throw new \RuntimeException(__('メールが見つかりません。'));
+            }
+            if ($set) {
+                $message->setFlag($flag);
+            } else {
+                $message->unsetFlag($flag);
+            }
+            $this->forgetAccountCache($account);
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    public function getMessageFromEmail(MailAccount $account, string $folderPath, int $uid): string
+    {
+        if ($uid < 1 || $folderPath === '') {
+            return '';
+        }
+
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $folderPath);
+            $message = $folder->messages()
+                ->setFetchBody(false)
+                ->setFetchFlags(false)
+                ->getMessageByUid($uid);
+            if (! $message) {
+                return '';
+            }
+
+            return $this->firstAddressEmail($message->getFrom());
+        } catch (\Throwable) {
+            return '';
+        } finally {
+            $client->disconnect();
+        }
+    }
+
     /**
      * @param  array{name: string, path: string, messages: int}  $row
      * @return array{name: string, path: string, messages: int, kind: string}
@@ -226,8 +278,13 @@ class MailClientService
                 str_ends_with($lowerPath, '.drafts'), str_ends_with($lowerPath, '.draft') => 'drafts',
                 str_ends_with($lowerPath, '.junk'), str_ends_with($lowerPath, '.spam'), str_ends_with($lowerPath, '.meiwaku') => 'spam',
                 str_ends_with($lowerPath, '.trash') => 'trash',
+                str_ends_with($lowerPath, '.archive') => 'archive',
                 default => 'other',
             };
+        }
+
+        if (str_starts_with(mb_strtolower(trim($path)), 'folders.') || str_starts_with(mb_strtolower(trim($path)), 'folders/')) {
+            return 'folder';
         }
 
         $probe = mb_strtolower(trim(($path !== '' ? $path : '').' '.($name !== '' ? $name : '')));
@@ -270,6 +327,7 @@ class MailClientService
             'drafts' => 'INBOX.Sa2.Drafts',
             'spam' => 'INBOX.Sa2.Junk',
             'trash' => 'INBOX.Sa2.Trash',
+            'archive' => 'INBOX.Sa2.Archive',
             default => null,
         };
     }
@@ -284,7 +342,7 @@ class MailClientService
         }
 
         $paths = [];
-        foreach (['sent', 'drafts', 'spam', 'trash'] as $kind) {
+        foreach (['sent', 'drafts', 'spam', 'trash', 'archive'] as $kind) {
             $path = $this->appSystemFolderPath($kind);
             if ($path === null) {
                 continue;
@@ -1079,6 +1137,7 @@ class MailClientService
                 'from' => $this->extractEmail($from),
                 'date' => $this->normalizeDateString($dateRaw),
                 'seen' => str_contains($flags, 'seen'),
+                'flagged' => str_contains($flags, 'flagged'),
             ];
         }
 
@@ -1180,7 +1239,7 @@ class MailClientService
     }
 
     /**
-     * @return array{uid: int, subject: string, from: string, date: ?string, seen: bool}
+     * @return array{uid: int, subject: string, from: string, date: ?string, seen: bool, flagged: bool}
      */
     private function messageToListRow(Message $message): array
     {
@@ -1188,6 +1247,7 @@ class MailClientService
         $subject = __('(件名なし)');
         $date = null;
         $seen = false;
+        $flagged = false;
         $uid = 0;
 
         try {
@@ -1222,6 +1282,7 @@ class MailClientService
         try {
             $flags = $message->getFlags();
             $seen = (bool) ($flags?->get('seen') ?? false);
+            $flagged = (bool) ($flags?->get('flagged') ?? false);
         } catch (\Throwable) {
         }
 
@@ -1231,6 +1292,7 @@ class MailClientService
             'from' => $fromText,
             'date' => $date,
             'seen' => $seen,
+            'flagged' => $flagged,
         ];
     }
 

@@ -270,6 +270,15 @@
       @else
         <div id="mail-async-error" class="banner error" hidden></div>
         <div id="mail-async-notice" class="banner notice" hidden></div>
+        @php
+          $selectedIsSa2 = false;
+          foreach (($accounts ?? []) as $accRow) {
+            if ((int) ($selectedAccountId ?? 0) === (int) ($accRow['id'] ?? 0)) {
+              $selectedIsSa2 = ! empty($accRow['isSa2PlusMailbox']);
+              break;
+            }
+          }
+        @endphp
         <section class="mail-shell mail-shell-v2" id="mail-shell"
           data-account-id="{{ $selectedAccountId ?? '' }}"
           data-folder="{{ $folder ?? 'INBOX' }}"
@@ -277,7 +286,9 @@
           data-page="{{ (int) ($page ?? 1) }}"
           data-async="{{ !empty($loadMailboxAsync) ? '1' : '0' }}"
           data-compose="{{ !empty($compose) ? '1' : '0' }}"
+          data-is-sa2-plus="{{ $selectedIsSa2 ? '1' : '0' }}"
           data-labels='@json($labelsByAccount ?? [])'
+          data-user-folders='@json($userFoldersByAccount ?? [])'
         >
           <aside class="mail-sidebar" id="mail-sidebar">
             <div class="mail-sidebar-head">
@@ -361,6 +372,29 @@
                   <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
                 </div>
               </div>
+              <div class="mail-list-ops" id="mail-list-ops">
+                <div class="mail-filter-row" id="mail-filter-row">
+                  <input type="search" id="mail-filter-from" class="mail-filter-input" placeholder="{{ __('差出人で絞り込み') }}" autocomplete="off" />
+                  <input type="search" id="mail-filter-subject" class="mail-filter-input" placeholder="{{ __('件名で絞り込み') }}" autocomplete="off" />
+                  <button type="button" class="mail-toolbar-btn" id="mail-filter-clear">{{ __('クリア') }}</button>
+                </div>
+                <div class="mail-bulk-bar" id="mail-bulk-bar" hidden>
+                  <span class="mail-bulk-count" id="mail-bulk-count"></span>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="read">{{ __('既読') }}</button>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="delete">{{ __('削除') }}</button>
+                  <select id="mail-move-target" class="mail-move-select" aria-label="{{ __('移動先') }}"></select>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="move">{{ __('移動') }}</button>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="archive" id="mail-archive-btn">{{ __('アーカイブ') }}</button>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="spam" id="mail-spam-btn">{{ __('迷惑メール') }}</button>
+                  <button type="button" class="mail-toolbar-btn" data-bulk="not_spam" id="mail-not-spam-btn" hidden>{{ __('迷惑ではない') }}</button>
+                </div>
+              </div>
+              <div class="mail-list-head" id="mail-list-head" hidden>
+                <label class="mail-select-all">
+                  <input type="checkbox" id="mail-select-all" />
+                  <span>{{ __('すべて選択') }}</span>
+                </label>
+              </div>
               <div class="mail-loading" id="mail-loading" @if(empty($loadMailboxAsync)) hidden @endif>
                 <span class="mail-loading-spinner" aria-hidden="true"></span>
                 <span>{{ __('メールを読み込んでいます…') }}</span>
@@ -397,7 +431,7 @@
     <dialog class="mail-dialog" id="mail-bg-dialog">
       <form method="dialog" class="mail-dialog-card">
         <h3>{{ __('メール背景') }}</h3>
-        <p class="hint">{{ __('一覧と本文の背景は、この端末だけに保存されます（メッセージ機能と同様）。') }}</p>
+        <p class="hint">{{ __('左のアカウント一覧・メール一覧・本文の背景は、この端末だけに保存されます（メッセージ機能と同様）。') }}</p>
         <div class="mail-bg-presets" id="mail-bg-presets">
           <button type="button" class="mail-bg-preset" data-bg="default" title="{{ __('標準') }}"><span>{{ __('標準') }}</span></button>
           <button type="button" class="mail-bg-preset is-mint" data-bg="mint" title="{{ __('ミント') }}"><span>{{ __('ミント') }}</span></button>
@@ -553,8 +587,24 @@
         const readEmpty = document.getElementById('mail-read-empty');
         const readContent = document.getElementById('mail-read-content');
         const folderTitle = document.getElementById('mail-folder-title');
+        const listHead = document.getElementById('mail-list-head');
+        const selectAll = document.getElementById('mail-select-all');
+        const bulkBar = document.getElementById('mail-bulk-bar');
+        const bulkCount = document.getElementById('mail-bulk-count');
+        const moveTarget = document.getElementById('mail-move-target');
+        const filterFrom = document.getElementById('mail-filter-from');
+        const filterSubject = document.getElementById('mail-filter-subject');
+        const filterClear = document.getElementById('mail-filter-clear');
+        const spamBtn = document.getElementById('mail-spam-btn');
+        const notSpamBtn = document.getElementById('mail-not-spam-btn');
+        const archiveBtn = document.getElementById('mail-archive-btn');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const isSa2Plus = shell.getAttribute('data-is-sa2-plus') === '1';
         const labelsByAccount = (() => {
           try { return JSON.parse(shell.getAttribute('data-labels') || '{}'); } catch (_) { return {}; }
+        })();
+        const userFoldersByAccount = (() => {
+          try { return JSON.parse(shell.getAttribute('data-user-folders') || '{}'); } catch (_) { return {}; }
         })();
         const i18n = {
           from: @json(__('差出人')),
@@ -571,13 +621,26 @@
           spam: @json(__('迷惑メール')),
           trash: @json(__('ゴミ箱')),
           labels: @json(__('ラベル')),
+          folders: @json(__('フォルダ')),
           other: @json(__('その他')),
+          selected: @json(__(':count 件選択')),
+          actionFail: @json(__('操作に失敗しました。')),
+          star: @json(__('重要')),
+          folderCreate: @json(__('フォルダ追加')),
+          folderName: @json(__('フォルダ名')),
         };
 
         let state = {
           folder: shell.getAttribute('data-folder') || 'INBOX',
           page: parseInt(shell.getAttribute('data-page') || '1', 10) || 1,
           uid: parseInt(shell.getAttribute('data-uid') || '0', 10) || 0,
+          allMessages: [],
+          selected: new Set(),
+          filterFrom: '',
+          filterSubject: '',
+          labels: labelsByAccount[accountId] || [],
+          userFolders: userFoldersByAccount[accountId] || [],
+          archivePath: null,
         };
 
         function setLoading(on) {
@@ -618,7 +681,113 @@
           if (probe.includes('junk') || probe.includes('spam') || probe.includes('迷惑')) return 'spam';
           if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted') || probe.includes('ごみ') || probe.includes('ゴミ箱') || probe.includes('削除')) return 'trash';
           if (probe.trim().startsWith('labels.') || probe.trim().startsWith('labels/')) return 'label';
+          if (probe.trim().startsWith('folders.') || probe.trim().startsWith('folders/')) return 'folder';
           return 'other';
+        }
+
+        function currentFolderKind() {
+          return kindOf({ path: state.folder, name: state.folder });
+        }
+
+        function updateBulkUi() {
+          const count = state.selected.size;
+          if (bulkBar) bulkBar.hidden = count < 1;
+          if (bulkCount) {
+            bulkCount.textContent = count > 0
+              ? i18n.selected.replace(':count', String(count))
+              : '';
+          }
+          const inSpam = currentFolderKind() === 'spam';
+          if (spamBtn) spamBtn.hidden = inSpam || !isSa2Plus;
+          if (notSpamBtn) notSpamBtn.hidden = !inSpam || !isSa2Plus;
+          if (archiveBtn) archiveBtn.hidden = !isSa2Plus;
+          if (listHead) listHead.hidden = state.allMessages.length < 1;
+          if (selectAll) {
+            const visible = filteredMessages();
+            const allChecked = visible.length > 0 && visible.every((row) => state.selected.has(Number(row.uid)));
+            selectAll.checked = allChecked;
+            selectAll.indeterminate = !allChecked && visible.some((row) => state.selected.has(Number(row.uid)));
+          }
+        }
+
+        function filteredMessages() {
+          const fromQ = (state.filterFrom || '').trim().toLowerCase();
+          const subQ = (state.filterSubject || '').trim().toLowerCase();
+          return (state.allMessages || []).filter((row) => {
+            if (fromQ && !(String(row.from || '').toLowerCase().includes(fromQ))) return false;
+            if (subQ && !(String(row.subject || '').toLowerCase().includes(subQ))) return false;
+            return true;
+          });
+        }
+
+        function renderMoveTargets() {
+          if (!moveTarget) return;
+          moveTarget.innerHTML = '';
+          const add = (path, label) => {
+            const opt = document.createElement('option');
+            opt.value = path;
+            opt.textContent = label;
+            moveTarget.appendChild(opt);
+          };
+          add('INBOX', i18n.inbox);
+          (state.userFolders || []).forEach((f) => add(f.folderPath, f.name));
+          (state.labels || []).forEach((lab) => add(lab.folderPath, lab.name));
+          if (state.archivePath) add(state.archivePath, @json(__('アーカイブ')));
+        }
+
+        async function postJson(url, body) {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+          });
+          let data = null;
+          try { data = await res.json(); } catch (_) {}
+          if (!res.ok || !data || data.ok === false) {
+            throw new Error((data && data.message) || i18n.actionFail);
+          }
+          return data;
+        }
+
+        async function runBulk(action, extra) {
+          const uids = Array.from(state.selected);
+          if (!uids.length) return;
+          showBanner(errEl, '');
+          try {
+            await postJson('/mail/accounts/' + accountId + '/messages/bulk', {
+              folder: state.folder,
+              uids,
+              action,
+              ...(extra || {}),
+            });
+            state.selected.clear();
+            state.uid = 0;
+            loadMailbox({ refresh: true });
+          } catch (err) {
+            showBanner(errEl, (err && err.message) || i18n.actionFail);
+          }
+        }
+
+        async function toggleStar(uid, flagged) {
+          try {
+            await postJson('/mail/accounts/' + accountId + '/messages/star', {
+              folder: state.folder,
+              uid,
+              flagged,
+            });
+            state.allMessages = state.allMessages.map((row) => (
+              Number(row.uid) === Number(uid) ? { ...row, flagged } : row
+            ));
+            renderMessages(filteredMessages());
+          } catch (err) {
+            showBanner(errEl, (err && err.message) || i18n.actionFail);
+          }
         }
 
         function displayName(folder) {
@@ -632,6 +801,10 @@
             const path = String(folder.path || folder.name || '');
             return path.replace(/^Labels[./]/i, '') || folder.name || path;
           }
+          if (kind === 'folder') {
+            const path = String(folder.path || folder.name || '');
+            return path.replace(/^Folders[./]/i, '') || folder.name || path;
+          }
           return folder.name || folder.path;
         }
 
@@ -639,7 +812,7 @@
           return (folders || []).find((f) => kindOf(f) === kind) || null;
         }
 
-        function buildStandardFolders(folders, labels, systemFolders) {
+        function buildStandardFolders(folders, labels, systemFolders, userFolders) {
           const order = ['inbox', 'sent', 'drafts', 'spam', 'trash'];
           const fromApi = Array.isArray(systemFolders) ? systemFolders : [];
           const defaults = {
@@ -671,19 +844,42 @@
             if (labelFolders.some((x) => x.path === f.path)) return;
             labelFolders.push(f);
           });
-          const used = new Set(items.map((f) => f.path).concat(labelFolders.map((f) => f.path)));
+          const customFolders = [];
+          (userFolders || []).forEach((f) => {
+            customFolders.push({
+              name: f.name,
+              path: f.folderPath,
+              kind: 'folder',
+              messages: 0,
+            });
+          });
+          (folders || []).forEach((f) => {
+            if (kindOf(f) !== 'folder') return;
+            if (customFolders.some((x) => x.path === f.path)) return;
+            customFolders.push(f);
+          });
+          const used = new Set(
+            items.map((f) => f.path)
+              .concat(labelFolders.map((f) => f.path))
+              .concat(customFolders.map((f) => f.path))
+          );
           const others = (folders || []).filter((f) => {
             const k = kindOf(f);
             return k === 'other' && f.path && !used.has(f.path);
           });
-          return { system: items, labels: labelFolders, others };
+          return { system: items, labels: labelFolders, folders: customFolders, others };
         }
 
-        function renderFolders(folders, labels, active, systemFolders) {
+        function renderFolders(folders, labels, active, systemFolders, userFolders) {
           const nav = shell.querySelector('[data-account-folders="' + accountId + '"]');
           if (!nav) return;
           nav.innerHTML = '';
-          const built = buildStandardFolders(folders, labels || labelsByAccount[accountId] || [], systemFolders);
+          const built = buildStandardFolders(
+            folders,
+            labels || state.labels || labelsByAccount[accountId] || [],
+            systemFolders,
+            userFolders || state.userFolders || userFoldersByAccount[accountId] || []
+          );
           const appendLink = (folder, parent) => {
             const li = document.createElement('li');
             const a = document.createElement('a');
@@ -700,15 +896,46 @@
               state.folder = folder.path;
               state.page = 1;
               state.uid = 0;
+              state.selected.clear();
               if (folderTitle) folderTitle.textContent = displayName(folder);
               nav.querySelectorAll('a.active').forEach((el) => el.classList.remove('active'));
               a.classList.add('active');
+              updateBulkUi();
               loadMailbox();
             });
             li.appendChild(a);
             parent.appendChild(li);
           };
           built.system.forEach((f) => appendLink(f, nav));
+          if (isSa2Plus && (built.folders || []).length) {
+            const head = document.createElement('li');
+            head.className = 'mail-folder-section';
+            head.textContent = i18n.folders;
+            nav.appendChild(head);
+            built.folders.forEach((f) => appendLink(f, nav));
+          }
+          if (isSa2Plus) {
+            const createLi = document.createElement('li');
+            createLi.className = 'mail-folder-create';
+            createLi.innerHTML = '<input type="text" maxlength="120" placeholder="' + i18n.folderName + '" /><button type="button" class="mail-toolbar-btn">' + i18n.folderCreate + '</button>';
+            const input = createLi.querySelector('input');
+            const btn = createLi.querySelector('button');
+            btn.addEventListener('click', async () => {
+              const name = (input.value || '').trim();
+              if (!name) return;
+              try {
+                const data = await postJson('/mail/accounts/' + accountId + '/folders', { name });
+                if (data.folder) {
+                  state.userFolders = [...(state.userFolders || []), data.folder];
+                  input.value = '';
+                  loadMailbox({ refresh: true });
+                }
+              } catch (err) {
+                showBanner(errEl, (err && err.message) || i18n.actionFail);
+              }
+            });
+            nav.appendChild(createLi);
+          }
           if (built.labels.length) {
             const head = document.createElement('li');
             head.className = 'mail-folder-section';
@@ -723,7 +950,7 @@
             nav.appendChild(head);
             built.others.forEach((f) => appendLink(f, nav));
           }
-          const all = [...built.system, ...built.labels, ...(built.others || [])];
+          const all = [...built.system, ...built.folders, ...built.labels, ...(built.others || [])];
           const current = all.find((f) => f.path === active);
           if (folderTitle) folderTitle.textContent = displayName(current || built.system[0] || { path: active, name: active });
         }
@@ -736,28 +963,61 @@
             li.className = 'hint';
             li.textContent = i18n.empty;
             list.appendChild(li);
+            updateBulkUi();
             return;
           }
           messages.forEach((row) => {
             const li = document.createElement('li');
-            if (!row.seen) li.className = 'is-unread';
+            li.className = 'mail-row';
+            if (!row.seen) li.classList.add('is-unread');
             if (Number(row.uid) === Number(state.uid)) li.classList.add('is-active');
-            const a = document.createElement('a');
-            a.href = '#';
-            a.innerHTML = '<span class="mail-from"></span><span class="mail-subject"></span><span class="mail-date"></span>';
-            a.querySelector('.mail-from').textContent = row.from || '';
-            a.querySelector('.mail-subject').textContent = row.subject || '';
-            a.querySelector('.mail-date').textContent = formatDate(row.date);
-            a.addEventListener('click', (e) => {
+            if (row.flagged) li.classList.add('is-flagged');
+
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'mail-row-check';
+            check.checked = state.selected.has(Number(row.uid));
+            check.addEventListener('click', (e) => e.stopPropagation());
+            check.addEventListener('change', () => {
+              const uid = Number(row.uid);
+              if (check.checked) state.selected.add(uid);
+              else state.selected.delete(uid);
+              updateBulkUi();
+            });
+
+            const star = document.createElement('button');
+            star.type = 'button';
+            star.className = 'mail-star' + (row.flagged ? ' is-on' : '');
+            star.title = i18n.star;
+            star.setAttribute('aria-label', i18n.star);
+            star.textContent = '★';
+            star.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleStar(row.uid, !row.flagged);
+            });
+
+            const body = document.createElement('a');
+            body.href = '#';
+            body.className = 'mail-row-body';
+            body.innerHTML = '<span class="mail-row-from"></span><span class="mail-row-subject"></span><span class="mail-row-date"></span>';
+            body.querySelector('.mail-row-from').textContent = row.from || '';
+            body.querySelector('.mail-row-subject').textContent = row.subject || '';
+            body.querySelector('.mail-row-date').textContent = formatDate(row.date);
+            body.addEventListener('click', (e) => {
               e.preventDefault();
               state.uid = row.uid;
               list.querySelectorAll('li.is-active').forEach((el) => el.classList.remove('is-active'));
               li.classList.add('is-active');
               loadMessage();
             });
-            li.appendChild(a);
+
+            li.appendChild(check);
+            li.appendChild(star);
+            li.appendChild(body);
             list.appendChild(li);
           });
+          updateBulkUi();
         }
 
         function renderMessage(message) {
@@ -862,8 +1122,24 @@
                 return;
               }
               state.folder = data.folder || state.folder;
-              renderFolders(data.folders || [], data.labels || [], state.folder, data.systemFolders || []);
-              renderMessages(data.messages || []);
+              state.labels = data.labels || state.labels;
+              state.userFolders = data.userFolders || state.userFolders;
+              state.archivePath = data.archivePath || state.archivePath;
+              state.allMessages = data.messages || [];
+              state.selected.forEach((uid) => {
+                if (!state.allMessages.some((row) => Number(row.uid) === Number(uid))) {
+                  state.selected.delete(uid);
+                }
+              });
+              renderMoveTargets();
+              renderFolders(
+                data.folders || [],
+                data.labels || [],
+                state.folder,
+                data.systemFolders || [],
+                data.userFolders || []
+              );
+              renderMessages(filteredMessages());
               if (nextWrap) nextWrap.hidden = !(data.messages && data.messages.length >= 30);
               if (data.notice) showBanner(noticeEl, data.notice);
               const url = new URL(window.location.href);
@@ -906,6 +1182,62 @@
         if (refreshBtn) {
           refreshBtn.addEventListener('click', () => loadMailbox({ refresh: true }));
         }
+
+        if (selectAll) {
+          selectAll.addEventListener('change', () => {
+            const visible = filteredMessages();
+            if (selectAll.checked) {
+              visible.forEach((row) => state.selected.add(Number(row.uid)));
+            } else {
+              visible.forEach((row) => state.selected.delete(Number(row.uid)));
+            }
+            renderMessages(filteredMessages());
+          });
+        }
+
+        if (filterFrom) {
+          filterFrom.addEventListener('input', () => {
+            state.filterFrom = filterFrom.value || '';
+            renderMessages(filteredMessages());
+          });
+        }
+        if (filterSubject) {
+          filterSubject.addEventListener('input', () => {
+            state.filterSubject = filterSubject.value || '';
+            renderMessages(filteredMessages());
+          });
+        }
+        if (filterClear) {
+          filterClear.addEventListener('click', () => {
+            state.filterFrom = '';
+            state.filterSubject = '';
+            if (filterFrom) filterFrom.value = '';
+            if (filterSubject) filterSubject.value = '';
+            renderMessages(filteredMessages());
+          });
+        }
+
+        if (bulkBar) {
+          bulkBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-bulk]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-bulk');
+            if (action === 'move') {
+              const target = moveTarget ? moveTarget.value : '';
+              runBulk('move', { targetFolder: target });
+              return;
+            }
+            if (action === 'spam') {
+              const register = window.confirm(@json(__('この送信者を今後迷惑メールとして扱いますか？')));
+              runBulk('spam', { registerSender: register });
+              return;
+            }
+            runBulk(action);
+          });
+        }
+
+        renderMoveTargets();
+        updateBulkUi();
 
         loadMailbox();
       })();

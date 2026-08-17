@@ -15,6 +15,7 @@ class MailMessageHeader extends Model
         'from_address',
         'received_at',
         'is_seen',
+        'is_flagged',
         'synced_at',
     ];
 
@@ -24,6 +25,7 @@ class MailMessageHeader extends Model
             'imap_uid' => 'integer',
             'received_at' => 'datetime',
             'is_seen' => 'boolean',
+            'is_flagged' => 'boolean',
             'synced_at' => 'datetime',
         ];
     }
