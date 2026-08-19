@@ -53,10 +53,31 @@ class UserUsageLimitServiceTest extends TestCase
         ]);
 
         $svc = app(UserUsageLimitService::class);
-        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_FINANCE, 1);
         $svc->consume($user, UserUsageLimitService::FEATURE_ENHANCE, 1);
 
         $this->expectException(UsageLimitExceededException::class);
-        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_TODO, 1);
+    }
+
+    public function test_llm_voice_purpose_counters_share_daily_limit(): void
+    {
+        config(['usage_limits.llm_voice_requests_per_day' => 2]);
+
+        $user = User::create([
+            'email' => 'voice@example.com',
+            'display_name' => 'Voice',
+            'password' => Hash::make('password'),
+            'role' => UserRole::SuperAdmin,
+        ]);
+
+        $svc = app(UserUsageLimitService::class);
+        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_FINANCE, 1);
+        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_NOTE, 1);
+
+        $this->assertSame(2, $svc->usedTodayLlmVoice($user));
+
+        $this->expectException(UsageLimitExceededException::class);
+        $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_TODO, 1);
     }
 }

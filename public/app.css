@@ -20305,6 +20305,18 @@ body.dash-home-lightbox-open {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 10px;
 }
+.usage-purpose-group {
+  margin-top: 18px;
+}
+.usage-purpose-group:first-of-type {
+  margin-top: 0;
+}
+.usage-purpose-group h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #10231f;
+}
 .usage-overview-card {
   display: grid;
   gap: 5px;
@@ -20314,6 +20326,12 @@ body.dash-home-lightbox-open {
   background: #f8fbfa;
 }
 .usage-overview-card strong { color: #10231f; }
+.usage-overview-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #475569;
+}
 .usage-overview-card span,
 .usage-overview-card a { font-size: 12px; color: #64748b; }
 .usage-overview-card b { color: #0f766e; font-size: 14px; }

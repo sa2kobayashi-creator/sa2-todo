@@ -242,7 +242,7 @@ class TodoController extends Controller
         }
 
         try {
-            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_LLM_VOICE, 1);
+            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_LLM_VOICE_TODO, 1);
         } catch (UsageLimitExceededException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         }

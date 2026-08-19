@@ -13,13 +13,33 @@ class UserUsageLimitService
 
     public const FEATURE_LLM_VOICE = 'llm_voice';
 
+    public const FEATURE_LLM_VOICE_FINANCE = 'llm_voice_finance';
+
+    public const FEATURE_LLM_VOICE_TODO = 'llm_voice_todo';
+
+    public const FEATURE_LLM_VOICE_NOTE = 'llm_voice_note';
+
     public const FEATURE_ENHANCE = 'enhance';
+
+    /** @return list<string> */
+    public static function llmVoiceFeatures(): array
+    {
+        return [
+            self::FEATURE_LLM_VOICE,
+            self::FEATURE_LLM_VOICE_FINANCE,
+            self::FEATURE_LLM_VOICE_TODO,
+            self::FEATURE_LLM_VOICE_NOTE,
+        ];
+    }
 
     public function limitFor(string $feature): int
     {
+        if ($this->isLlmVoiceFeature($feature)) {
+            return max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30));
+        }
+
         return match ($feature) {
             self::FEATURE_TRANSLATE => max(0, (int) config('usage_limits.translate_chars_per_day', 50_000)),
-            self::FEATURE_LLM_VOICE => max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30)),
             self::FEATURE_ENHANCE => max(0, (int) config('usage_limits.enhance_requests_per_day', 10)),
             default => 0,
         };
@@ -27,6 +47,10 @@ class UserUsageLimitService
 
     public function usedToday(User $user, string $feature): int
     {
+        if ($this->isLlmVoiceFeature($feature)) {
+            return $this->usedTodayLlmVoice($user);
+        }
+
         $row = UserDailyUsage::query()
             ->where('user_id', $user->id)
             ->whereDate('usage_date', now()->toDateString())
@@ -34,6 +58,15 @@ class UserUsageLimitService
             ->first();
 
         return (int) ($row?->amount ?? 0);
+    }
+
+    public function usedTodayLlmVoice(User $user): int
+    {
+        return (int) UserDailyUsage::query()
+            ->where('user_id', $user->id)
+            ->whereDate('usage_date', now()->toDateString())
+            ->whereIn('feature', self::llmVoiceFeatures())
+            ->sum('amount');
     }
 
     public function remaining(User $user, string $feature): int
@@ -57,7 +90,9 @@ class UserUsageLimitService
             return;
         }
 
-        $used = $this->usedToday($user, $feature);
+        $used = $this->isLlmVoiceFeature($feature)
+            ? $this->usedTodayLlmVoice($user)
+            : $this->usedToday($user, $feature);
         if ($used + $amount > $limit) {
             throw new UsageLimitExceededException(
                 $feature,
@@ -100,13 +135,18 @@ class UserUsageLimitService
             }
 
             $limit = $this->limitFor($feature);
-            if ($limit > 0 && ((int) $row->amount + $amount) > $limit) {
-                throw new UsageLimitExceededException(
-                    $feature,
-                    $limit,
-                    (int) $row->amount,
-                    $this->messageFor($feature, $limit, (int) $row->amount)
-                );
+            if ($limit > 0) {
+                $poolUsed = $this->isLlmVoiceFeature($feature)
+                    ? $this->usedTodayLlmVoice($user)
+                    : (int) $row->amount;
+                if ($poolUsed + $amount > $limit) {
+                    throw new UsageLimitExceededException(
+                        $feature,
+                        $limit,
+                        $poolUsed,
+                        $this->messageFor($feature, $limit, $poolUsed)
+                    );
+                }
             }
 
             $row->amount = (int) $row->amount + $amount;
@@ -114,16 +154,24 @@ class UserUsageLimitService
         });
     }
 
+    private function isLlmVoiceFeature(string $feature): bool
+    {
+        return in_array($feature, self::llmVoiceFeatures(), true);
+    }
+
     private function messageFor(string $feature, int $limit, int $used): string
     {
+        if ($this->isLlmVoiceFeature($feature)) {
+            return __('本日の音声AI利用上限（:limit回）に達しました。使用済み: :used', [
+                'limit' => $limit,
+                'used' => $used,
+            ]);
+        }
+
         return match ($feature) {
             self::FEATURE_TRANSLATE => __('本日の翻訳文字数上限（:limit文字）に達しました。使用済み: :used', [
                 'limit' => number_format($limit),
                 'used' => number_format($used),
-            ]),
-            self::FEATURE_LLM_VOICE => __('本日の音声AI利用上限（:limit回）に達しました。使用済み: :used', [
-                'limit' => $limit,
-                'used' => $used,
             ]),
             self::FEATURE_ENHANCE => __('本日の鮮明化利用上限（:limit回）に達しました。使用済み: :used', [
                 'limit' => $limit,
