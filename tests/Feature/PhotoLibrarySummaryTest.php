@@ -63,11 +63,12 @@ class PhotoLibrarySummaryTest extends TestCase
         $this->makePhoto($user, 'y2025.jpg', 'image/jpeg', '2025-05-06 09:00:00');
         $this->makePhoto($user, 'y2026.jpg', 'image/jpeg', '2026-07-27 09:00:00');
 
-        // 既定は今年に絞る。全件表示で年ジャンプが使える
+        // 120枚以下は既定で全年度。全件表示で年ジャンプが使える
         $this->actingAs($user)->get('/photos')
             ->assertOk()
-            ->assertSee('data-year="2026"', false)
-            ->assertDontSee('data-year="2024"', false);
+            ->assertSee('id="photos-year-jump"', false)
+            ->assertSee('data-year="2024"', false)
+            ->assertSee('data-year="2026"', false);
 
         $this->actingAs($user)->get('/photos?year=all')
             ->assertOk()
@@ -165,6 +166,39 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertSee('data-year="2026"', false);
     }
 
+    public function test_small_libraries_do_not_auto_scope_by_year(): void
+    {
+        $user = $this->makeUser('small@example.com');
+        $this->makePhoto($user, 'y2024.jpg', 'image/jpeg', '2024-03-02 09:00:00');
+        $this->makePhoto($user, 'y2026.jpg', 'image/jpeg', '2026-07-27 09:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertDontSee('class="banner notice photos-year-scope-banner"', false)
+            ->assertSee('data-year="2024"', false)
+            ->assertSee('data-year="2026"', false);
+    }
+
+    public function test_large_libraries_show_year_scope_banner_until_all_requested(): void
+    {
+        $user = $this->makeUser('banner@example.com');
+        for ($i = 0; $i < 121; $i++) {
+            $this->makePhoto($user, "old{$i}.jpg", 'image/jpeg', sprintf('2024-01-%02d 10:00:00', ($i % 28) + 1));
+        }
+        $this->makePhoto($user, 'new.jpg', 'image/jpeg', '2026-08-01 10:00:00');
+
+        $this->actingAs($user)->get('/photos')
+            ->assertOk()
+            ->assertSee('class="banner notice photos-year-scope-banner"', false)
+            ->assertSee(__('すべての年を見る'), false)
+            ->assertSee('data-year="2026"', false)
+            ->assertDontSee('data-year="2024"', false);
+
+        $this->actingAs($user)->get('/photos?year=all')
+            ->assertOk()
+            ->assertDontSee('class="banner notice photos-year-scope-banner"', false);
+    }
+
     public function test_root_all_shows_current_year_album_photos_without_moving(): void
     {
         $user = $this->makeUser('thisyear-album@example.com');
@@ -186,11 +220,11 @@ class PhotoLibrarySummaryTest extends TestCase
             ])
             ->save();
 
-        // アルバムから出さなくても「すべて」で今年分が見える
+        // 120枚以下は全年度を既定表示
         $this->actingAs($user)->get('/photos')
             ->assertOk()
             ->assertSee('in-album-2026.jpg', false)
-            ->assertDontSee('in-album-2024.jpg', false);
+            ->assertSee('in-album-2024.jpg', false);
     }
 
     public function test_year_filter_outside_current_scope_is_dropped_instead_of_empty_gallery(): void

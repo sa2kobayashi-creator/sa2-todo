@@ -11992,6 +11992,27 @@ body.photos-is-busy .photos-main {
   pointer-events: none;
 }
 
+.photos-year-scope-banner {
+  display: block;
+  margin: 0 0 12px;
+  overflow: hidden;
+}
+
+.photos-year-scope-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.photos-year-scope-banner a {
+  font-weight: 600;
+}
+
+.photos-year-scope-count.is-collapsed {
+  display: none;
+}
+
 .photos-file-input-hidden {
   position: absolute;
   width: 1px;

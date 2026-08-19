@@ -74,7 +74,7 @@ class PhotoController extends Controller
         $albumLocked = $selectedAlbumModel
             && $this->photos->albumNeedsUnlock($selectedAlbumModel, $userId);
 
-        // year=all で全件。未指定かつ件数が多いときは最新年に自動絞り込み（初回表示を軽くする）
+        // year=all で全件。120枚超かつ未指定のときだけ年で自動絞り込み（初回表示を軽くする）
         $yearRaw = $request->query('year');
         $explicitAllYears = $yearRaw === 'all';
         $year = (! $explicitAllYears && $request->filled('year') && is_numeric($yearRaw))
@@ -107,12 +107,12 @@ class PhotoController extends Controller
         $autoYearScoped = false;
         $autoYearThreshold = 120;
         $currentCalendarYear = (int) now()->format('Y');
-        if (! $albumLocked && ! $explicitAllYears && $year === null && $photoYears !== []) {
-            // 今年の撮影があれば既定で今年を表示。無ければ件数が多いときだけ最新年に絞る
+        if (! $albumLocked && ! $explicitAllYears && $year === null && $photoYears !== [] && $totalInScope > $autoYearThreshold) {
+            // 件数が多いときだけ年で絞る（今年があれば今年、なければ最新年）
             if (in_array($currentCalendarYear, $photoYears, true)) {
                 $year = $currentCalendarYear;
                 $autoYearScoped = true;
-            } elseif ($totalInScope > $autoYearThreshold) {
+            } else {
                 $year = $photoYears[0];
                 $autoYearScoped = true;
             }
@@ -172,6 +172,9 @@ class PhotoController extends Controller
         if ($albumId === null && $library === 'active' && $scope === 'loose') {
             $queryBase['scope'] = 'loose';
         }
+        $allYearsQuery = $queryBase;
+        $allYearsQuery['year'] = 'all';
+        $photosAllYearsUrl = '/photos?'.http_build_query($allYearsQuery);
         $returnQuery = $queryBase !== [] ? ('?'.http_build_query($queryBase)) : '';
         $photoGroups = $this->photos->groupPhotosForDisplay($photoList, $sort);
         $canManageSelected = ! empty($selectedAlbum['canManage']);
@@ -192,6 +195,7 @@ class PhotoController extends Controller
             'photosYearExplicitAll' => $explicitAllYears,
             'photosYearAutoScoped' => $autoYearScoped,
             'photosTotalInScope' => $totalInScope,
+            'photosAllYearsUrl' => $photosAllYearsUrl,
             'photosLibrary' => $library,
             'photosScope' => $scope,
             'selectedAlbumId' => $albumId,

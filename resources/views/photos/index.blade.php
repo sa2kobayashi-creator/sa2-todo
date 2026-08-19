@@ -793,6 +793,18 @@
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
       </form>
 
+      @if(!empty($photosYear) && count($photoYears ?? []) > 1 && empty($albumLocked))
+        <div class="banner notice photos-year-scope-banner" id="photos-year-scope-banner">
+          <span class="photos-year-scope-line">
+            {{ __(':year年のみ表示中', ['year' => $photosYear]) }}<span class="photos-year-scope-count" id="photos-year-scope-count">{{ __('（全:total枚中:shown枚）', [
+              'total' => $photosTotalInScope ?? 0,
+              'shown' => count($photos),
+            ]) }}</span>{{ __('。') }}
+            <a href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}">{{ __('すべての年を見る') }}</a>
+          </span>
+        </div>
+      @endif
+
       @if(!empty($albumLocked) && $selectedAlbum)
         <div class="photos-album-lock" id="photos-album-lock">
           <div class="photos-album-lock-card">
@@ -814,17 +826,27 @@
       @elseif(count($photos) === 0 && ($photosLibrary ?? 'active') !== 'archived')
         <div class="photos-empty" id="photos-dropzone">
           <div class="photos-empty-frame">
-            <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
-            <p class="photos-empty-text">
-              {{ __('このアプリにまだ保存されていません。') }}<br />
-              {{ __('Messenger / LINE などは「フォルダから探す」→ Pictures から選んでください。') }}
-            </p>
-            <div class="photos-empty-actions">
-              <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-add">
-                {{ __('写真・動画を追加') }}
-              </button>
-              <a class="photos-secondary-btn" href="{{ request()->fullUrlWithQuery(['library' => 'archived', 'year' => null]) }}">{{ __('アーカイブを見る') }}</a>
-            </div>
+            @if(!empty($photosYear) && ($photosTotalInScope ?? 0) > 0)
+              <p class="photos-empty-title">{{ __(':year年の写真はありません。', ['year' => $photosYear]) }}</p>
+              <p class="photos-empty-text">
+                {{ __('ライブラリ全体には :total 枚あります。', ['total' => $photosTotalInScope ?? 0]) }}
+              </p>
+              <div class="photos-empty-actions">
+                <a class="photos-upload-btn photos-upload-btn-large" href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}">{{ __('すべての年を見る') }}</a>
+              </div>
+            @else
+              <p class="photos-empty-title">{{ __('まだメディアがありません') }}</p>
+              <p class="photos-empty-text">
+                {{ __('このアプリにまだ保存されていません。') }}<br />
+                {{ __('Messenger / LINE などは「フォルダから探す」→ Pictures から選んでください。') }}
+              </p>
+              <div class="photos-empty-actions">
+                <button type="button" class="photos-upload-btn photos-upload-btn-large" id="photos-empty-add">
+                  {{ __('写真・動画を追加') }}
+                </button>
+                <a class="photos-secondary-btn" href="{{ request()->fullUrlWithQuery(['library' => 'archived', 'year' => null]) }}">{{ __('アーカイブを見る') }}</a>
+              </div>
+            @endif
           </div>
         </div>
       @else
@@ -1985,6 +2007,22 @@
         const photos = @json($photosForJs ?? $photos);
         const uploadsBlocked = @json(!empty($storageStats['uploadsBlocked']));
         const uploadsBlockedMessage = @json(__('無料枠を超えているため追加できません。有料プラン連携後に超過利用が可能になります。'));
+
+        (function fitYearScopeBanner() {
+          const banner = document.getElementById('photos-year-scope-banner')
+          const line = banner?.querySelector('.photos-year-scope-line')
+          const count = document.getElementById('photos-year-scope-count')
+          if (!banner || !line || !count) return
+          const apply = () => {
+            count.classList.remove('is-collapsed')
+            if (line.scrollWidth > line.clientWidth + 1) {
+              count.classList.add('is-collapsed')
+            }
+          }
+          apply()
+          window.addEventListener('resize', apply, { passive: true })
+        })()
+
         const PHOTOS_T = {
           uploadFailed: @json(__('アップロードに失敗しました')),
           uploadFailedStatus: @json(__('アップロードに失敗しました（:status）')),
