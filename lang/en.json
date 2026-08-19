@@ -1826,6 +1826,7 @@
     "日本": "Japan",
     "日本の祝日を取り込み": "Import Japanese Holidays",
     "日本・フィリピンの祝日を取り込めます。会社独自の休日も追加できます。": "Import holidays from Japan and the Philippines. You can also add company-specific holidays.",
+    "日本・フィリピンの祝日を取り込めます。会社独自の休日も追加できます。フィリピン祝日はカレンダーで水色の日付になります。": "Import holidays from Japan and the Philippines. You can also add company-specific holidays. Philippine holidays appear in light blue on the calendar.",
     "日本側空港": "Japan airport",
     "日本発": "Japan departure",
     "日本発（FUK→MNL）": "Japan departure (FUK→MNL)",

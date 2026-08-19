@@ -26,9 +26,22 @@ class HolidayService
             HolidayEntry::query()
                 ->whereYear('date', $year)
                 ->orderBy('date')
+                ->orderBy('id')
                 ->get()
                 ->each(function (HolidayEntry $entry) use (&$map) {
                     $date = $entry->date->format('Y-m-d');
+                    $existing = $map[$date] ?? null;
+                    $existingSource = $existing['source'] ?? '';
+                    if (
+                        $existing
+                        && in_array($existingSource, ['national', 'national_ph', 'custom'], true)
+                        && $existingSource !== $entry->source
+                        && ! str_contains((string) $existing['name'], $entry->name)
+                    ) {
+                        $map[$date]['name'] = $existing['name'].' / '.$entry->name;
+
+                        return;
+                    }
                     $map[$date] = ['name' => $entry->name, 'source' => $entry->source];
                 });
 
@@ -36,11 +49,18 @@ class HolidayService
         });
     }
 
-    public function clearCache(): void
+    public function clearCache(?int $year = null): void
     {
-        $year = (int) date('Y');
-        Cache::forget("holiday_map_{$year}");
-        Cache::forget('holiday_map_'.($year + 1));
+        $now = (int) date('Y');
+        $years = [$now, $now + 1];
+        if ($year !== null) {
+            $years[] = $year;
+            $years[] = $year - 1;
+            $years[] = $year + 1;
+        }
+        foreach (array_unique($years) as $y) {
+            Cache::forget("holiday_map_{$y}");
+        }
     }
 
     public function isJapaneseNationalHolidayDate(?string $date): bool
@@ -193,10 +213,59 @@ class HolidayService
         return $items;
     }
 
+    /**
+     * フィリピンの定期祝日＋よく使う特別休業日。
+     * Eid は大統領布告で前後することがある。
+     *
+     * @return list<array{date: string, name: string}>
+     */
+    public function computePhilippineHolidays(int $year): array
+    {
+        $items = [];
+        $add = function (int $month, int $day, string $name) use ($year, &$items) {
+            $items[] = ['date' => sprintf('%04d-%02d-%02d', $year, $month, $day), 'name' => $name];
+        };
+
+        $add(1, 1, '新年');
+        $add(2, 25, 'EDSA革命記念日');
+        $add(4, 9, '勇気の日');
+        $add(5, 1, '労働の日');
+        $add(6, 12, '独立記念日');
+        $add(8, 21, 'ニノイ・アキノの日');
+        $heroesDay = $this->lastWeekdayOfMonth($year, 8, Carbon::MONDAY);
+        $add(8, $heroesDay, '国民英雄の日');
+        $add(11, 1, '諸聖人の日');
+        $add(11, 30, 'ボニファシオの日');
+        $add(12, 8, '無原罪の聖母');
+        $add(12, 25, 'クリスマス');
+        $add(12, 30, 'リサールの日');
+        $add(12, 31, '大晦日');
+
+        $easter = $this->westernEasterDate($year);
+        $add($easter->copy()->subDays(3)->month, $easter->copy()->subDays(3)->day, '聖木曜日');
+        $add($easter->copy()->subDays(2)->month, $easter->copy()->subDays(2)->day, '聖金曜日');
+        $add($easter->copy()->subDay()->month, $easter->copy()->subDay()->day, '聖土曜日');
+
+        $cny = $this->chineseNewYearDate($year);
+        if ($cny) {
+            $add($cny->month, $cny->day, '旧正月');
+        }
+
+        foreach ($this->philippineIslamicHolidays($year) as $item) {
+            $items[] = $item;
+        }
+
+        usort($items, fn ($a, $b) => strcmp($a['date'], $b['date']));
+
+        return $items;
+    }
+
     public function importNationalHolidays(int $year, string $country = 'jp'): int
     {
         $source = $country === 'ph' ? 'national_ph' : 'national';
-        $national = $country === 'ph' ? [] : $this->computeJapaneseNationalHolidays($year);
+        $national = $country === 'ph'
+            ? $this->computePhilippineHolidays($year)
+            : $this->computeJapaneseNationalHolidays($year);
         $added = 0;
 
         foreach ($national as $item) {
@@ -207,9 +276,6 @@ class HolidayService
             if ($exists) {
                 continue;
             }
-            if (HolidayEntry::query()->where('date', $item['date'])->exists()) {
-                continue;
-            }
             HolidayEntry::create([
                 'date' => $item['date'],
                 'name' => $item['name'],
@@ -218,9 +284,76 @@ class HolidayService
             $added++;
         }
 
-        $this->clearCache();
+        $this->clearCache($year);
 
         return $added;
+    }
+
+    private function lastWeekdayOfMonth(int $year, int $month, int $weekday): int
+    {
+        $day = Carbon::create($year, $month, 1)->endOfMonth();
+        while ($day->dayOfWeek !== $weekday) {
+            $day->subDay();
+        }
+
+        return (int) $day->day;
+    }
+
+    private function westernEasterDate(int $year): Carbon
+    {
+        $a = $year % 19;
+        $b = intdiv($year, 100);
+        $c = $year % 100;
+        $d = intdiv($b, 4);
+        $e = $b % 4;
+        $f = intdiv($b + 8, 25);
+        $g = intdiv($b - $f + 1, 3);
+        $h = (19 * $a + $b - $d - $g + 15) % 30;
+        $i = intdiv($c, 4);
+        $k = $c % 4;
+        $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+        $m = intdiv($a + 11 * $h + 22 * $l, 451);
+        $month = intdiv($h + $l - 7 * $m + 114, 31);
+        $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+
+        return Carbon::create($year, $month, $day);
+    }
+
+    private function chineseNewYearDate(int $year): ?Carbon
+    {
+        $dates = [
+            2020 => '01-25', 2021 => '02-12', 2022 => '02-01', 2023 => '01-22',
+            2024 => '02-10', 2025 => '01-29', 2026 => '02-17', 2027 => '02-06',
+            2028 => '01-26', 2029 => '02-13', 2030 => '02-03', 2031 => '01-23',
+            2032 => '02-11', 2033 => '01-31', 2034 => '02-19', 2035 => '02-08',
+        ];
+        if (! isset($dates[$year])) {
+            return null;
+        }
+
+        return Carbon::parse(sprintf('%04d-%s', $year, $dates[$year]));
+    }
+
+    /** @return list<array{date: string, name: string}> */
+    private function philippineIslamicHolidays(int $year): array
+    {
+        $fitr = [
+            2024 => '04-10', 2025 => '03-31', 2026 => '03-20',
+            2027 => '03-10', 2028 => '02-27', 2029 => '02-15', 2030 => '02-05',
+        ];
+        $adha = [
+            2024 => '06-17', 2025 => '06-06', 2026 => '05-27',
+            2027 => '05-17', 2028 => '05-06', 2029 => '04-25', 2030 => '04-14',
+        ];
+        $items = [];
+        if (isset($fitr[$year])) {
+            $items[] = ['date' => sprintf('%04d-%s', $year, $fitr[$year]), 'name' => 'イド・フィトル'];
+        }
+        if (isset($adha[$year])) {
+            $items[] = ['date' => sprintf('%04d-%s', $year, $adha[$year]), 'name' => 'イド・アドハ'];
+        }
+
+        return $items;
     }
 
     private function nthWeekdayOfMonth(int $year, int $month, int $weekday, int $nth): ?int

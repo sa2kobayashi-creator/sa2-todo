@@ -108,7 +108,7 @@
 
       <div class="panel">
         <h2>{{ __('休日マスタ') }}</h2>
-        <p class="hint">{{ __('日本・フィリピンの祝日を取り込めます。会社独自の休日も追加できます。') }}</p>
+        <p class="hint">{{ __('日本・フィリピンの祝日を取り込めます。会社独自の休日も追加できます。フィリピン祝日はカレンダーで水色の日付になります。') }}</p>
 
         <div class="holiday-toolbar">
           <a class="button-link secondary icon-btn" href="{{ $settingsPath('holidays', $prevHolidayYear) }}">‹</a>
