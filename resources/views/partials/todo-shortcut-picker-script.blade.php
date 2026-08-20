@@ -1,4 +1,4 @@
-{{-- ToDo 追加モーダルのクイック入力アイコン／タイトル選択 --}}
+{{-- ToDo 追加モーダルのクイック入力アイコン／タイトル選択／予定から登録 --}}
 {{-- Blade が ?. をディレクティブと誤認するため、オプショナルチェーンは使わない --}}
 <script>
   (() => {
@@ -15,6 +15,130 @@
     const titleInput = document.getElementById('modal-title');
     const editForm = document.getElementById('todo-edit-form');
     const todoModal = document.getElementById('todo-modal');
+    const saveBtn = document.getElementById('todo-modal-save-shortcut');
+    const saveForm = document.getElementById('todo-shortcut-save-form');
+    const savePicker = document.getElementById('todo-shortcut-save-picker');
+    const savePickerList = document.getElementById('todo-shortcut-save-picker-list');
+    const savePickerClose = document.getElementById('todo-shortcut-save-picker-close');
+    const msgNeedTitle = @json(__('タイトルを入力してください。'));
+    const msgNeedCategory = @json(__('先に設定からクイック入力カテゴリを追加してください。設定ページを開きますか？'));
+
+    function closeSavePicker() {
+      if (savePicker) savePicker.hidden = true;
+      if (savePickerList) savePickerList.innerHTML = '';
+    }
+
+    function modalTimeMode() {
+      const rangeOn = !!(document.getElementById('modal-enable-time-range')
+        && document.getElementById('modal-enable-time-range').checked);
+      const pointOn = !!(document.getElementById('modal-enable-time-point')
+        && document.getElementById('modal-enable-time-point').checked);
+      if (rangeOn) return 'range';
+      if (pointOn) return 'point';
+      return 'none';
+    }
+
+    function submitSaveToCategory(catId) {
+      if (!saveForm || !editForm) return;
+      const title = titleInput ? String(titleInput.value || '').trim() : '';
+      if (title === '') {
+        window.alert(msgNeedTitle);
+        return;
+      }
+
+      const returnEl = document.getElementById('todo-shortcut-save-return');
+      const returnFromEdit = editForm.querySelector('input[name="returnTo"]');
+      if (returnEl && returnFromEdit) returnEl.value = returnFromEdit.value || returnEl.value;
+
+      document.getElementById('todo-shortcut-save-category').value = String(catId);
+      document.getElementById('todo-shortcut-save-title').value = title;
+
+      const mode = modalTimeMode();
+      const startEl = document.getElementById('modal-start-time');
+      const endEl = document.getElementById('modal-end-time');
+      const startVal = startEl ? String(startEl.value || '').trim() : '';
+      const endVal = endEl ? String(endEl.value || '').trim() : '';
+      document.getElementById('todo-shortcut-save-time-mode').value = mode;
+      document.getElementById('todo-shortcut-save-point').value = mode === 'point' ? startVal : '';
+      document.getElementById('todo-shortcut-save-start').value = mode === 'range' ? startVal : '';
+      document.getElementById('todo-shortcut-save-end').value = mode === 'range' ? endVal : '';
+
+      let notifyVia = '';
+      editForm.querySelectorAll('[data-modal-notify]').forEach(function (radio) {
+        if (radio.checked && !radio.disabled) notifyVia = String(radio.value || '');
+      });
+      document.getElementById('todo-shortcut-save-notify').value = notifyVia;
+
+      const reminderTimeEl = editForm.querySelector('[data-modal-reminder-time]');
+      document.getElementById('todo-shortcut-save-reminder-time').value =
+        reminderTimeEl ? String(reminderTimeEl.value || '') : '';
+
+      const remindersWrap = document.getElementById('todo-shortcut-save-reminders');
+      if (remindersWrap) {
+        remindersWrap.innerHTML = '';
+        editForm.querySelectorAll('[data-modal-reminder]').forEach(function (cb) {
+          if (!cb.checked || cb.disabled) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'reminders';
+          input.value = String(cb.value || '');
+          remindersWrap.appendChild(input);
+        });
+      }
+
+      closeSavePicker();
+      saveForm.submit();
+    }
+
+    function openSavePicker() {
+      if (!savePicker || !savePickerList) return;
+      savePickerList.innerHTML = '';
+      list.forEach(function (cat) {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'todo-shortcut-picker-item';
+        btn.textContent = (cat.icon || '') + ' ' + (cat.name || '');
+        btn.addEventListener('click', function () { submitSaveToCategory(cat.id); });
+        li.appendChild(btn);
+        savePickerList.appendChild(li);
+      });
+      savePicker.hidden = false;
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const title = titleInput ? String(titleInput.value || '').trim() : '';
+        if (title === '') {
+          window.alert(msgNeedTitle);
+          if (titleInput) titleInput.focus();
+          return;
+        }
+        if (list.length === 0) {
+          if (window.confirm(msgNeedCategory)) {
+            window.location.href = '/todos?display=settings';
+          }
+          return;
+        }
+        if (list.length === 1) {
+          submitSaveToCategory(list[0].id);
+          return;
+        }
+        if (picker && !picker.hidden) picker.hidden = true;
+        openSavePicker();
+      });
+    }
+    if (savePickerClose) savePickerClose.addEventListener('click', closeSavePicker);
+    if (todoModal) {
+      todoModal.addEventListener('click', function (e) {
+        if (!savePicker || savePicker.hidden) return;
+        if (savePicker.contains(e.target) || (saveBtn && saveBtn.contains(e.target))) return;
+        closeSavePicker();
+      });
+    }
+
     if (!iconsEl || list.length === 0) return;
 
     let openCategoryId = null;
@@ -130,6 +254,7 @@
 
     function openPicker(cat) {
       if (!picker || !pickerList || !cat) return;
+      closeSavePicker();
       openCategoryId = cat.id;
       if (pickerTitle) {
         pickerTitle.textContent = (cat.icon || '') + ' ' + (cat.name || '');
@@ -244,6 +369,7 @@
           requestAnimationFrame(function () { renderIcons(); });
         } else {
           closePicker();
+          closeSavePicker();
         }
       }).observe(todoModal, { attributes: true, attributeFilter: ['hidden'] });
     }

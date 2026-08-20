@@ -309,7 +309,11 @@ class TodoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
-        return $this->redirectWithMessage($returnTo, __('タイトルを追加しました'));
+        $msg = $request->boolean('from_todo')
+            ? __('クイック入力に追加しました')
+            : __('タイトルを追加しました');
+
+        return $this->redirectWithMessage($returnTo, $msg);
     }
 
     public function updateShortcutTitle(Request $request, int $id)

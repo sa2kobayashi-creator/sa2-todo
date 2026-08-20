@@ -123,6 +123,27 @@
       @csrf
       <input type="hidden" name="returnTo" value="{{ $modalReturnTo }}" />
     </form>
+    <form method="post" id="todo-shortcut-save-form" action="/todos/shortcuts/titles" hidden>
+      @csrf
+      <input type="hidden" name="returnTo" id="todo-shortcut-save-return" value="{{ $modalReturnTo }}" />
+      <input type="hidden" name="from_todo" value="1" />
+      <input type="hidden" name="category_id" id="todo-shortcut-save-category" value="" />
+      <input type="hidden" name="title" id="todo-shortcut-save-title" value="" />
+      <input type="hidden" name="time_mode" id="todo-shortcut-save-time-mode" value="none" />
+      <input type="hidden" name="point_time" id="todo-shortcut-save-point" value="" />
+      <input type="hidden" name="start_time" id="todo-shortcut-save-start" value="" />
+      <input type="hidden" name="end_time" id="todo-shortcut-save-end" value="" />
+      <input type="hidden" name="notifyVia" id="todo-shortcut-save-notify" value="" />
+      <input type="hidden" name="reminderTime" id="todo-shortcut-save-reminder-time" value="" />
+      <div id="todo-shortcut-save-reminders"></div>
+    </form>
+    <div class="todo-shortcut-save-picker" id="todo-shortcut-save-picker" hidden>
+      <div class="todo-shortcut-picker-head">
+        <strong>{{ __('登録先カテゴリ') }}</strong>
+        <button type="button" class="modal-close" id="todo-shortcut-save-picker-close" aria-label="{{ __('閉じる') }}">×</button>
+      </div>
+      <ul class="todo-shortcut-picker-list" id="todo-shortcut-save-picker-list"></ul>
+    </div>
     <div class="modal-actions">
       @if(!empty($showDashboardMemoButton))
         <button type="button" class="secondary" id="todo-modal-memo-btn" hidden>{{ __('メモを追加') }}</button>
@@ -130,6 +151,7 @@
       <button type="button" class="secondary" data-close-todo-modal data-close-modal>{{ __('キャンセル') }}</button>
       <button type="submit" form="todo-edit-form" id="todo-modal-save">{{ __('保存') }}</button>
       <button type="button" class="secondary" id="todo-modal-copy" title="{{ __('コピーして新規作成') }}">{{ __('コピー') }}</button>
+      <button type="button" class="secondary" id="todo-modal-save-shortcut" title="{{ __('いまの内容をクイック入力に登録') }}">{{ __('クイック入力に追加') }}</button>
       <button type="submit" form="todo-delete-form" class="danger" id="todo-modal-delete">{{ __('削除') }}</button>
     </div>
   </div>

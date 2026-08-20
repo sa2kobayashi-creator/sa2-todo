@@ -92,6 +92,38 @@ class TodoShortcutTest extends TestCase
             ->assertOk()
             ->assertSee('todo-shortcut-icons', false)
             ->assertSee('data-shortcut-cat-id', false)
-            ->assertSee('todo-shortcut-picker', false);
+            ->assertSee('todo-shortcut-picker', false)
+            ->assertSee('todo-modal-save-shortcut', false);
+    }
+
+    public function test_add_current_todo_fields_to_shortcut_category(): void
+    {
+        $user = $this->makeUser();
+        $cat = TodoShortcutCategory::create([
+            'user_id' => $user->id,
+            'name' => '移動',
+            'icon' => '🚗',
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)->post('/todos/shortcuts/titles', [
+            'from_todo' => '1',
+            'category_id' => $cat->id,
+            'title' => '松本整形外科に行く',
+            'time_mode' => 'point',
+            'point_time' => '13:00',
+            'notifyVia' => 'push',
+            'reminders' => ['30min', 'at_time'],
+            'reminderTime' => '09:30',
+            'returnTo' => '/todos',
+        ])->assertRedirect('/todos');
+
+        $list = app(TodoShortcutService::class)->listForUser((int) $user->id);
+        $this->assertCount(1, $list[0]['titles']);
+        $this->assertSame('松本整形外科に行く', $list[0]['titles'][0]['title']);
+        $this->assertSame('13:00', $list[0]['titles'][0]['startTime']);
+        $this->assertNull($list[0]['titles'][0]['endTime']);
+        $this->assertSame('push', $list[0]['titles'][0]['notifyVia']);
+        $this->assertContains('30min', $list[0]['titles'][0]['reminders']);
     }
 }

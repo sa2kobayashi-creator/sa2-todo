@@ -4178,6 +4178,18 @@ a.filter-clear-btn {
   color: #5f6368;
 }
 
+.todo-shortcut-save-picker {
+  margin: 0 0 12px;
+  border: 1px solid #d2e3fc;
+  border-radius: 12px;
+  background: #f8fbff;
+  overflow: hidden;
+}
+
+.todo-shortcut-save-picker .todo-shortcut-picker-list {
+  max-height: 180px;
+}
+
 .todo-shortcut-settings h3 {
   margin: 0 0 8px;
   font-size: 18px;
