@@ -13,6 +13,7 @@ use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use App\Services\TodoShortcutService;
 use App\Services\TravelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class DashboardController extends Controller
 
     public function __construct(
         private TodoService $todos,
+        private TodoShortcutService $todoShortcuts,
         private NoteService $notes,
         private CalendarService $calendar,
         private HolidayService $holidays,
@@ -139,6 +141,7 @@ class DashboardController extends Controller
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'pendingGroupInvitations' => $this->groups->listPendingInvitationsForUser($userId),
+            'todoShortcuts' => $this->todoShortcuts->listForUser($userId),
             ...$this->flashFromQuery($request),
         ]);
     }

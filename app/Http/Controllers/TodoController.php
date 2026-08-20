@@ -12,6 +12,7 @@ use App\Services\GroupService;
 use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
+use App\Services\TodoShortcutService;
 use App\Services\TodoVoiceParseService;
 use App\Services\UserUsageLimitService;
 use Carbon\Carbon;
@@ -25,6 +26,7 @@ class TodoController extends Controller
 
     public function __construct(
         private TodoService $todos,
+        private TodoShortcutService $todoShortcuts,
         private CalendarService $calendar,
         private HolidayService $holidays,
         private NoteService $notes,
@@ -42,8 +44,12 @@ class TodoController extends Controller
         $userId = (int) $user->id;
         $context = $this->contexts->current($user, $request);
         $filters = $this->todos->parseFilters($request->query());
-        // 既定はカレンダー。一覧は display=list のときだけ
-        $displayMode = $request->query('display') === 'list' ? 'list' : 'calendar';
+        // 既定はカレンダー。一覧は display=list、クイック入力設定は display=settings
+        $displayMode = match ($request->query('display')) {
+            'list' => 'list',
+            'settings' => 'settings',
+            default => 'calendar',
+        };
         $calState = $this->calendar->resolveCalendarState([
             'view' => $request->query('view'),
             'date' => $request->query('date'),
@@ -79,7 +85,11 @@ class TodoController extends Controller
         $editId = (int) $request->query('edit');
         $calNavExtra = $this->todosCalendarQueryExtra($view, $focusDate);
         $listQuery = $this->todos->buildTodosQuery($filters, array_merge(
-            ['display' => $displayMode === 'list' ? 'list' : null],
+            ['display' => match ($displayMode) {
+                'list' => 'list',
+                'settings' => 'settings',
+                default => null,
+            }],
             $displayMode === 'calendar' ? $calNavExtra : []
         ));
         $defaultStart = is_string($request->query('due')) ? $request->query('due') : '';
@@ -173,7 +183,11 @@ class TodoController extends Controller
             'buildTodosQuery' => fn (array $extra = []) => $this->todos->buildTodosQuery(
                 $filters,
                 array_merge(
-                    ['display' => $displayMode === 'list' ? 'list' : null],
+                    ['display' => match ($displayMode) {
+                        'list' => 'list',
+                        'settings' => 'settings',
+                        default => null,
+                    }],
                     $displayMode === 'calendar' ? $calNavExtra : [],
                     $extra
                 )
@@ -182,7 +196,7 @@ class TodoController extends Controller
                 [...$filters, 'scope' => 'today'],
                 ['display' => $displayMode === 'list' ? 'list' : null]
             ).'#todo-list-panel',
-            'clearFiltersHref' => '/todos'.($displayMode === 'list' ? '?display=list' : '').'#todo-list-panel',
+            'clearFiltersHref' => '/todos'.($displayMode === 'list' ? '?display=list' : ($displayMode === 'settings' ? '?display=settings' : '')).'#todo-list-panel',
             'periodValue' => $filters['scope'] === 'today' ? '' : sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'periodYearValue' => (string) $filters['year'],
             'periodMode' => $filters['periodMode'] ?? 'month',
@@ -225,8 +239,133 @@ class TodoController extends Controller
                 ? $this->googleCalendar->formState($user)
                 : null,
             'googleCalendarActionBase' => '/mypage/google-calendar',
+            'todoShortcuts' => $this->todoShortcuts->listForUser($userId),
+            'todoShortcutIcons' => TodoShortcutService::ICON_CHOICES,
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    public function storeShortcutCategory(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        try {
+            $this->todoShortcuts->createCategory(
+                (int) $request->user()->id,
+                (string) $request->input('name'),
+                (string) $request->input('icon')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('カテゴリを追加しました'));
+    }
+
+    public function updateShortcutCategory(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        try {
+            $this->todoShortcuts->updateCategory(
+                (int) $request->user()->id,
+                $id,
+                (string) $request->input('name'),
+                (string) $request->input('icon')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('カテゴリを更新しました'));
+    }
+
+    public function destroyShortcutCategory(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        try {
+            $this->todoShortcuts->deleteCategory((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('カテゴリを削除しました'));
+    }
+
+    public function storeShortcutTitle(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        [$startTime, $endTime] = $this->shortcutTimesFromRequest($request);
+        try {
+            $this->todoShortcuts->createTitle(
+                (int) $request->user()->id,
+                (int) $request->input('category_id'),
+                (string) $request->input('title'),
+                $startTime,
+                $endTime,
+                $request->input('reminders'),
+                $request->input('reminderTime'),
+                $request->input('notifyVia')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('タイトルを追加しました'));
+    }
+
+    public function updateShortcutTitle(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        [$startTime, $endTime] = $this->shortcutTimesFromRequest($request);
+        try {
+            $this->todoShortcuts->updateTitle(
+                (int) $request->user()->id,
+                $id,
+                (string) $request->input('title'),
+                $startTime,
+                $endTime,
+                $request->input('reminders'),
+                $request->input('reminderTime'),
+                $request->input('notifyVia')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('タイトルを更新しました'));
+    }
+
+    public function destroyShortcutTitle(Request $request, int $id)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/todos?display=settings');
+        try {
+            $this->todoShortcuts->deleteTitle((int) $request->user()->id, $id);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage($returnTo, __('タイトルを削除しました'));
+    }
+
+    /** @return array{0: ?string, 1: ?string} */
+    private function shortcutTimesFromRequest(Request $request): array
+    {
+        $mode = (string) $request->input('time_mode', 'none');
+        if ($mode === 'point') {
+            $point = trim((string) $request->input('point_time', ''));
+
+            return [$point !== '' ? $point : null, null];
+        }
+        if ($mode === 'range') {
+            $start = trim((string) $request->input('start_time', ''));
+            $end = trim((string) $request->input('end_time', ''));
+
+            return [
+                $start !== '' ? $start : null,
+                $end !== '' ? $end : null,
+            ];
+        }
+
+        return [null, null];
     }
 
     public function parseVoice(Request $request): JsonResponse

@@ -117,6 +117,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/todos', [TodoController::class, 'index']);
     Route::post('/todos', [TodoController::class, 'store']);
     Route::post('/todos/voice/parse', [TodoController::class, 'parseVoice'])->middleware('throttle:ai-voice');
+    Route::post('/todos/shortcuts/categories', [TodoController::class, 'storeShortcutCategory']);
+    Route::post('/todos/shortcuts/categories/{id}/update', [TodoController::class, 'updateShortcutCategory'])->whereNumber('id');
+    Route::post('/todos/shortcuts/categories/{id}/delete', [TodoController::class, 'destroyShortcutCategory'])->whereNumber('id');
+    Route::post('/todos/shortcuts/titles', [TodoController::class, 'storeShortcutTitle']);
+    Route::post('/todos/shortcuts/titles/{id}/update', [TodoController::class, 'updateShortcutTitle'])->whereNumber('id');
+    Route::post('/todos/shortcuts/titles/{id}/delete', [TodoController::class, 'destroyShortcutTitle'])->whereNumber('id');
     Route::post('/todos/bulk/complete', [TodoController::class, 'bulkComplete']);
     Route::post('/todos/bulk/uncomplete', [TodoController::class, 'bulkUncomplete']);
     Route::post('/todos/bulk/delete', [TodoController::class, 'bulkDelete']);

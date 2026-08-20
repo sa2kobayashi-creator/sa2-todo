@@ -295,6 +295,7 @@
       'modalReturnTo' => $returnTo,
       'showDashboardMemoButton' => true,
     ])
+    @include('partials.todo-shortcut-picker-script')
 
     <div class="modal" id="note-day-modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>

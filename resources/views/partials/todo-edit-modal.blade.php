@@ -13,10 +13,33 @@
       @csrf
       <input type="hidden" name="returnTo" value="{{ $modalReturnTo }}" />
       <input type="hidden" name="splitByLine" id="modal-split-by-line" value="0" />
-      <label>
-        <span id="modal-title-label">{{ __('タイトル（1行1件）') }}</span>
-        <input type="text" name="title" id="modal-title" maxlength="255" placeholder="{{ __('買い物に行く') }}" required autocomplete="off" />
-      </label>
+      <div class="todo-modal-title-block">
+        <div class="todo-modal-title-label-row">
+          <label for="modal-title" id="modal-title-label">{{ __('タイトル（1行1件）') }}</label>
+          @php $shortcutCats = $todoShortcuts ?? []; @endphp
+          @if(count($shortcutCats) > 0)
+            <div class="todo-shortcut-icons" id="todo-shortcut-icons" aria-label="{{ __('クイック入力') }}">
+              @foreach($shortcutCats as $cat)
+                <button
+                  type="button"
+                  class="todo-shortcut-icon-btn"
+                  data-shortcut-cat-id="{{ $cat['id'] }}"
+                  title="{{ $cat['name'] }}"
+                  aria-label="{{ $cat['name'] }}"
+                >{{ $cat['icon'] }}</button>
+              @endforeach
+            </div>
+          @endif
+        </div>
+        <input type="text" name="title" id="modal-title" class="todo-modal-title-input" maxlength="255" placeholder="{{ __('買い物に行く') }}" required autocomplete="off" />
+        <div class="todo-shortcut-picker" id="todo-shortcut-picker" hidden>
+          <div class="todo-shortcut-picker-head">
+            <strong id="todo-shortcut-picker-title">{{ __('タイトルを選ぶ') }}</strong>
+            <button type="button" class="modal-close" id="todo-shortcut-picker-close" aria-label="{{ __('閉じる') }}">×</button>
+          </div>
+          <ul class="todo-shortcut-picker-list" id="todo-shortcut-picker-list"></ul>
+        </div>
+      </div>
       @include('partials.todo-memo-field', ['memoIdPrefix' => 'todo-modal'])
       <div class="modal-date-mode" role="group" aria-label="{{ __('指定方法') }}">
         <span class="field-label">{{ __('指定方法') }}</span>

@@ -147,7 +147,7 @@
         </details>
         @endif
 
-        <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-filter" @if(($displayMode ?? 'calendar') !== 'calendar') open @endif>
+        <details class="app-accordion todos-filter-accordion" data-accordion-key="todos-filter" @if(($displayMode ?? 'calendar') === 'list') open @endif @if(($displayMode ?? '') === 'settings') hidden @endif>
           <summary class="app-accordion-summary">
             <span>{{ __('検索・絞り込み') }}</span>
             <span class="app-accordion-caret" aria-hidden="true">▾</span>
@@ -156,6 +156,8 @@
         <form class="filter-bar" method="get" action="/todos#todo-list-panel" id="filter-form">
           @if(($displayMode ?? 'calendar') === 'list')
             <input type="hidden" name="display" value="list" />
+          @elseif(($displayMode ?? '') === 'settings')
+            <input type="hidden" name="display" value="settings" />
           @endif
           <div class="filter-group filter-group-period">
             <label>{{ __('期間') }}@if(($filters['scope'] ?? '') === 'today') <span class="filter-scope-hint">{{ __('（今日で表示中）') }}</span>@endif</label>
@@ -190,57 +192,57 @@
             />
           </div>
           <div class="todos-filter-row-status">
-            <div class="filter-group">
-              <label>{{ __('完了') }}</label>
-              <select name="status">
-                <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
-                <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>{{ __('未完了') }}</option>
-                <option value="done" @selected(($filters['status'] ?? '') === 'done')>{{ __('完了') }}</option>
-              </select>
-            </div>
-            <div class="filter-group filter-group-categories">
-              <label for="filter-category-trigger">{{ __('ステータス') }}</label>
-              <div class="filter-dropdown" id="filter-category-dropdown">
-                <button
-                  type="button"
-                  class="filter-dropdown-trigger"
-                  id="filter-category-trigger"
-                  aria-expanded="false"
-                  aria-haspopup="listbox"
-                  aria-controls="filter-category-panel"
-                >
-                  <span class="filter-dropdown-label" id="filter-category-label">
-                    @if(empty($filters['categories'])){{ __('すべて') }}@else
-                      {{ collect($filters['categories'] ?? [])->map(fn($v) => $categoryLabels[$v] ?? $v)->join('、') }}
-                    @endif
-                  </span>
-                  <span class="filter-dropdown-caret" aria-hidden="true">▼</span>
-                </button>
-                <div class="filter-dropdown-panel" id="filter-category-panel" role="listbox" hidden>
-                  @foreach($categoryLabels as $value => $label)
-                    <label class="filter-dropdown-check">
-                      <input
-                        type="checkbox"
-                        name="category"
-                        value="{{ $value }}"
-                        class="filter-category-cb"
-                        data-label="{{ $label }}"
-                        @checked(in_array($value, $filters['categories'] ?? [], true))
-                      />
-                      {{ $label }}
-                    </label>
-                  @endforeach
-                </div>
+          <div class="filter-group">
+            <label>{{ __('完了') }}</label>
+            <select name="status">
+              <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
+              <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>{{ __('未完了') }}</option>
+              <option value="done" @selected(($filters['status'] ?? '') === 'done')>{{ __('完了') }}</option>
+            </select>
+          </div>
+          <div class="filter-group filter-group-categories">
+            <label for="filter-category-trigger">{{ __('ステータス') }}</label>
+            <div class="filter-dropdown" id="filter-category-dropdown">
+              <button
+                type="button"
+                class="filter-dropdown-trigger"
+                id="filter-category-trigger"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-controls="filter-category-panel"
+              >
+                <span class="filter-dropdown-label" id="filter-category-label">
+                  @if(empty($filters['categories'])){{ __('すべて') }}@else
+                    {{ collect($filters['categories'] ?? [])->map(fn($v) => $categoryLabels[$v] ?? $v)->join('、') }}
+                  @endif
+                </span>
+                <span class="filter-dropdown-caret" aria-hidden="true">▼</span>
+              </button>
+              <div class="filter-dropdown-panel" id="filter-category-panel" role="listbox" hidden>
+                @foreach($categoryLabels as $value => $label)
+                  <label class="filter-dropdown-check">
+                    <input
+                      type="checkbox"
+                      name="category"
+                      value="{{ $value }}"
+                      class="filter-category-cb"
+                      data-label="{{ $label }}"
+                      @checked(in_array($value, $filters['categories'] ?? [], true))
+                    />
+                    {{ $label }}
+                  </label>
+                @endforeach
               </div>
             </div>
-            <div class="filter-group">
-              <label>{{ __('重要度') }}</label>
-              <select name="importance">
-                <option value="all" @selected(($filters['importance'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
-                @foreach($importanceLabels as $value => $label)
-                  <option value="{{ $value }}" @selected(($filters['importance'] ?? '') === $value)>{{ $label }}</option>
-                @endforeach
-              </select>
+          </div>
+          <div class="filter-group">
+            <label>{{ __('重要度') }}</label>
+            <select name="importance">
+              <option value="all" @selected(($filters['importance'] ?? 'all') === 'all')>{{ __('すべて') }}</option>
+              @foreach($importanceLabels as $value => $label)
+                <option value="{{ $value }}" @selected(($filters['importance'] ?? '') === $value)>{{ $label }}</option>
+              @endforeach
+            </select>
             </div>
           </div>
           <div class="filter-bar-actions">
@@ -272,14 +274,17 @@
           <h2>
             @if(($displayMode ?? 'list') === 'calendar')
                 {{ __('カレンダー表示') }}
+            @elseif(($displayMode ?? '') === 'settings')
+                {{ __('設定') }}
             @else
               {{ __('一覧') }}（{{ $pagination['total'] }}{{ __('件') }}）
             @endif
           </h2>
           <div class="list-toolbar-title-actions">
-            <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
+          <div class="todos-display-toggle" role="group" aria-label="{{ __('表示切替') }}">
               <a href="{{ $buildTodosQuery(['display' => 'list']) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'list' ? 'is-active' : '' }}">{{ __('一覧') }}</a>
               <a href="{{ $buildTodosQuery(['display' => null]) }}#todo-list-panel" class="{{ ($displayMode ?? 'calendar') === 'calendar' ? 'is-active' : '' }}">{{ __('カレンダー') }}</a>
+              <a href="{{ $buildTodosQuery(['display' => 'settings']) }}#todo-list-panel" class="{{ ($displayMode ?? '') === 'settings' ? 'is-active' : '' }}">{{ __('設定') }}</a>
               @if(!empty($appContextIsWork))
                 <button
                   type="button"
@@ -381,6 +386,10 @@
               'placeholder' => __('例: 明日買い物に行く、重要'),
             ])
           </div>
+        @endif
+
+        @if(($displayMode ?? '') === 'settings')
+          @include('todos.partials.shortcut-settings')
         @endif
 
         @if(($displayMode ?? 'calendar') === 'calendar')
@@ -527,6 +536,7 @@
           @endif
 
           @include('partials.todo-edit-modal', ['modalReturnTo' => $listReturnTo])
+          @include('partials.todo-shortcut-picker-script')
 
           <script>
             (function () {
