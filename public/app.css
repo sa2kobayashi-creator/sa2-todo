@@ -14276,7 +14276,8 @@ label.photos-camera-btn span {
 .photos-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  /* mobile-bottom-nav(300) より上。詳細モーダル(4000)より下 */
+  z-index: 320;
   display: grid;
   justify-items: center;
   align-items: safe center;
@@ -15312,6 +15313,14 @@ label.photos-camera-btn span {
   }
   .photos-lightbox-stage {
     padding: 44px 40px 0;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .photos-lightbox-media img,
+  .photos-lightbox-media video,
+  .photos-lightbox-stage img {
+    max-height: calc(100dvh - 170px - env(safe-area-inset-bottom, 0px));
   }
 
   .photos-lightbox-toolbar {
@@ -15326,6 +15335,19 @@ label.photos-camera-btn span {
   .photos-lightbox-meta .photos-cover-btn,
   .photos-lightbox-meta .photos-delete-btn {
     flex: 0 0 auto;
+  }
+}
+
+/* 写真プレビュー／スライドショー中は下ナビを隠して操作ボタンを確保 */
+@media (max-width: 768px) {
+  body:has(#photos-lightbox:not([hidden])) .mobile-bottom-nav,
+  body:has(.photos-slideshow:not([hidden])) .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  body:has(#photos-lightbox:not([hidden])),
+  body:has(.photos-slideshow:not([hidden])) {
+    padding-bottom: 0;
   }
 }
 
