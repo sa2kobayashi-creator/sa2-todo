@@ -2070,13 +2070,13 @@
               syncTip()
               return
             }
-            autoUntil = Date.now() + 10000
+            autoUntil = Date.now() + 5000
             tip.classList.add('is-visible')
             autoTimer = setTimeout(() => {
               autoTimer = null
               autoUntil = 0
               syncTip()
-            }, 10000)
+            }, 5000)
           }
 
           anchor.addEventListener('mouseenter', () => {
