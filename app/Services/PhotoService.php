@@ -841,6 +841,52 @@ class PhotoService
         return $query;
     }
 
+    /**
+     * ルート一覧は本人の写真に加え、閲覧できる共有アルバムの写真も含める。
+     *
+     * @return bool 指定アルバムが閲覧不可なら false
+     */
+    private function applyViewerPhotoAccess($query, int $userId, ?int $albumId): bool
+    {
+        if ($albumId !== null) {
+            $album = $this->findViewableAlbum($userId, $albumId);
+            if (! $album) {
+                return false;
+            }
+            $query->where('album_id', $albumId);
+
+            return true;
+        }
+
+        $sharedAlbumIds = $this->sharedAlbumIdsVisibleTo($userId);
+        $query->where(function ($q) use ($userId, $sharedAlbumIds) {
+            $q->where('user_id', $userId);
+            if ($sharedAlbumIds !== []) {
+                $q->orWhereIn('album_id', $sharedAlbumIds);
+            }
+        });
+
+        return true;
+    }
+
+    /** @return list<int> */
+    private function sharedAlbumIdsVisibleTo(int $userId): array
+    {
+        $groupIds = $this->groups->approvedGroupIdsForUser($userId);
+        if ($groupIds === []) {
+            return [];
+        }
+
+        return PhotoAlbum::query()
+            ->where('user_id', '!=', $userId)
+            ->where('visibility', AlbumVisibility::Group->value)
+            ->whereIn('group_id', $groupIds)
+            ->where('is_hidden', false)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     /** 年フィルタ用。全件ロードせず DISTINCT で取得する。 @return list<int> */
     public function listPhotoYears(
         int $userId,
@@ -849,14 +895,8 @@ class PhotoService
         string $scope = 'loose',
     ): array {
         $query = Photo::query();
-        if ($albumId !== null) {
-            $album = $this->findViewableAlbum($userId, $albumId);
-            if (! $album) {
-                return [];
-            }
-            $query->where('album_id', $albumId);
-        } else {
-            $query->where('user_id', $userId);
+        if (! $this->applyViewerPhotoAccess($query, $userId, $albumId)) {
+            return [];
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
         $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);
@@ -886,14 +926,8 @@ class PhotoService
         string $scope = 'loose',
     ): int {
         $query = Photo::query();
-        if ($albumId !== null) {
-            $album = $this->findViewableAlbum($userId, $albumId);
-            if (! $album) {
-                return 0;
-            }
-            $query->where('album_id', $albumId);
-        } else {
-            $query->where('user_id', $userId);
+        if (! $this->applyViewerPhotoAccess($query, $userId, $albumId)) {
+            return 0;
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
         $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);
@@ -912,14 +946,8 @@ class PhotoService
         string $scope = 'loose',
     ): array {
         $query = Photo::query();
-        if ($albumId !== null) {
-            $album = $this->findViewableAlbum($userId, $albumId);
-            if (! $album) {
-                return [];
-            }
-            $query->where('album_id', $albumId);
-        } else {
-            $query->where('user_id', $userId);
+        if (! $this->applyViewerPhotoAccess($query, $userId, $albumId)) {
+            return [];
         }
         $this->applyLibraryScope($query, $library === 'archived' ? 'archived' : 'active');
         $this->applyRootAlbumScope($query, $albumId, $library === 'archived' ? 'library' : $scope);

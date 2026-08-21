@@ -211,6 +211,52 @@ class GroupsSharingTest extends TestCase
             ->assertDontSee('Public Album');
     }
 
+    public function test_member_sees_all_option_and_shared_album_photos(): void
+    {
+        $owner = $this->makeUser('all-album-owner@example.com');
+        $member = $this->makeUser('all-album-member@example.com');
+        $admin = $this->makeUser('all-album-admin@example.com', UserRole::Admin);
+
+        $this->actingAs($owner)->post('/groups', ['name' => 'All Photo Share'])->assertRedirect();
+        $group = Group::query()->where('name', 'All Photo Share')->firstOrFail();
+        $this->actingAs($admin)->post('/admin/groups/'.$group->id.'/approve')->assertRedirect();
+        GroupMember::query()->firstOrCreate(
+            ['group_id' => $group->id, 'user_id' => $member->id],
+            ['role' => 'member']
+        );
+
+        $this->actingAs($owner)->post('/photos/albums', [
+            'name' => 'Picnic Album',
+            'visibility' => 'group',
+            'group_id' => $group->id,
+            'returnTo' => '/photos',
+        ])->assertRedirect();
+
+        $album = \App\Models\PhotoAlbum::query()->where('name', 'Picnic Album')->firstOrFail();
+        Photo::create([
+            'user_id' => $owner->id,
+            'album_id' => $album->id,
+            'path' => 'photos/picnic.jpg',
+            'original_name' => 'picnic-shared.jpg',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 1024,
+            'taken_at' => now(),
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($member)->get('/photos')
+            ->assertOk()
+            ->assertSee('id="photos-album-jump"', false)
+            ->assertSee('Picnic Album', false)
+            ->assertSee('picnic-shared.jpg', false);
+
+        $this->actingAs($member)->get('/photos?album='.$album->id)
+            ->assertOk()
+            ->assertSee('id="photos-album-jump"', false)
+            ->assertSee('option value=""', false)
+            ->assertSee('Picnic Album', false);
+    }
+
     public function test_owner_invites_by_email_and_member_must_accept(): void
     {
         $owner = $this->makeUser('invite-owner@example.com');

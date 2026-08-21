@@ -11,4 +11,5 @@
     </div>
   </section>
 </dialog>
+<audio id="message-call-ring" preload="auto" playsinline></audio>
 <script src="{{ asset('messages-call.js') }}?v={{ @filemtime(public_path('messages-call.js')) ?: time() }}" defer></script>

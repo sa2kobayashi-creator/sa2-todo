@@ -75,8 +75,8 @@ class DashboardHomeTest extends TestCase
 
         $response->assertOk();
         $response->assertDontSee('Googleカレンダーは未連携です', false);
-        $response->assertSee('/todos?view=day', false);
-        $response->assertSee('#todo-list-panel', false);
+        $response->assertSee('/todos?view=day&amp;date=2026-08-11', false);
+        $response->assertSee('今日のTodo', false);
         $response->assertDontSee('⚠', false);
     }
 

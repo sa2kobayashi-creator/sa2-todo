@@ -62,9 +62,10 @@ class DashboardHomeService
             ? $now->locale('en')->isoFormat('MMM D (ddd)')
             : $now->locale('ja')->isoFormat('M月D日（ddd）');
 
+        $todayTodosUrl = '/todos?view=day&date='.$now->format('Y-m-d');
         $calendarLink = $isWork
             ? $this->connectedGoogleCalendarUrl($user)
-            : '/todos?view=day&date='.$now->format('Y-m-d').'#todo-list-panel';
+            : $todayTodosUrl;
 
         return [
             'dateLabel' => $dateLabel,
@@ -85,7 +86,7 @@ class DashboardHomeService
             'photos' => $photos,
             'pinnedNotes' => $pinnedNotes,
             'links' => [
-                'todosToday' => '/todos?today=1#todo-list-panel',
+                'todosToday' => $todayTodosUrl,
                 'todosNew' => '/todos',
                 'notes' => '/notes',
                 'notesNew' => '/notes',
@@ -213,7 +214,7 @@ class DashboardHomeService
                 'isOverdue' => false,
                 'isToday' => $row['isToday'],
                 'importance' => $todo['importance'] ?? 'medium',
-                'url' => '/todos?today=1#todo-list-panel',
+                'url' => '/todos?view=day&date='.$today,
             ];
         }
 

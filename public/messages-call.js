@@ -28,6 +28,10 @@
   var ringTimer = 0
   var audioCtx = null
   var ringNodes = []
+  var ringAudio = document.getElementById('message-call-ring')
+  var ringWavUrl = ''
+  var audioUnlocked = false
+  var ringing = false
 
   function setStatus(text) {
     if (status) status.textContent = text
@@ -76,6 +80,7 @@
   }
 
   function stopRingtone() {
+    ringing = false
     clearInterval(ringTimer)
     ringTimer = 0
     ringNodes.forEach(function (node) {
@@ -83,40 +88,138 @@
       try { node.disconnect() } catch (_) {}
     })
     ringNodes = []
+    if (ringAudio) {
+      try {
+        ringAudio.pause()
+        ringAudio.currentTime = 0
+      } catch (_) {}
+    }
     try {
       if (navigator.vibrate) navigator.vibrate(0)
     } catch (_) {}
   }
 
-  function playPhoneWarble(start, duration) {
-    // LFO→AudioParam は端末によって「ピピピ」化するので、
-    // 440+480Hz を手動トレモロ（約20Hz）で揺らして「プルプル」にする。
-    var master = audioCtx.createGain()
-    master.gain.setValueAtTime(0, start)
-    master.connect(audioCtx.destination)
+  function writeUtf8(view, offset, text) {
+    for (var i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i))
+  }
 
-    ;[440, 480].forEach(function (freq) {
+  function makeRingtoneWavUrl() {
+    var sr = 22050
+    var duration = 3.0
+    var n = Math.floor(sr * duration)
+    var samples = new Int16Array(n)
+    for (var i = 0; i < n; i++) {
+      var t = i / sr
+      var inBurst = (t < 0.95) || (t >= 1.25 && t < 2.2)
+      if (!inBurst) continue
+      var local = t < 0.95 ? t : t - 1.25
+      var env = Math.min(1, local * 30) * Math.min(1, (0.95 - local) * 18)
+      var trem = 0.45 + 0.55 * Math.sin(2 * Math.PI * 20 * t)
+      var v = (
+        Math.sin(2 * Math.PI * 880 * t) +
+        Math.sin(2 * Math.PI * 988 * t) +
+        0.45 * Math.sin(2 * Math.PI * 1174 * t)
+      ) / 2.45
+      samples[i] = Math.max(-32767, Math.min(32767, v * env * trem * 30000))
+    }
+    var bytes = samples.length * 2
+    var buffer = new ArrayBuffer(44 + bytes)
+    var view = new DataView(buffer)
+    writeUtf8(view, 0, 'RIFF')
+    view.setUint32(4, 36 + bytes, true)
+    writeUtf8(view, 8, 'WAVE')
+    writeUtf8(view, 12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true)
+    view.setUint16(22, 1, true)
+    view.setUint32(24, sr, true)
+    view.setUint32(28, sr * 2, true)
+    view.setUint16(32, 2, true)
+    view.setUint16(34, 16, true)
+    writeUtf8(view, 36, 'data')
+    view.setUint32(40, bytes, true)
+    var out = new Uint8Array(buffer, 44)
+    out.set(new Uint8Array(samples.buffer))
+    return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
+  }
+
+  function ensureRingAudio() {
+    if (!ringAudio) return
+    if (!ringWavUrl) ringWavUrl = makeRingtoneWavUrl()
+    if (ringAudio.src !== ringWavUrl) {
+      ringAudio.src = ringWavUrl
+      ringAudio.loop = true
+      ringAudio.volume = 1
+    }
+  }
+
+  function unlockCallAudio() {
+    if (audioUnlocked) return
+    audioUnlocked = true
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      if (audioCtx.state === 'suspended') audioCtx.resume()
+    } catch (_) {}
+    ensureRingAudio()
+    if (ringAudio) {
+      ringAudio.muted = true
+      var play = ringAudio.play()
+      if (play && typeof play.then === 'function') {
+        play.then(function () {
+          if (!ringing) {
+            ringAudio.pause()
+            ringAudio.currentTime = 0
+          }
+          ringAudio.muted = false
+        }).catch(function () {
+          ringAudio.muted = false
+        })
+      } else {
+        ringAudio.muted = false
+      }
+    }
+  }
+
+  document.addEventListener('pointerdown', unlockCallAudio, true)
+  document.addEventListener('keydown', unlockCallAudio, true)
+  document.addEventListener('touchstart', unlockCallAudio, { capture: true, passive: true })
+
+  function playPhoneWarble(start, duration) {
+    var master = audioCtx.createGain()
+    var limiter = audioCtx.createDynamicsCompressor()
+    limiter.threshold.setValueAtTime(-18, start)
+    limiter.knee.setValueAtTime(8, start)
+    limiter.ratio.setValueAtTime(4, start)
+    limiter.attack.setValueAtTime(0.003, start)
+    limiter.release.setValueAtTime(0.12, start)
+    master.connect(limiter)
+    limiter.connect(audioCtx.destination)
+
+    ;[880, 988, 1174].forEach(function (freq, idx) {
       var osc = audioCtx.createOscillator()
-      osc.type = 'sine'
+      osc.type = idx === 2 ? 'triangle' : 'sine'
       osc.frequency.setValueAtTime(freq, start)
-      osc.connect(master)
+      var g = audioCtx.createGain()
+      g.gain.setValueAtTime(idx === 2 ? 0.22 : 0.42, start)
+      osc.connect(g)
+      g.connect(master)
       osc.start(start)
       osc.stop(start + duration + 0.05)
       ringNodes.push(osc)
     })
 
-    var pulse = 1 / 20
+    var pulse = 1 / 18
     var t = start
     var end = start + duration
     master.gain.setValueAtTime(0.0001, t)
     while (t < end) {
-      var peakAt = t + 0.012
-      var midAt = t + pulse * 0.45
+      var peakAt = t + 0.01
+      var midAt = t + pulse * 0.42
       var lowAt = t + pulse
       if (peakAt > end) break
-      master.gain.linearRampToValueAtTime(0.3, Math.min(peakAt, end))
-      if (midAt < end) master.gain.linearRampToValueAtTime(0.12, midAt)
-      if (lowAt < end) master.gain.linearRampToValueAtTime(0.02, lowAt)
+      master.gain.linearRampToValueAtTime(0.85, Math.min(peakAt, end))
+      if (midAt < end) master.gain.linearRampToValueAtTime(0.38, midAt)
+      if (lowAt < end) master.gain.linearRampToValueAtTime(0.08, lowAt)
       t = lowAt
     }
     master.gain.linearRampToValueAtTime(0.0001, end)
@@ -127,19 +230,28 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
       if (audioCtx.state === 'suspended') audioCtx.resume()
       var now = audioCtx.currentTime
-      // プルプル～ → 休み → プルプル～
-      playPhoneWarble(now, 1.05)
-      playPhoneWarble(now + 1.4, 1.05)
+      playPhoneWarble(now, 0.95)
+      playPhoneWarble(now + 1.25, 0.95)
       try {
-        if (navigator.vibrate) navigator.vibrate([1000, 300, 1000])
+        if (navigator.vibrate) navigator.vibrate([700, 160, 700, 160, 1100])
       } catch (_) {}
     } catch (_) {}
   }
 
   function startRingtone() {
     stopRingtone()
+    ringing = true
+    unlockCallAudio()
+    ensureRingAudio()
+    if (ringAudio) {
+      ringAudio.muted = false
+      ringAudio.volume = 1
+      ringAudio.currentTime = 0
+      var play = ringAudio.play()
+      if (play && typeof play.catch === 'function') play.catch(function () {})
+    }
     beepOnce()
-    ringTimer = setInterval(beepOnce, 4200)
+    ringTimer = setInterval(beepOnce, 3000)
   }
 
   var heldLocalTracks = null

@@ -425,18 +425,19 @@
                       $cellNotes = $cell['notes'] ?? [];
                       $cellData = $limitTodosForCell($cell['todos'] ?? [], 10);
                       $holidayClass = !empty($cell['isHoliday']) ? 'is-holiday is-holiday-'.($cell['holidaySource'] ?? 'national') : '';
-                      $eventCount = count($cell['todos'] ?? []);
                     @endphp
                     <div
                       class="calendar-day {{ !empty($cell['inMonth']) ? '' : 'other-month' }} {{ !empty($cell['isToday']) ? 'today' : '' }} {{ count($cellNotes) ? 'has-notes' : '' }} {{ $holidayClass }}"
                       data-date="{{ $cell['date'] }}"
+                      data-day-url="{{ $buildDashboardQuery('day', $cell['date']) }}"
                     >
                       <div class="day-header">
-                        <span class="day-num">{{ $cell['day'] }}</span>
+                        <a
+                          class="day-num"
+                          href="{{ $buildDashboardQuery('day', $cell['date']) }}"
+                          title="{{ $cell['holidayName'] ?? __('この日の予定') }}"
+                        >{{ $cell['day'] }}</a>
                         <div class="day-header-actions">
-                        @if($eventCount > 0)
-                          <span class="day-event-count" aria-hidden="true">{{ min($eventCount, 99) }}</span>
-                        @endif
                         @if(count($cellNotes) > 0)
                           <a
                             class="day-note-badge"
@@ -954,6 +955,14 @@
                 if (e.target.closest('.event-chip, a, form, textarea, input, select, .event-more')) return;
                 const day = e.target.closest('.calendar-day[data-date], .cal-day-canvas[data-date], .cal-week-allday-col[data-date], .calendar-day-view[data-date]');
                 if (!day || !day.closest('.todos-calendar-panel')) return;
+                const monthShell = day.closest('.calendar-shell[data-calendar-view="month"]');
+                if (monthShell && day.classList.contains('calendar-day')) {
+                  const dayUrl = day.getAttribute('data-day-url');
+                  if (dayUrl) {
+                    window.location.href = dayUrl;
+                    return;
+                  }
+                }
                 const hourLine = e.target.closest('.cal-hour-line');
                 const hour = hourLine ? Number(hourLine.dataset.hour) : null;
                 openTodoCreateModal(day.dataset.date, Number.isFinite(hour) ? hour : null, 0);

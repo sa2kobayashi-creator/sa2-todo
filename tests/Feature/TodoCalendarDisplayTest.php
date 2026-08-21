@@ -43,6 +43,8 @@ class TodoCalendarDisplayTest extends TestCase
         $response->assertSee('todos-calendar-panel', false);
         $response->assertSee('id="todo-modal"', false);
         $response->assertSee('月次レビュー');
+        $response->assertSee('view=day&amp;date='.now()->format('Y-m-d'), false);
+        $response->assertDontSee('day-event-count', false);
         $response->assertDontSee('todo-table', false);
     }
 

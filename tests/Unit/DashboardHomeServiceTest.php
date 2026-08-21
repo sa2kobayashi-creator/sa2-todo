@@ -113,7 +113,9 @@ class DashboardHomeServiceTest extends TestCase
         $this->assertArrayNotHasKey('photosToday', $data['counts']);
         $this->assertCount(1, $data['nextActions']);
         $this->assertSame('今日の仕事', $data['nextActions'][0]['title']);
-        $this->assertSame('/todos?view=day&date=2026-08-11#todo-list-panel', $data['links']['googleCalendar']);
+        $this->assertSame('/todos?view=day&date=2026-08-11', $data['links']['todosToday']);
+        $this->assertSame('/todos?view=day&date=2026-08-11', $data['nextActions'][0]['url']);
+        $this->assertSame('/todos?view=day&date=2026-08-11', $data['links']['googleCalendar']);
         $this->assertFalse($data['links']['calendarExternal']);
         $this->assertSame('app', $data['calendar']['source']);
         $this->assertTrue($data['calendar']['connected']);
@@ -142,7 +144,7 @@ class DashboardHomeServiceTest extends TestCase
 
         $this->assertSame('app', $data['calendar']['source']);
         $this->assertSame(['個人の予定'], array_column($data['calendar']['events'], 'title'));
-        $this->assertSame('/todos?view=day&date=2026-08-11#todo-list-panel', $data['links']['googleCalendar']);
+        $this->assertSame('/todos?view=day&date=2026-08-11', $data['links']['googleCalendar']);
     }
 
     public function test_next_actions_skip_past_and_overdue(): void

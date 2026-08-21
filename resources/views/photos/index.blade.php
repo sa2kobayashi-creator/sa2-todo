@@ -44,14 +44,26 @@
                 id="photos-title-tap"
                 title="{{ __('旅・日常・お気に入りを、見ていて気持ちよく残す場所。') }}"
               >{{ __('Photos') }}</h1>
-              @if($selectedAlbum)
+              @if(count($albums) > 0)
+                <label class="photos-album-jump-wrap">
+                  <span class="visually-hidden">{{ __('アルバム') }}</span>
+                  <select id="photos-album-jump" class="photos-album-jump" aria-label="{{ __('アルバム') }}">
+                    <option value="" @selected(! $selectedAlbumId)>{{ __('すべて') }}</option>
+                    @foreach($albums as $album)
+                      <option value="{{ $album['id'] }}" @selected($selectedAlbumId === $album['id'])>{{ $album['name'] }}</option>
+                    @endforeach
+                  </select>
+                </label>
+                @if($selectedAlbum)
+                  @if(!empty($selectedAlbum['hasPassword']))
+                    <span class="photos-album-flag">{{ __('鍵付き') }}</span>
+                  @endif
+                  @if(!empty($selectedAlbum['isHidden']))
+                    <span class="photos-album-flag">{{ __('隠し') }}</span>
+                  @endif
+                @endif
+              @elseif($selectedAlbum)
                 <span class="photos-current-album" title="{{ $selectedAlbum['name'] }}">{{ $selectedAlbum['name'] }}</span>
-                @if(!empty($selectedAlbum['hasPassword']))
-                  <span class="photos-album-flag">{{ __('鍵付き') }}</span>
-                @endif
-                @if(!empty($selectedAlbum['isHidden']))
-                  <span class="photos-album-flag">{{ __('隠し') }}</span>
-                @endif
               @endif
             </div>
             <div class="photos-hero-meta">
@@ -2515,6 +2527,10 @@
 
         photosSortSelect?.addEventListener('change', () => applyPhotosListQuery())
         photosYearSelect?.addEventListener('change', () => applyPhotosListQuery())
+        document.getElementById('photos-album-jump')?.addEventListener('change', (e) => {
+          const album = e.target && e.target.value ? String(e.target.value) : ''
+          applyPhotosListQuery({ album, year: '' })
+        })
         photosScopeSelect?.addEventListener('change', () => {
           // 表示範囲が変わると有効な年も変わるので、年フィルタはリセット
           applyPhotosListQuery({

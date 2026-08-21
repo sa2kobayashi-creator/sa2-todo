@@ -21,9 +21,11 @@
         <span class="dash-home-count-label">{{ __('今日の予定') }}</span>
       </li>
       <li>
-        <span class="dash-home-count-icon" aria-hidden="true">✓</span>
-        <span class="dash-home-count-num">{{ (int) ($counts['todos'] ?? 0) }}</span>
-        <span class="dash-home-count-label">{{ __('今日のTodo') }}</span>
+        <a class="dash-home-count-link" href="{{ $links['todosToday'] ?? '/todos?view=day' }}">
+          <span class="dash-home-count-icon" aria-hidden="true">✓</span>
+          <span class="dash-home-count-num">{{ (int) ($counts['todos'] ?? 0) }}</span>
+          <span class="dash-home-count-label">{{ __('今日のTodo') }}</span>
+        </a>
       </li>
       @if($unreadCount > 0)
         <li class="is-attention">
@@ -73,7 +75,7 @@
       @endif
       <div class="dash-home-card-foot">
         <a class="dash-home-action" href="{{ $links['todosNew'] ?? '/todos' }}">＋ {{ __('Todoを追加') }}</a>
-        <a class="dash-home-more" href="{{ $links['todosToday'] ?? '/todos?today=1' }}">{{ __('今日のTodo') }} →</a>
+        <a class="dash-home-more" href="{{ $links['todosToday'] ?? '/todos?view=day' }}">{{ __('今日のTodo') }} →</a>
       </div>
     </section>
 
