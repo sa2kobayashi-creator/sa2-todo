@@ -8,6 +8,7 @@
 
 - `docs/specs/commercial-storage.md` … ストレージ接続・クォータ・将来の Stripe
 - `docs/specs/commercial-billing-inventory.md` … 運営側の外部課金一覧
+- `docs/specs/commercial-dedicated-instance.md` … **専用インスタンス（販路 A）の見積・構築・契約の正**
 
 本ファイルは「課金の中身」ではなく、**今の実装のまま公開すると壊れる／破産する／法的に出せない点**を正とする。  
 2026-08-21 追記の **「販売公開方針（決定メモ）」** は、公開範囲・ロール・課金の製品判断を正とする。
