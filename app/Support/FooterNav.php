@@ -13,7 +13,7 @@ class FooterNav
     public const DEFAULT_FOOTER = ['dashboard', 'todos', 'notes', 'photos', 'messages'];
 
     /** Max items in the smartphone bottom bar. */
-    public const MAX_FOOTER = 5;
+    public const MAX_FOOTER = 6;
 
     /** Max items in the web header (catalog size; effectively unlimited for current set). */
     public const MAX_HEADER = 20;

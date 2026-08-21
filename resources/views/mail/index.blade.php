@@ -20,6 +20,12 @@
         <a href="/mail" class="{{ $tab === 'inbox' || $tab === '' ? 'active' : '' }}">{{ __('受信箱') }}</a>
         <a href="/mail?tab=accounts{{ !empty($selectedAccountId) ? '&account='.$selectedAccountId : '' }}" class="{{ $tab === 'accounts' ? 'active' : '' }}">{{ __('アカウント設定') }}</a>
         <a href="/mail?tab=domain" class="{{ $tab === 'domain' ? 'active' : '' }}">{{ __('@:domain 申請', ['domain' => $mailDomain]) }}</a>
+        @if(($tab === 'inbox' || $tab === '') && empty($compose))
+          <details class="mail-mobile-tools" id="mail-mobile-tools">
+            <summary class="mail-mobile-tools-toggle" aria-label="{{ __('絞り込み・操作') }}" title="{{ __('絞り込み・操作') }}">☰</summary>
+            <div class="mail-mobile-tools-panel" id="mail-mobile-tools-panel"></div>
+          </details>
+        @endif
       </nav>
 
       @if($tab === 'accounts')
@@ -309,7 +315,11 @@
                 @foreach($primaryAccounts as $acc)
                   <details class="mail-account-tree" data-account-id="{{ $acc['id'] }}" @if((int)$selectedAccountId === (int)$acc['id']) open @endif>
                     <summary>
-                      <a href="/mail?account={{ $acc['id'] }}" class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                      <a
+                        href="/mail?account={{ $acc['id'] }}"
+                        class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}"
+                        data-account-select="{{ $acc['id'] }}"
+                      >{{ $acc['label'] }}</a>
                     </summary>
                     <ul class="mail-folder-nav mail-folder-nav-nested" data-account-folders="{{ $acc['id'] }}">
                       @if((int)$selectedAccountId === (int)$acc['id'])
@@ -325,7 +335,11 @@
                   @foreach($otherAccounts as $acc)
                     <details class="mail-account-tree" data-account-id="{{ $acc['id'] }}" @if((int)$selectedAccountId === (int)$acc['id']) open @endif>
                       <summary>
-                        <a href="/mail?account={{ $acc['id'] }}" class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}">{{ $acc['label'] }}</a>
+                        <a
+                          href="/mail?account={{ $acc['id'] }}"
+                          class="mail-account-tree-link {{ (int)$selectedAccountId === (int)$acc['id'] ? 'active' : '' }}"
+                          data-account-select="{{ $acc['id'] }}"
+                        >{{ $acc['label'] }}</a>
                       </summary>
                       <ul class="mail-folder-nav mail-folder-nav-nested" data-account-folders="{{ $acc['id'] }}">
                         @if((int)$selectedAccountId === (int)$acc['id'])
@@ -367,14 +381,16 @@
             @else
               <div class="mail-list-toolbar">
                 <strong id="mail-folder-title">{{ __('受信トレイ') }}</strong>
-                <div class="mail-filter-row" id="mail-filter-row">
-                  <input type="search" id="mail-filter-from" class="mail-filter-input" placeholder="{{ __('差出人で絞り込み') }}" autocomplete="off" />
-                  <input type="search" id="mail-filter-subject" class="mail-filter-input" placeholder="{{ __('件名で絞り込み') }}" autocomplete="off" />
-                  <button type="button" class="mail-toolbar-btn" id="mail-filter-clear">{{ __('クリア') }}</button>
-                </div>
-                <div class="mail-list-toolbar-actions">
-                  <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
-                  <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+                <div class="mail-list-tools" id="mail-list-tools">
+                  <div class="mail-filter-row" id="mail-filter-row">
+                    <input type="search" id="mail-filter-from" class="mail-filter-input" placeholder="{{ __('差出人で絞り込み') }}" autocomplete="off" />
+                    <input type="search" id="mail-filter-subject" class="mail-filter-input" placeholder="{{ __('件名で絞り込み') }}" autocomplete="off" />
+                    <button type="button" class="mail-toolbar-btn" id="mail-filter-clear">{{ __('クリア') }}</button>
+                  </div>
+                  <div class="mail-list-toolbar-actions">
+                    <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
+                    <button type="button" class="mail-toolbar-btn" id="mail-refresh-btn">{{ __('再読み込み') }}</button>
+                  </div>
                 </div>
               </div>
               <div class="mail-list-head" id="mail-list-head" hidden>
@@ -585,6 +601,49 @@
           }
           bind(shell.querySelector('[data-resize="sidebar"]'), 'sidebar');
           bind(shell.querySelector('[data-resize="list"]'), 'list');
+        })();
+
+        // 選択中アカウント名クリックは再読込せず折りたたみだけ行う
+        ;(function bindAccountTreeToggle() {
+          const selectedId = String(shell.getAttribute('data-account-id') || '');
+          document.querySelectorAll('[data-account-select]').forEach((link) => {
+            link.addEventListener('click', (e) => {
+              const id = String(link.getAttribute('data-account-select') || '');
+              if (!id || selectedId !== id) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const details = link.closest('details.mail-account-tree');
+              if (details) details.open = !details.open;
+            });
+          });
+        })();
+
+        // スマホ: 絞り込み／再読み込みをタブ横ハンバーガーへ移す
+        ;(function setupMailMobileTools() {
+          const tools = document.getElementById('mail-list-tools');
+          const toolbar = document.querySelector('.mail-list-toolbar');
+          const mobilePanel = document.getElementById('mail-mobile-tools-panel');
+          const mobileWrap = document.getElementById('mail-mobile-tools');
+          if (!tools || !toolbar || !mobilePanel || !mobileWrap) return;
+          const title = document.getElementById('mail-folder-title');
+          const mq = window.matchMedia('(max-width: 768px)');
+          const place = () => {
+            if (mq.matches) {
+              if (tools.parentElement !== mobilePanel) mobilePanel.appendChild(tools);
+            } else if (tools.parentElement !== toolbar) {
+              if (title && title.parentElement === toolbar) toolbar.insertBefore(tools, title.nextSibling);
+              else toolbar.appendChild(tools);
+              mobileWrap.open = false;
+            }
+          };
+          place();
+          if (typeof mq.addEventListener === 'function') mq.addEventListener('change', place);
+          else if (typeof mq.addListener === 'function') mq.addListener(place);
+          document.addEventListener('click', (e) => {
+            if (!mobileWrap.open) return;
+            if (mobileWrap.contains(e.target)) return;
+            mobileWrap.open = false;
+          });
         })();
 
         if (shell.getAttribute('data-async') !== '1' || shell.getAttribute('data-compose') === '1') return;
@@ -933,7 +992,7 @@
             createLi.className = 'mail-folder-create';
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'mail-toolbar-btn';
+            btn.className = 'mail-folder-create-btn';
             btn.textContent = i18n.folderCreate;
             btn.addEventListener('click', (e) => {
               e.preventDefault();
