@@ -25,7 +25,8 @@ class MessagingNotificationTest extends TestCase
             'email' => 'admin-msg@example.com',
             'display_name' => 'Admin',
             'password' => Hash::make('password'),
-            'role' => UserRole::Admin,
+            // LINE などのチャネル秘密鍵を保存できるのはスーパー管理者だけ
+            'role' => UserRole::SuperAdmin,
         ]);
     }
 

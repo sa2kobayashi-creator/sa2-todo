@@ -425,7 +425,8 @@ class GroupMessagesAndTranslateTest extends TestCase
 
     public function test_admin_can_save_livekit_settings_from_integration_page(): void
     {
-        $admin = $this->makeUser('admin-livekit@example.com', 'Admin', UserRole::Admin);
+        // 外部サービスの鍵はスーパー管理者のみが保存できる
+        $admin = $this->makeUser('admin-livekit@example.com', 'Admin', UserRole::SuperAdmin);
         $alice = $this->makeUser('alice-livekit-ui@example.com', 'Alice');
         $bob = $this->makeUser('bob-livekit-ui@example.com', 'Bob');
         $group = $this->makeApprovedGroup($alice, $bob);
@@ -535,7 +536,7 @@ class GroupMessagesAndTranslateTest extends TestCase
 
     public function test_admin_can_save_web_push_settings_in_integrations(): void
     {
-        $admin = $this->makeUser('push-admin@example.com', 'Push Admin', UserRole::Admin);
+        $admin = $this->makeUser('push-admin@example.com', 'Push Admin', UserRole::SuperAdmin);
         $publicKey = rtrim(strtr(base64_encode("\x04".str_repeat("\0", 64)), '+/', '-_'), '=');
         $privateKey = rtrim(strtr(base64_encode(str_repeat("\1", 32)), '+/', '-_'), '=');
 

@@ -6,6 +6,7 @@ use App\Models\FinanceAccount;
 use App\Models\FinanceAccountSchedule;
 use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceTransaction;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -2673,7 +2674,8 @@ class FinanceService
 
     public function todayIso(): string
     {
-        return date('Y-m-d');
+        // Carbon 経由にして、テストで時刻を固定できるようにする（既定タイムゾーンは date() と同じ）
+        return Carbon::now()->format('Y-m-d');
     }
 
     private function normalizeDate(?string $value): string

@@ -312,10 +312,8 @@ class GroupsSharingTest extends TestCase
             'returnTo' => '/photos',
         ]);
 
-        $response->assertRedirect();
-        $location = $response->headers->get('Location');
-        $this->assertNotNull($location);
-        $this->assertStringContainsString('error=', $location);
+        $response->assertRedirect('/photos');
+        $response->assertSessionHas('error');
         $this->assertSame(1, Photo::query()->where('user_id', $user->id)->count());
     }
 }

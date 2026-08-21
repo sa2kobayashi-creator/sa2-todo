@@ -31,7 +31,8 @@ class TranslationCoverageTest extends TestCase
                     continue;
                 }
                 foreach ($m[2] as $raw) {
-                    $key = str_replace(['\\\'', '\\"'], ["'", '"'], $raw);
+                    // PHP リテラルのエスケープを実行時のキーへ戻す（\\ を含めて1パスで処理する）
+                    $key = preg_replace('/\\\\(["\'\\\\])/', '$1', $raw);
                     if ($key === '' || ! preg_match('/\p{Hiragana}|\p{Katakana}|\p{Han}/u', $key)) {
                         continue;
                     }

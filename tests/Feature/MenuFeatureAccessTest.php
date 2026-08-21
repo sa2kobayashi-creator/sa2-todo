@@ -153,7 +153,7 @@ class MenuFeatureAccessTest extends TestCase
             ->assertSee(__('利用不可'));
 
         $dashboard = $this->actingAs($user)->get('/dashboard')->assertOk();
-        $dashboard->assertSee('>音楽</a>', false);
+        $dashboard->assertSee('href="/music"', false);
         $dashboard->assertDontSee('href="/finance"', false);
         $dashboard->assertDontSee('href="/transit"', false);
         $dashboard->assertDontSee('href="/map"', false);

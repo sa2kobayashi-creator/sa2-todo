@@ -20,12 +20,30 @@ class NoteTranslateTest extends TestCase
     {
         parent::setUp();
 
+        // メモ翻訳はスーパー管理者限定の試作機能
         $this->user = User::create([
             'email' => 'test@example.com',
             'display_name' => 'Tester',
             'password' => Hash::make('password'),
+            'role' => 'super_admin',
+        ]);
+    }
+
+    public function test_translate_is_forbidden_for_standard_user(): void
+    {
+        $standard = User::create([
+            'email' => 'standard-translate@example.com',
+            'display_name' => 'Standard',
+            'password' => Hash::make('password'),
             'role' => 'standard',
         ]);
+
+        $note = Note::create(['user_id' => $standard->id, 'title' => 'テスト', 'body' => '本文']);
+
+        $this->actingAs($standard)
+            ->postJson("/notes/{$note->id}/translate")
+            ->assertForbidden()
+            ->assertJson(['ok' => false]);
     }
 
     public function test_translate_returns_422_when_translation_not_configured(): void

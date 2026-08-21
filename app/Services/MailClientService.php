@@ -19,6 +19,8 @@ class MailClientService
 
     private const MESSAGE_CACHE_SECONDS = 3600;
 
+    private ?MailHtmlSanitizer $htmlSanitizer = null;
+
     public function ping(MailAccount $account): void
     {
         $client = $this->connect($account);
@@ -1665,11 +1667,20 @@ class MailClientService
         if ($html === '' && $text !== '') {
             $html = nl2br(e($text));
         }
-        if ($html === '') {
+
+        // 送信者が用意した HTML をそのまま画面に入れないよう、ここで必ず無害化する
+        $html = $this->htmlSanitizer()->sanitize($html);
+
+        if (trim($html) === '') {
             $html = '<p class="hint">'.e(__('(本文なし)')).'</p>';
         }
 
         return ['html' => $html, 'text' => $text];
+    }
+
+    private function htmlSanitizer(): MailHtmlSanitizer
+    {
+        return $this->htmlSanitizer ??= new MailHtmlSanitizer;
     }
 
     private function connect(MailAccount $account)

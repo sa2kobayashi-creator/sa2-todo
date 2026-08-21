@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\PublicUrlGuard;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -45,7 +46,11 @@ class TranslateContentExtractor
             throw new \InvalidArgumentException(__('URL の形式が正しくありません。'));
         }
 
+        PublicUrlGuard::assertFetchable($url);
+
         $response = Http::timeout(20)
+            // リダイレクトを追うと内部アドレスへ誘導されるため、あえて追わない
+            ->withoutRedirecting()
             ->withHeaders([
                 'User-Agent' => 'Sa2PlusTranslateBot/1.0',
                 'Accept' => 'text/html,application/xhtml+xml',

@@ -23,6 +23,26 @@ class RoleAccessTest extends TestCase
         ]);
     }
 
+    /**
+     * 外部サービスの鍵はアプリ全体で1セットなので、契約代表としての管理者ではなく
+     * 運営（スーパー管理者）だけが書き換えられる。
+     */
+    public function test_admin_cannot_change_infrastructure_api_keys(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-infra@example.com');
+
+        // 設定ページ自体は開ける（祝日・表示メニューの管理があるため）
+        $this->actingAs($admin)->get('/settings')->assertOk();
+
+        $this->actingAs($admin)->post('/settings/storage/r2', [])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/ai/llm', [])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/api/livekit', [])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/api/web-push', [])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/messaging/line/channel', [])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/translation-keys', [])->assertForbidden();
+        $this->actingAs($admin)->getJson('/settings/translation-keys/1/edit')->assertForbidden();
+    }
+
     public function test_admin_can_set_registration_invite_code_from_user_management(): void
     {
         $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-invite@example.com');

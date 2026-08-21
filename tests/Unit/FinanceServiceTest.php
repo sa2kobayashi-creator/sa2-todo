@@ -7,6 +7,7 @@ use App\Models\FinanceAccountSchedule;
 use App\Models\FinanceTransaction;
 use App\Models\User;
 use App\Services\FinanceService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -605,6 +606,9 @@ class FinanceServiceTest extends TestCase
 
     public function test_upsert_next_schedule_updates_existing_entry(): void
     {
+        // upsert は「今日以降の予定」だけを更新対象にするため、実時刻に依存させない
+        Carbon::setTestNow('2026-07-15 09:00:00');
+
         $card = $this->makeAccount([
             'slug' => 'jp_card_upsert',
             'region' => 'jp',
@@ -737,7 +741,7 @@ class FinanceServiceTest extends TestCase
 
         $this->assertCount(2, $history);
         $this->assertSame('Ceb Pacific Ticket 支払い', $history[0]['label']);
-        $this->assertSame('2026/7/7', $history[0]['displayDate']);
+        $this->assertSame('2026年7月7日', $history[0]['displayDate']);
         $this->assertSame(2435.0, $history[0]['amount']);
         $this->assertSame('cursor支払い', $history[1]['label']);
         $this->assertSame(6195.0, $this->service->calculateAccountBalance($card->fresh()));

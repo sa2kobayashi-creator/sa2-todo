@@ -75,7 +75,8 @@ Route::post('/password/reset', [PasswordResetController::class, 'reset'])->middl
 Route::middleware('auth')->group(function () {
     Route::get('/password/setup', [PasswordSetupController::class, 'show']);
     Route::post('/password/setup', [PasswordSetupController::class, 'store']);
-    Route::post('/mypage/password/request-code', [PasswordResetController::class, 'requestForCurrentUser']);
+    Route::post('/mypage/password/request-code', [PasswordResetController::class, 'requestForCurrentUser'])
+        ->middleware('throttle:auth-password');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth');
@@ -381,40 +382,46 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/weekday-rules/{id}/exceptions/add', [SettingsController::class, 'addWeekdayException'])->whereNumber('id');
         Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
 
-        Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
-        Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
-        Route::post('/settings/translation-keys/fetch-usage-all', [TranslationApiKeyController::class, 'fetchAllUsageFromDeepL']);
-        Route::post('/settings/translation-keys/pricing', [TranslationApiKeyController::class, 'updatePricing']);
-        Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
-        Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
-        Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
-        Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
-        Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
+        // 外部サービスの鍵はアプリ全体で1セットのため、書き換えられると全ユーザーに影響する。
+        // 契約代表としての管理者ではなく、運営（スーパー管理者）だけが触れるようにする。
+        Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
+            Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
+            Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
+            Route::post('/settings/translation-keys/fetch-usage-all', [TranslationApiKeyController::class, 'fetchAllUsageFromDeepL']);
+            Route::post('/settings/translation-keys/pricing', [TranslationApiKeyController::class, 'updatePricing']);
+            Route::get('/settings/translation-keys/{id}/edit', [TranslationApiKeyController::class, 'edit'])->whereNumber('id');
+            Route::post('/settings/translation-keys/{id}/update', [TranslationApiKeyController::class, 'update'])->whereNumber('id');
+            Route::post('/settings/translation-keys/{id}/delete', [TranslationApiKeyController::class, 'destroy'])->whereNumber('id');
+            Route::post('/settings/translation-keys/{id}/reset-usage', [TranslationApiKeyController::class, 'resetUsage'])->whereNumber('id');
+            Route::post('/settings/translation-keys/{id}/fetch-usage', [TranslationApiKeyController::class, 'fetchUsageFromDeepL'])->whereNumber('id');
 
-        Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
-        Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
-        Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
-        Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
+            Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
+            Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
+            Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
+            Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
 
-        Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
-        Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
-        Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);
-        Route::post('/settings/api/livekit/test', [LiveKitSettingsController::class, 'test']);
-        Route::post('/settings/api/web-push', [WebPushSettingsController::class, 'update']);
-        Route::post('/settings/api/web-push/test', [WebPushSettingsController::class, 'test']);
-        Route::post('/settings/api/web-push/generate', [WebPushSettingsController::class, 'generate']);
+            Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
+            Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
+            Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);
+            Route::post('/settings/api/livekit/test', [LiveKitSettingsController::class, 'test']);
+            Route::post('/settings/api/web-push', [WebPushSettingsController::class, 'update']);
+            Route::post('/settings/api/web-push/test', [WebPushSettingsController::class, 'test']);
+            Route::post('/settings/api/web-push/generate', [WebPushSettingsController::class, 'generate']);
 
-        Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
-            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
-        Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
-            ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+            Route::post('/settings/storage/{provider}', [MediaStorageSettingsController::class, 'update'])
+                ->where('provider', 'r2|cloudinary|backblaze|pipeline');
+            Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
+                ->where('provider', 'r2|cloudinary|backblaze|pipeline');
 
-        Route::post('/settings/messaging/{provider}/channel', [MessagingSettingsController::class, 'saveChannel'])
-            ->where('provider', 'line|messenger');
-        Route::post('/settings/messaging/{provider}/channel/test', [MessagingSettingsController::class, 'testChannel'])
-            ->where('provider', 'line|messenger');
-        Route::post('/settings/messaging/line/disable', [MessagingSettingsController::class, 'disableLine']);
-        Route::post('/settings/messaging/line/qr/delete', [MessagingSettingsController::class, 'deleteLineQr']);
+            Route::post('/settings/messaging/{provider}/channel', [MessagingSettingsController::class, 'saveChannel'])
+                ->where('provider', 'line|messenger');
+            Route::post('/settings/messaging/{provider}/channel/test', [MessagingSettingsController::class, 'testChannel'])
+                ->where('provider', 'line|messenger');
+            Route::post('/settings/messaging/line/disable', [MessagingSettingsController::class, 'disableLine']);
+            Route::post('/settings/messaging/line/qr/delete', [MessagingSettingsController::class, 'deleteLineQr']);
+        });
+
+        // 以下は「自分の端末・アカウントを連携する」操作なので管理者でも使える
         Route::post('/settings/messaging/{provider}/code', [MessagingSettingsController::class, 'issueCode'])
             ->where('provider', 'line|messenger');
         Route::post('/settings/messaging/{provider}/disconnect', [MessagingSettingsController::class, 'disconnect'])

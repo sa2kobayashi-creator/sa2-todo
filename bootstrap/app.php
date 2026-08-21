@@ -13,7 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        // 既定は共有ホスティング向けに全許可のまま。前段のIPが分かる環境では
+        // TRUSTED_PROXIES に列挙して X-Forwarded-For の詐称を防ぐ。
+        $trustedProxies = trim((string) env('TRUSTED_PROXIES', '*'));
+        $middleware->trustProxies(at: $trustedProxies === '*' ? '*' : array_values(array_filter(
+            array_map('trim', explode(',', $trustedProxies))
+        )));
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
         $middleware->web(append: [

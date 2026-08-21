@@ -113,6 +113,8 @@ class PasswordResetService
         $user->reset_token_expires_at = null;
         $user->reset_attempts = 0;
         $user->reset_last_sent_at = null;
+        // 乗っ取られた端末の「ログイン状態を保持」を、パスワード変更で確実に切る
+        $user->remember_token = null;
         $user->save();
     }
 

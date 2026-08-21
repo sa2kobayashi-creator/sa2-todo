@@ -12,6 +12,7 @@
         "laravel/tinker": "^2.10.1",
         "league/flysystem-aws-s3-v3": "^3.35",
         "minishlink/web-push": "^11.0",
+        "symfony/html-sanitizer": "^7.4",
         "webklex/php-imap": "^6.2"
     },
     "require-dev": {

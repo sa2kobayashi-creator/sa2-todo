@@ -40,6 +40,8 @@ class PasswordSetupController extends Controller
         $user->must_change_password = false;
         $user->reset_token = null;
         $user->reset_token_expires_at = null;
+        // 旧パスワードで発行済みの「ログイン状態を保持」を無効化する
+        $user->remember_token = null;
         $user->save();
 
         $request->session()->regenerate();

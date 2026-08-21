@@ -35,9 +35,20 @@ class AppServiceProvider extends ServiceProvider
     {
         $unlimited = $this->app->environment('testing');
 
-        RateLimiter::for('auth-login', fn (Request $request) => $unlimited
-            ? Limit::none()
-            : Limit::perMinute(5)->by($request->ip()));
+        // IP だけで数えると、プロキシ経由の詐称や IP ローテーションで1アカウントに
+        // 総当たりできてしまうため、宛先アカウント単位の上限も併用する。
+        RateLimiter::for('auth-login', function (Request $request) use ($unlimited) {
+            if ($unlimited) {
+                return Limit::none();
+            }
+
+            $email = strtolower(trim((string) $request->input('email')));
+
+            return [
+                Limit::perMinute(5)->by((string) $request->ip()),
+                Limit::perMinutes(60, 30)->by('auth-login-account|'.$email),
+            ];
+        });
 
         RateLimiter::for('auth-register', fn (Request $request) => $unlimited
             ? Limit::none()

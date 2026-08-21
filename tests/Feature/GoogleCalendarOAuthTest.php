@@ -44,7 +44,7 @@ class GoogleCalendarOAuthTest extends TestCase
         $response->assertRedirect();
         $location = (string) $response->headers->get('Location');
         $this->assertStringContainsString('/mypage', $location);
-        $this->assertStringContainsString('error=', $location);
+        $response->assertSessionHas('error');
     }
 
     public function test_standard_user_can_start_google_calendar_connect(): void

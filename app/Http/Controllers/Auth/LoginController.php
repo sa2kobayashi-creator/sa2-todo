@@ -40,7 +40,7 @@ class LoginController extends Controller
             $user->save();
         }
 
-        Auth::login($user, true);
+        Auth::login($user, $request->boolean('remember', true));
         $request->session()->regenerate();
 
         if ($user->must_change_password) {

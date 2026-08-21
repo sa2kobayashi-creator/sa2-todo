@@ -11543,6 +11543,19 @@ body.map-page {
   font-size: 16px;
 }
 
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+.auth-remember input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
 .auth-submit {
   width: 100%;
   min-height: 44px;
@@ -21553,7 +21566,11 @@ body.dash-home-lightbox-open {
 }
 .mail-read-header h2 { margin: 0 0 10px; font-size: 22px; line-height: 1.3; letter-spacing: -.01em; }
 .mail-read-header p { margin: 0 0 4px; font-size: 13px; color: #475569; }
-.mail-read-body { margin-top: 18px; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.mail-read-body {
+  margin-top: 18px; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere;
+  /* 送信者の inline style で position:fixed の重ね物を作られてもアプリ UI を覆えないようにする */
+  position: relative; contain: layout; isolation: isolate;
+}
 .mail-read-empty { margin-top: 64px; text-align: center; color: #64748b; }
 .mail-compose { padding: 16px; display: grid; gap: 10px; }
 .mail-compose-v2 {
