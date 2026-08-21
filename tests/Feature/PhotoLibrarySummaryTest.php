@@ -191,6 +191,8 @@ class PhotoLibrarySummaryTest extends TestCase
             ->assertOk()
             ->assertSee('class="banner notice photos-year-scope-banner"', false)
             ->assertSee(__('すべての年を見る'), false)
+            ->assertSee('id="photos-year-scope-tip"', false)
+            ->assertSee('id="photos-year-scope-all-btn"', false)
             ->assertSee('data-year="2026"', false)
             ->assertDontSee('data-year="2024"', false);
 

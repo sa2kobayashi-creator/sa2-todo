@@ -12272,13 +12272,30 @@ body.photos-is-busy .photos-main {
   gap: 10px 14px;
   margin-left: auto;
   min-width: 0;
-  flex: 0 0 auto;
-  align-self: flex-end;
-  padding-bottom: 0.12em;
+  flex: 1 1 auto;
+  align-self: center;
+  padding-bottom: 0;
 }
 
 .photos-hero-meta .photos-cols-control {
   flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-left: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.photos-hero-meta:has(.photos-year-scope-banner) {
+  margin-left: 12px;
+}
+
+/* 年スコープ表示中はアルバム枚数がバナー内と重複するので非表示（鍵付き等は残す） */
+.photos-hero-meta:has(.photos-year-scope-banner) .photos-lead-count {
+  display: none !important;
+}
+
+.photos-hero-meta:has(.photos-year-scope-banner) .photos-lead:not(:has(.photos-lead-badge)) {
+  display: none !important;
 }
 
 .photos-hero-actions {
@@ -12525,24 +12542,172 @@ body.photos-is-busy .photos-main {
 }
 
 .photos-year-scope-banner {
-  display: block;
-  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  margin-right: auto;
+  padding: 6px 14px;
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .photos-year-scope-line {
   display: block;
+  min-width: 0;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .photos-year-scope-banner a {
   font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .photos-year-scope-count.is-collapsed {
   display: none;
+}
+
+.photos-year-scope-mobile {
+  display: none;
+}
+
+.photos-year-scope-tip-anchor {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.photos-year-scope-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 5;
+  max-width: min(92vw, 280px);
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+}
+
+.photos-year-scope-tip::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-right: 1px solid #c8e6c9;
+  border-bottom: 1px solid #c8e6c9;
+  transform: rotate(45deg);
+}
+
+.photos-year-scope-tip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.photos-year-scope-all-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #81c784;
+  background: rgba(232, 245, 233, 0.95);
+  color: #1b5e20;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.photos-year-scope-all-btn:hover {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+}
+
+@media (max-width: 768px) {
+  .photos-year-scope-banner.banner.notice {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    align-self: center;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    overflow: visible;
+    border-radius: 0;
+    min-width: 0;
+    max-width: calc(100% - 168px);
+  }
+
+  .photos-year-scope-desktop {
+    display: none !important;
+  }
+
+  .photos-year-scope-mobile {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .photos-year-scope-tip-anchor {
+    max-width: 100%;
+  }
+
+  .photos-year-scope-all-btn {
+    text-decoration: none;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .photos-hero-meta {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    margin-left: 0 !important;
+    min-width: 0;
+  }
+
+  .photos-hero-meta .photos-cols-control {
+    margin-left: auto;
+  }
+
+  .photos-hero-meta .photos-lead {
+    order: 5;
+    flex: 1 1 100%;
+  }
 }
 
 .photos-file-input-hidden {
@@ -15289,12 +15454,6 @@ label.photos-camera-btn span {
   .photos-current-album {
     max-width: min(100%, 14rem);
     font-size: 1.05rem;
-  }
-  .photos-hero-meta {
-    order: 3;
-    flex: 1 1 100%;
-    justify-content: flex-end;
-    margin-left: 0;
   }
   .photos-hero-title-row .photos-ops-open {
     margin-left: auto;
@@ -19762,7 +19921,7 @@ button.msg-icon-tool.is-listening,
 
 .photos-hero-title-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-start;
   flex-wrap: wrap;
   gap: 10px 16px;
@@ -19774,7 +19933,7 @@ button.msg-icon-tool.is-listening,
 
 .photos-hero-title-row .photos-hero-title-group {
   flex: 0 1 auto;
-  align-self: flex-end;
+  align-self: center;
 }
 
 .photos-ops-open {

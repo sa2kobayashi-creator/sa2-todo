@@ -49,14 +49,40 @@
               @endif
             </div>
             <div class="photos-hero-meta">
+              @if(!empty($photosYear) && count($photoYears ?? []) > 1 && empty($albumLocked))
+                <div class="banner notice photos-year-scope-banner" id="photos-year-scope-banner">
+                  <span class="photos-year-scope-line photos-year-scope-desktop">
+                    {{ __(':year年のみ表示中', ['year' => $photosYear]) }}<span class="photos-year-scope-count" id="photos-year-scope-count">{{ __('（全:total枚中:shown枚）', [
+                      'total' => $photosTotalInScope ?? 0,
+                      'shown' => count($photos),
+                    ]) }}</span>{{ __('。') }}
+                    <a href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}">{{ __('すべての年を見る') }}</a>
+                  </span>
+                  <div class="photos-year-scope-mobile">
+                    <div class="photos-year-scope-tip-anchor" id="photos-year-scope-tip-anchor">
+                      <div
+                        class="photos-year-scope-tip"
+                        id="photos-year-scope-tip"
+                        role="status"
+                        aria-live="polite"
+                      >{{ __(':year年のみ表示中', ['year' => $photosYear]) }}{{ __('。') }}</div>
+                      <a
+                        class="photos-year-scope-all-btn"
+                        id="photos-year-scope-all-btn"
+                        href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}"
+                      >{{ __('すべての年を見る') }}</a>
+                    </div>
+                  </div>
+                </div>
+              @endif
               @if($selectedAlbum)
                 <p class="photos-lead">
-                  {{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }}
+                  <span class="photos-lead-count">{{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }}</span>
                   @if(!empty($selectedAlbum['hasPassword']))
-                    · {{ __('鍵付き') }}
+                    <span class="photos-lead-badge"> · {{ __('鍵付き') }}</span>
                   @endif
                   @if(!empty($selectedAlbum['isHidden']))
-                    · {{ __('隠し') }}
+                    <span class="photos-lead-badge"> · {{ __('隠し') }}</span>
                   @endif
                 </p>
               @endif
@@ -792,18 +818,6 @@
         <input type="file" name="video_thumbs[]" id="photos-form-thumbs" accept="image/jpeg" multiple hidden />
         <input type="hidden" name="video_thumb_for" id="photos-form-thumb-for" value="" />
       </form>
-
-      @if(!empty($photosYear) && count($photoYears ?? []) > 1 && empty($albumLocked))
-        <div class="banner notice photos-year-scope-banner" id="photos-year-scope-banner">
-          <span class="photos-year-scope-line">
-            {{ __(':year年のみ表示中', ['year' => $photosYear]) }}<span class="photos-year-scope-count" id="photos-year-scope-count">{{ __('（全:total枚中:shown枚）', [
-              'total' => $photosTotalInScope ?? 0,
-              'shown' => count($photos),
-            ]) }}</span>{{ __('。') }}
-            <a href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}">{{ __('すべての年を見る') }}</a>
-          </span>
-        </div>
-      @endif
 
       @if(!empty($albumLocked) && $selectedAlbum)
         <div class="photos-album-lock" id="photos-album-lock">
@@ -2010,7 +2024,7 @@
 
         (function fitYearScopeBanner() {
           const banner = document.getElementById('photos-year-scope-banner')
-          const line = banner?.querySelector('.photos-year-scope-line')
+          const line = banner?.querySelector('.photos-year-scope-desktop')
           const count = document.getElementById('photos-year-scope-count')
           if (!banner || !line || !count) return
           const apply = () => {
@@ -2021,6 +2035,78 @@
           }
           apply()
           window.addEventListener('resize', apply, { passive: true })
+        })()
+
+        ;(function yearScopeMobileTip() {
+          const tip = document.getElementById('photos-year-scope-tip')
+          const anchor = document.getElementById('photos-year-scope-tip-anchor')
+          if (!tip || !anchor) return
+
+          const mq = window.matchMedia('(max-width: 768px)')
+          let hover = false
+          let autoUntil = 0
+          let autoTimer = null
+
+          function isMobile() {
+            return mq.matches
+          }
+
+          function syncTip() {
+            if (!isMobile()) {
+              tip.classList.remove('is-visible')
+              return
+            }
+            const autoOn = Date.now() < autoUntil
+            tip.classList.toggle('is-visible', hover || autoOn)
+          }
+
+          function startAutoShow() {
+            if (autoTimer) {
+              clearTimeout(autoTimer)
+              autoTimer = null
+            }
+            if (!isMobile()) {
+              autoUntil = 0
+              syncTip()
+              return
+            }
+            autoUntil = Date.now() + 10000
+            tip.classList.add('is-visible')
+            autoTimer = setTimeout(() => {
+              autoTimer = null
+              autoUntil = 0
+              syncTip()
+            }, 10000)
+          }
+
+          anchor.addEventListener('mouseenter', () => {
+            hover = true
+            syncTip()
+          })
+          anchor.addEventListener('mouseleave', () => {
+            hover = false
+            syncTip()
+          })
+          anchor.addEventListener('focusin', () => {
+            hover = true
+            syncTip()
+          })
+          anchor.addEventListener('focusout', (e) => {
+            if (anchor.contains(e.relatedTarget)) return
+            hover = false
+            syncTip()
+          })
+
+          startAutoShow()
+          const onViewportChange = () => {
+            if (isMobile()) startAutoShow()
+            else syncTip()
+          }
+          if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', onViewportChange)
+          } else if (typeof mq.addListener === 'function') {
+            mq.addListener(onViewportChange)
+          }
         })()
 
         const PHOTOS_T = {
