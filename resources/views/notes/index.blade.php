@@ -53,6 +53,25 @@
                 </svg>
               </button>
             @endif
+            <details class="notes-csv-panel">
+              <summary>CSV</summary>
+              <div class="notes-csv-panel-body">
+                <div class="notes-csv-actions">
+                  <a class="button-link secondary" href="{{ $buildNotesQuery($filters, [], '/notes/export') }}">{{ __('エクスポート') }}</a>
+                </div>
+                <form method="post" action="/notes/import" enctype="multipart/form-data" class="notes-csv-import-form">
+                  @csrf
+                  <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                  <p class="notes-csv-form-title">{{ __('メモインポート') }}</p>
+                  <label class="notes-csv-file-label">
+                    {{ __('CSVファイル') }}
+                    <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
+                  </label>
+                  <button type="submit" class="button-link">{{ __('インポート') }}</button>
+                </form>
+                <p class="hint notes-csv-hint">{{ __('見出し例: タイトル,本文,種別,カテゴリー,色,登録日,ピン留め,完了,アーカイブ,チェックリスト（UTF-8 BOM。Shift-JIS も可。添付は含みません）') }}</p>
+              </div>
+            </details>
             <div class="notes-view-toggle notes-view-toggle-inline" role="group" aria-label="{{ __('表示切替') }}">
               <button type="button" class="notes-view-btn is-active" data-view="gallery" title="{{ __('ギャラリー表示') }}" aria-pressed="true" aria-label="{{ __('ギャラリー表示') }}">⊞</button>
               <button type="button" class="notes-view-btn" data-view="list" title="{{ __('リスト表示') }}" aria-pressed="false" aria-label="{{ __('リスト表示') }}">☰</button>

@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Note;
 use App\Exceptions\UsageLimitExceededException;
 use App\Services\GroupService;
+use App\Services\NoteCsvService;
 use App\Services\NoteService;
 use App\Services\NoteVoiceParseService;
 use App\Services\TranslationService;
 use App\Services\UserUsageLimitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class NoteController extends Controller
 {
@@ -19,6 +21,7 @@ class NoteController extends Controller
 
     public function __construct(
         private NoteService $notes,
+        private NoteCsvService $noteCsv,
         private GroupService $groups,
         private NoteVoiceParseService $voiceParse,
         private UserUsageLimitService $usageLimits,
@@ -143,7 +146,7 @@ class NoteController extends Controller
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
             'voiceAiReady' => $request->user()?->isSuperAdmin() && $this->voiceParse->isReady(),
             'voiceAiProvider' => ($request->user()?->isSuperAdmin() && $this->voiceParse->isReady()) ? $this->voiceParse->activeProviderLabel() : null,
-            'buildNotesQuery' => fn (array $f, array $extra = []) => $this->notes->buildNotesQuery($f, $extra),
+            'buildNotesQuery' => fn (array $f, array $extra = [], string $path = '/notes') => $this->notes->buildNotesQuery($f, $extra, $path),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -384,6 +387,69 @@ class NoteController extends Controller
     public function attachmentDownload(Request $request, int $id)
     {
         return $this->notes->streamAttachment((int) $request->user()->id, $id, true);
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $userId = (int) $request->user()->id;
+        $filters = $this->notes->parseNoteFilters($request->query());
+        $csv = $this->noteCsv->export([
+            'userId' => $userId,
+            'archived' => $filters['archived'],
+            'q' => $filters['q'],
+            'category' => $filters['category'],
+            'status' => $filters['status'],
+            'date' => $filters['date'] ?: null,
+            'year' => $filters['date'] ? null : $filters['year'],
+            'month' => $filters['date'] ? null : $filters['month'],
+        ]);
+        $filename = 'notes_'.now()->format('Ymd_His').'.csv';
+
+        return response()->streamDownload(
+            static function () use ($csv) {
+                echo $csv;
+            },
+            $filename,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]
+        );
+    }
+
+    public function importCsv(Request $request)
+    {
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/notes');
+        $request->validate([
+            'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:4096'],
+        ]);
+
+        $content = (string) file_get_contents($request->file('csv_file')->getRealPath());
+        if (trim($content) === '') {
+            return $this->redirectWithMessage($returnTo, __('CSVファイルが空です'), 'error');
+        }
+
+        try {
+            $result = $this->noteCsv->import((int) $request->user()->id, $content);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage(
+                $returnTo,
+                __('CSVのインポートに失敗しました: :msg', ['msg' => $e->getMessage()]),
+                'error'
+            );
+        }
+
+        $message = __('CSVをインポートしました（:created件追加、:skipped件スキップ）。', [
+            'created' => $result['created'],
+            'skipped' => $result['skipped'],
+        ]);
+        if ($result['messages'] !== []) {
+            $message .= ' '.implode(' ', array_slice($result['messages'], 0, 3));
+        }
+
+        return $this->redirectWithMessage($returnTo, $message);
     }
 
     public function bulkArchive(Request $request)

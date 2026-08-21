@@ -135,6 +135,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::get('/notes', [NoteController::class, 'index']);
     Route::post('/notes', [NoteController::class, 'store']);
+    Route::get('/notes/export', [NoteController::class, 'exportCsv']);
+    Route::post('/notes/import', [NoteController::class, 'importCsv']);
     Route::post('/notes/voice/parse', [NoteController::class, 'parseVoice'])->middleware('throttle:ai-voice');
     Route::post('/notes/bulk/archive', [NoteController::class, 'bulkArchive']);
     Route::post('/notes/bulk/delete', [NoteController::class, 'bulkDelete']);

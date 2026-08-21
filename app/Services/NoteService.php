@@ -146,7 +146,7 @@ class NoteService
     }
 
     /** @param array<string, mixed> $filters @param array<string, mixed> $extra */
-    public function buildNotesQuery(array $filters, array $extra = []): string
+    public function buildNotesQuery(array $filters, array $extra = [], string $path = '/notes'): string
     {
         $params = [];
         if ($filters['archived'] ?? false) {
@@ -174,7 +174,7 @@ class NoteService
         }
         $qs = http_build_query($params);
 
-        return '/notes'.($qs ? '?'.$qs : '');
+        return $path.($qs ? '?'.$qs : '');
     }
 
     /** @param array<string, mixed> $options */
