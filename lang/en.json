@@ -3004,5 +3004,16 @@
     "オプション: 有効": "Add-on: on",
     "オプション: 未設定": "Add-on: off",
     "停止（解約）": "Suspend (cancel)",
-    "設定以外の基本メニュー（Travel は既定オフ）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。": "Core menus except settings (Travel is off by default). You can also create groups. Extra menus can be adjusted per user or group."
+    "設定以外の基本メニュー（Travel は既定オフ）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。": "Core menus except settings (Travel is off by default). You can also create groups. Extra menus can be adjusted per user or group.",
+    "プラン・容量": "Plan & storage",
+    "契約状態とストレージ・メールオプションの確認です。変更は管理者にお問い合わせください。": "Your subscription, storage, and mailbox add-on. Ask an admin to change these.",
+    "無料枠を超えているため、追加アップロードは停止中です。": "Uploads are paused because you are over the free storage allowance.",
+    "有料超過が許可されています。": "Paid overage is enabled.",
+    "Photos を開く": "Open Photos",
+    "有料オプション: 有効": "Paid add-on: on",
+    "有料オプション: 未契約": "Paid add-on: not subscribed",
+    "月額 :price 円（目安）。申請はメール画面から行えます。": "About :price yen/month. You can apply from the Mail screen.",
+    "メール申請を開く": "Open mailbox request",
+    "写真の容量": "Photo storage",
+    "メールボックス": "Mailbox"
 }

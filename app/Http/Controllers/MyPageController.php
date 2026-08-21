@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Jobs\DeleteUserAccountJob;
 use App\Models\User;
+use App\Services\BillingEntitlementService;
 use App\Services\EmailChangeService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
 use App\Services\LineMessagingService;
 use App\Services\MessengerMessagingService;
+use App\Services\PhotoService;
+use App\Services\Sa2PlusMailboxService;
 use App\Services\UserDataExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +33,9 @@ class MyPageController extends Controller
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
         private UserDataExportService $dataExport,
+        private BillingEntitlementService $billing,
+        private PhotoService $photos,
+        private Sa2PlusMailboxService $domainMail,
     ) {}
 
     public function show(Request $request)
@@ -37,9 +43,13 @@ class MyPageController extends Controller
         $user = $request->user();
 
         $featureKeys = [
-            'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'map',
-            'music', 'video', 'groups', 'settings', 'admin',
+            'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'travel', 'map',
+            'music', 'video', 'mail', 'messages', 'groups', 'settings', 'admin',
         ];
+
+        $storage = $user->canAccess('photos')
+            ? $this->photos->storageStats((int) $user->id)
+            : null;
 
         return view('mypage.index', array_merge($this->flashFromQuery($request), [
             'user' => $user->toPublicArray(),
@@ -48,6 +58,21 @@ class MyPageController extends Controller
                 $featureKeys,
                 fn (string $feature) => $user->canAccess($feature)
             )),
+            'planSummary' => [
+                'subscriptionStatus' => $user->subscriptionStatusEnum()->value,
+                'subscriptionStatusLabel' => __($user->subscriptionStatusEnum()->label()),
+                'subscriptionActive' => $this->billing->hasActiveSubscription($user),
+                'trialEndsAt' => optional($user->trial_ends_at)?->format('Y-m-d'),
+                'storageOverageActive' => (bool) $user->storage_overage_active,
+                'mailboxAddonActive' => $this->domainMail->userHasMailboxEntitlement($user),
+                'mailboxAddonPriceMonthly' => $this->domainMail->addonPriceYenMonthly(),
+                'mailboxDomain' => $this->domainMail->domain(),
+                'storageQuotaLabel' => $storage['formattedCombinedQuota'] ?? null,
+                'storageUsedLabel' => $storage['formattedTotalUsed'] ?? null,
+                'storageUploadsBlocked' => (bool) ($storage['uploadsBlocked'] ?? false),
+                'canPhotos' => $user->canAccess('photos'),
+                'canMail' => $user->canAccess('mail'),
+            ],
             'timezoneOptions' => \App\Support\LocaleFormat::timezoneOptions(),
             'groups' => $this->groups->listForUser($user->id)->all(),
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
