@@ -18,4 +18,7 @@
     <a href="/admin/groups" @class(['active' => $navActive === 'admin-groups'])>{{ __('グループ管理') }}</a>
     <a href="/admin/mail-requests" @class(['active' => $navActive === 'admin-mail'])>{{ __('メール申請') }}</a>
   @endif
+  @if(!empty($canSuperAdmin))
+    <a href="/admin/sales/estimate" @class(['active' => $navActive === 'admin-sales'])>{{ __('見積（専用）') }}</a>
+  @endif
 </nav>

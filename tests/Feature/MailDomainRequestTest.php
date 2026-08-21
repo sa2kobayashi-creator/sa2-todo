@@ -67,7 +67,7 @@ class MailDomainRequestTest extends TestCase
         $this->actingAs($user)
             ->get('/mail?tab=domain')
             ->assertOk()
-            ->assertSee('有料オプション', false)
+            ->assertSee('月額', false)
             ->assertSee('300', false)
             ->assertSee('まだ有料オプションが有効になっていません', false);
     }

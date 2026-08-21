@@ -228,15 +228,20 @@
       @elseif($tab === 'domain')
         <section class="panel">
           <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
-          <p class="banner notice">
-            {{ __('@:domain メールボックスは有料オプションです（月額 :monthly 円 / 年額 :yearly 円・税別表示は契約時に案内）。外部の Gmail 等の接続は無料のままです。', [
-              'domain' => $mailDomain,
-              'monthly' => number_format((int) ($addonPriceMonthly ?? 300)),
-              'yearly' => number_format((int) ($addonPriceYearly ?? 3000)),
-            ]) }}
-          </p>
+          <div class="mail-price-grid" aria-label="{{ __('料金') }}">
+            <div class="mail-price-card">
+              <span class="mail-price-label">{{ __('月額') }}</span>
+              <strong>¥{{ number_format((int) ($addonPriceMonthly ?? 300)) }}</strong>
+              <p class="hint">{{ __('税別目安・1アドレス') }}</p>
+            </div>
+            <div class="mail-price-card">
+              <span class="mail-price-label">{{ __('年額') }}</span>
+              <strong>¥{{ number_format((int) ($addonPriceYearly ?? 3000)) }}</strong>
+              <p class="hint">{{ __('税別目安・1アドレス') }}</p>
+            </div>
+          </div>
           <p class="hint">
-            {{ __('契約あたり :count 件まで。お支払い確認後に管理者がオプションを有効化し、承認・作成します。Outlook やスマホの標準メーラー（IMAP/SMTP）でも利用できます。', ['count' => $mailboxLimit ?? 1]) }}
+            {{ __('外部の Gmail 等の接続は無料のままです。契約あたり :count 件まで。お支払い確認後に管理者がオプションを有効化し、承認・作成します。', ['count' => $mailboxLimit ?? 1]) }}
           </p>
           @if(empty($hasMailboxAddon))
             <p class="banner error">
@@ -248,18 +253,20 @@
             <ul class="mail-domain-request-list">
               @foreach($domainRequests as $req)
                 <li>
-                  <strong>{{ $req['email'] }}</strong>
-                  <span class="mail-status mail-status-{{ $req['status'] }}">{{ match($req['status']) {
-                    'pending' => __('申請中'),
-                    'approved' => __('承認済み（作成待ち）'),
-                    'rejected' => __('却下'),
-                    'provisioned' => __('作成済み'),
-                    'suspended' => __('停止'),
-                    default => $req['status'],
-                  } }}</span>
-                  @if(!empty($req['cancelRequested']))
-                    <span class="mail-status mail-status-suspended">{{ __('解約依頼中') }}</span>
-                  @endif
+                  <div class="mail-domain-request-row">
+                    <strong>{{ $req['email'] }}</strong>
+                    <span class="mail-status mail-status-{{ $req['status'] }}">{{ match($req['status']) {
+                      'pending' => __('申請中'),
+                      'approved' => __('承認済み（作成待ち）'),
+                      'rejected' => __('却下'),
+                      'provisioned' => __('作成済み'),
+                      'suspended' => __('停止'),
+                      default => $req['status'],
+                    } }}</span>
+                    @if(!empty($req['cancelRequested']))
+                      <span class="mail-status mail-status-suspended">{{ __('解約依頼中') }}</span>
+                    @endif
+                  </div>
                   @if(!empty($req['adminNote']))
                     <p class="hint">{{ $req['adminNote'] }}</p>
                   @endif

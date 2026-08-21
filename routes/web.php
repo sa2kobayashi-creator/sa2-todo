@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AiLlmSettingsController;
+use App\Http\Controllers\Admin\SalesEstimateController as AdminSalesEstimateController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
@@ -463,5 +464,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/mail-requests/{id}/reject', [AdminMailDomainRequestController::class, 'reject'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/provision', [AdminMailDomainRequestController::class, 'provision'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/suspend', [AdminMailDomainRequestController::class, 'suspend'])->whereNumber('id');
+    });
+
+    Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
+        Route::get('/admin/sales/estimate', [AdminSalesEstimateController::class, 'show']);
     });
 });

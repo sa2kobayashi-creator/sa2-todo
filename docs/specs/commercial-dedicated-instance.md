@@ -181,6 +181,9 @@
 
 コード追加は原則不要。現行 `main` をそのままデプロイする。
 
+見積の画面プレビュー（運営 SuperAdmin）: `/admin/sales/estimate`  
+条件を変えて印刷できる。単価は `config/commercial.php`。
+
 ---
 
 ## 9. 共有インスタンス（販路 B）との切り分け

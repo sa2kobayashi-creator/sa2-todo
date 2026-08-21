@@ -118,6 +118,7 @@ class ShareViewData
                 'canGroups' => $user->canAccess('groups'),
                 'canSettings' => $user->canAccess('settings'),
                 'canAdminUsers' => $user->canAccess('admin'),
+                'canSuperAdmin' => $user->isSuperAdmin(),
                 'appContext' => $appContext->value,
                 'appContextIsWork' => $appContext === \App\Enums\AppContext::Work,
                 'appContextLabel' => $appContext->label(),

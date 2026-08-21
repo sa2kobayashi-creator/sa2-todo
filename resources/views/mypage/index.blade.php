@@ -64,39 +64,45 @@
       <div class="panel" id="plan-summary">
         <h2>{{ __('プラン・容量') }}</h2>
         <p class="hint">{{ __('契約状態とストレージ・メールオプションの確認です。変更は管理者にお問い合わせください。') }}</p>
-        <dl class="profile-dl">
-          <dt>{{ __('契約状態') }}</dt>
-          <dd>
-            {{ $plan['subscriptionStatusLabel'] ?? __('未契約') }}
-            @if(!empty($plan['trialEndsAt']))
-              <span class="hint" style="display:block;margin-top:6px;">{{ __('お試し期限') }}: {{ $plan['trialEndsAt'] }}</span>
-            @endif
-          </dd>
-          @if(!empty($plan['canPhotos']))
-            <dt>{{ __('写真の容量') }}</dt>
+        <dl class="plan-summary-grid">
+          <div class="plan-summary-card">
+            <dt>{{ __('契約状態') }}</dt>
             <dd>
-              {{ $plan['storageUsedLabel'] ?? '—' }} / {{ $plan['storageQuotaLabel'] ?? '—' }}
-              @if(!empty($plan['storageUploadsBlocked']))
-                <span class="hint" style="display:block;margin-top:6px;">{{ __('無料枠を超えているため、追加アップロードは停止中です。') }}</span>
-              @elseif(!empty($plan['storageOverageActive']))
-                <span class="hint" style="display:block;margin-top:6px;">{{ __('有料超過が許可されています。') }}</span>
+              {{ $plan['subscriptionStatusLabel'] ?? __('未契約') }}
+              @if(!empty($plan['trialEndsAt']))
+                <span class="hint" style="display:block;margin-top:6px;">{{ __('お試し期限') }}: {{ $plan['trialEndsAt'] }}</span>
               @endif
-              <a href="/photos" class="hint" style="display:inline-block;margin-top:6px;">{{ __('Photos を開く') }}</a>
             </dd>
+          </div>
+          @if(!empty($plan['canPhotos']))
+            <div class="plan-summary-card">
+              <dt>{{ __('写真の容量') }}</dt>
+              <dd>
+                {{ $plan['storageUsedLabel'] ?? '—' }} / {{ $plan['storageQuotaLabel'] ?? '—' }}
+                @if(!empty($plan['storageUploadsBlocked']))
+                  <span class="hint" style="display:block;margin-top:6px;">{{ __('無料枠を超えているため、追加アップロードは停止中です。') }}</span>
+                @elseif(!empty($plan['storageOverageActive']))
+                  <span class="hint" style="display:block;margin-top:6px;">{{ __('有料超過が許可されています。') }}</span>
+                @endif
+                <a href="/photos" style="display:inline-block;margin-top:8px;">{{ __('Photos を開く') }}</a>
+              </dd>
+            </div>
           @endif
           @if(!empty($plan['canMail']))
-            <dt>{{ __('メールボックス') }}（&#64;{{ $plan['mailboxDomain'] ?? 'sa2-plus.com' }}）</dt>
-            <dd>
-              @if(!empty($plan['mailboxAddonActive']))
-                {{ __('有料オプション: 有効') }}
-              @else
-                {{ __('有料オプション: 未契約') }}
-                <span class="hint" style="display:block;margin-top:6px;">
-                  {{ __('月額 :price 円（目安）。申請はメール画面から行えます。', ['price' => number_format((int) ($plan['mailboxAddonPriceMonthly'] ?? 300))]) }}
-                </span>
-              @endif
-              <a href="/mail?tab=domain" class="hint" style="display:inline-block;margin-top:6px;">{{ __('メール申請を開く') }}</a>
-            </dd>
+            <div class="plan-summary-card">
+              <dt>{{ __('メールボックス') }}（&#64;{{ $plan['mailboxDomain'] ?? 'sa2-plus.com' }}）</dt>
+              <dd>
+                @if(!empty($plan['mailboxAddonActive']))
+                  {{ __('有料オプション: 有効') }}
+                @else
+                  {{ __('有料オプション: 未契約') }}
+                  <span class="hint" style="display:block;margin-top:6px;">
+                    {{ __('月額 :price 円（目安）。申請はメール画面から行えます。', ['price' => number_format((int) ($plan['mailboxAddonPriceMonthly'] ?? 300))]) }}
+                  </span>
+                @endif
+                <a href="/mail?tab=domain" style="display:inline-block;margin-top:8px;">{{ __('メール申請を開く') }}</a>
+              </dd>
+            </div>
           @endif
         </dl>
       </div>
