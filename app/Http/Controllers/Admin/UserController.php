@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\MenuFeature;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Http\Controllers\Controller;
 use App\Jobs\DeleteUserAccountJob;
 use App\Models\User;
+use App\Services\BillingEntitlementService;
 use App\Support\FooterNav;
 use App\Support\Registration;
 use Illuminate\Http\Request;
@@ -18,6 +20,10 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     use RedirectsWithFlash;
+
+    public function __construct(
+        private BillingEntitlementService $billing,
+    ) {}
 
     public function index(Request $request)
     {
@@ -137,6 +143,13 @@ class UserController extends Controller
             'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
             'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
+            'subscriptionStatus' => ['nullable', 'string', Rule::in(array_map(
+                fn (SubscriptionStatus $s) => $s->value,
+                SubscriptionStatus::assignable()
+            ))],
+            'trialEndsAt' => ['nullable', 'date'],
+            'storageOverageActive' => ['nullable', 'boolean'],
+            'mailboxAddonActive' => ['nullable', 'boolean'],
         ]);
 
         $newRole = UserRole::from($data['role']);
@@ -174,6 +187,14 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // 契約状態は Stripe 前の手動運用向け。権限ロールとは別に保存する。
+        $this->billing->apply($user, [
+            'subscription_status' => $data['subscriptionStatus'] ?? SubscriptionStatus::None->value,
+            'trial_ends_at' => $data['trialEndsAt'] ?? null,
+            'storage_overage_active' => $request->boolean('storageOverageActive'),
+            'mailbox_addon_active' => $request->boolean('mailboxAddonActive'),
+        ]);
 
         return $this->redirectWithMessage("/admin/users/{$id}", __('ユーザー情報を更新しました。'));
     }
@@ -214,6 +235,7 @@ class UserController extends Controller
         return [
             'roles' => UserRole::assignable(),
             'assignableRoles' => $assignable,
+            'subscriptionStatuses' => SubscriptionStatus::assignable(),
             'menuFeatures' => MenuFeature::assignable(),
             'menuFeaturesByRole' => collect(UserRole::assignable())
                 ->mapWithKeys(fn (UserRole $role) => [$role->value => MenuFeature::defaultsForRole($role)])

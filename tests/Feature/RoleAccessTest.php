@@ -27,6 +27,13 @@ class RoleAccessTest extends TestCase
      * 外部サービスの鍵はアプリ全体で1セットなので、契約代表としての管理者ではなく
      * 運営（スーパー管理者）だけが書き換えられる。
      */
+    public function test_standard_role_defaults_exclude_travel(): void
+    {
+        $this->assertNotContains('travel', \App\Enums\MenuFeature::defaultsForRole(UserRole::Standard));
+        $this->assertContains('travel', UserRole::legacyStandardMenuFeatures());
+        $this->assertTrue(UserRole::Admin->canAccess('travel'));
+    }
+
     public function test_admin_cannot_change_infrastructure_api_keys(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-infra@example.com');
@@ -127,11 +134,21 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/admin/users')->assertForbidden();
         $this->actingAs($user)->get('/finance')->assertOk();
         $this->actingAs($user)->get('/transit')->assertOk();
-        $this->actingAs($user)->get('/travel')->assertOk();
+        $this->actingAs($user)->get('/travel')->assertForbidden();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/groups')->assertOk();
         $this->actingAs($user)->get('/translate')->assertForbidden();
+    }
+
+    public function test_standard_user_keeps_travel_when_menu_features_were_pinned(): void
+    {
+        $user = $this->makeUser(UserRole::Standard, 'standard-travel-pin@example.com');
+        $user->forceFill([
+            'menu_features' => UserRole::legacyStandardMenuFeatures(),
+        ])->save();
+
+        $this->actingAs($user)->get('/travel')->assertOk();
     }
 
     public function test_light_user_is_limited_to_core_features(): void

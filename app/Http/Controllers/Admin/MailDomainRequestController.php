@@ -22,7 +22,8 @@ class MailDomainRequestController extends Controller
             'recent' => array_map(fn ($r) => $r->toPublicArray(), $this->domainMail->listRecentForAdmin()),
             'mailDomain' => $this->domainMail->domain(),
             'apiComingSoon' => $this->domainMail->apiComingSoon(),
-            'freeQuota' => $this->domainMail->freeQuotaPerUser(),
+            'mailboxLimit' => $this->domainMail->mailboxesPerUser(),
+            'addonPriceMonthly' => $this->domainMail->addonPriceYenMonthly(),
             ...$this->flashFromQuery($request),
         ]);
     }

@@ -229,11 +229,20 @@
         <section class="panel">
           <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
           <p class="banner notice">
-            {{ __('@:domain メールボックスの自動作成は近日公開予定です。公開までは管理者が手動で作成します。', ['domain' => $mailDomain]) }}
+            {{ __('@:domain メールボックスは有料オプションです（月額 :monthly 円 / 年額 :yearly 円・税別表示は契約時に案内）。外部の Gmail 等の接続は無料のままです。', [
+              'domain' => $mailDomain,
+              'monthly' => number_format((int) ($addonPriceMonthly ?? 300)),
+              'yearly' => number_format((int) ($addonPriceYearly ?? 3000)),
+            ]) }}
           </p>
           <p class="hint">
-            {{ __('契約あたり無料枠は :count 件です。承認後に作成され、Outlook やスマホの標準メーラー（IMAP/SMTP）でも利用できます。主UIは本アプリのメーラーです。', ['count' => $freeQuota]) }}
+            {{ __('契約あたり :count 件まで。お支払い確認後に管理者がオプションを有効化し、承認・作成します。Outlook やスマホの標準メーラー（IMAP/SMTP）でも利用できます。', ['count' => $mailboxLimit ?? 1]) }}
           </p>
+          @if(empty($hasMailboxAddon))
+            <p class="banner error">
+              {{ __('まだ有料オプションが有効になっていません。お申し込み・お支払いのうえ、管理者による有効化をお待ちください。') }}
+            </p>
+          @endif
 
           @if(!empty($domainRequests))
             <ul class="mail-domain-request-list">
@@ -248,8 +257,22 @@
                     'suspended' => __('停止'),
                     default => $req['status'],
                   } }}</span>
+                  @if(!empty($req['cancelRequested']))
+                    <span class="mail-status mail-status-suspended">{{ __('解約依頼中') }}</span>
+                  @endif
                   @if(!empty($req['adminNote']))
                     <p class="hint">{{ $req['adminNote'] }}</p>
+                  @endif
+                  @if(in_array($req['status'], ['pending', 'approved'], true))
+                    <form method="post" action="/mail/domain-requests/{{ $req['id'] }}/cancel" class="inline-form" onsubmit='return confirm(@json(__('この申請をキャンセルしますか？')))'>
+                      @csrf
+                      <button type="submit" class="secondary mini-btn">{{ __('申請をキャンセル') }}</button>
+                    </form>
+                  @elseif($req['status'] === 'provisioned' && empty($req['cancelRequested']))
+                    <form method="post" action="/mail/domain-requests/{{ $req['id'] }}/cancel" class="inline-form" onsubmit='return confirm(@json(__('メールボックスの解約を依頼しますか？停止後は送受信できなくなります。')))'>
+                      @csrf
+                      <button type="submit" class="danger mini-btn">{{ __('解約を依頼') }}</button>
+                    </form>
                   @endif
                 </li>
               @endforeach
@@ -269,8 +292,8 @@
               <p class="hint">{{ __('パスワードはメールボックス作成後、ご自身でメーラー設定に入力してください。管理者は平文パスワード一覧を持ちません。') }}</p>
               <button type="submit">{{ __('申請する') }}</button>
             </form>
-          @else
-            <p class="hint">{{ __('無料枠はすでに申請済みか取得済みです。') }}</p>
+          @elseif(!empty($hasMailboxAddon))
+            <p class="hint">{{ __('メールボックスの枠はすでに申請済みか取得済みです。') }}</p>
           @endif
         </section>
       @else

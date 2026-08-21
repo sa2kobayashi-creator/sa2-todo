@@ -24,9 +24,29 @@ enum UserRole: string
         return match ($this) {
             self::SuperAdmin => 'すべてのメニューに加え、招待コードなど運営設定を変更できます。鮮明化・翻訳・LLM 音声はスーパー管理者向けの試作機能です。',
             self::Admin => '設定・ユーザー管理を含むすべてのメニューを利用できます。招待コードの変更と鮮明化・翻訳・LLM 音声はできません。',
-            self::Standard => '設定以外の基本メニュー。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
+            self::Standard => '設定以外の基本メニュー（Travel は既定オフ）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
             self::Light => 'ダッシュボード、Todo、メモ、Photos、メッセージ、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
         };
+    }
+
+    /**
+     * Standard 向け MenuFeature 既定から Travel を外す前の一覧。
+     * 既存ユーザー退避用（migration とテストで共有）。
+     *
+     * @return list<string>
+     */
+    public static function legacyStandardMenuFeatures(): array
+    {
+        return [
+            'finance',
+            'transit',
+            'travel',
+            'map',
+            'music',
+            'video',
+            'messages',
+            'mail',
+        ];
     }
 
     public function isStaff(): bool
@@ -82,7 +102,7 @@ enum UserRole: string
                 'photos',
                 'finance',
                 'transit',
-                'travel',
+                // travel は Travelpayouts 非公開方針のため Standard 既定から外す（管理画面で個別付与可）
                 'map',
                 'music',
                 'video',

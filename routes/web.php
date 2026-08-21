@@ -255,6 +255,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/mail/accounts/{id}/labels/{labelId}/rules', [MailController::class, 'storeLabelRule'])->whereNumber('id')->whereNumber('labelId')->middleware('throttle:mail-account-write');
         Route::post('/mail/accounts/{id}/label-rules/{ruleId}/delete', [MailController::class, 'destroyLabelRule'])->whereNumber('id')->whereNumber('ruleId');
         Route::post('/mail/domain-requests', [MailController::class, 'requestDomain'])->middleware('throttle:3,60');
+        Route::post('/mail/domain-requests/{id}/cancel', [MailController::class, 'cancelDomainRequest'])
+            ->whereNumber('id')
+            ->middleware('throttle:10,60');
     });
 
     Route::middleware([\App\Http\Middleware\EnsureFeature::class.':translate', \App\Http\Middleware\RequireSuperAdmin::class])->group(function () {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MailDomainRequest;
 use App\Models\MailFolder;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\MailAccountService;
@@ -88,8 +89,11 @@ class MailController extends Controller
                 $this->domainMail->listForUser($user)
             ),
             'canRequestDomainMail' => $this->domainMail->userCanRequest($user),
+            'hasMailboxAddon' => $this->domainMail->userHasMailboxEntitlement($user),
             'mailDomain' => $this->domainMail->domain(),
-            'freeQuota' => $this->domainMail->freeQuotaPerUser(),
+            'mailboxLimit' => $this->domainMail->mailboxesPerUser(),
+            'addonPriceMonthly' => $this->domainMail->addonPriceYenMonthly(),
+            'addonPriceYearly' => $this->domainMail->addonPriceYenYearly(),
             'apiComingSoon' => $this->domainMail->apiComingSoon(),
             'lolipopWebmailUrl' => (string) config('mail_domain.lolipop.webmail_url'),
             'gmailHelpUrl' => (string) config('mail_domain.gmail.help_url'),
@@ -581,5 +585,20 @@ class MailController extends Controller
             '/mail?tab=domain',
             __('申請を受け付けました。管理者の承認後、メールボックスが準備されます。')
         );
+    }
+
+    public function cancelDomainRequest(Request $request, int $id)
+    {
+        try {
+            $req = $this->domainMail->cancelByUser($request->user(), $id);
+        } catch (\Throwable $e) {
+            return $this->redirectWithMessage('/mail?tab=domain', $e->getMessage(), 'error');
+        }
+
+        $message = $req->status === MailDomainRequest::STATUS_REJECTED
+            ? __('申請をキャンセルしました。')
+            : __('解約を依頼しました。管理者がメールボックスを停止するまでお待ちください。');
+
+        return $this->redirectWithMessage('/mail?tab=domain', $message);
     }
 }

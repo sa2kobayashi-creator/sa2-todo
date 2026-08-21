@@ -145,6 +145,19 @@ DeepL を「Standard に込める」のは **原価が見えないうちは非�
 | High | IP 偽装によるログイン試行制限の回避 | `TRUSTED_PROXIES` で信頼プロキシを限定可能に。加えてログイン制限を **IP 5回/分 ＋ 宛先アカウント 30回/時** の二段構えに |
 | Medium | ログイン中のパスワードコード再送が無制限 | `/mypage/password/request-code` に `throttle:auth-password` |
 
+#### 課金受け皿（2026-08-21 実装）
+
+`users` に契約状態を追加。権限ロール（Light/Standard）とは別カラム。
+
+| カラム | 用途 |
+|---|---|
+| `subscription_status` | `none` / `trial` / `active` / `past_due` / `canceled` |
+| `trial_ends_at` | お試し期限 |
+| `storage_overage_active` | ストレージ有料超過の解禁（`PHOTO_PAID_OVERAGE_ENABLED` 時） |
+| `mailbox_addon_active` | `@sa2-plus.com` メールボックス有料オプション |
+
+判定は `BillingEntitlementService`。管理画面のユーザー編集から手動設定可（Stripe 前の請求書運用）。無料枠は Light 20GB / Standard・スタッフ・有料契約中 100GB。
+
 #### 販売前に残っているもの
 
 | 優先 | 項目 | 内容 |
@@ -153,15 +166,16 @@ DeepL を「Standard に込める」のは **原価が見えないうちは非�
 | 必須 | Maps キー | Cloud コンソールの HTTP リファラ制限＋予算アラート |
 | 必須 | 本番 Seeder／既知パスワード | 実行禁止を運用で固定 |
 | 必須 | 共有インスタンスに `admin` を配らない | 販路 B の運用ルール。A の契約代表のみ |
+| 次 | メールボックス有料化 UI | ~~料金表示・`mailbox_addon_active` ゲート・解約導線~~ **実装済み（2026-08-21）** |
+| 次 | ~~Standard 既定から Travel を外す~~ | **実装済み（2026-08-21）**。既存 Standard（menu_features null）は旧既定を明示保存して Travel を維持 |
 | 推奨 | メール検証 | 有料契約前に検証必須にすると不正カード・捨てメアドを減らせる |
 | 推奨 | 規約の弁護士レビュー | 退会・データ保持・責任範囲 |
 | 推奨 | 使用量ダッシュボード | ユーザー別ストレージ／（将来）文字数の可視化 |
 | 推奨 | グループ共有メモの権限 | メンバー全員が本文変更・削除できる一方、添付削除だけ所有者限定という不整合 |
+| 後回し | Stripe 接続 | Webhook で上記カラムを更新するだけ |
 | 後回し | 2FA | 有料拡大後 |
 
-#### 未実装の落とし穴
-
-`PhotoService::userAllowsPaidOverageUploads()` が参照する `users.storage_overage_active` は **カラムが存在しない**。そのため `PHOTO_PAID_OVERAGE_ENABLED` を有効にしても、ユーザー単位の有料超過は効かない。現状効くのは「ストレージ設定の `allow_paid_overage`」だけ。Stripe を入れる際に必ずカラムを追加する。
+~~`PhotoService::userAllowsPaidOverageUploads()` が参照する `users.storage_overage_active` はカラムが存在しない~~ → **実装済み（2026-08-21）**。
 
 ### 6. 進め方（推奨順・改訂）
 
@@ -419,7 +433,8 @@ Travel の汎用化、顧客別 LINE Bot、マルチインスタンス（R2 直 
 | Photos | ○ | ○ | ○ | ○ | **高（20GB）** |
 | 翻訳 | × | × | × | ○（試作） | **高（DeepL・日次文字上限）** |
 | 音楽 / 動画検索 | × | ○ | ○ | ○ | 中〜高 |
-| 入出金 / 路線 / Travel / Map | ×（付与可） | ○ | ○ | ○ | Map・Travel は従量 |
+| 入出金 / 路線 / Map | ×（付与可） | ○ | ○ | ○ | Map は従量 |
+| Travel | ×（付与可） | ×（既定オフ・付与可） | ○ | ○ | Travelpayouts・非公開方針 |
 | メッセージ | ○ | ○ | ○ | ○ | 低（グループ参加前提） |
 | 鮮明化 | × | × | × | ○（試作・日次上限） | **高（Stability 等）** |
 | グループ作成 | × | ○ | ○ | ○ | 低（招待・承諾制） |

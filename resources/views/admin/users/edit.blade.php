@@ -61,6 +61,28 @@
               @endforeach
             </div>
           </fieldset>
+          <fieldset class="menu-feature-fieldset">
+            <legend>{{ __('契約・課金') }}</legend>
+            <p class="hint">{{ __('Stripe 導入前の手動運用です。請求書で入金を確認したらここで有効にしてください。権限（ロール）とは別に保存されます。') }}</p>
+            <label>{{ __('契約状態') }}
+              <select name="subscriptionStatus">
+                @foreach(($subscriptionStatuses ?? []) as $status)
+                  <option value="{{ $status->value }}" @selected(old('subscriptionStatus', $user['subscriptionStatus'] ?? 'none') === $status->value)>{{ __($status->label()) }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label>{{ __('お試し期限') }}
+              <input type="date" name="trialEndsAt" value="{{ old('trialEndsAt', $user['trialEndsAt'] ?? '') }}" />
+            </label>
+            <label class="menu-feature-check">
+              <input type="checkbox" name="storageOverageActive" value="1" @checked(old('storageOverageActive', !empty($user['storageOverageActive']))) />
+              <span>{{ __('ストレージ有料超過を許可') }}</span>
+            </label>
+            <label class="menu-feature-check">
+              <input type="checkbox" name="mailboxAddonActive" value="1" @checked(old('mailboxAddonActive', !empty($user['mailboxAddonActive']))) />
+              <span>{{ __('メールボックス有料オプション') }}</span>
+            </label>
+          </fieldset>
           <button type="submit">{{ __('保存') }}</button>
         </form>
       </div>

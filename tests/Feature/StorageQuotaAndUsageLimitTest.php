@@ -23,7 +23,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeUser(string $email, UserRole $role = UserRole::Standard): User
+    private function makeUser(string $email, UserRole $role = UserRole::Light): User
     {
         return User::create([
             'email' => $email,
@@ -53,6 +53,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
         config([
             'photos.disk' => 'public',
             'photos.user_free_quota_bytes' => 1_000_000,
+            'photos.standard_quota_bytes' => 1_000_000,
             'photos.block_uploads_over_free_quota' => true,
             'photos.paid_overage_enabled' => false,
         ]);
@@ -74,6 +75,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
         config([
             'photos.disk' => 'public',
             'photos.user_free_quota_bytes' => 50_000_000,
+            'photos.standard_quota_bytes' => 50_000_000,
             'photos.block_uploads_over_free_quota' => true,
             'photos.paid_overage_enabled' => false,
         ]);
@@ -94,6 +96,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
         config([
             'photos.disk' => 'public',
             'photos.user_free_quota_bytes' => 1_000_000,
+            'photos.standard_quota_bytes' => 1_000_000,
             'photos.block_uploads_over_free_quota' => true,
         ]);
         Storage::fake('public');

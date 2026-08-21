@@ -63,6 +63,7 @@ class PhotoService
         private CloudinaryMediaService $cloudinary,
         private MediaStorageConfigService $mediaConfig,
         private StabilityAiService $stability,
+        private BillingEntitlementService $billing,
     ) {}
 
     public function maxUploadBytes(): int
@@ -143,9 +144,16 @@ class PhotoService
         return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
     }
 
-    /** ユーザーごとの製品無料枠（R2+B2 合算）。既定 20GB */
-    public function userFreeQuotaBytes(): int
+    /** ユーザーごとの製品無料枠（R2+B2 合算）。契約状態により 20GB / 100GB */
+    public function userFreeQuotaBytes(?int $userId = null): int
     {
+        if ($userId !== null) {
+            $user = \App\Models\User::query()->find($userId);
+            if ($user) {
+                return $this->billing->storageFreeQuotaBytes($user);
+            }
+        }
+
         return max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
     }
 
@@ -165,8 +173,8 @@ class PhotoService
     }
 
     /**
-     * 将来の有料超過プラン（Stripe 等）でアップロード継続を許可するか。
-     * ストレージ設定の「有料枠を許可」、または PHOTO_PAID_OVERAGE_ENABLED + ユーザーフラグ。
+     * 有料超過プランでアップロード継続を許可するか。
+     * ストレージ設定の「有料枠を許可」、または PHOTO_PAID_OVERAGE_ENABLED + ユーザーの storage_overage_active。
      */
     public function userAllowsPaidOverageUploads(int $userId): bool
     {
@@ -177,17 +185,12 @@ class PhotoService
             return true;
         }
 
-        if (! (bool) config('photos.paid_overage_enabled', false)) {
-            return false;
-        }
-
         $user = \App\Models\User::query()->find($userId);
         if (! $user) {
             return false;
         }
 
-        // 将来: Stripe 購読状態や storage_plan カラムを参照
-        return (bool) ($user->storage_overage_active ?? false);
+        return $this->billing->allowsPaidStorageOverage($user);
     }
 
     public function uploadsBlockedForUser(int $userId, int $extraBytes = 0): bool
@@ -199,7 +202,7 @@ class PhotoService
             return false;
         }
 
-        return ($this->userUsedBytesApprox($userId) + max(0, $extraBytes)) > $this->userFreeQuotaBytes();
+        return ($this->userUsedBytesApprox($userId) + max(0, $extraBytes)) > $this->userFreeQuotaBytes($userId);
     }
 
     public function assertWithinFreeQuotaOrPaid(int $userId, int $extraBytes = 0): void
@@ -208,7 +211,7 @@ class PhotoService
             return;
         }
 
-        $free = $this->formatBytes($this->userFreeQuotaBytes());
+        $free = $this->formatBytes($this->userFreeQuotaBytes($userId));
         $used = $this->formatBytes($this->userUsedBytesApprox($userId));
         throw new \InvalidArgumentException(
             __('無料枠（:free）を超えているため追加できません。使用量: :used。設定 → ストレージで「有料枠（無料枠超過）を許可する」をオンにすると追加できます。', [
@@ -332,8 +335,8 @@ class PhotoService
         $activeEnhanceLabel = $enhance->providerLabel($enhance->activeProvider());
         $enhanceReady = $enhance->isReady();
 
-        // 製品無料枠は常にユーザー合計 20GB（R2+B2 合算相当）。ホット/コールドの内訳は表示用。
-        $combinedQuota = $this->userFreeQuotaBytes();
+        // 製品無料枠は契約状態により 20GB / 100GB（R2+B2 合算相当）
+        $combinedQuota = $this->userFreeQuotaBytes($userId);
         $displayCapacity = max(1, (int) config('photos.storage_display_capacity_bytes', 1024 * 1024 * 1024 * 1024));
         $barUsed = $usedApprox;
         // メインバーは表示容量（既定 1TiB）基準。無料枠超過バッジは別判定。

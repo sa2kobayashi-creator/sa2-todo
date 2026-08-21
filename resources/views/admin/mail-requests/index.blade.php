@@ -19,10 +19,13 @@
       <div class="panel">
         <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
         <p class="banner notice">
-          {{ __('@:domain メールの自動作成は近日公開予定です。公開までは管理画面で手動作成し、下で「作成済み」にしてください。', ['domain' => $mailDomain]) }}
+          {{ __('@:domain は有料オプション（月額 :monthly 円目安）。入金確認後にユーザー編集で「メールボックス有料オプション」をオンにするか、ここで承認すると自動でオンになります。ホスティング側の作成は手動です。', [
+            'domain' => $mailDomain,
+            'monthly' => number_format((int) ($addonPriceMonthly ?? 300)),
+          ]) }}
         </p>
         <p class="hint">
-          {{ __('不正利用対策: 契約あたり無料 :count 件・管理者承認必須・自動一括作成は行いません。スパム用途が疑われる場合は停止してください。', ['count' => $freeQuota]) }}
+          {{ __('不正利用対策: 契約あたり :count 件・有料オプション必須・管理者承認必須。スパム用途が疑われる場合は停止してください。', ['count' => $mailboxLimit ?? 1]) }}
         </p>
       </div>
 
@@ -40,6 +43,14 @@
                 'suspended' => __('停止'),
                 default => $req['status'],
               } }}</span>
+              @if(!empty($req['cancelRequested']))
+                <span class="mail-status mail-status-suspended">{{ __('解約依頼中') }}</span>
+              @endif
+              @if(!empty($req['mailboxAddonActive']))
+                <span class="hint">{{ __('オプション: 有効') }}</span>
+              @else
+                <span class="hint">{{ __('オプション: 未設定') }}</span>
+              @endif
             </header>
             <p>{{ __('申請者') }}: {{ $req['user']['displayName'] ?? '' }}（{{ $req['user']['email'] ?? '' }}）</p>
             @if(!empty($req['userNote']))
@@ -52,7 +63,12 @@
                 <button formaction="/admin/mail-requests/{{ $req['id'] }}/approve">{{ __('承認') }}</button>
                 <button formaction="/admin/mail-requests/{{ $req['id'] }}/reject" class="secondary">{{ __('却下') }}</button>
               @endif
-              <button formaction="/admin/mail-requests/{{ $req['id'] }}/provision">{{ __('作成済みにする（手動）') }}</button>
+              @if(in_array($req['status'], ['pending', 'approved'], true))
+                <button formaction="/admin/mail-requests/{{ $req['id'] }}/provision">{{ __('作成済みにする（手動）') }}</button>
+              @endif
+              @if($req['status'] === 'provisioned')
+                <button formaction="/admin/mail-requests/{{ $req['id'] }}/suspend" class="danger">{{ __('停止（解約）') }}</button>
+              @endif
             </form>
           </article>
         @empty
@@ -74,6 +90,9 @@
                 'suspended' => __('停止'),
                 default => $req['status'],
               } }}</span>
+              @if(!empty($req['cancelRequested']))
+                <span class="mail-status mail-status-suspended">{{ __('解約依頼中') }}</span>
+              @endif
               <span class="hint">{{ $req['user']['displayName'] ?? '' }}</span>
               @if($req['status'] === 'provisioned')
                 <form method="post" action="/admin/mail-requests/{{ $req['id'] }}/suspend" class="inline-form">

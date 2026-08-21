@@ -20,14 +20,14 @@
 | 無料枠 | **ユーザーごと合計 20GB**（R2+B2 合算相当） |
 | 超過時 | 新規追加を拒否（`PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA`） |
 | 課金 | **見込表示のみ**（2A）。実徴収（Stripe 等・2B）は未実装 |
-| 有料超過フック | `PHOTO_PAID_OVERAGE_ENABLED` + 将来の `User::storage_overage_active` |
+| 有料超過フック | `PHOTO_PAID_OVERAGE_ENABLED` + `users.storage_overage_active`（`BillingEntitlementService`） |
 
 ## 決定済みの製品方針（クォータ）
 
-- **1A:** 無料枠はユーザーごと **合計 20GB**
+- **1A:** 無料枠はユーザーごと。Light **20GB** / Standard（有料）**100GB**
 - **2A（今）:** 超過は見込料金表示のみ
 - **3B:** 無料枠超過かつ有料未契約ならアップロード等を停止
-- **2B（将来）:** Stripe 等で実課金し、超過利用を解禁
+- **2B（将来）:** Stripe 等で実課金し、超過利用を解禁（手動フラグは 2026-08-21 実装済み）
 
 ## 販売レベルで将来実装する項目
 

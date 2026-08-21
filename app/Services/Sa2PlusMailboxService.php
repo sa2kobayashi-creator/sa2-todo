@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\MailAccount;
 use App\Models\MailDomainRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
@@ -10,14 +9,34 @@ use Illuminate\Validation\ValidationException;
 
 class Sa2PlusMailboxService
 {
+    public function __construct(
+        private BillingEntitlementService $billing,
+    ) {}
+
     public function domain(): string
     {
         return strtolower((string) config('mail_domain.domain', 'sa2-plus.com'));
     }
 
+    /** @deprecated 互換用。有料化後は通常 0 */
     public function freeQuotaPerUser(): int
     {
-        return max(1, (int) config('mail_domain.free_mailboxes_per_user', 1));
+        return max(0, (int) config('mail_domain.free_mailboxes_per_user', 0));
+    }
+
+    public function mailboxesPerUser(): int
+    {
+        return max(1, (int) config('mail_domain.mailboxes_per_user', 1));
+    }
+
+    public function addonPriceYenMonthly(): int
+    {
+        return max(0, (int) config('mail_domain.addon_price_yen_monthly', 300));
+    }
+
+    public function addonPriceYenYearly(): int
+    {
+        return max(0, (int) config('mail_domain.addon_price_yen_yearly', 3000));
     }
 
     public function apiComingSoon(): bool
@@ -31,7 +50,17 @@ class Sa2PlusMailboxService
         return array_map('strtolower', (array) config('mail_domain.reserved_local_parts', []));
     }
 
-    public function userFreeSlotUsed(User $user): int
+    /** 有料オプションまたはスタッフなら申請資格あり */
+    public function userHasMailboxEntitlement(User $user): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $this->billing->hasMailboxAddon($user);
+    }
+
+    public function userSlotUsed(User $user): int
     {
         return (int) MailDomainRequest::query()
             ->where('user_id', $user->id)
@@ -44,9 +73,27 @@ class Sa2PlusMailboxService
             ->count();
     }
 
+    /** @deprecated use userSlotUsed */
+    public function userFreeSlotUsed(User $user): int
+    {
+        return $this->userSlotUsed($user);
+    }
+
     public function userCanRequest(User $user): bool
     {
-        return $this->userFreeSlotUsed($user) < $this->freeQuotaPerUser();
+        $used = $this->userSlotUsed($user);
+
+        if ($this->userHasMailboxEntitlement($user)) {
+            return $used < $this->mailboxesPerUser();
+        }
+
+        // レガシー: free_mailboxes_per_user > 0 のときだけアドオン無しで申請可
+        $free = $this->freeQuotaPerUser();
+        if ($free <= 0) {
+            return false;
+        }
+
+        return $used < $free;
     }
 
     /** @return list<MailDomainRequest> */
@@ -66,10 +113,16 @@ class Sa2PlusMailboxService
         return MailDomainRequest::query()
             ->with('user')
             ->where('domain', $this->domain())
-            ->whereIn('status', [
-                MailDomainRequest::STATUS_PENDING,
-                MailDomainRequest::STATUS_APPROVED,
-            ])
+            ->where(function ($q) {
+                $q->whereIn('status', [
+                    MailDomainRequest::STATUS_PENDING,
+                    MailDomainRequest::STATUS_APPROVED,
+                ])->orWhere(function ($q2) {
+                    $q2->where('status', MailDomainRequest::STATUS_PROVISIONED)
+                        ->whereNotNull('cancel_requested_at');
+                });
+            })
+            ->orderByRaw('CASE WHEN cancel_requested_at IS NOT NULL THEN 0 ELSE 1 END')
             ->orderBy('status')
             ->orderBy('id')
             ->get()
@@ -93,10 +146,16 @@ class Sa2PlusMailboxService
      */
     public function request(User $user, array $input): MailDomainRequest
     {
+        if (! $this->userHasMailboxEntitlement($user) && $this->freeQuotaPerUser() <= 0) {
+            throw ValidationException::withMessages([
+                'local_part' => __('メールボックスは有料オプションです。お支払い確認後、管理者がオプションを有効にすると申請できます。'),
+            ]);
+        }
+
         if (! $this->userCanRequest($user)) {
             throw ValidationException::withMessages([
-                'local_part' => __('無料枠（契約あたり:count件）はすでに申請済みか取得済みです。', [
-                    'count' => $this->freeQuotaPerUser(),
+                'local_part' => __('メールボックスの枠（:count件）はすでに申請済みか取得済みです。', [
+                    'count' => $this->mailboxesPerUser(),
                 ]),
             ]);
         }
@@ -123,7 +182,7 @@ class Sa2PlusMailboxService
         $exists = MailDomainRequest::query()
             ->where('domain', $this->domain())
             ->where('local_part', $local)
-            ->whereNotIn('status', [MailDomainRequest::STATUS_REJECTED])
+            ->whereNotIn('status', [MailDomainRequest::STATUS_REJECTED, MailDomainRequest::STATUS_SUSPENDED])
             ->exists();
         if ($exists) {
             throw ValidationException::withMessages([
@@ -141,6 +200,41 @@ class Sa2PlusMailboxService
         ]);
     }
 
+    /**
+     * ユーザー自身によるキャンセル／解約依頼。
+     * pending・approved → 却下。provisioned → 解約希望フラグ（管理者が停止する）。
+     */
+    public function cancelByUser(User $user, int $id): MailDomainRequest
+    {
+        $req = $this->find($id);
+        if ((int) $req->user_id !== (int) $user->id) {
+            throw new \InvalidArgumentException(__('この申請を操作する権限がありません。'));
+        }
+
+        if (in_array($req->status, [MailDomainRequest::STATUS_PENDING, MailDomainRequest::STATUS_APPROVED], true)) {
+            $req->status = MailDomainRequest::STATUS_REJECTED;
+            $req->admin_note = __('ユーザーが申請をキャンセルしました。');
+            $req->reviewed_at = now();
+            $req->cancel_requested_at = null;
+            $req->save();
+
+            return $req->refresh();
+        }
+
+        if ($req->status === MailDomainRequest::STATUS_PROVISIONED) {
+            if ($req->cancel_requested_at) {
+                throw new \InvalidArgumentException(__('すでに解約を依頼済みです。管理者が停止するまでお待ちください。'));
+            }
+            $req->cancel_requested_at = now();
+            $req->user_note = trim((string) $req->user_note."\n".__('解約を依頼しました。').' '.now()->toDateTimeString());
+            $req->save();
+
+            return $req->refresh();
+        }
+
+        throw new \InvalidArgumentException(__('この状態ではキャンセルできません。'));
+    }
+
     public function approve(User $admin, int $id, ?string $adminNote = null): MailDomainRequest
     {
         $req = $this->find($id);
@@ -153,6 +247,11 @@ class Sa2PlusMailboxService
         $req->reviewed_by = $admin->id;
         $req->reviewed_at = now();
         $req->save();
+
+        // 承認＝有料オプション契約開始（請求書確認後の手動運用）
+        if ($req->user && ! $req->user->isAdmin()) {
+            $this->billing->apply($req->user, ['mailbox_addon_active' => true]);
+        }
 
         return $req->refresh();
     }
@@ -168,6 +267,7 @@ class Sa2PlusMailboxService
         $req->admin_note = $adminNote;
         $req->reviewed_by = $admin->id;
         $req->reviewed_at = now();
+        $req->cancel_requested_at = null;
         $req->save();
 
         return $req->refresh();
@@ -185,7 +285,6 @@ class Sa2PlusMailboxService
         }
 
         if ($this->apiComingSoon()) {
-            // 明示: まだ API では作っていない
             $req->provisioning_mode = 'manual';
         }
 
@@ -201,6 +300,10 @@ class Sa2PlusMailboxService
         $req->provisioned_at = now();
         $req->save();
 
+        if ($req->user && ! $req->user->isAdmin()) {
+            $this->billing->apply($req->user, ['mailbox_addon_active' => true]);
+        }
+
         return $req->refresh();
     }
 
@@ -215,7 +318,25 @@ class Sa2PlusMailboxService
         $req->admin_note = $adminNote ?? $req->admin_note;
         $req->reviewed_by = $admin->id;
         $req->reviewed_at = now();
+        $req->cancel_requested_at = null;
         $req->save();
+
+        // 停止＝有料オプション終了（ホスティング側の削除は手動）
+        if ($req->user && ! $req->user->isAdmin()) {
+            $stillActive = MailDomainRequest::query()
+                ->where('user_id', $req->user_id)
+                ->where('domain', $this->domain())
+                ->whereIn('status', [
+                    MailDomainRequest::STATUS_PENDING,
+                    MailDomainRequest::STATUS_APPROVED,
+                    MailDomainRequest::STATUS_PROVISIONED,
+                ])
+                ->where('id', '!=', $req->id)
+                ->exists();
+            if (! $stillActive) {
+                $this->billing->apply($req->user, ['mailbox_addon_active' => false]);
+            }
+        }
 
         return $req->refresh();
     }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\GroupStatus;
 use App\Enums\MenuFeature;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -34,6 +35,10 @@ class User extends Authenticatable
         'pending_email_sent_at',
         'last_seen_at',
         'timezone',
+        'subscription_status',
+        'trial_ends_at',
+        'storage_overage_active',
+        'mailbox_addon_active',
     ];
 
     protected $hidden = [
@@ -53,6 +58,10 @@ class User extends Authenticatable
             'last_seen_at' => 'datetime',
             'must_change_password' => 'boolean',
             'role' => UserRole::class,
+            'subscription_status' => SubscriptionStatus::class,
+            'trial_ends_at' => 'datetime',
+            'storage_overage_active' => 'boolean',
+            'mailbox_addon_active' => 'boolean',
             'menu_features' => 'array',
             'footer_nav' => 'array',
             'header_nav' => 'array',
@@ -178,8 +187,22 @@ class User extends Authenticatable
             'menuFeatures' => $this->baseMenuFeatures(),
             'hasCustomMenuFeatures' => is_array($this->menu_features),
             'timezone' => $this->timezone ?: \App\Support\LocaleFormat::timezone($this),
+            'subscriptionStatus' => $this->subscriptionStatusEnum()->value,
+            'subscriptionStatusLabel' => __($this->subscriptionStatusEnum()->label()),
+            'trialEndsAt' => optional($this->trial_ends_at)?->format('Y-m-d'),
+            'storageOverageActive' => (bool) $this->storage_overage_active,
+            'mailboxAddonActive' => (bool) $this->mailbox_addon_active,
             'createdAt' => optional($this->created_at)?->format('Y-m-d H:i'),
             'updatedAt' => optional($this->updated_at)?->format('Y-m-d H:i'),
         ];
+    }
+
+    public function subscriptionStatusEnum(): SubscriptionStatus
+    {
+        $status = $this->subscription_status;
+
+        return $status instanceof SubscriptionStatus
+            ? $status
+            : (SubscriptionStatus::tryFrom((string) $status) ?? SubscriptionStatus::None);
     }
 }

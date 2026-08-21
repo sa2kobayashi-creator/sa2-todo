@@ -46,6 +46,22 @@
             <dd><span class="role-badge {{ $user['role'] }}">{{ $user['roleLabel'] }}</span></dd>
           </div>
           <div>
+            <dt>{{ __('契約状態') }}</dt>
+            <dd>{{ $user['subscriptionStatusLabel'] ?? __('未契約') }}</dd>
+          </div>
+          <div>
+            <dt>{{ __('お試し期限') }}</dt>
+            <dd>{{ $user['trialEndsAt'] ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>{{ __('ストレージ有料超過') }}</dt>
+            <dd>{{ !empty($user['storageOverageActive']) ? __('許可') : __('なし') }}</dd>
+          </div>
+          <div>
+            <dt>{{ __('メールボックスオプション') }}</dt>
+            <dd>{{ !empty($user['mailboxAddonActive']) ? __('有効') : __('なし') }}</dd>
+          </div>
+          <div>
             <dt>{{ __('利用メニュー') }}</dt>
             <dd>
               <div class="menu-feature-labels">

@@ -30,3 +30,10 @@ Thumbs.db
 /storage/framework/settings-ai.js
 
 /SwinIR/
+
+# Android キーストア・パスワード控え（秘密情報）
+*.keystore
+*.jks
+*.keystore.lost-password.bak
+twa/*.keystore*
+twa/*password*

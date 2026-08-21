@@ -36,6 +36,7 @@ class MailDomainRequest extends Model
         return [
             'reviewed_at' => 'datetime',
             'provisioned_at' => 'datetime',
+            'cancel_requested_at' => 'datetime',
         ];
     }
 
@@ -73,6 +74,9 @@ class MailDomainRequest extends Model
             'provisioningMode' => $this->provisioning_mode,
             'reviewedAt' => $this->reviewed_at?->toIso8601String(),
             'provisionedAt' => $this->provisioned_at?->toIso8601String(),
+            'cancelRequestedAt' => $this->cancel_requested_at?->toIso8601String(),
+            'cancelRequested' => $this->cancel_requested_at !== null,
+            'mailboxAddonActive' => (bool) ($this->user?->mailbox_addon_active),
             'createdAt' => $this->created_at?->toIso8601String(),
             'user' => $this->user ? [
                 'id' => $this->user->id,
