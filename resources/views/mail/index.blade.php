@@ -402,9 +402,7 @@
                   <span class="mail-bulk-count" id="mail-bulk-count"></span>
                   <button type="button" class="mail-toolbar-btn" data-bulk="read">{{ __('既読') }}</button>
                   <button type="button" class="mail-toolbar-btn" data-bulk="delete">{{ __('削除') }}</button>
-                  <select id="mail-move-target" class="mail-move-select" aria-label="{{ __('移動先') }}"></select>
                   <button type="button" class="mail-toolbar-btn" data-bulk="move">{{ __('移動') }}</button>
-                  <button type="button" class="mail-toolbar-btn" data-bulk="archive" id="mail-archive-btn">{{ __('アーカイブ') }}</button>
                   <button type="button" class="mail-toolbar-btn" data-bulk="spam" id="mail-spam-btn">{{ __('迷惑メール') }}</button>
                   <button type="button" class="mail-toolbar-btn" data-bulk="not_spam" id="mail-not-spam-btn" hidden>{{ __('迷惑ではない') }}</button>
                 </div>
@@ -479,6 +477,22 @@
         <div class="mail-bg-actions">
           <button type="button" class="mail-toolbar-btn" id="mail-folder-dialog-cancel">{{ __('キャンセル') }}</button>
           <button type="button" class="mail-toolbar-btn is-solid" id="mail-folder-create-submit">{{ __('作成') }}</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="mail-dialog" id="mail-move-dialog">
+      <form method="dialog" class="mail-dialog-card" id="mail-move-form">
+        <h3>{{ __('移動先を選択') }}</h3>
+        <p class="hint">{{ __('選択したメールの移動先フォルダを選んでください。') }}</p>
+        <label class="mail-folder-dialog-label">
+          {{ __('移動先') }}
+          <select id="mail-move-target" class="mail-move-select mail-move-select-dialog" aria-label="{{ __('移動先') }}"></select>
+        </label>
+        <p class="hint error" id="mail-move-dialog-error" hidden></p>
+        <div class="mail-bg-actions">
+          <button type="button" class="mail-toolbar-btn" id="mail-move-dialog-cancel">{{ __('キャンセル') }}</button>
+          <button type="button" class="mail-toolbar-btn is-solid" id="mail-move-dialog-submit">{{ __('移動する') }}</button>
         </div>
       </form>
     </dialog>
@@ -670,7 +684,6 @@
         const filterClear = document.getElementById('mail-filter-clear');
         const spamBtn = document.getElementById('mail-spam-btn');
         const notSpamBtn = document.getElementById('mail-not-spam-btn');
-        const archiveBtn = document.getElementById('mail-archive-btn');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const isSa2Plus = shell.getAttribute('data-is-sa2-plus') === '1';
         const labelsByAccount = (() => {
@@ -753,8 +766,12 @@
           if (probe.includes('draft') || probe.includes('下書き')) return 'drafts';
           if (probe.includes('junk') || probe.includes('spam') || probe.includes('迷惑')) return 'spam';
           if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted') || probe.includes('ごみ') || probe.includes('ゴミ箱') || probe.includes('削除')) return 'trash';
-          if (probe.trim().startsWith('labels.') || probe.trim().startsWith('labels/')) return 'label';
-          if (probe.trim().startsWith('folders.') || probe.trim().startsWith('folders/')) return 'folder';
+          if (probe.trim().startsWith('labels.') || probe.trim().startsWith('labels/')
+            || probe.trim().startsWith('inbox.labels.') || probe.trim().startsWith('inbox.labels/')
+            || probe.trim().startsWith('inbox/labels/')) return 'label';
+          if (probe.trim().startsWith('folders.') || probe.trim().startsWith('folders/')
+            || probe.trim().startsWith('inbox.folders.') || probe.trim().startsWith('inbox.folders/')
+            || probe.trim().startsWith('inbox/folders/')) return 'folder';
           return 'other';
         }
 
@@ -773,7 +790,6 @@
           const inSpam = currentFolderKind() === 'spam';
           if (spamBtn) spamBtn.hidden = inSpam || !isSa2Plus;
           if (notSpamBtn) notSpamBtn.hidden = !inSpam || !isSa2Plus;
-          if (archiveBtn) archiveBtn.hidden = !isSa2Plus;
           if (listHead) listHead.hidden = state.allMessages.length < 1;
           if (selectAll) {
             const visible = filteredMessages();
@@ -844,6 +860,7 @@
             loadMailbox({ refresh: true });
           } catch (err) {
             showBanner(errEl, (err && err.message) || i18n.actionFail);
+            throw err;
           }
         }
 
@@ -1297,8 +1314,7 @@
             if (!btn) return;
             const action = btn.getAttribute('data-bulk');
             if (action === 'move') {
-              const target = moveTarget ? moveTarget.value : '';
-              runBulk('move', { targetFolder: target });
+              openMoveDialog();
               return;
             }
             if (action === 'spam') {
@@ -1309,6 +1325,51 @@
             runBulk(action);
           });
         }
+
+        function openMoveDialog() {
+          const dialog = document.getElementById('mail-move-dialog');
+          const err = document.getElementById('mail-move-dialog-error');
+          if (err) { err.hidden = true; err.textContent = ''; }
+          renderMoveTargets();
+          if (dialog && typeof dialog.showModal === 'function') dialog.showModal();
+        }
+
+        (function initMoveDialog() {
+          const dialog = document.getElementById('mail-move-dialog');
+          const cancel = document.getElementById('mail-move-dialog-cancel');
+          const submit = document.getElementById('mail-move-dialog-submit');
+          const err = document.getElementById('mail-move-dialog-error');
+          if (!dialog || !submit) return;
+          if (cancel) {
+            cancel.addEventListener('click', (e) => {
+              e.preventDefault();
+              dialog.close();
+            });
+          }
+          submit.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const target = moveTarget ? moveTarget.value : '';
+            if (!target) {
+              if (err) {
+                err.hidden = false;
+                err.textContent = @json(__('移動先を選んでください。'));
+              }
+              return;
+            }
+            submit.disabled = true;
+            try {
+              await runBulk('move', { targetFolder: target });
+              dialog.close();
+            } catch (_) {
+              if (err) {
+                err.hidden = false;
+                err.textContent = i18n.actionFail;
+              }
+            } finally {
+              submit.disabled = false;
+            }
+          });
+        })();
 
         (function initFolderDialog() {
           const dialog = document.getElementById('mail-folder-dialog');

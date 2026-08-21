@@ -7,7 +7,8 @@ use App\Models\MailFolder;
 
 class MailFolderService
 {
-    public const PATH_PREFIX = 'Folders.';
+    /** Lolipop 等はルート直下に作れないため INBOX 配下に置く */
+    public const PATH_PREFIX = 'INBOX.Folders.';
 
     public function __construct(
         private MailClientService $client,
@@ -48,12 +49,12 @@ class MailFolderService
             return $existing;
         }
 
-        $this->client->ensureFolder($account, $path);
+        $resolved = $this->client->ensureFolder($account, $path);
 
         return MailFolder::query()->create([
             'mail_account_id' => $account->id,
             'name' => $name,
-            'folder_path' => $path,
+            'folder_path' => $resolved !== '' ? $resolved : $path,
         ]);
     }
 

@@ -21366,6 +21366,9 @@ body.dash-home-lightbox-open {
   flex: 0 0 auto; max-width: 120px; padding: 4px 6px; border-radius: 8px;
   border: 1px solid #dbe7e3; font-size: 12px; background: #fff;
 }
+.mail-move-select-dialog {
+  max-width: none; width: 100%; padding: 8px 10px; font-size: 14px;
+}
 .mail-folder-create {
   padding: 2px 8px 6px 14px;
 }

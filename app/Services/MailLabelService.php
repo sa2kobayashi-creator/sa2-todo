@@ -49,7 +49,10 @@ class MailLabelService
         }
 
         try {
-            $this->client->ensureFolder($account, $folderPath);
+            $resolved = $this->client->ensureFolder($account, $folderPath);
+            if ($resolved !== '') {
+                $folderPath = $resolved;
+            }
         } catch (\Throwable $e) {
             Log::warning('mail.label_folder_create_failed', [
                 'account_id' => $account->id,
@@ -272,6 +275,6 @@ class MailLabelService
     {
         $safe = preg_replace('/[\\\\\/]+/u', '-', $name) ?? $name;
 
-        return 'Labels.'.$safe;
+        return 'INBOX.Labels.'.$safe;
     }
 }

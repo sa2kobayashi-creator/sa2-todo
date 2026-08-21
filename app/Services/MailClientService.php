@@ -74,17 +74,20 @@ class MailClientService
         }
     }
 
-    public function ensureFolder(MailAccount $account, string $folderPath): void
+    /**
+     * IMAP 上にフォルダを確保する。実際に使えたパスを返す。
+     */
+    public function ensureFolder(MailAccount $account, string $folderPath): string
     {
         $folderPath = trim($folderPath);
         if ($folderPath === '' || strcasecmp($folderPath, 'INBOX') === 0) {
-            return;
+            return $folderPath !== '' ? $folderPath : 'INBOX';
         }
 
         $client = $this->connect($account);
         try {
             if ($this->folderExistsOnClient($client, $folderPath)) {
-                return;
+                return $folderPath;
             }
 
             $delimiter = $this->imapDelimiter($client);
@@ -105,6 +108,17 @@ class MailClientService
                 $candidates[] = $altDot;
             }
 
+            // INBOX 付き候補を先に試す（Lolipop 等）
+            usort($candidates, static function (string $a, string $b): int {
+                $aInbox = str_starts_with(strtoupper($a), 'INBOX.') || str_starts_with(strtoupper($a), 'INBOX/');
+                $bInbox = str_starts_with(strtoupper($b), 'INBOX.') || str_starts_with(strtoupper($b), 'INBOX/');
+                if ($aInbox === $bInbox) {
+                    return 0;
+                }
+
+                return $aInbox ? -1 : 1;
+            });
+
             $lastError = null;
             foreach (array_values(array_unique($candidates)) as $candidate) {
                 try {
@@ -112,7 +126,7 @@ class MailClientService
                     if ($this->folderExistsOnClient($client, $candidate)) {
                         $this->forgetAccountCache($account);
 
-                        return;
+                        return $candidate;
                     }
                 } catch (\Throwable $e) {
                     $lastError = $e;
@@ -283,7 +297,12 @@ class MailClientService
             };
         }
 
-        if (str_starts_with(mb_strtolower(trim($path)), 'folders.') || str_starts_with(mb_strtolower(trim($path)), 'folders/')) {
+        $lowerPathFull = mb_strtolower(trim($path));
+        if (str_starts_with($lowerPathFull, 'folders.')
+            || str_starts_with($lowerPathFull, 'folders/')
+            || str_starts_with($lowerPathFull, 'inbox.folders.')
+            || str_starts_with($lowerPathFull, 'inbox.folders/')
+            || str_starts_with($lowerPathFull, 'inbox/folders/')) {
             return 'folder';
         }
 
@@ -304,7 +323,11 @@ class MailClientService
         if (str_contains($probe, 'trash') || str_contains($probe, 'bin') || str_contains($probe, 'deleted') || str_contains($probe, 'ごみ') || str_contains($probe, 'ゴミ箱') || str_contains($probe, '削除')) {
             return 'trash';
         }
-        if (str_starts_with(mb_strtolower(trim($path)), 'labels.') || str_starts_with(mb_strtolower(trim($path)), 'labels/')) {
+        if (str_starts_with($lowerPathFull, 'labels.')
+            || str_starts_with($lowerPathFull, 'labels/')
+            || str_starts_with($lowerPathFull, 'inbox.labels.')
+            || str_starts_with($lowerPathFull, 'inbox.labels/')
+            || str_starts_with($lowerPathFull, 'inbox/labels/')) {
             return 'label';
         }
 
