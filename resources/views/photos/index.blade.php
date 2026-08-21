@@ -88,7 +88,10 @@
                         class="photos-year-scope-all-btn"
                         id="photos-year-scope-all-btn"
                         href="{{ $photosAllYearsUrl ?? '/photos?year=all' }}"
-                      >{{ __('すべての年を見る') }}</a>
+                        data-label-full="{{ __('すべての年を見る') }}"
+                        data-label-short="{{ __('すべて') }}"
+                        title="{{ __('すべての年を見る') }}"
+                      ><span data-year-scope-label>{{ __('すべての年を見る') }}</span></a>
                     </div>
                   </div>
                 </div>
@@ -2047,6 +2050,36 @@
           }
           apply()
           window.addEventListener('resize', apply, { passive: true })
+        })()
+
+        ;(function fitYearScopeAllBtn() {
+          const btn = document.getElementById('photos-year-scope-all-btn')
+          const label = btn?.querySelector('[data-year-scope-label]')
+          if (!btn || !label) return
+          const full = btn.getAttribute('data-label-full') || ''
+          const short = btn.getAttribute('data-label-short') || full
+          const mq = window.matchMedia('(max-width: 768px)')
+
+          const apply = () => {
+            label.textContent = full
+            btn.classList.remove('is-compact')
+            if (!mq.matches || btn.offsetParent === null) return
+            if (btn.scrollWidth > btn.clientWidth + 1) {
+              label.textContent = short
+              btn.classList.add('is-compact')
+            }
+          }
+
+          apply()
+          window.addEventListener('resize', apply, { passive: true })
+          window.visualViewport?.addEventListener('resize', apply, { passive: true })
+          if (document.fonts?.ready) document.fonts.ready.then(apply).catch(() => {})
+          if (typeof ResizeObserver === 'function') {
+            const meta = btn.closest('.photos-hero-meta')
+            if (meta) new ResizeObserver(apply).observe(meta)
+          }
+          if (typeof mq.addEventListener === 'function') mq.addEventListener('change', apply)
+          else if (typeof mq.addListener === 'function') mq.addListener(apply)
         })()
 
         ;(function yearScopeMobileTip() {

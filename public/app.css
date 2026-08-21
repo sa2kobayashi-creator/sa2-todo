@@ -12787,9 +12787,11 @@ body.photos-is-busy .photos-main {
   .photos-year-scope-all-btn {
     text-decoration: none;
     max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     padding: 0 12px;
     font-size: 12px;
+    overflow: hidden;
   }
 
   .photos-hero-meta {
