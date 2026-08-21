@@ -705,6 +705,7 @@
           sent: @json(__('送信済み')),
           drafts: @json(__('下書き')),
           spam: @json(__('迷惑メール')),
+          archive: @json(__('アーカイブ')),
           trash: @json(__('ゴミ箱')),
           labels: @json(__('ラベル')),
           folders: @json(__('フォルダ')),
@@ -764,6 +765,7 @@
           if (probe === 'inbox' || probe.includes('受信')) return 'inbox';
           if (probe.includes('sent') || probe.includes('送信')) return 'sent';
           if (probe.includes('draft') || probe.includes('下書き')) return 'drafts';
+          if (probe.includes('archive') || probe.includes('アーカイブ')) return 'archive';
           if (probe.includes('junk') || probe.includes('spam') || probe.includes('迷惑')) return 'spam';
           if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted') || probe.includes('ごみ') || probe.includes('ゴミ箱') || probe.includes('削除')) return 'trash';
           if (probe.trim().startsWith('labels.') || probe.trim().startsWith('labels/')
@@ -885,40 +887,80 @@
           if (kind === 'inbox') return i18n.inbox;
           if (kind === 'sent') return i18n.sent;
           if (kind === 'drafts') return i18n.drafts;
+          if (kind === 'archive') return i18n.archive;
           if (kind === 'spam') return i18n.spam;
           if (kind === 'trash') return i18n.trash;
-          if (kind === 'label') {
-            const path = String(folder.path || folder.name || '');
-            return path.replace(/^Labels[./]/i, '') || folder.name || path;
+          const rawName = String(folder.name || '').trim();
+          const path = String(folder.path || folder.name || '');
+          const looksLikePath = /^(INBOX[./])?(Folders|Labels)[./]/i.test(rawName)
+            || rawName.includes('INBOX.Folders')
+            || rawName.includes('INBOX.Labels')
+            || /&[A-Za-z0-9+,]+-/.test(rawName);
+          if ((kind === 'label' || kind === 'folder') && rawName && !looksLikePath) {
+            return rawName;
           }
-          if (kind === 'folder') {
-            const path = String(folder.path || folder.name || '');
-            return path.replace(/^Folders[./]/i, '') || folder.name || path;
+          let leaf = path
+            .replace(/^INBOX[./]Folders[./]/i, '')
+            .replace(/^Folders[./]/i, '')
+            .replace(/^INBOX[./]Labels[./]/i, '')
+            .replace(/^Labels[./]/i, '');
+          leaf = leaf.split(/[./]/).filter(Boolean).pop() || leaf;
+          return decodeImapUtf7(leaf) || rawName || path;
+        }
+
+        function decodeImapUtf7(value) {
+          const s = String(value || '');
+          if (!s.includes('&')) return s;
+          try {
+            // modified UTF-7 → UTF-16BE text (簡易)
+            return s.replace(/&([^-]*)-/g, (_, body) => {
+              if (body === '') return '&';
+              const b64 = body.replace(/,/g, '/');
+              const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+              const bin = atob(b64 + pad);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return new TextDecoder('utf-16be').decode(bytes);
+            });
+          } catch (_) {
+            return s;
           }
-          return folder.name || folder.path;
+        }
+
+        function sameFolderPath(a, b) {
+          const norm = (p) => String(p || '').replace(/\//g, '.').toLowerCase();
+          return norm(a) === norm(b);
         }
 
         function pickByKind(folders, kind) {
           return (folders || []).find((f) => kindOf(f) === kind) || null;
         }
 
+        function isNamespaceFolder(path) {
+          const p = String(path || '').replace(/\//g, '.').toLowerCase();
+          return ['folders', 'inbox.folders', 'sa2', 'inbox.sa2', 'labels', 'inbox.labels'].includes(p);
+        }
+
         function buildStandardFolders(folders, labels, systemFolders, userFolders) {
-          const order = ['inbox', 'sent', 'drafts', 'spam', 'trash'];
+          const order = ['inbox', 'sent', 'drafts', 'archive', 'spam', 'trash'];
           const fromApi = Array.isArray(systemFolders) ? systemFolders : [];
           const defaults = {
             inbox: { name: 'INBOX', path: 'INBOX', kind: 'inbox', messages: 0 },
             sent: { name: 'Sent', path: 'INBOX.Sa2.Sent', kind: 'sent', messages: 0 },
             drafts: { name: 'Drafts', path: 'INBOX.Sa2.Drafts', kind: 'drafts', messages: 0 },
+            archive: { name: 'Archive', path: 'INBOX.Sa2.Archive', kind: 'archive', messages: 0 },
             spam: { name: 'Junk', path: 'INBOX.Sa2.Junk', kind: 'spam', messages: 0 },
             trash: { name: 'Trash', path: 'INBOX.Sa2.Trash', kind: 'trash', messages: 0 },
           };
           const items = order.map((kind) => {
+            // アーカイブは独自ドメインのみ
+            if (kind === 'archive' && !isSa2Plus) return null;
             const fromSystem = fromApi.find((f) => kindOf(f) === kind);
             if (fromSystem) return fromSystem;
             const found = pickByKind(folders, kind);
             if (found) return found;
             return defaults[kind];
-          });
+          }).filter(Boolean);
           const labelFolders = [];
           (labels || []).forEach((lab) => {
             labelFolders.push({
@@ -931,7 +973,7 @@
           });
           (folders || []).forEach((f) => {
             if (kindOf(f) !== 'label') return;
-            if (labelFolders.some((x) => x.path === f.path)) return;
+            if (labelFolders.some((x) => sameFolderPath(x.path, f.path))) return;
             labelFolders.push(f);
           });
           const customFolders = [];
@@ -943,11 +985,7 @@
               messages: 0,
             });
           });
-          (folders || []).forEach((f) => {
-            if (kindOf(f) !== 'folder') return;
-            if (customFolders.some((x) => x.path === f.path)) return;
-            customFolders.push(f);
-          });
+          // IMAP 上のゴミ／エンコード名フォルダは DB 登録分だけ表示（作成時に登録される）
           const used = new Set(
             items.map((f) => f.path)
               .concat(labelFolders.map((f) => f.path))
@@ -955,7 +993,16 @@
           );
           const others = (folders || []).filter((f) => {
             const k = kindOf(f);
-            return k === 'other' && f.path && !used.has(f.path);
+            if (!f.path || used.has(f.path)) return false;
+            if (isNamespaceFolder(f.path)) return false;
+            if (k === 'folder' || k === 'label' || k === 'archive') return false;
+            if (k !== 'other') return false;
+            const p = String(f.path).replace(/\//g, '.').toLowerCase();
+            if (p === 'inbox.sa2') return false;
+            if (p.startsWith('inbox.sa2.') && ['sent', 'drafts', 'junk', 'spam', 'trash', 'archive'].some((s) => p.endsWith('.' + s))) {
+              return false;
+            }
+            return true;
           });
           return { system: items, labels: labelFolders, folders: customFolders, others };
         }
@@ -974,7 +1021,7 @@
             const li = document.createElement('li');
             const a = document.createElement('a');
             a.href = '#';
-            a.className = folder.path === active ? 'active' : '';
+            a.className = sameFolderPath(folder.path, active) ? 'active' : '';
             a.dataset.folderPath = folder.path;
             if (folder.color) a.style.setProperty('--mail-label-color', folder.color);
             a.innerHTML = '<span class="mail-folder-dot"></span><span class="mail-folder-name"></span><span class="mail-folder-count"></span>';

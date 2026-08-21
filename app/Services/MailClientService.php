@@ -35,8 +35,8 @@ class MailClientService
         Cache::forget($prefix.'folders');
         foreach ([
             'INBOX',
-            'Sa2.Sent', 'Sa2.Drafts', 'Sa2.Spam', 'Sa2.Junk', 'Sa2.Trash',
-            'INBOX.Sa2.Sent', 'INBOX.Sa2.Drafts', 'INBOX.Sa2.Junk', 'INBOX.Sa2.Trash',
+            'INBOX.Sa2.Sent', 'INBOX.Sa2.Drafts', 'INBOX.Sa2.Junk', 'INBOX.Sa2.Trash', 'INBOX.Sa2.Archive',
+            'Sa2.Sent', 'Sa2.Drafts', 'Sa2.Spam', 'Sa2.Junk', 'Sa2.Trash', 'Sa2.Archive',
             'Sent', '[Gmail]/Sent Mail',
             'Drafts', '[Gmail]/Drafts',
             'Junk', 'Spam', '[Gmail]/Spam',
@@ -84,6 +84,8 @@ class MailClientService
             return $folderPath !== '' ? $folderPath : 'INBOX';
         }
 
+        $folderPath = $this->encodeImapMailboxPath($folderPath);
+
         $client = $this->connect($account);
         try {
             if ($this->folderExistsOnClient($client, $folderPath)) {
@@ -126,7 +128,7 @@ class MailClientService
                     if ($this->folderExistsOnClient($client, $candidate)) {
                         $this->forgetAccountCache($account);
 
-                        return $candidate;
+                        return $this->encodeImapMailboxPath($candidate);
                     }
                 } catch (\Throwable $e) {
                     $lastError = $e;
@@ -134,7 +136,7 @@ class MailClientService
             }
 
             throw new \RuntimeException(
-                __('フォルダ「:folder」を作成できませんでした。', ['folder' => $folderPath])
+                __('フォルダ「:folder」を作成できませんでした。', ['folder' => $this->decodeImapMailboxPath($folderPath)])
                     .($lastError ? ' '.$lastError->getMessage() : ''),
                 0,
                 $lastError
@@ -161,17 +163,19 @@ class MailClientService
 
     private function folderExistsOnClient($client, string $folderPath): bool
     {
-        try {
-            if ($client->getFolderByPath($folderPath)) {
-                return true;
+        foreach (array_unique(array_filter([$folderPath, $this->encodeImapMailboxPath($folderPath), $this->decodeImapMailboxPath($folderPath)])) as $candidate) {
+            try {
+                if ($client->getFolderByPath($candidate)) {
+                    return true;
+                }
+            } catch (\Throwable) {
             }
-        } catch (\Throwable) {
-        }
-        try {
-            if ($client->getFolder($folderPath)) {
-                return true;
+            try {
+                if ($client->getFolder($candidate)) {
+                    return true;
+                }
+            } catch (\Throwable) {
             }
-        } catch (\Throwable) {
         }
 
         return false;
@@ -179,6 +183,7 @@ class MailClientService
 
     private function createFolderPathOnClient($client, string $folderPath, string $delimiter): void
     {
+        $folderPath = $this->encodeImapMailboxPath($folderPath);
         $parts = preg_split('/[\\.\\/]/', $folderPath) ?: [];
         $built = '';
         foreach ($parts as $part) {
@@ -194,6 +199,99 @@ class MailClientService
         }
     }
 
+    /**
+     * IMAP mailbox パスの各セグメントを modified UTF-7 にエンコードする。
+     */
+    public function encodeImapMailboxPath(string $path): string
+    {
+        $path = trim(str_replace('/', '.', $path));
+        if ($path === '') {
+            return $path;
+        }
+        $parts = explode('.', $path);
+        $out = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $out[] = $this->encodeImapMailboxSegment($part);
+        }
+
+        return implode('.', $out);
+    }
+
+    public function encodeImapMailboxSegment(string $segment): string
+    {
+        $segment = trim($segment);
+        if ($segment === '' || strcasecmp($segment, 'INBOX') === 0) {
+            return $segment === '' ? '' : 'INBOX';
+        }
+        // 既に modified UTF-7
+        if (preg_match('/^&[A-Za-z0-9+,]+-$/', $segment) === 1) {
+            return $segment;
+        }
+        // ASCII（& 以外）はそのまま。& は UTF-7 のエスケープが必要
+        if (preg_match('/^[\x20-\x7e]+$/', $segment) === 1 && ! str_contains($segment, '&')) {
+            return $segment;
+        }
+        if (function_exists('imap_utf7_encode')) {
+            $encoded = imap_utf7_encode($segment);
+
+            return is_string($encoded) && $encoded !== '' ? $encoded : $segment;
+        }
+
+        return $segment;
+    }
+
+    public function decodeImapMailboxPath(string $path): string
+    {
+        $path = trim(str_replace('/', '.', $path));
+        if ($path === '') {
+            return $path;
+        }
+        $parts = explode('.', $path);
+        $out = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $out[] = $this->decodeImapMailboxSegment($part);
+        }
+
+        return implode('.', $out);
+    }
+
+    public function decodeImapMailboxSegment(string $segment): string
+    {
+        $segment = trim($segment);
+        if ($segment === '' || strcasecmp($segment, 'INBOX') === 0) {
+            return $segment === '' ? '' : 'INBOX';
+        }
+        if (function_exists('imap_utf7_decode') && str_contains($segment, '&')) {
+            $decoded = @imap_utf7_decode($segment);
+            if (is_string($decoded) && $decoded !== '') {
+                return $decoded;
+            }
+        }
+
+        return $segment;
+    }
+
+    /** 親ネームスペースだけの行（INBOX.Folders / INBOX.Sa2 等）か */
+    public function isNamespaceOnlyFolder(string $path): bool
+    {
+        $p = strtolower(str_replace('/', '.', trim($path)));
+
+        return in_array($p, [
+            'folders',
+            'inbox.folders',
+            'sa2',
+            'inbox.sa2',
+            'labels',
+            'inbox.labels',
+        ], true);
+    }
+
     public function moveMessage(MailAccount $account, string $fromFolder, int $uid, string $toFolder): void
     {
         if ($uid < 1 || $fromFolder === '' || $toFolder === '') {
@@ -203,7 +301,7 @@ class MailClientService
             return;
         }
 
-        $this->ensureFolder($account, $toFolder);
+        $toFolder = $this->ensureFolder($account, $toFolder);
         $client = $this->connect($account);
         try {
             $folder = $this->openFolder($client, $fromFolder);
@@ -782,7 +880,7 @@ class MailClientService
                     (string) ($row['name'] ?? '')
                 )
             ));
-            foreach (['sent', 'drafts', 'spam', 'trash'] as $kind) {
+            foreach (['sent', 'drafts', 'spam', 'trash', 'archive'] as $kind) {
                 $appPath = $this->appSystemFolderPath($kind);
                 if ($appPath === null) {
                     continue;
@@ -801,6 +899,7 @@ class MailClientService
                             'drafts' => 'Drafts',
                             'spam' => 'Spam',
                             'trash' => 'Trash',
+                            'archive' => 'Archive',
                             default => $appPath,
                         },
                         'path' => $appPath,
@@ -812,18 +911,25 @@ class MailClientService
             $out = $this->enrichMissingSystemFolders($client, $account, $out);
         }
 
+        $out = array_values(array_filter(
+            $out,
+            fn (array $row) => ! $this->isNamespaceOnlyFolder((string) ($row['path'] ?? ''))
+        ));
+
         usort($out, function (array $a, array $b) {
             $kindOrder = [
                 'inbox' => 0,
                 'sent' => 1,
                 'drafts' => 2,
-                'spam' => 3,
-                'trash' => 4,
-                'label' => 5,
-                'other' => 6,
+                'archive' => 3,
+                'spam' => 4,
+                'trash' => 5,
+                'folder' => 6,
+                'label' => 7,
+                'other' => 8,
             ];
-            $pa = $kindOrder[$a['kind'] ?? 'other'] ?? 6;
-            $pb = $kindOrder[$b['kind'] ?? 'other'] ?? 6;
+            $pa = $kindOrder[$a['kind'] ?? 'other'] ?? 8;
+            $pb = $kindOrder[$b['kind'] ?? 'other'] ?? 8;
             if ($pa !== $pb) {
                 return $pa <=> $pb;
             }
@@ -859,9 +965,22 @@ class MailClientService
                 && ! str_starts_with($path, '[Gmail]');
 
             if (! $skipDeepGmail) {
+                $displayPath = $path !== '' ? $path : $name;
+                $displayName = $name !== '' ? $name : $path;
+                $decodedPath = $this->decodeImapMailboxPath($displayPath);
+                $decodedName = $this->decodeImapMailboxSegment(
+                    str_contains($displayName, '.')
+                        ? (basename(str_replace('.', '/', $displayName)) ?: $displayName)
+                        : $displayName
+                );
+                // パス全体が名前になっている場合は末尾だけ表示用にする
+                if (strcasecmp($displayName, $displayPath) === 0 || str_contains($displayName, 'INBOX.Folders') || str_contains($displayName, 'INBOX.Labels')) {
+                    $leaf = basename(str_replace('.', '/', $decodedPath));
+                    $decodedName = $leaf !== '' ? $leaf : $decodedName;
+                }
                 $row = [
-                    'name' => $name !== '' ? $name : $path,
-                    'path' => $path !== '' ? $path : $name,
+                    'name' => $decodedName !== '' ? $decodedName : $displayName,
+                    'path' => $displayPath,
                     'messages' => 0,
                 ];
                 $pathKey = $row['path'];
@@ -872,7 +991,7 @@ class MailClientService
                         break;
                     }
                 }
-                if (! $exists) {
+                if (! $exists && ! $this->isNamespaceOnlyFolder($pathKey)) {
                     $out[] = $this->withFolderKind($row);
                 }
             }
@@ -1705,6 +1824,8 @@ class MailClientService
         $path = $folderPath !== '' ? $folderPath : 'INBOX';
         $candidates = array_values(array_unique(array_filter([
             $path,
+            $this->encodeImapMailboxPath($path),
+            $this->decodeImapMailboxPath($path),
             ...$this->folderAliases($this->folderKind($path, $path), $path),
         ])));
 
@@ -1726,7 +1847,7 @@ class MailClientService
         }
 
         throw new \RuntimeException(
-            __('フォルダ「:folder」を開けませんでした。', ['folder' => $path]),
+            __('フォルダ「:folder」を開けませんでした。', ['folder' => $this->decodeImapMailboxPath($path)]),
             0,
             $last
         );

@@ -35,11 +35,11 @@ class MailFolderService
             throw new \InvalidArgumentException(__('フォルダ名を入力してください。'));
         }
 
-        if (preg_match('/[\/\\\\]/', $name)) {
-            throw new \InvalidArgumentException(__('フォルダ名に / や \\ は使えません。'));
+        if (preg_match('/[\/\\\\.]/', $name)) {
+            throw new \InvalidArgumentException(__('フォルダ名に / や \\ や . は使えません。'));
         }
 
-        $path = self::PATH_PREFIX.$name;
+        $path = self::PATH_PREFIX.$this->client->encodeImapMailboxSegment($name);
 
         $existing = MailFolder::query()
             ->where('mail_account_id', $account->id)

@@ -273,8 +273,12 @@ class MailLabelService
 
     private function folderPathFromName(string $name): string
     {
-        $safe = preg_replace('/[\\\\\/]+/u', '-', $name) ?? $name;
+        $safe = preg_replace('/[\\\\\/.]+/u', '-', $name) ?? $name;
+        $safe = trim($safe);
+        if ($safe === '') {
+            $safe = 'label';
+        }
 
-        return 'INBOX.Labels.'.$safe;
+        return 'INBOX.Labels.'.$this->client->encodeImapMailboxSegment($safe);
     }
 }
