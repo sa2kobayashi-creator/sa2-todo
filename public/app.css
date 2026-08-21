@@ -21845,6 +21845,26 @@ body.dash-home-lightbox-open {
   line-height: 1.6;
   color: #334155;
 }
+.sales-estimate-storage {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.sales-estimate-storage h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.sales-estimate-storage p {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 14px;
+  color: #334155;
+}
+.sales-estimate-storage p + p {
+  margin-top: 8px;
+}
 .sales-estimate-table {
   width: 100%;
   border-collapse: collapse;

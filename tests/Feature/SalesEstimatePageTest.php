@@ -31,6 +31,7 @@ class SalesEstimatePageTest extends TestCase
             ->assertOk()
             ->assertSee('専用インスタンス お見積書', false)
             ->assertSee('テスト株式会社', false)
+            ->assertSee('写真・ファイルの保管について', false)
             ->assertSee('¥50,000', false)
             ->assertSee('見積（専用）', false);
     }
