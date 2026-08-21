@@ -36,8 +36,11 @@
         <a href="/photos" class="{{ ($active ?? '') === 'photos' ? 'active' : '' }}">{{ __('Photos') }}</a>
       @endforelse
       @if(!empty($canSettings) || !empty($canAdminUsers))
-        <div class="nav-dropdown {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'is-active' : '' }}" id="settings-dropdown">
-          <button type="button" class="nav-dropdown-toggle {{ in_array($active ?? '', ['settings', 'admin', 'admin-groups']) ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
+        @php
+          $settingsMenuActive = in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales'], true);
+        @endphp
+        <div class="nav-dropdown {{ $settingsMenuActive ? 'is-active' : '' }}" id="settings-dropdown">
+          <button type="button" class="nav-dropdown-toggle {{ $settingsMenuActive ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
             {{ !empty($canSettings) ? __('設定') : __('管理') }}
             <span class="nav-dropdown-caret" aria-hidden="true">▾</span>
           </button>
@@ -56,6 +59,9 @@
               <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
               <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
               <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
+            @endif
+            @if(!empty($canSuperAdmin))
+              <a href="/admin/sales/estimate" class="{{ ($active ?? '') === 'admin-sales' ? 'active' : '' }}" role="menuitem">{{ __('見積（専用）') }}</a>
             @endif
           </div>
         </div>
@@ -187,7 +193,7 @@
                 <div class="header-more-submenu" id="more-settings-submenu">
                   <button
                     type="button"
-                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups'], true) ? ' active' : '' }}"
+                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales'], true) ? ' active' : '' }}"
                     id="more-settings-toggle"
                     aria-haspopup="true"
                     aria-expanded="false"
@@ -218,6 +224,9 @@
                       <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
                       <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
                     @endif
+                    @if(!empty($canSuperAdmin))
+                      <a href="/admin/sales/estimate" class="{{ ($active ?? '') === 'admin-sales' ? 'active' : '' }}" role="menuitem">{{ __('見積（専用）') }}</a>
+                    @endif
                   </div>
                 </div>
               @endif
@@ -245,6 +254,20 @@
       moreSettings.classList.toggle('is-open', open)
       moreSettingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
       moreSettingsPanel.hidden = !open
+      if (open) {
+        requestAnimationFrame(() => {
+          const menu = moreDropdown?.querySelector('.header-more-dropdown')
+          const focusItem = moreSettingsPanel.querySelector('a.active') || moreSettingsPanel.lastElementChild
+          focusItem?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+          if (menu && moreSettingsPanel) {
+            const menuRect = menu.getBoundingClientRect()
+            const panelRect = moreSettingsPanel.getBoundingClientRect()
+            if (panelRect.bottom > menuRect.bottom) {
+              menu.scrollTop += panelRect.bottom - menuRect.bottom + 8
+            }
+          }
+        })
+      }
     }
 
     function closeAll(except) {
@@ -279,8 +302,9 @@
         e.stopPropagation()
         const open = moreDropdown.classList.toggle('is-open')
         moreToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-        // ⋮を開く／閉じるたびに設定サブは必ず閉じる（押したときだけ展開）
-        setMoreSettingsOpen(false)
+        // 設定系ページにいるときは⋮を開いた時点で設定サブも展開し、末尾項目が見えるようにする
+        const onSettingsPage = moreSettingsToggle?.classList.contains('active')
+        setMoreSettingsOpen(open && !!onSettingsPage)
         if (open) closeAll('more')
       })
     }

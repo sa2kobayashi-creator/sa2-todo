@@ -202,6 +202,20 @@ a {
   right: 0;
   left: auto;
   min-width: 200px;
+  /* 設定サブ展開時にグループ管理などが画面外で切れないようスクロール可能にする */
+  max-height: min(72vh, calc(100dvh - 72px - env(safe-area-inset-bottom, 0px)));
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+#settings-dropdown .nav-dropdown-menu {
+  max-height: min(72vh, calc(100dvh - 72px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .header-more-dropdown a {
@@ -275,7 +289,7 @@ a {
 
 .header-more-submenu-panel a {
   font-size: 13px;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 34px;
 }
 
 .footer-nav-checklist {
