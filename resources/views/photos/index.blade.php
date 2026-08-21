@@ -5997,6 +5997,7 @@
             const fd = new FormData()
             fd.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '')
             fd.append('returnTo', window.location.pathname + window.location.search)
+            if (selectedAlbumId) fd.append('album_id', String(selectedAlbumId))
             try {
               const res = await fetch('/photos/albums/reveal-hidden', {
                 method: 'POST',
@@ -6012,7 +6013,14 @@
               window.alert(data.message || (revealHiddenAlbums
                 ? @json(__('隠しアルバムを切り替えました。'))
                 : @json(__('隠しアルバムを表示しています。'))));
-              window.location.reload()
+              const go = (typeof data.redirectTo === 'string' && data.redirectTo !== '')
+                ? data.redirectTo
+                : null
+              if (go) {
+                window.location.assign(go)
+              } else {
+                window.location.reload()
+              }
             } catch (_) {
               window.alert(@json(__('隠しアルバムの切替に失敗しました。')));
             }

@@ -318,17 +318,40 @@ class PhotoController extends Controller
         $next = ! (bool) session($key, false);
         session([$key => $next]);
 
+        $redirectTo = null;
+        if (! $next) {
+            // 非表示にした直後に隠しアルバム上に留まると空／不整合になるので「すべて」へ
+            $albumId = (int) $request->input('album_id', 0);
+            if ($albumId <= 0) {
+                $returnHint = (string) $request->input('returnTo', '');
+                if (preg_match('/(?:^|[?&])album=(\d+)/', $returnHint, $m) === 1) {
+                    $albumId = (int) $m[1];
+                }
+            }
+            if ($albumId > 0) {
+                $album = \App\Models\PhotoAlbum::query()
+                    ->where('user_id', $userId)
+                    ->whereKey($albumId)
+                    ->first();
+                if ($album && $album->is_hidden) {
+                    $redirectTo = '/photos';
+                }
+            }
+        }
+
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'ok' => true,
                 'revealed' => $next,
+                'redirectTo' => $redirectTo,
                 'message' => $next
                     ? __('隠しアルバムを表示しています。')
                     : __('隠しアルバムを非表示にしました。'),
             ]);
         }
 
-        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/photos');
+        $returnTo = $redirectTo
+            ?? $this->safeReturnTo($request->input('returnTo'), '/photos');
 
         return $this->redirectWithMessage(
             $returnTo,
