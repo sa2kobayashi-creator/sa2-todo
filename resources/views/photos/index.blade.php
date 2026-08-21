@@ -46,6 +46,12 @@
               >{{ __('Photos') }}</h1>
               @if($selectedAlbum)
                 <span class="photos-current-album" title="{{ $selectedAlbum['name'] }}">{{ $selectedAlbum['name'] }}</span>
+                @if(!empty($selectedAlbum['hasPassword']))
+                  <span class="photos-album-flag">{{ __('鍵付き') }}</span>
+                @endif
+                @if(!empty($selectedAlbum['isHidden']))
+                  <span class="photos-album-flag">{{ __('隠し') }}</span>
+                @endif
               @endif
             </div>
             <div class="photos-hero-meta">
@@ -76,14 +82,8 @@
                 </div>
               @endif
               @if($selectedAlbum)
-                <p class="photos-lead">
+                <p class="photos-lead photos-lead-count-only">
                   <span class="photos-lead-count">{{ __(':count枚', ['count' => $selectedAlbum['photoCount']]) }}</span>
-                  @if(!empty($selectedAlbum['hasPassword']))
-                    <span class="photos-lead-badge"> · {{ __('鍵付き') }}</span>
-                  @endif
-                  @if(!empty($selectedAlbum['isHidden']))
-                    <span class="photos-lead-badge"> · {{ __('隠し') }}</span>
-                  @endif
                 </p>
               @endif
               <div class="photos-cols-control photos-ops-full-only" id="photos-cols-control" title="{{ __('列数') }}">

@@ -12289,12 +12289,8 @@ body.photos-is-busy .photos-main {
   margin-left: 12px;
 }
 
-/* 年スコープ表示中はアルバム枚数がバナー内と重複するので非表示（鍵付き等は残す） */
-.photos-hero-meta:has(.photos-year-scope-banner) .photos-lead-count {
-  display: none !important;
-}
-
-.photos-hero-meta:has(.photos-year-scope-banner) .photos-lead:not(:has(.photos-lead-badge)) {
+/* 年スコープ表示中はアルバム枚数がバナー内と重複するので非表示 */
+.photos-hero-meta:has(.photos-year-scope-banner) .photos-lead {
   display: none !important;
 }
 
@@ -12654,9 +12650,13 @@ body.photos-is-busy .photos-main {
 
 @media (max-width: 768px) {
   .photos-year-scope-banner.banner.notice {
-    flex: 1 1 auto;
-    justify-content: flex-start;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
     align-self: center;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
     margin: 0;
     padding: 0;
     background: transparent;
@@ -12664,8 +12664,7 @@ body.photos-is-busy .photos-main {
     color: inherit;
     overflow: visible;
     border-radius: 0;
-    min-width: 0;
-    max-width: calc(100% - 168px);
+    flex: none;
   }
 
   .photos-year-scope-desktop {
@@ -12685,28 +12684,35 @@ body.photos-is-busy .photos-main {
   .photos-year-scope-all-btn {
     text-decoration: none;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    box-sizing: border-box;
+    padding: 0 12px;
+    font-size: 12px;
   }
 
   .photos-hero-meta {
     order: 3;
     flex: 1 1 100%;
     width: 100%;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
+    row-gap: 6px;
     margin-left: 0 !important;
     min-width: 0;
   }
 
   .photos-hero-meta .photos-cols-control {
-    margin-left: auto;
+    grid-column: 2;
+    grid-row: 1;
+    margin-left: 0 !important;
+    justify-self: end;
   }
 
   .photos-hero-meta .photos-lead {
-    order: 5;
-    flex: 1 1 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
   }
 }
 
@@ -13447,6 +13453,23 @@ label.photos-camera-btn span {
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photos-album-flag {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(47, 111, 126, 0.22);
+  background: rgba(47, 111, 126, 0.08);
+  color: var(--photos-accent, #2f6f7e);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
 }
 
