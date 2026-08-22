@@ -2500,6 +2500,7 @@
     "追加先": "Add to",
     "追加先: :name": "Adding to: :name",
     "追加先アルバム": "Add to album",
+    "追加先選択": "Select destination",
     "追記する": "Append",
     "退会する": "Delete my account",
     "退会前に、データのコピー（JSON ZIP）をダウンロードできます。写真・音楽ファイル本体は含まれません。": "Before leaving, you can download a copy of your data (JSON ZIP). Photo and music binary files are not included.",

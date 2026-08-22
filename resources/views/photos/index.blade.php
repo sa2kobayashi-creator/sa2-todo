@@ -236,7 +236,7 @@
           <span class="photos-pending-count" id="photos-pending-count"></span>
           @if(!empty($ownedAlbums))
             <label class="photos-upload-album">
-              <span>{{ __('追加先') }}</span>
+              <span>{{ __('追加先選択') }}</span>
               <select id="photos-pending-album" data-upload-album>
                 <option value="">{{ __('標準（アルバムなし）') }}</option>
                 @foreach($ownedAlbums as $album)
@@ -245,13 +245,7 @@
               </select>
             </label>
           @endif
-          @include('photos.partials.dashboard-visibility-select', [
-            'id' => 'photos-pending-dashboard',
-            'name' => 'show_on_dashboard',
-            'class' => 'photos-upload-album',
-          ])
-          <button type="button" class="photos-secondary-btn" id="photos-pending-more">{{ __('さらに選ぶ') }}</button>
-          <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('まとめて追加') }}</button>
+          <button type="button" class="photos-upload-btn" id="photos-pending-add">{{ __('追加') }}</button>
           <button type="button" class="photos-secondary-btn" id="photos-pending-cancel">{{ __('やめる') }}</button>
         </div>
       </section>
@@ -2251,12 +2245,10 @@
         const pendingBar = document.getElementById('photos-pending-bar')
         const pendingCount = document.getElementById('photos-pending-count')
         const pendingAddBtn = document.getElementById('photos-pending-add')
-        const pendingMoreBtn = document.getElementById('photos-pending-more')
         const pendingCancelBtn = document.getElementById('photos-pending-cancel')
         const uploadAlbumSelects = Array.from(document.querySelectorAll('[data-upload-album]'))
         const uploadAlbumField = document.getElementById('photos-form-album-id')
         let pendingFiles = null
-        let lastPickMode = 'files'
         const photosSortSelect = document.getElementById('photos-sort-select')
         const albumCovers = document.getElementById('photos-album-covers')
         const albumsToggle = document.getElementById('photos-albums-toggle')
@@ -2770,24 +2762,19 @@
 
         function currentUploadShowOnDashboard() {
           const el = document.getElementById('photos-add-sheet-dashboard')
-            || document.getElementById('photos-pending-dashboard')
           return el && el.value === '0' ? '0' : '1'
         }
 
         function syncUploadShowOnDashboard(value) {
           const next = value === '0' ? '0' : '1'
-          ;['photos-add-sheet-dashboard', 'photos-pending-dashboard'].forEach((id) => {
-            const el = document.getElementById(id)
-            if (el && el.value !== next) el.value = next
-          })
+          const el = document.getElementById('photos-add-sheet-dashboard')
+          if (el && el.value !== next) el.value = next
           const hidden = document.getElementById('photos-form-show-dashboard')
           if (hidden) hidden.value = next
         }
 
-        ;['photos-add-sheet-dashboard', 'photos-pending-dashboard'].forEach((id) => {
-          document.getElementById(id)?.addEventListener('change', (e) => {
-            syncUploadShowOnDashboard(e.target.value)
-          })
+        document.getElementById('photos-add-sheet-dashboard')?.addEventListener('change', (e) => {
+          syncUploadShowOnDashboard(e.target.value)
         })
         syncUploadShowOnDashboard(currentUploadShowOnDashboard())
 
@@ -3183,7 +3170,6 @@
         function triggerFilesBrowse() {
           const input = filesBrowseInput || fileInput
           if (!input) return
-          lastPickMode = 'files'
           closeAddSheet()
           input.value = ''
           input.click()
@@ -3191,7 +3177,6 @@
 
         function triggerGalleryBrowse() {
           if (!fileInput) return
-          lastPickMode = 'gallery'
           closeAddSheet()
           fileInput.value = ''
           fileInput.click()
@@ -3209,14 +3194,6 @@
           closeAddSheet()
           cameraVideoInput.value = ''
           cameraVideoInput.click()
-        }
-
-        function triggerLastPickBrowse() {
-          if (lastPickMode === 'gallery') {
-            triggerGalleryBrowse()
-            return
-          }
-          triggerFilesBrowse()
         }
 
         function filePickKey(file) {
@@ -3733,10 +3710,7 @@
             return
           }
           if (pendingCount) {
-            const names = files.slice(0, 3).map((f) => f.name || 'file')
-            const more = files.length > 3 ? ` ${photosT('andMore', { count: files.length - 3 })}` : ''
             pendingCount.textContent = @json(__(':count件選択中')).replace(':count', String(files.length))
-              + (names.length ? ` (${names.join(', ')}${more})` : '')
           }
           if (pendingBar) {
             pendingBar.hidden = false
@@ -3777,7 +3751,7 @@
             void submitFiles(files)
             return
           }
-          showPendingFiles(files, { append: true })
+          showPendingFiles(files)
           if (fileInput) fileInput.value = ''
           if (filesBrowseInput) filesBrowseInput.value = ''
         }
@@ -3811,10 +3785,6 @@
           if (!files?.length || uploading) return
           clearPendingFiles()
           void submitFiles(files)
-        })
-
-        pendingMoreBtn?.addEventListener('click', () => {
-          triggerLastPickBrowse()
         })
 
         pendingCancelBtn?.addEventListener('click', () => {
