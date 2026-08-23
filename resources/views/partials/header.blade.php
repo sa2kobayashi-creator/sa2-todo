@@ -37,7 +37,7 @@
       @endforelse
       @if(!empty($canSettings) || !empty($canAdminUsers))
         @php
-          $settingsMenuActive = in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage'], true);
+          $settingsMenuActive = in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'help', 'contact'], true);
         @endphp
         <div class="nav-dropdown {{ $settingsMenuActive ? 'is-active' : '' }}" id="settings-dropdown">
           <button type="button" class="nav-dropdown-toggle {{ $settingsMenuActive ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
@@ -54,6 +54,8 @@
               <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
               <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
               <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
+              <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
+              <a href="/contact" class="{{ ($active ?? '') === 'contact' ? 'active' : '' }}" role="menuitem">{{ __('問い合わせ') }}</a>
             @endif
             @if(!empty($canAdminUsers))
               <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
@@ -194,7 +196,7 @@
                 <div class="header-more-submenu" id="more-settings-submenu">
                   <button
                     type="button"
-                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage'], true) ? ' active' : '' }}"
+                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'help', 'contact'], true) ? ' active' : '' }}"
                     id="more-settings-toggle"
                     aria-haspopup="true"
                     aria-expanded="false"
@@ -219,6 +221,8 @@
                       <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
                       <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
                       <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
+                      <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
+                      <a href="/contact" class="{{ ($active ?? '') === 'contact' ? 'active' : '' }}" role="menuitem">{{ __('問い合わせ') }}</a>
                     @endif
                     @if(!empty($canAdminUsers))
                       <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>

@@ -11633,7 +11633,8 @@ body.map-page {
 }
 
 .stack-form input,
-.stack-form select {
+.stack-form select,
+.stack-form textarea {
   padding: 10px 12px;
   border: 1px solid #d1d5db;
   border-radius: 8px;

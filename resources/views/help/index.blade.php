@@ -11,6 +11,9 @@
   <body>
     @include('partials.header', ['active' => 'help'])
     <main class="page-main page-main-narrow">
+      @if(!empty($canSettings))
+        @include('partials.settings-subnav', ['active' => 'help'])
+      @endif
       <div class="panel">
         <h1>{{ __('ヘルプ') }}</h1>
         <p class="hint">{{ __('Sa2 Plus の基本的な使い方です。権限やメニューはアカウントごとに異なります。') }}</p>

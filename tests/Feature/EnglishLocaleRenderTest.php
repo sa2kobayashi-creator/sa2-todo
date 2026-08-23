@@ -46,6 +46,8 @@ class EnglishLocaleRenderTest extends TestCase
             '/translate',
             '/music',
             '/admin/users',
+            '/help',
+            '/contact',
         ];
     }
 

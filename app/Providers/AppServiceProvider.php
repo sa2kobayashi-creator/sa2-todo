@@ -90,5 +90,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('mail-account-write', fn (Request $request) => $unlimited
             ? Limit::none()
             : Limit::perMinute(30)->by('mail-account-write|'.($request->user()?->id ?: $request->ip())));
+
+        RateLimiter::for('contact-inquiry', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perHour(5)->by('contact-inquiry|'.($request->user()?->id ?: $request->ip())));
     }
 }

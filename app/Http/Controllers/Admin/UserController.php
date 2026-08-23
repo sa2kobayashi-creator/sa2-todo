@@ -254,7 +254,7 @@ class UserController extends Controller
             ->all();
 
         $staffLabel = $user->isSuperAdmin()
-            ? __('すべて（スーパー管理者）')
+            ? __('すべて（運営者）')
             : __('すべて（管理者）');
 
         return [

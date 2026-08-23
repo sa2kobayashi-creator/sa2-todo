@@ -109,7 +109,12 @@ class RoleAccessTest extends TestCase
 
         $this->actingAs($admin)->get('/admin/users')
             ->assertOk()
-            ->assertSee('name="inviteCode"', false);
+            ->assertSee('name="inviteCode"', false)
+            ->assertSee('運営者', false)
+            ->assertSee('このアプリの運営を行っております', false)
+            ->assertSee('問い合わせ', false)
+            ->assertDontSee('見積など運営専用画面', false)
+            ->assertDontSee('写真鮮明化はスーパー管理者向け', false);
 
         $this->actingAs($admin)->post('/admin/users/registration', [
             'inviteCode' => 'customer-secret',

@@ -295,6 +295,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/mypage/delete', [MyPageController::class, 'destroy']);
     Route::get('/help', [HelpController::class, 'index']);
     Route::get('/about', [HelpController::class, 'about']);
+    Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {
+        Route::get('/contact', [HelpController::class, 'contact']);
+        Route::post('/contact', [HelpController::class, 'sendInquiry'])->middleware('throttle:contact-inquiry');
+    });
 
     // Google Calendar 個人連携（設定画面不要。Standard / Light も利用可）
     Route::get('/mypage/google-calendar/connect', [GoogleCalendarSettingsController::class, 'connect']);
