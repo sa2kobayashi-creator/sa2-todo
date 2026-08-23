@@ -187,7 +187,7 @@
       @elseif(($section ?? '') === 'ai')
       <div class="panel" id="ai-settings">
         <h2>{{ __('AI設定') }}</h2>
-        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini、動画検索は YouTube Data API を使います。') }}</p>
+        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini、動画検索は YouTube Data API を使います。キーを保存すると、このアプリのユーザーが使えます。利用料は管理者の責任です。') }}</p>
 
         @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; $yt = $youtubeSettings ?? []; @endphp
         <div class="storage-settings ai-llm-panel" id="ai-llm-settings">
@@ -449,14 +449,11 @@
       @elseif(($section ?? '') === 'storage')
         @include('settings.partials.storage')
       @elseif(($section ?? '') === 'enhance')
+        @include('settings.partials.google-maps')
+        @include('settings.partials.google-calendar-oauth')
         @include('settings.partials.travelpayouts')
-        @if(!empty($isSuperAdmin))
+        @if(!empty($canSuperAdmin))
           @include('settings.partials.enhance')
-        @else
-          <div class="panel">
-            <h2>{{ __('鮮明化設定') }}</h2>
-            <p class="hint">{{ __('AI鮮明化はスーパー管理者のみが利用・設定できます（試作機能）。') }}</p>
-          </div>
         @endif
       @elseif(($section ?? '') === 'notifications')
       @include('settings.partials.notifications')

@@ -19,6 +19,12 @@
 
   <div class="dash-ai-usage-grid">
     @foreach(['ai' => $aiUsage['ai'] ?? [], 'translation' => $aiUsage['translation'] ?? []] as $kind => $card)
+      @if($kind === 'ai' && empty($canSuperAdmin))
+        @continue
+      @endif
+      @if(($card['title'] ?? '') === '')
+        @continue
+      @endif
       @php
         $enabled = !empty($card['enabled']);
         $warn = !empty($card['warn']);

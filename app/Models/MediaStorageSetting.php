@@ -38,6 +38,12 @@ class MediaStorageSetting extends Model
     /** Travelpayouts（航空運賃） */
     public const PROVIDER_TRAVELPAYOUTS = 'travelpayouts';
 
+    /** Google Maps JavaScript / Places（Map・Transit） */
+    public const PROVIDER_GOOGLE_MAPS = 'google_maps';
+
+    /** Google Calendar OAuth（アプリの Client ID / Secret） */
+    public const PROVIDER_GOOGLE_CALENDAR = 'google_calendar';
+
     /** LINE Messaging API（ToDo 通知） */
     public const PROVIDER_LINE = 'line';
 

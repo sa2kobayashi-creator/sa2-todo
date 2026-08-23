@@ -32,7 +32,7 @@ class UserController extends Controller
 
         return view('admin.users.index', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
             'users' => $users,
-            'canManageRegistration' => $actor->isSuperAdmin(),
+            'canManageRegistration' => $actor->isAdmin(),
             'registrationInviteCode' => Registration::inviteCode(),
             'registrationConfiguredInDatabase' => Registration::isConfiguredInDatabase(),
             'registrationOpen' => Registration::isOpen(),
@@ -41,8 +41,8 @@ class UserController extends Controller
 
     public function updateRegistration(Request $request)
     {
-        if (! $request->user()->isSuperAdmin()) {
-            abort(403, __('招待コードを変更できるのはスーパー管理者だけです。'));
+        if (! $request->user()->isAdmin()) {
+            abort(403, __('招待コードを変更できるのは管理者だけです。'));
         }
 
         $data = $request->validate([

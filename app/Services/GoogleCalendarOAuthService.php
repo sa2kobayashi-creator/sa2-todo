@@ -12,6 +12,8 @@ class GoogleCalendarOAuthService
 {
     public const SESSION_STATE_KEY = 'google_calendar_oauth_state';
 
+    public function __construct(private GoogleCalendarConfigService $config) {}
+
     /** @return list<string> */
     public function scopes(): array
     {
@@ -25,27 +27,22 @@ class GoogleCalendarOAuthService
 
     public function isConfigured(): bool
     {
-        return $this->clientId() !== '' && $this->clientSecret() !== '' && $this->redirectUri() !== '';
+        return $this->config->isReady();
     }
 
     public function clientId(): string
     {
-        return trim((string) config('services.google.client_id', ''));
+        return $this->config->clientId();
     }
 
     public function redirectUri(): string
     {
-        $configured = trim((string) config('services.google.redirect', ''));
-        if ($configured !== '') {
-            return $configured;
-        }
-
-        return rtrim((string) config('app.url'), '/').'/auth/google/calendar/callback';
+        return $this->config->redirectUri();
     }
 
     private function clientSecret(): string
     {
-        return trim((string) config('services.google.client_secret', ''));
+        return $this->config->clientSecret();
     }
 
     /**
@@ -54,7 +51,7 @@ class GoogleCalendarOAuthService
     public function beginAuthorization(): array
     {
         if (! $this->isConfigured()) {
-            throw new \RuntimeException('Google Calendar OAuth が設定されていません（GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI）。');
+            throw new \RuntimeException('Google Calendar OAuth が設定されていません。設定 → API設定 で Client ID を登録してください。');
         }
 
         $state = Str::random(40);

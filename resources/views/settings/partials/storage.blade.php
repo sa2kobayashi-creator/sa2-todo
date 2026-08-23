@@ -13,7 +13,7 @@
 
 <div class="panel storage-settings" id="storage-pipeline">
   <h2>{{ __('保存パイプライン') }}</h2>
-  <p class="hint">{{ __('アップロード → Cloudflare R2（原本）。Cloudinary は編集用、古い原本は Backblaze B2 へ、という流れをここで切り替えます。AI鮮明化は「API設定」で行います。') }}</p>
+  <p class="hint">{{ __('アップロード → Cloudflare R2（原本）。Cloudinary は編集用、古い原本は Backblaze B2 へ、という流れをここで切り替えます。') }}@if(!empty($canSuperAdmin)) {{ __('AI鮮明化は「API設定」で行います。') }}@endif</p>
   <form method="post" action="/settings/storage/pipeline" class="storage-provider-form" id="storage-pipeline-form">
     @csrf
     <label class="storage-enable">

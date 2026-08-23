@@ -446,9 +446,11 @@ class StorageManagementTest extends TestCase
         $this->assertDatabaseHas('storage_management_logs', ['id' => $result['log_id']]);
     }
 
-    public function test_super_admin_can_open_storage_monitor(): void
+    public function test_admin_and_super_admin_can_open_storage_monitor(): void
     {
-        $admin = $this->user('root@example.com', UserRole::SuperAdmin);
+        $super = $this->user('root@example.com', UserRole::SuperAdmin);
+        $admin = $this->user('ops-admin@example.com', UserRole::Admin);
+        $this->actingAs($super)->get('/admin/storage-archive')->assertOk()->assertSee('ストレージ監視', false);
         $this->actingAs($admin)->get('/admin/storage-archive')->assertOk()->assertSee('ストレージ監視', false);
         $member = $this->user('member@example.com');
         $this->actingAs($member)->get('/admin/storage-archive')->assertForbidden();

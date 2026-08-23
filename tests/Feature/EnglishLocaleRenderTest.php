@@ -39,6 +39,7 @@ class EnglishLocaleRenderTest extends TestCase
             '/map',
             '/mypage',
             '/settings',
+            '/settings?section=enhance',
             '/groups',
             '/video',
             '/travel',

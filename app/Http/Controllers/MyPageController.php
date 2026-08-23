@@ -48,7 +48,7 @@ class MyPageController extends Controller
         ];
 
         $storage = $user->canAccess('photos')
-            ? $this->photos->storageStats((int) $user->id)
+            ? $this->photos->storageStats((int) $user->id, $user->isSuperAdmin())
             : null;
 
         return view('mypage.index', array_merge($this->flashFromQuery($request), [

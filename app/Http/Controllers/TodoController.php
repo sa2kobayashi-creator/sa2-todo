@@ -233,8 +233,8 @@ class TodoController extends Controller
                 sprintf('%04d-%02d-01', $calendarYear, $calendarMonth)
             ),
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
-            'voiceAiReady' => $request->user()?->isSuperAdmin() && $this->voiceParse->isReady(),
-            'voiceAiProvider' => ($request->user()?->isSuperAdmin() && $this->voiceParse->isReady()) ? $this->voiceParse->activeProviderLabel() : null,
+            'voiceAiReady' => $this->voiceParse->isReady(),
+            'voiceAiProvider' => $this->voiceParse->isReady() ? $this->voiceParse->activeProviderLabel() : null,
             'googleCalendar' => $context === AppContext::Work
                 ? $this->googleCalendar->formState($user)
                 : null,
@@ -374,10 +374,6 @@ class TodoController extends Controller
 
     public function parseVoice(Request $request): JsonResponse
     {
-        if (! $request->user()?->isSuperAdmin()) {
-            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
-        }
-
         $userId = (int) $request->user()->id;
         $transcript = trim((string) $request->input('transcript', ''));
         if ($transcript === '') {

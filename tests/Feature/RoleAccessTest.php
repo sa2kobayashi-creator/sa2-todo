@@ -24,30 +24,43 @@ class RoleAccessTest extends TestCase
     }
 
     /**
-     * 外部サービスの鍵はアプリ全体で1セットなので、契約代表としての管理者ではなく
-     * 運営（スーパー管理者）だけが書き換えられる。
+     * 販売時は顧客の管理者が API キーを自分で設定する。
+     * 試作の鮮明化だけはスーパー管理者のまま。
      */
-    public function test_standard_role_defaults_exclude_travel(): void
-    {
-        $this->assertNotContains('travel', \App\Enums\MenuFeature::defaultsForRole(UserRole::Standard));
-        $this->assertContains('travel', UserRole::legacyStandardMenuFeatures());
-        $this->assertTrue(UserRole::Admin->canAccess('travel'));
-    }
-
-    public function test_admin_cannot_change_infrastructure_api_keys(): void
+    public function test_admin_can_change_infrastructure_api_keys(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-infra@example.com');
 
-        // 設定ページ自体は開ける（祝日・表示メニューの管理があるため）
         $this->actingAs($admin)->get('/settings')->assertOk();
+        $this->actingAs($admin)->get('/settings?section=enhance')
+            ->assertOk()
+            ->assertSee('API設定', false)
+            ->assertSee('Google マップ（Map / Transit）', false)
+            ->assertSee('Google カレンダー（OAuth アプリ）', false)
+            ->assertDontSee('写真鮮明化', false);
 
-        $this->actingAs($admin)->post('/settings/storage/r2', [])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/ai/llm', [])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/api/livekit', [])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/api/web-push', [])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/messaging/line/channel', [])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/translation-keys', [])->assertForbidden();
-        $this->actingAs($admin)->getJson('/settings/translation-keys/1/edit')->assertForbidden();
+        $this->actingAs($admin)
+            ->post('/settings/api/google-maps', [
+                'enabled' => '1',
+                'api_key' => 'AIzaSyAdminSelfServeMapsKey000000',
+            ])
+            ->assertRedirect('/settings?section=enhance#google-maps-api-settings');
+
+        $this->actingAs($admin)
+            ->post('/settings/api/google-calendar', [
+                'enabled' => '1',
+                'client_id' => 'admin-calendar.apps.googleusercontent.com',
+                'client_secret' => 'GOCSPX-admin-calendar-secret',
+            ])
+            ->assertRedirect('/settings?section=enhance#google-calendar-oauth-settings');
+
+        $this->actingAs($admin)->post('/settings/storage/r2', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/ai/llm', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/api/livekit', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/api/web-push', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/messaging/line/channel', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/enhance/stability', ['enabled' => '1'])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/enhance/active', ['active_provider' => 'stability'])->assertForbidden();
     }
 
     public function test_admin_can_set_registration_invite_code_from_user_management(): void
@@ -90,17 +103,19 @@ class RoleAccessTest extends TestCase
         $this->assertNull(User::query()->where('email', 'blocked@example.com')->first());
     }
 
-    public function test_regular_admin_cannot_change_registration_invite_code(): void
+    public function test_regular_admin_can_change_registration_invite_code(): void
     {
-        $admin = $this->makeUser(UserRole::Admin, 'admin-no-invite@example.com');
+        $admin = $this->makeUser(UserRole::Admin, 'admin-invite-ok@example.com');
 
         $this->actingAs($admin)->get('/admin/users')
             ->assertOk()
-            ->assertDontSee('name="inviteCode"', false);
+            ->assertSee('name="inviteCode"', false);
 
         $this->actingAs($admin)->post('/admin/users/registration', [
-            'inviteCode' => 'should-fail',
-        ])->assertForbidden();
+            'inviteCode' => 'customer-secret',
+        ])->assertRedirect();
+
+        $this->assertSame('customer-secret', \App\Support\Registration::inviteCode());
     }
 
     public function test_regular_admin_cannot_assign_super_admin(): void
@@ -138,7 +153,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/groups')->assertOk();
-        $this->actingAs($user)->get('/translate')->assertForbidden();
+        $this->actingAs($user)->get('/translate')->assertOk();
     }
 
     public function test_standard_user_keeps_travel_when_menu_features_were_pinned(): void
@@ -163,7 +178,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/music')->assertForbidden();
         $this->actingAs($user)->get('/video')->assertForbidden();
-        $this->actingAs($user)->get('/translate')->assertForbidden();
+        $this->actingAs($user)->get('/translate')->assertOk();
 
         $this->actingAs($user)->get('/finance')->assertForbidden();
         $this->actingAs($user)->get('/transit')->assertForbidden();

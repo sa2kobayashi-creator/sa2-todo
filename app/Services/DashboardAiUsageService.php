@@ -23,10 +23,10 @@ class DashboardAiUsageService
      *   translation: array<string, mixed>
      * }
      */
-    public function summary(int $userId): array
+    public function summary(int $userId, bool $includeEnhance = false): array
     {
         return [
-            'ai' => $this->aiEnhanceSummary($userId),
+            'ai' => $includeEnhance ? $this->aiEnhanceSummary($userId) : [],
             'translation' => $this->deeplSummary(),
         ];
     }

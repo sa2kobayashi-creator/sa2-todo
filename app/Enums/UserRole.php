@@ -22,10 +22,10 @@ enum UserRole: string
     public function description(): string
     {
         return match ($this) {
-            self::SuperAdmin => 'すべてのメニューに加え、招待コードなど運営設定を変更できます。鮮明化・翻訳・LLM 音声はスーパー管理者向けの試作機能です。',
-            self::Admin => '設定・ユーザー管理を含むすべてのメニューを利用できます。招待コードの変更と鮮明化・翻訳・LLM 音声はできません。',
-            self::Standard => '設定以外の基本メニュー（Travel は既定オフ）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
-            self::Light => 'ダッシュボード、Todo、メモ、Photos、メッセージ、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
+            self::SuperAdmin => 'すべてのメニューに加え、見積など運営専用画面を使えます。写真鮮明化はスーパー管理者向けの試作機能です。',
+            self::Admin => '設定・ユーザー管理、外部 API、招待コードを自分で設定できます。翻訳・LLM 音声の運用も管理者の責任です。写真鮮明化は試作のため利用できません。',
+            self::Standard => '設定以外の基本メニュー（翻訳あり、Travel は既定オフ）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
+            self::Light => 'ダッシュボード、Todo、メモ、Photos、メッセージ、翻訳、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
         };
     }
 
@@ -90,6 +90,7 @@ enum UserRole: string
                 'video',
                 'messages',
                 'mail',
+                'translate',
                 'groups',
                 'settings',
                 'admin',
@@ -108,6 +109,7 @@ enum UserRole: string
                 'video',
                 'messages',
                 'mail',
+                'translate',
                 'groups',
                 'mypage',
             ],
@@ -118,6 +120,7 @@ enum UserRole: string
                 'photos',
                 'messages',
                 'mail',
+                'translate',
                 'mypage',
             ],
         };

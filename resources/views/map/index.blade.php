@@ -16,7 +16,13 @@
 
       @if(!$hasGoogleMapsApiKey)
         <div class="banner error map-api-warning">
-          {{ __('Google Maps API キーが未設定です。地図表示には') }} <code>GOOGLE_MAPS_API_KEY</code> {{ __('を') }} <code>.env</code> {{ __('に設定してください。') }}
+          @if(!empty($isAdmin))
+            {{ __('Google Maps API キーが未設定です。') }}
+            <a href="/settings?section=enhance#google-maps-api-settings">{{ __('設定 → API設定') }}</a>
+            {{ __('で登録してください。') }}
+          @else
+            {{ __('Google Maps API キーが未設定です。管理者に API設定での登録を依頼してください。') }}
+          @endif
           {{ __('保存済みルートの「ナビ開始」は Google Maps アプリで利用できます。') }}
         </div>
       @endif

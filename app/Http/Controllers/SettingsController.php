@@ -8,6 +8,8 @@ use App\Services\AiLlmConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
+use App\Services\GoogleCalendarConfigService;
+use App\Services\GoogleMapsConfigService;
 use App\Services\LineMessagingService;
 use App\Services\LiveKitConfigService;
 use App\Services\MessengerMessagingService;
@@ -33,6 +35,8 @@ class SettingsController extends Controller
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
+        private GoogleMapsConfigService $googleMaps,
+        private GoogleCalendarConfigService $googleCalendarOauth,
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
         private LiveKitConfigService $livekit,
@@ -62,10 +66,10 @@ class SettingsController extends Controller
             'lineConfigured' => $this->lineMessaging->isConfigured(),
             'pushConfigured' => $this->webPush->isConfigured(),
             'integrationUsage' => $section === 'usage'
-                ? $this->integrationUsage->summary()
+                ? $this->integrationUsage->summary($isSuperAdmin)
                 : null,
             'storageStats' => $section === 'usage'
-                ? $this->photos->storageStats((int) $request->user()->id)
+                ? $this->photos->storageStats((int) $request->user()->id, $isSuperAdmin)
                 : null,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
@@ -85,6 +89,8 @@ class SettingsController extends Controller
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
             'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
+            'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
+            'googleCalendarOauthSettings' => $section === 'enhance' ? $this->googleCalendarOauth->formState() : null,
             'isSuperAdmin' => $isSuperAdmin,
             'lineMessaging' => $messagingSection
                 ? $this->lineMessaging->formState($request->user())

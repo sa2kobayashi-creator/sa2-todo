@@ -27,7 +27,7 @@ class GoogleCalendarSettingsController extends Controller
         if (! $this->oauth->isConfigured()) {
             return $this->redirectWithMessage(
                 $returnTo,
-                __('Google Calendar OAuth が設定されていません。管理者に GOOGLE_CLIENT_ID 等の設定を依頼してください。'),
+                __('Google Calendar OAuth が設定されていません。管理者に設定 → API設定 での登録を依頼してください。'),
                 'error'
             );
         }

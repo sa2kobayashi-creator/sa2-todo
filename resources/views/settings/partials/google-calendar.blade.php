@@ -29,7 +29,7 @@
 
   @if(empty($gc['configured']))
     <p class="hint storage-test-result is-fail">
-      {{ __('OAuth が未設定です。GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI を .env に設定してください。') }}
+      {{ __('OAuth が未設定です。管理者に設定 → API設定 で Google カレンダーの Client ID を登録してもらってください。') }}
     </p>
   @elseif(empty($gc['connected']))
     <p class="hint">{{ __('Googleカレンダーは連携されていません。') }}</p>

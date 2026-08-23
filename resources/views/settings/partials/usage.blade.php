@@ -13,10 +13,19 @@
     <h2>{{ __('外部連携の使用量') }}</h2>
     <p class="hint">{{ __('本日・今月はアプリ側で成功を記録できた回数です。残高・請求額は各サービスの公式コンソールで確認してください。') }}</p>
     @foreach($usageGroups as $group)
+      @php
+        $usageItems = $group['items'] ?? [];
+        if (empty($canSuperAdmin)) {
+          unset($usageItems['enhance']);
+        }
+      @endphp
+      @if($usageItems === [])
+        @continue
+      @endif
       <div class="usage-purpose-group">
         <h3>{{ $group['label'] }}</h3>
         <div class="usage-overview-grid">
-          @foreach($group['items'] as $provider => $row)
+          @foreach($usageItems as $provider => $row)
             <article class="usage-overview-card">
               <strong>{{ $row['label'] ?? $provider }}</strong>
               @if(!empty($row['description']))
@@ -55,6 +64,9 @@
     </p>
     <div class="usage-overview-grid">
       @foreach(($storage['providers'] ?? []) as $provider)
+        @if(empty($canSuperAdmin) && in_array(($provider['id'] ?? ''), ['stability', 'realesrgan', 'swinir'], true))
+          @continue
+        @endif
         <article class="usage-overview-card{{ empty($provider['enabled']) ? ' is-off' : '' }}{{ !empty($provider['overFreeTier']) ? ' is-over' : '' }}">
           <strong>{{ $provider['name'] }}</strong>
           <span>{{ $provider['role'] }}</span>

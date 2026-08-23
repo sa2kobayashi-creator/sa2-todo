@@ -271,12 +271,15 @@ class PhotoService
         return round(($overBytes / (1024 * 1024 * 1024)) * $pricePerGbMonth, 4);
     }
 
-    public function storageStats(int $userId): array
+    public function storageStats(int $userId, ?bool $includeEnhance = null): array
     {
+        $includeEnhance ??= auth()->user()?->isSuperAdmin() === true;
+        $suffix = $includeEnhance ? 'sa' : 'std';
+
         return Cache::remember(
-            'photos:storage_stats:'.$userId,
+            'photos:storage_stats:'.$userId.':'.$suffix,
             now()->addSeconds(45),
-            fn () => $this->computeStorageStats($userId)
+            fn () => $this->computeStorageStats($userId, $includeEnhance)
         );
     }
 
@@ -284,10 +287,12 @@ class PhotoService
     public function forgetStorageStatsCache(int $userId): void
     {
         Cache::forget('photos:storage_stats:'.$userId);
+        Cache::forget('photos:storage_stats:'.$userId.':sa');
+        Cache::forget('photos:storage_stats:'.$userId.':std');
         unset($this->usedBytesApproxCache[$userId]);
     }
 
-    public function computeStorageStats(int $userId): array
+    public function computeStorageStats(int $userId, bool $includeEnhance = false): array
     {
         $thumbExtra = (int) Photo::query()
             ->where('user_id', $userId)
@@ -333,7 +338,8 @@ class PhotoService
         $stabilityEnabled = $this->mediaConfig->stabilityEnabled();
         $enhance = app(EnhanceConfigService::class);
         $activeEnhanceLabel = $enhance->providerLabel($enhance->activeProvider());
-        $enhanceReady = $enhance->isReady();
+        $showEnhance = $includeEnhance;
+        $enhanceReady = $showEnhance && $enhance->isReady();
 
         // 製品無料枠は契約状態により 20GB / 100GB（R2+B2 合算相当）
         $combinedQuota = $this->userFreeQuotaBytes($userId);
@@ -386,14 +392,18 @@ class PhotoService
             ->count();
         $cloudinaryFreeCredits = max(1, (int) config('photos.cloudinary_free_credits', 25));
 
-        $stabilityEnhanceCount = (int) Photo::query()
-            ->where('user_id', $userId)
-            ->where(function ($q) {
-                $q->where('edit_label', 'AI鮮明化')
-                    ->orWhere('edit_label', 'AI enhanced');
-            })
-            ->count();
-        $stabilityCredits = $stabilityEnabled ? $this->stability->creditBalance() : null;
+        $stabilityEnhanceCount = 0;
+        $stabilityCredits = null;
+        if ($showEnhance) {
+            $stabilityEnhanceCount = (int) Photo::query()
+                ->where('user_id', $userId)
+                ->where(function ($q) {
+                    $q->where('edit_label', 'AI鮮明化')
+                        ->orWhere('edit_label', 'AI enhanced');
+                })
+                ->count();
+            $stabilityCredits = $stabilityEnabled ? $this->stability->creditBalance() : null;
+        }
 
         $primaryLabel = match ($disk) {
             'r2' => 'Cloudflare R2',
@@ -457,7 +467,10 @@ class PhotoService
                 'billingNote' => __('1クレジット ≒ 1GB保管 または 1GB帯域 または 1,000変換。編集後は一時アセットを削除。'),
                 'meter' => 'credits',
             ],
-            [
+        ];
+
+        if ($showEnhance) {
+            $providers[] = [
                 'id' => match ($enhance->activeProvider()) {
                     EnhanceConfigService::PROVIDER_REALESRGAN => 'realesrgan',
                     EnhanceConfigService::PROVIDER_SWINIR => 'swinir',
@@ -502,8 +515,8 @@ class PhotoService
                     default => 'credits',
                 },
                 'countLabel' => __('鮮明化 :count 件', ['count' => $stabilityEnhanceCount]),
-            ],
-        ];
+            ];
+        }
 
         // 「次の保存先」は超過時優先モード専用（R2/B2 無料枠を使い切った後の行き先）
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
@@ -569,9 +582,9 @@ class PhotoService
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
             'cloudinaryEditor' => $cloudinaryEditor,
-            'stabilityEnabled' => $stabilityEnabled,
+            'stabilityEnabled' => $showEnhance && $stabilityEnabled,
             'enhanceReady' => $enhanceReady,
-            'enhanceProviderLabel' => $activeEnhanceLabel,
+            'enhanceProviderLabel' => $showEnhance ? $activeEnhanceLabel : null,
             'stabilityEnhanceCount' => $stabilityEnhanceCount,
             'primaryLabel' => $primaryLabel,
             'providers' => $providers,

@@ -14,7 +14,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\GoogleCalendarOauthSettingsController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
+use App\Http\Controllers\GoogleMapsSettingsController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\HelpController;
 use App\Http\Controllers\LegalController;
@@ -261,7 +263,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->middleware('throttle:10,60');
     });
 
-    Route::middleware([\App\Http\Middleware\EnsureFeature::class.':translate', \App\Http\Middleware\RequireSuperAdmin::class])->group(function () {
+    Route::middleware(EnsureFeature::class.':translate')->group(function () {
         Route::get('/translate', [TranslateController::class, 'index']);
         Route::post('/translate', [TranslateController::class, 'translate'])->middleware('throttle:ai-translate');
         Route::post('/translate/document', [TranslateController::class, 'document'])->middleware('throttle:ai-translate');
@@ -389,9 +391,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/weekday-rules/{id}/exceptions/add', [SettingsController::class, 'addWeekdayException'])->whereNumber('id');
         Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
 
-        // 外部サービスの鍵はアプリ全体で1セットのため、書き換えられると全ユーザーに影響する。
-        // 契約代表としての管理者ではなく、運営（スーパー管理者）だけが触れるようにする。
-        Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
+        // 販売時は顧客の管理者が API キーを自分で設定する。スタンダード／ライトは不可。
+        Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {
             Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
             Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
             Route::post('/settings/translation-keys/fetch-usage-all', [TranslationApiKeyController::class, 'fetchAllUsageFromDeepL']);
@@ -409,6 +410,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
             Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
             Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
+            Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
+            Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);
+            Route::post('/settings/api/google-calendar', [GoogleCalendarOauthSettingsController::class, 'update']);
+            Route::post('/settings/api/google-calendar/test', [GoogleCalendarOauthSettingsController::class, 'test']);
             Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);
             Route::post('/settings/api/livekit/test', [LiveKitSettingsController::class, 'test']);
             Route::post('/settings/api/web-push', [WebPushSettingsController::class, 'update']);
@@ -467,10 +472,11 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/mail-requests/{id}/reject', [AdminMailDomainRequestController::class, 'reject'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/provision', [AdminMailDomainRequestController::class, 'provision'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/suspend', [AdminMailDomainRequestController::class, 'suspend'])->whereNumber('id');
+
+        Route::get('/admin/storage-archive', [\App\Http\Controllers\Admin\StorageArchiveController::class, 'show']);
     });
 
     Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
         Route::get('/admin/sales/estimate', [AdminSalesEstimateController::class, 'show']);
-        Route::get('/admin/storage-archive', [\App\Http\Controllers\Admin\StorageArchiveController::class, 'show']);
     });
 });

@@ -205,7 +205,7 @@ class PhotoController extends Controller
             'canManageSelected' => $canManageSelected,
             'albumCoverCandidates' => $albumCoverCandidates,
             'approvedGroups' => $this->groups->listApprovedForUser($userId),
-            'storageStats' => $this->photos->storageStats($userId),
+            'storageStats' => $this->photos->storageStats($userId, $request->user()?->isSuperAdmin() === true),
             'returnTo' => '/photos'.$returnQuery,
             'uploadLimits' => [
                 'postMaxBytes' => $this->iniBytes((string) ini_get('post_max_size')),
@@ -696,7 +696,7 @@ class PhotoController extends Controller
             'run' => $state,
             'running' => $running,
             // 実行中も使用量を返し、画面上の R2 数字が動いていることを見える化する
-            'storageStats' => $this->photos->storageStats($userId),
+            'storageStats' => $this->photos->storageStats($userId, request()->user()?->isSuperAdmin() === true),
         ];
     }
 
@@ -794,7 +794,7 @@ class PhotoController extends Controller
             'reason' => $reason,
             'last_error' => $lastError,
             'last_error_photo_id' => $lastErrorPhotoId,
-            'storageStats' => $this->photos->storageStats((int) $request->user()->id),
+            'storageStats' => $this->photos->storageStats((int) $request->user()->id, $request->user()->isSuperAdmin()),
         ], $hardFail ? 422 : 200);
     }
 

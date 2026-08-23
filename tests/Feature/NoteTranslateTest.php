@@ -20,30 +20,36 @@ class NoteTranslateTest extends TestCase
     {
         parent::setUp();
 
-        // メモ翻訳はスーパー管理者限定の試作機能
         $this->user = User::create([
             'email' => 'test@example.com',
             'display_name' => 'Tester',
             'password' => Hash::make('password'),
-            'role' => 'super_admin',
+            'role' => 'standard',
         ]);
     }
 
-    public function test_translate_is_forbidden_for_standard_user(): void
+    public function test_translate_is_available_to_standard_user_when_configured(): void
     {
-        $standard = User::create([
-            'email' => 'standard-translate@example.com',
-            'display_name' => 'Standard',
-            'password' => Hash::make('password'),
-            'role' => 'standard',
+        TranslationApiKey::create([
+            'name' => 'Key',
+            'api_key' => 'key:fx',
+            'provider' => 'deepl',
+            'api_url' => 'https://api-free.deepl.com/v2/translate',
+            'is_active' => true,
         ]);
 
-        $note = Note::create(['user_id' => $standard->id, 'title' => 'テスト', 'body' => '本文']);
+        Http::fake([
+            'https://api-free.deepl.com/v2/translate' => Http::response([
+                'translations' => [['text' => 'Body EN']],
+            ]),
+        ]);
 
-        $this->actingAs($standard)
+        $note = Note::create(['user_id' => $this->user->id, 'title' => '', 'body' => '本文']);
+
+        $this->actingAs($this->user)
             ->postJson("/notes/{$note->id}/translate")
-            ->assertForbidden()
-            ->assertJson(['ok' => false]);
+            ->assertOk()
+            ->assertJson(['ok' => true, 'body' => 'Body EN']);
     }
 
     public function test_translate_returns_422_when_translation_not_configured(): void

@@ -33,7 +33,7 @@ class IntegrationUsageService
     }
 
     /** @return array{groups: list<array{id: string, label: string, items: array<string, array{today: int, month: int, metric: string, external: string, label: string, description: string}>}>} */
-    public function summary(): array
+    public function summary(bool $includeEnhance = false): array
     {
         $start = now()->startOfMonth()->toDateString();
         $today = now()->toDateString();
@@ -57,9 +57,6 @@ class IntegrationUsageService
         };
 
         $userFeature = fn (string $feature) => $this->userFeatureTotals($feature, $today, $start);
-
-        $enhanceToday = (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', $today)->sum('amount');
-        $enhanceMonth = (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', '>=', $start)->sum('amount');
 
         $voiceItems = [
             'llm_voice_finance' => $this->usageItem(
@@ -100,19 +97,6 @@ class IntegrationUsageService
                 'id' => 'voice',
                 'label' => __('音声入力'),
                 'items' => $voiceItems,
-            ],
-            [
-                'id' => 'image',
-                'label' => __('画像処理'),
-                'items' => [
-                    'enhance' => $this->usageItem(
-                        __('Photos AI鮮明化'),
-                        ['today' => $enhanceToday, 'month' => $enhanceMonth],
-                        __('鮮明化リクエスト'),
-                        'https://platform.stability.ai/',
-                        __('Photos の画像を AI で鮮明化した回数です。利用中のエンジン（Stability AI など）とクレジット残高は下の「ストレージ使用状況」を参照してください。'),
-                    ),
-                ],
             ],
             [
                 'id' => 'media_travel',
@@ -192,6 +176,25 @@ class IntegrationUsageService
                 ],
             ],
         ];
+
+        if ($includeEnhance) {
+            array_splice($groups, 1, 0, [[
+                'id' => 'image',
+                'label' => __('画像処理'),
+                'items' => [
+                    'enhance' => $this->usageItem(
+                        __('Photos AI鮮明化'),
+                        [
+                            'today' => (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', $today)->sum('amount'),
+                            'month' => (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', '>=', $start)->sum('amount'),
+                        ],
+                        __('鮮明化リクエスト'),
+                        'https://platform.stability.ai/',
+                        __('Photos の画像を AI で鮮明化した回数です。利用中のエンジン（Stability AI など）とクレジット残高は下の「ストレージ使用状況」を参照してください。'),
+                    ),
+                ],
+            ]]);
+        }
 
         return ['groups' => $groups];
     }

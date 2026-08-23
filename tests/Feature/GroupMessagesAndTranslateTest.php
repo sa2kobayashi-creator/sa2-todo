@@ -292,13 +292,11 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->assertSee('個別チャットの背景は自分だけに表示されます', false);
     }
 
-    public function test_translate_page_requires_super_admin(): void
+    public function test_translate_page_is_available_to_standard_user(): void
     {
         $user = $this->makeUser('tr@example.com');
-        $admin = $this->makeUser('sa@example.com', 'SA', UserRole::SuperAdmin);
 
-        $this->actingAs($user)->get('/translate')->assertForbidden();
-        $this->actingAs($admin)->get('/translate')->assertOk();
+        $this->actingAs($user)->get('/translate')->assertOk();
     }
 
     public function test_member_can_download_and_save_message_image_to_photos(): void

@@ -19,6 +19,8 @@ class MapService
         'label' => '福岡（天神付近）',
     ];
 
+    public function __construct(private GoogleMapsConfigService $googleMaps) {}
+
     public function normalizeTravelMode(?string $mode): string
     {
         return array_key_exists($mode, self::TRAVEL_MODE_LABELS) ? $mode : 'transit';
@@ -26,9 +28,9 @@ class MapService
 
     public function getApiKey(): ?string
     {
-        $key = config('services.google_maps.api_key');
+        $key = $this->googleMaps->apiKey();
 
-        return is_string($key) && $key !== '' ? $key : null;
+        return $key !== '' ? $key : null;
     }
 
     public function hasApiKey(): bool

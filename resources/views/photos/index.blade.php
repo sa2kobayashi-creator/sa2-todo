@@ -410,7 +410,7 @@
             @if(!empty($storageStats['cloudinaryEditor']))
               · {{ __('編集') }} = Cloudinary（{{ __('一時のみ・常設保管なし') }}）
             @endif
-            @if(!empty($storageStats['enhanceReady']))
+            @if(!empty($canSuperAdmin) && !empty($storageStats['enhanceReady']))
               · {{ __('AI鮮明化') }} = {{ $storageStats['enhanceProviderLabel'] ?? 'Stability AI' }}
             @endif
             @if(!empty($storageStats['archiveEnabled']))
@@ -1297,6 +1297,9 @@
           </p>
           <div class="photos-usage-grid">
             @foreach(($storageStats['providers'] ?? []) as $provider)
+              @if(empty($canSuperAdmin) && in_array(($provider['id'] ?? ''), ['stability', 'realesrgan', 'swinir'], true))
+                @continue
+              @endif
               <article class="photos-usage-card{{ empty($provider['enabled']) ? ' is-off' : '' }}{{ !empty($provider['overFreeTier']) ? ' is-over' : '' }}">
                 <header class="photos-usage-card-head">
                   <h3>{{ $provider['name'] }}</h3>
