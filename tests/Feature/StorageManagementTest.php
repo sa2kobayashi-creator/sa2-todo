@@ -408,6 +408,37 @@ class StorageManagementTest extends TestCase
         $this->assertStringContainsString('CREATE TABLE', $sql);
     }
 
+    public function test_php_dump_maps_numeric_and_uppercase_row_keys(): void
+    {
+        $service = app(DatabaseBackupService::class);
+        $toAssoc = new \ReflectionMethod(DatabaseBackupService::class, 'rowToAssociative');
+        $toAssoc->setAccessible(true);
+        $value = new \ReflectionMethod(DatabaseBackupService::class, 'valueIgnoringCase');
+        $value->setAccessible(true);
+
+        $fromNumeric = $toAssoc->invoke($service, [11, 'hello'], ['id', 'title']);
+        $this->assertSame(['id' => 11, 'title' => 'hello'], $fromNumeric);
+
+        $fromUpper = $toAssoc->invoke($service, (object) ['ID' => 9, 'TITLE' => 'kept'], ['id', 'title']);
+        $this->assertSame(['ID' => 9, 'TITLE' => 'kept'], $fromUpper);
+        $this->assertSame(9, $value->invoke($service, $fromUpper, 'id'));
+    }
+
+    public function test_php_dump_includes_tables_that_have_no_id_column(): void
+    {
+        \Illuminate\Support\Facades\DB::table('cache')->insert([
+            'key' => 'backup-probe',
+            'value' => 'ok',
+            'expiration' => time() + 60,
+        ]);
+
+        $result = app(DatabaseBackupService::class)->run();
+        $this->assertTrue($result['ok']);
+        $sql = gzdecode(Storage::disk('backblaze')->get($result['key']));
+        $this->assertIsString($sql);
+        $this->assertStringContainsString('backup-probe', $sql);
+    }
+
     public function test_storage_manage_records_a_log(): void
     {
         $result = app(StorageManagementService::class)->run();

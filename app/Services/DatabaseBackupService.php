@@ -23,6 +23,7 @@ class DatabaseBackupService
         }
 
         $this->media->applyRuntimeDisks();
+        @set_time_limit((int) config('storage_management.backup_timeout', 900));
         $disk = (string) config('storage_management.disk', 'backblaze');
         $tmp = $this->tempPath();
 
@@ -114,50 +115,88 @@ class DatabaseBackupService
     {
         $cfg = config('database.connections.'.config('database.default'));
         $bin = (string) config('storage_management.mysqldump_path', 'mysqldump');
-        $args = [
-            $bin,
-            '--host='.($cfg['host'] ?? '127.0.0.1'),
-            '--port='.(string) ($cfg['port'] ?? 3306),
-            '--user='.($cfg['username'] ?? ''),
-            '--single-transaction',
-            '--quick',
-            '--routines',
-            '--no-tablespaces',
-            '--default-character-set=utf8mb4',
-            (string) ($cfg['database'] ?? ''),
+        $defaults = $this->writeMysqlDefaultsFile(is_array($cfg) ? $cfg : []);
+
+        try {
+            $args = [
+                $bin,
+                '--defaults-extra-file='.$defaults,
+                '--single-transaction',
+                '--quick',
+                '--routines',
+                '--no-tablespaces',
+                '--default-character-set=utf8mb4',
+                (string) ($cfg['database'] ?? ''),
+            ];
+
+            // env を差し替えると PATH が消えて mysqldump 自体が起動できない。継承のままにする。
+            $process = new Process($args);
+            $process->setTimeout((float) config('storage_management.backup_timeout', 900));
+
+            $writeFailed = false;
+            $process->run(function (string $type, string $buffer) use ($gz, $process, &$writeFailed): void {
+                if ($type === Process::ERR || $writeFailed) {
+                    return;
+                }
+                if (gzwrite($gz, $buffer) === false) {
+                    $writeFailed = true;
+                    $process->stop(0);
+
+                    return;
+                }
+                $process->clearOutput();
+            });
+
+            if ($writeFailed) {
+                throw new \RuntimeException('gzip write failed');
+            }
+            if (! $process->isSuccessful()) {
+                throw new \RuntimeException(trim($process->getErrorOutput()) ?: 'mysqldump failed');
+            }
+        } finally {
+            if (is_file($defaults)) {
+                @unlink($defaults);
+            }
+        }
+    }
+
+    /**
+     * mysqldump のパスワードを argv / MYSQL_PWD に出さない。
+     * MYSQL_PWD は MySQL 8 系で無視されることがあり、その場合は PHP ダンプへ落ちる。
+     *
+     * @param  array<string, mixed>  $cfg
+     */
+    private function writeMysqlDefaultsFile(array $cfg): string
+    {
+        $path = storage_path('app/backup-tmp/my-'.Str::lower(Str::random(10)).'.cnf');
+        $dir = dirname($path);
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        $escape = static function (string $value): string {
+            return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+        };
+
+        $lines = [
+            '[client]',
+            'host='.$escape((string) ($cfg['host'] ?? '127.0.0.1')),
+            'port='.(string) ($cfg['port'] ?? 3306),
+            'user='.$escape((string) ($cfg['username'] ?? '')),
+            'password='.$escape((string) ($cfg['password'] ?? '')),
+            'default-character-set=utf8mb4',
         ];
-
-        // パスワードを argv に置くと共有サーバーでは ps から読めるため、環境変数で渡す。
-        $env = [];
-        $password = (string) ($cfg['password'] ?? '');
-        if ($password !== '') {
-            $env['MYSQL_PWD'] = $password;
+        $socket = trim((string) ($cfg['unix_socket'] ?? ''));
+        if ($socket !== '') {
+            $lines[] = 'socket='.$escape($socket);
         }
 
-        $process = new Process($args, null, $env);
-        $process->setTimeout((float) config('storage_management.backup_timeout', 900));
-
-        $writeFailed = false;
-        $process->run(function (string $type, string $buffer) use ($gz, $process, &$writeFailed): void {
-            if ($type === Process::ERR || $writeFailed) {
-                return;
-            }
-            if (gzwrite($gz, $buffer) === false) {
-                $writeFailed = true;
-                $process->stop(0);
-
-                return;
-            }
-            // 標準出力を内部バッファに溜めない。
-            $process->clearOutput();
-        });
-
-        if ($writeFailed) {
-            throw new \RuntimeException('gzip write failed');
+        if (file_put_contents($path, implode("\n", $lines)."\n") === false) {
+            throw new \RuntimeException('defaults file write failed');
         }
-        if (! $process->isSuccessful()) {
-            throw new \RuntimeException(trim($process->getErrorOutput()) ?: 'mysqldump failed');
-        }
+        @chmod($path, 0600);
+
+        return $path;
     }
 
     /**
@@ -189,15 +228,31 @@ class DatabaseBackupService
      */
     private function dumpRows($gz, string $table): void
     {
-        $chunk = 500;
-        $hasId = Schema::hasColumn($table, 'id');
-        $lastId = 0;
+        $chunk = 200;
+        $columns = $this->columnNames($table);
+        $idColumn = $this->idColumnName($columns);
+        $lastId = null;
         $offset = 0;
+        $useId = $idColumn !== null;
+
+        if ($useId) {
+            $probe = DB::table($table)->limit(1)->first();
+            if ($probe === null) {
+                return;
+            }
+            $probeData = $this->rowToAssociative($probe, $columns);
+            if ($this->valueIgnoringCase($probeData, $idColumn) === null) {
+                $useId = false;
+            }
+        }
 
         while (true) {
             $query = DB::table($table);
-            if ($hasId) {
-                $query->where('id', '>', $lastId)->orderBy('id');
+            if ($useId && $idColumn !== null) {
+                if ($lastId !== null) {
+                    $query->where($idColumn, '>', $lastId);
+                }
+                $query->orderBy($idColumn);
             } else {
                 $query->offset($offset);
             }
@@ -207,7 +262,10 @@ class DatabaseBackupService
             }
 
             foreach ($rows as $row) {
-                $data = (array) $row;
+                $data = $this->rowToAssociative($row, $columns);
+                if ($data === []) {
+                    continue;
+                }
                 $cols = array_map(fn ($c) => '`'.str_replace('`', '', (string) $c).'`', array_keys($data));
                 $vals = array_map(function ($v) {
                     if ($v === null) {
@@ -217,8 +275,11 @@ class DatabaseBackupService
                     return DB::getPdo()->quote((string) $v);
                 }, array_values($data));
                 $this->write($gz, 'INSERT INTO `'.$table.'` ('.implode(',', $cols).') VALUES ('.implode(',', $vals).");\n");
-                if ($hasId) {
-                    $lastId = (int) $data['id'];
+                if ($useId && $idColumn !== null) {
+                    $id = $this->valueIgnoringCase($data, $idColumn);
+                    if ($id !== null) {
+                        $lastId = $id;
+                    }
                 }
             }
 
@@ -227,6 +288,81 @@ class DatabaseBackupService
                 return;
             }
         }
+    }
+
+    /** @return list<string> */
+    private function columnNames(string $table): array
+    {
+        try {
+            return array_values(array_map('strval', Schema::getColumnListing($table)));
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /** @param  list<string>  $columns */
+    private function idColumnName(array $columns): ?string
+    {
+        foreach ($columns as $column) {
+            if (strcasecmp($column, 'id') === 0) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * PDO の FETCH_NUM / CASE_UPPER でも連想配列に揃える。
+     *
+     * @param  list<string>  $columns
+     * @return array<string, mixed>
+     */
+    private function rowToAssociative(mixed $row, array $columns): array
+    {
+        $data = is_object($row) ? get_object_vars($row) : (array) $row;
+        $assoc = [];
+        $numeric = [];
+        foreach ($data as $key => $value) {
+            if (is_int($key) || (is_string($key) && $key !== '' && ctype_digit($key))) {
+                $numeric[(int) $key] = $value;
+
+                continue;
+            }
+            if (is_string($key) && $key !== '') {
+                $assoc[$key] = $value;
+            }
+        }
+        if ($assoc !== []) {
+            return $assoc;
+        }
+
+        ksort($numeric);
+        $values = array_values($numeric);
+        if ($columns !== [] && count($columns) === count($values)) {
+            $combined = array_combine($columns, $values);
+
+            return $combined !== false ? $combined : [];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function valueIgnoringCase(array $data, string $name): mixed
+    {
+        if (array_key_exists($name, $data)) {
+            return $data[$name];
+        }
+        foreach ($data as $key => $value) {
+            if (strcasecmp((string) $key, $name) === 0) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function createStatement(string $table): ?string
@@ -270,7 +406,10 @@ class DatabaseBackupService
                 ->all();
         }
 
-        return array_map(fn ($r) => (string) array_values((array) $r)[0], DB::select('SHOW TABLES'));
+        return array_map(
+            fn ($r) => (string) array_values((array) $r)[0],
+            DB::select("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")
+        );
     }
 
     private function prune(int $keepDays): void

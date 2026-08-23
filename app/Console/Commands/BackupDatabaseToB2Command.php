@@ -14,7 +14,7 @@ class BackupDatabaseToB2Command extends Command
 
     public function handle(DatabaseBackupService $backup): int
     {
-        @set_time_limit(180);
+        @set_time_limit((int) config('storage_management.backup_timeout', 900));
         $result = $backup->run();
         if (! $result['ok']) {
             $this->warn($result['reason'] ?: 'backup skipped');
