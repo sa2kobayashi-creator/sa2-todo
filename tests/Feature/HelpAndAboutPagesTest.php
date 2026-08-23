@@ -32,6 +32,49 @@ class HelpAndAboutPagesTest extends TestCase
             ->assertOk()
             ->assertSee(__('Sa2 Plus について'), false)
             ->assertSee('Laravel', false);
+
+        $this->actingAs($user)->get('/help')
+            ->assertOk()
+            ->assertDontSee('href="/help/overview"', false);
+    }
+
+    public function test_admin_help_includes_overview_and_usage_guide(): void
+    {
+        $admin = User::create([
+            'email' => 'admin-help-docs@example.com',
+            'display_name' => 'Admin',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Admin,
+        ]);
+
+        $this->actingAs($admin)->get('/help')
+            ->assertOk()
+            ->assertSee('通常のヘルプ', false)
+            ->assertSee('このアプリの概要', false)
+            ->assertSee('このアプリの使用方法', false);
+
+        $this->actingAs($admin)->get('/help/overview')
+            ->assertOk()
+            ->assertSee('このアプリの概要', false)
+            ->assertSee('管理者（あなた）', false);
+
+        $this->actingAs($admin)->get('/help/guide')
+            ->assertOk()
+            ->assertSee('このアプリの使用方法', false)
+            ->assertSee('最初にやること', false);
+    }
+
+    public function test_standard_user_cannot_open_admin_help_guides(): void
+    {
+        $user = User::create([
+            'email' => 'standard-help-docs@example.com',
+            'display_name' => 'Standard',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Standard,
+        ]);
+
+        $this->actingAs($user)->get('/help/overview')->assertForbidden();
+        $this->actingAs($user)->get('/help/guide')->assertForbidden();
     }
 
     public function test_admin_can_send_an_inquiry_to_the_operator(): void

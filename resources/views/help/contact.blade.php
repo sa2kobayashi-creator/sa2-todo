@@ -15,6 +15,7 @@
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
       @include('partials.settings-subnav', ['active' => 'contact'])
+      @include('help.partials.topics', ['helpTopic' => 'contact'])
 
       <div class="panel">
         <h1>{{ __('お問い合わせ') }}</h1>

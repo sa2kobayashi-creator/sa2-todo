@@ -14,72 +14,76 @@
       @if(!empty($canSettings))
         @include('partials.settings-subnav', ['active' => 'help'])
       @endif
+      @include('help.partials.topics', ['helpTopic' => 'basic'])
+
       <div class="panel">
         <h1>{{ __('ヘルプ') }}</h1>
-        <p class="hint">{{ __('Sa2 Plus の基本的な使い方です。権限やメニューはアカウントごとに異なります。') }}</p>
+        <p class="hint">{{ __('画面の基本的な使い方です。権限やメニューはアカウントごとに異なります。') }}</p>
 
         @if(($htmlLang ?? app()->getLocale()) === 'en')
-          <section class="help-section" style="line-height:1.7;">
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Getting started</h2>
+          <section class="help-section">
+            <h2>Getting started</h2>
             <ul>
-              <li>Open <strong>Dashboard</strong> for today’s overview and shortcuts.</li>
-              <li>Use the bottom bar (phone) or header (web) to switch features.</li>
-              <li>Personal links (Google Calendar, LINE, Messenger) are on <a href="/mypage">My Page</a>.</li>
+              <li>Open <strong>Dashboard</strong> for today and shortcuts. Switch <strong>Personal / Work</strong> in the header.</li>
+              <li>Phone: bottom bar. PC: header. Extra items are in the ⋮ menu.</li>
+              <li>Google Calendar, LINE, and Messenger are linked on <a href="/mypage">My Page</a> (your own account, not the app login).</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Todos &amp; notes</h2>
+            <h2>ToDos &amp; notes</h2>
             <ul>
-              <li>Todos support calendar/list views, reminders, and group sharing when available.</li>
-              <li>Notes can be pinned, archived, and filtered by category or date.</li>
+              <li>ToDos have list and calendar views, reminders, and group sharing when your role allows it.</li>
+              <li>Notes can be pinned, archived, and filtered. If translation is set up, use the translate button (Japanese ⇔ English).</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Photos</h2>
+            <h2>Photos</h2>
             <ul>
-              <li>Each account has a free storage allowance. Uploads stop when the free quota is full (unless paid overage is enabled later).</li>
-              <li>Albums can be private or shared with your groups.</li>
+              <li>Each account has a free storage allowance. Uploads stop when that quota is full.</li>
+              <li>Albums can be private or shared with groups you belong to.</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Groups &amp; messages</h2>
+            <h2>Messages, mail, and more</h2>
             <ul>
-              <li>Join groups by invite/acceptance. You cannot browse every user’s email.</li>
-              <li>Message delivery depends on linked channels (LINE / Messenger) configured by an admin.</li>
+              <li>Groups are join-by-invite. You cannot browse every user’s email.</li>
+              <li>LINE / Messenger reminders need an admin to save the channel, then you link on My Page.</li>
+              <li>Other menus (expenses, maps, transit, translate, music, videos, mail) appear when your account includes them.</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Account</h2>
+            <h2>Account</h2>
             <ul>
               <li><a href="/mypage">My Page</a>: profile, password, integrations, data export, account deletion.</li>
-              <li>Export downloads JSON metadata (photo/music binary files are not included).</li>
-              <li>Need a menu or higher role? Ask an administrator.</li>
+              <li>Export is JSON metadata (photo/music files themselves are not included).</li>
+              <li>Need another menu or a higher role? Ask an administrator.</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Legal</h2>
+            <h2>Legal</h2>
             <p><a href="/terms">{{ __('利用規約') }}</a> · <a href="/privacy">{{ __('プライバシーポリシー') }}</a> · <a href="/about">{{ __('Sa2 Plus について') }}</a></p>
           </section>
         @else
-          <section class="help-section" style="line-height:1.7;">
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">はじめての方へ</h2>
+          <section class="help-section">
+            <h2>はじめての方へ</h2>
             <ul>
-              <li><strong>ダッシュボード</strong>で今日の予定やショートカットを確認できます。</li>
-              <li>スマホは画面下のメニュー、PCは上部メニューで機能を切り替えます。</li>
-              <li>Googleカレンダー／LINE／Messenger の個人連携は <a href="/mypage">マイページ</a> から行います。</li>
+              <li><strong>ダッシュボード</strong>で今日の予定とショートカットを見ます。ヘッダーの<strong>個人／仕事</strong>で表示を切り替えられます。</li>
+              <li>スマホは画面下のメニュー、PCは上部メニューです。入りきらない項目は「⋮」にあります。</li>
+              <li>Googleカレンダー／LINE／Messenger の個人連携は <a href="/mypage">マイページ</a> です（このアプリのログインとは別です）。</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Todo・メモ</h2>
+            <h2>Todo・メモ</h2>
             <ul>
-              <li>Todo はカレンダー／一覧表示、リマインダ、（権限があれば）グループ共有が使えます。</li>
-              <li>メモはピン留め・アーカイブ、カテゴリや日付での絞り込みができます。</li>
+              <li>Todo は一覧またはカレンダー、リマインダ、権限があればグループ共有が使えます。</li>
+              <li>メモはピン留め・アーカイブ、カテゴリや日付での絞り込みができます。翻訳が使える場合は、日本語⇔英語の「訳」ボタンがあります。</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">Photos</h2>
+            <h2>Photos</h2>
             <ul>
-              <li>ユーザーごとに無料のストレージ枠があります。枠を超えると追加アップロードが止まることがあります。</li>
+              <li>ユーザーごとに無料の保管枠があります。枠を超えると追加アップロードが止まることがあります。</li>
               <li>アルバムは非公開、または所属グループへの共有ができます。</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">グループ・メッセージ</h2>
+            <h2>メッセージ・メール・その他</h2>
             <ul>
               <li>グループは招待／承諾で参加します。全ユーザーのメール一覧は出ません。</li>
-              <li>LINE／Messenger 通知は、管理者がチャネル設定したうえで、各自がマイページで連携します。</li>
+              <li>LINE／Messenger 通知は、管理者がチャネルを設定したあと、各自がマイページで連携します。</li>
+              <li>入出金、マップ、路線、翻訳、音楽、動画、メールなどは、アカウントにメニューがあるとき表示されます。</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">アカウント</h2>
+            <h2>アカウント</h2>
             <ul>
               <li><a href="/mypage">マイページ</a>：プロフィール、パスワード、連携、データエクスポート、退会。</li>
-              <li>エクスポートは JSON（写真・音楽のファイル本体は含みません）。</li>
-              <li>使いたいメニューや権限の変更は管理者に依頼してください。</li>
+              <li>エクスポートは JSON です（写真・音楽のファイル本体は含みません）。</li>
+              <li>使いたいメニューや権限の変更は、管理者に依頼してください。</li>
             </ul>
-            <h2 style="font-size:1.05rem;margin-top:1.25rem;">関連ページ</h2>
+            <h2>関連ページ</h2>
             <p><a href="/terms">{{ __('利用規約') }}</a> · <a href="/privacy">{{ __('プライバシーポリシー') }}</a> · <a href="/about">{{ __('Sa2 Plus について') }}</a></p>
           </section>
         @endif

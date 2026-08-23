@@ -296,6 +296,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/help', [HelpController::class, 'index']);
     Route::get('/about', [HelpController::class, 'about']);
     Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {
+        Route::get('/help/overview', [HelpController::class, 'overview']);
+        Route::get('/help/guide', [HelpController::class, 'guide']);
         Route::get('/contact', [HelpController::class, 'contact']);
         Route::post('/contact', [HelpController::class, 'sendInquiry'])->middleware('throttle:contact-inquiry');
     });

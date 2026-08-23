@@ -42,6 +42,16 @@ class HelpController extends Controller
         ]);
     }
 
+    public function overview(): View
+    {
+        return view('help.overview');
+    }
+
+    public function guide(): View
+    {
+        return view('help.guide');
+    }
+
     public function contact(Request $request): View
     {
         return view('help.contact', $this->flashFromQuery($request));
