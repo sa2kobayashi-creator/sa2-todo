@@ -20,5 +20,6 @@
   @endif
   @if(!empty($canSuperAdmin))
     <a href="/admin/sales/estimate" @class(['active' => $navActive === 'admin-sales'])>{{ __('見積（専用）') }}</a>
+    <a href="/admin/storage-archive" @class(['active' => $navActive === 'admin-storage'])>{{ __('ストレージ監視') }}</a>
   @endif
 </nav>

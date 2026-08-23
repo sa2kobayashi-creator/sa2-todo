@@ -345,6 +345,296 @@ class MailClientService
         }
     }
 
+    /** IMAP QUOTA があれば使用量（バイト）。未対応時は null。 */
+    public function mailboxUsedBytes(MailAccount $account): ?int
+    {
+        $client = $this->connect($account);
+        try {
+            if (method_exists($client, 'getQuota')) {
+                $quota = $client->getQuota();
+                $parsed = $this->parseQuotaUsedBytes($quota);
+                if ($parsed !== null) {
+                    return $parsed;
+                }
+            }
+            if (method_exists($client, 'getQuotaRoot')) {
+                $quota = $client->getQuotaRoot('INBOX');
+                $parsed = $this->parseQuotaUsedBytes($quota);
+                if ($parsed !== null) {
+                    return $parsed;
+                }
+            }
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            try {
+                $client->disconnect();
+            } catch (\Throwable) {
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 古い順のメッセージ（本文なし）。フラグ付きは除外。
+     *
+     * @return list<array{uid: int, subject: string, from: string, to: string, date: ?\Carbon\Carbon, size: int, flagged: bool}>
+     */
+    public function oldestMessages(MailAccount $account, string $folderPath, int $limit = 10): array
+    {
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $folderPath);
+            $query = $folder->messages()
+                ->setFetchBody(false)
+                ->setFetchFlags(true)
+                ->leaveUnread();
+            if (method_exists($query, 'setFetchOrder')) {
+                $query->setFetchOrder('asc');
+            }
+            $collection = $query->limit($limit * 3, 1)->get();
+            $rows = [];
+            foreach ($collection as $message) {
+                $flagged = false;
+                try {
+                    $flagged = (bool) $message->getFlags()->get('flagged', false);
+                } catch (\Throwable) {
+                }
+                $date = null;
+                try {
+                    $rawDate = $message->getDate();
+                    $date = $rawDate ? \Carbon\Carbon::parse((string) $rawDate) : null;
+                } catch (\Throwable) {
+                }
+                $size = 0;
+                try {
+                    $size = (int) ($message->getSize() ?? 0);
+                } catch (\Throwable) {
+                }
+                $rows[] = [
+                    'uid' => (int) $message->getUid(),
+                    'subject' => trim((string) ($message->getSubject() ?? '')),
+                    'from' => $this->addressListToString($this->safeGet($message, 'getFrom')),
+                    'to' => $this->addressListToString($this->safeGet($message, 'getTo')),
+                    'date' => $date,
+                    'size' => $size,
+                    'flagged' => $flagged,
+                ];
+            }
+            usort($rows, function (array $a, array $b) {
+                $ta = $a['date']?->getTimestamp() ?? 0;
+                $tb = $b['date']?->getTimestamp() ?? 0;
+
+                return $ta <=> $tb;
+            });
+
+            return array_slice($rows, 0, $limit);
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    /**
+     * 複数 UID の原本を1接続でまとめて取得する。取得できなかった UID は含めない。
+     *
+     * @param  list<int>  $uids
+     * @return array<int, string>
+     */
+    public function exportRawMessages(MailAccount $account, string $folderPath, array $uids): array
+    {
+        $uids = array_values(array_unique(array_filter(array_map('intval', $uids))));
+        if ($uids === []) {
+            return [];
+        }
+
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $folderPath);
+            $out = [];
+            foreach ($uids as $uid) {
+                try {
+                    $message = $folder->messages()->setFetchBody(true)->setFetchFlags(true)->leaveUnread()->getMessageByUid($uid);
+                    if (! $message) {
+                        continue;
+                    }
+                    $raw = $this->rawFromMessage($message);
+                    if ($raw !== '') {
+                        $out[$uid] = $raw;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('mail.export_raw_failed', [
+                        'account_id' => $account->id,
+                        'uid' => $uid,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return $out;
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    public function exportRawMessage(MailAccount $account, string $folderPath, int $uid): string
+    {
+        $raw = $this->exportRawMessages($account, $folderPath, [$uid])[$uid] ?? '';
+        if ($raw === '') {
+            throw new \RuntimeException(__('メールの原本を取得できませんでした。'));
+        }
+
+        return $raw;
+    }
+
+    /**
+     * 複数 UID を1接続でまとめて削除する。
+     *
+     * @param  list<int>  $uids
+     * @return list<int> 削除できた UID
+     */
+    public function expungeMessages(MailAccount $account, string $folderPath, array $uids): array
+    {
+        $uids = array_values(array_unique(array_filter(array_map('intval', $uids))));
+        if ($uids === []) {
+            return [];
+        }
+
+        $client = $this->connect($account);
+        try {
+            $folder = $this->openFolder($client, $folderPath);
+            $done = [];
+            foreach ($uids as $uid) {
+                try {
+                    $message = $folder->query()->getMessageByUid($uid);
+                    if (! $message) {
+                        // 既に無いなら目的は達成されている。
+                        $done[] = $uid;
+
+                        continue;
+                    }
+                    if (method_exists($message, 'delete')) {
+                        $message->delete(true);
+                    } else {
+                        $message->setFlag('Deleted');
+                        if (method_exists($folder, 'expunge')) {
+                            $folder->expunge();
+                        }
+                    }
+                    $done[] = $uid;
+                } catch (\Throwable $e) {
+                    Log::warning('mail.expunge_failed', [
+                        'account_id' => $account->id,
+                        'uid' => $uid,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            $this->forgetAccountCache($account);
+
+            return $done;
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    public function expungeMessage(MailAccount $account, string $folderPath, int $uid): void
+    {
+        if ($this->expungeMessages($account, $folderPath, [$uid]) === []) {
+            throw new \RuntimeException(__('メールを削除できませんでした。'));
+        }
+    }
+
+    private function rawFromMessage(mixed $message): string
+    {
+        if (method_exists($message, 'getHeader')) {
+            $header = '';
+            try {
+                $header = (string) $message->getHeader()->raw();
+            } catch (\Throwable) {
+                try {
+                    $header = (string) $message->getHeader();
+                } catch (\Throwable) {
+                    $header = '';
+                }
+            }
+            $body = '';
+            if (method_exists($message, 'getRawBody')) {
+                try {
+                    $body = (string) $message->getRawBody();
+                } catch (\Throwable) {
+                    $body = '';
+                }
+            }
+            // 本文が空のメール（件名のみ等）でもヘッダがあれば原本として成立する。
+            if ($header !== '') {
+                return rtrim($header, "\r\n")."\r\n\r\n".$body;
+            }
+        }
+
+        if (method_exists($message, 'toString')) {
+            try {
+                $raw = (string) $message->toString();
+                if ($raw !== '') {
+                    return $raw;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return '';
+    }
+
+    private function parseQuotaUsedBytes(mixed $quota): ?int
+    {
+        if (! is_array($quota)) {
+            return null;
+        }
+        foreach (['used', 'usage', 'STORAGE'] as $key) {
+            if (! isset($quota[$key])) {
+                continue;
+            }
+            $used = $quota[$key];
+            if (is_array($used)) {
+                $used = $used['used'] ?? $used[0] ?? null;
+            }
+            if (is_numeric($used)) {
+                $n = (int) $used;
+
+                return $n > 1048576 ? $n : $n * 1024;
+            }
+        }
+        if (isset($quota['storage']) && is_array($quota['storage']) && isset($quota['storage']['usage'])) {
+            return ((int) $quota['storage']['usage']) * 1024;
+        }
+
+        return null;
+    }
+
+    private function safeGet(object $message, string $method): mixed
+    {
+        try {
+            return $message->{$method}();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function addressListToString(mixed $list): string
+    {
+        if ($list === null) {
+            return '';
+        }
+        if (is_string($list)) {
+            return $list;
+        }
+        try {
+            return trim((string) $list);
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
     public function getMessageFromEmail(MailAccount $account, string $folderPath, int $uid): string
     {
         if ($uid < 1 || $folderPath === '') {
@@ -385,6 +675,9 @@ class MailClientService
     {
         $rawPath = trim($path);
         $lowerPath = mb_strtolower(str_replace('/', '.', $rawPath));
+        if ($lowerPath === 'sa2.b2') {
+            return 'cold';
+        }
         // アプリ管理: Sa2.* / INBOX.Sa2.*
         if (preg_match('/(?:^|[.])sa2[.]/i', $lowerPath) === 1) {
             return match (true) {

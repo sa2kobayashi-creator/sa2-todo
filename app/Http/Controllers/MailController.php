@@ -28,6 +28,7 @@ class MailController extends Controller
         private MailFolderService $folders,
         private MailActionService $actions,
         private Sa2PlusMailboxService $domainMail,
+        private \App\Services\MailColdArchiveService $mailArchives,
     ) {}
 
     public function index(Request $request)
@@ -113,6 +114,29 @@ class MailController extends Controller
             $page = max(1, (int) $request->query('page', 1));
             $refresh = $request->boolean('refresh');
 
+            if (\App\Services\MailColdArchiveService::isVirtualFolder($folder) && $account->is_sa2_plus_mailbox) {
+                $messages = $this->mailArchives->page($account, $page);
+                $count = $this->mailArchives->count($account);
+                $folders = [['name' => __('長期保存'), 'path' => \App\Services\MailColdArchiveService::FOLDER_PATH, 'messages' => $count, 'kind' => 'cold']];
+                $systemFolders = $this->withColdArchiveFolder($account, [
+                    ['name' => 'INBOX', 'path' => 'INBOX', 'messages' => 0, 'kind' => 'inbox'],
+                ]);
+
+                return response()->json([
+                    'ok' => true,
+                    'folders' => $folders,
+                    'systemFolders' => $systemFolders,
+                    'labels' => [],
+                    'userFolders' => [],
+                    'isSa2Plus' => true,
+                    'folder' => \App\Services\MailColdArchiveService::FOLDER_PATH,
+                    'messages' => $messages,
+                    'message' => $uid > 0 ? $this->mailArchives->read($account, $uid) : null,
+                    'page' => $page,
+                    'cached' => true,
+                ]);
+            }
+
             if ($refresh) {
                 $this->metadataSync->syncInbox($account);
             }
@@ -156,7 +180,7 @@ class MailController extends Controller
                 );
             }
 
-            $systemFolders = $this->client->systemFolderMenu($account, $folders);
+            $systemFolders = $this->withColdArchiveFolder($account, $this->client->systemFolderMenu($account, $folders));
 
             // ラベルなど、まだ無いアプリフォルダを開くときに作成
             if ($this->client->isDomainMailbox($account) && $folder !== 'INBOX') {
@@ -171,7 +195,7 @@ class MailController extends Controller
                     try {
                         $this->client->ensureFolder($account, $folder);
                         $folders = $this->client->listFolders($account, true);
-                        $systemFolders = $this->client->systemFolderMenu($account, $folders);
+                        $systemFolders = $this->withColdArchiveFolder($account, $this->client->systemFolderMenu($account, $folders));
                         $folder = $this->client->resolveFolderPath($folders, $folder);
                     } catch (\Throwable $e) {
                         Log::warning('mail.ensure_folder_failed', [
@@ -231,7 +255,7 @@ class MailController extends Controller
             return response()->json([
                 'ok' => true,
                 'folders' => $responseFolders,
-                'systemFolders' => $this->client->systemFolderMenu($account, $responseFolders),
+                'systemFolders' => $this->withColdArchiveFolder($account, $this->client->systemFolderMenu($account, $responseFolders)),
                 'labels' => $labels,
                 'userFolders' => $userFolders,
                 'isSa2Plus' => (bool) $account->is_sa2_plus_mailbox,
@@ -279,6 +303,19 @@ class MailController extends Controller
             $folder = $folder !== '' ? $folder : 'INBOX';
             $uid = (int) $request->query('uid', 0);
             $refresh = $request->boolean('refresh');
+            if (\App\Services\MailColdArchiveService::isVirtualFolder($folder) && $account->is_sa2_plus_mailbox) {
+                if ($uid < 1) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => __('メールが選ばれていません。'),
+                    ], 422);
+                }
+
+                return response()->json([
+                    'ok' => true,
+                    'message' => $this->mailArchives->read($account, $uid),
+                ]);
+            }
             if ($uid < 1) {
                 return response()->json([
                     'ok' => false,
@@ -600,5 +637,30 @@ class MailController extends Controller
             : __('解約を依頼しました。管理者がメールボックスを停止するまでお待ちください。');
 
         return $this->redirectWithMessage('/mail?tab=domain', $message);
+    }
+
+    /**
+     * @param  list<array{name?: string, path?: string, messages?: int, kind?: string}>  $menu
+     * @return list<array{name: string, path: string, messages: int, kind: string}>
+     */
+    private function withColdArchiveFolder(\App\Models\MailAccount $account, array $menu): array
+    {
+        if (! $account->is_sa2_plus_mailbox) {
+            return $menu;
+        }
+        $path = \App\Services\MailColdArchiveService::FOLDER_PATH;
+        foreach ($menu as $row) {
+            if (($row['path'] ?? '') === $path || ($row['kind'] ?? '') === 'cold') {
+                return $menu;
+            }
+        }
+        $menu[] = [
+            'name' => __('長期保存'),
+            'path' => $path,
+            'messages' => $this->mailArchives->count($account),
+            'kind' => 'cold',
+        ];
+
+        return $menu;
     }
 }

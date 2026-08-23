@@ -284,6 +284,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
     });
 
+    Route::get('/archives', [\App\Http\Controllers\DataArchiveController::class, 'index']);
+    Route::post('/archives/{id}/restore', [\App\Http\Controllers\DataArchiveController::class, 'restore'])->whereNumber('id');
+    Route::post('/archives/keep', [\App\Http\Controllers\DataArchiveController::class, 'keep']);
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::post('/mypage', [MyPageController::class, 'update']);
     Route::get('/mypage/export', [MyPageController::class, 'export']);
@@ -468,5 +471,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
         Route::get('/admin/sales/estimate', [AdminSalesEstimateController::class, 'show']);
+        Route::get('/admin/storage-archive', [\App\Http\Controllers\Admin\StorageArchiveController::class, 'show']);
     });
 });

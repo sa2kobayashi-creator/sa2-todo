@@ -1,8 +1,10 @@
 <?php
 
 use App\Console\Commands\ArchivePhotosToBackblaze;
+use App\Console\Commands\BackupDatabaseToB2Command;
 use App\Console\Commands\CheckTravelAlerts;
 use App\Console\Commands\FetchTravelPromos;
+use App\Console\Commands\ManageStorageCommand;
 use App\Console\Commands\SyncMailMetadata;
 use App\Console\Commands\TickPhotoColdArchive;
 use App\Services\PhotoColdArchiveRunService;
@@ -13,6 +15,14 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Schedule::command(ManageStorageCommand::class)
+    ->hourly()
+    ->withoutOverlapping(10);
+
+Schedule::command(BackupDatabaseToB2Command::class)
+    ->dailyAt('03:00')
+    ->withoutOverlapping();
 
 Schedule::command(ArchivePhotosToBackblaze::class)
     ->dailyAt('03:30')

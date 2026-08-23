@@ -12835,6 +12835,17 @@ body.photos-is-busy .photos-main {
   pointer-events: none;
 }
 
+.archive-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.archive-list li {
+  padding: 12px 0;
+  border-top: 1px solid var(--line, #e5e7eb);
+}
+
 .photos-pending-bar {
   display: flex;
   flex-wrap: wrap;

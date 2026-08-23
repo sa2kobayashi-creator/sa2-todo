@@ -14,6 +14,7 @@ class Todo extends Model
         'title',
         'memo',
         'completed',
+        'keep_on_server',
         'start_date',
         'end_date',
         'start_time',
@@ -33,6 +34,7 @@ class Todo extends Model
     {
         return [
             'completed' => 'boolean',
+            'keep_on_server' => 'boolean',
             'start_date' => 'date:Y-m-d',
             'end_date' => 'date:Y-m-d',
             'reminders' => 'array',

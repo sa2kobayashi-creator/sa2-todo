@@ -85,6 +85,7 @@
                   <span class="hint" style="display:block;margin-top:6px;">{{ __('有料超過が許可されています。') }}</span>
                 @endif
                 <a href="/photos" style="display:inline-block;margin-top:8px;">{{ __('Photos を開く') }}</a>
+                <a href="/archives" style="display:inline-block;margin-top:8px;margin-left:12px;">{{ __('過去データの長期保存') }}</a>
               </dd>
             </div>
           @endif

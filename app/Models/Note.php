@@ -18,6 +18,7 @@ class Note extends Model
         'pinned',
         'sort_order',
         'archived',
+        'keep_on_server',
         'completed',
         'type',
         'category',
@@ -30,6 +31,7 @@ class Note extends Model
         return [
             'pinned' => 'boolean',
             'archived' => 'boolean',
+            'keep_on_server' => 'boolean',
             'completed' => 'boolean',
             'sort_order' => 'integer',
             'items' => 'array',

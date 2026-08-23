@@ -736,6 +736,7 @@
           drafts: @json(__('下書き')),
           spam: @json(__('迷惑メール')),
           archive: @json(__('アーカイブ')),
+          cold: @json(__('長期保存')),
           trash: @json(__('ゴミ箱')),
           labels: @json(__('ラベル')),
           folders: @json(__('フォルダ')),
@@ -795,6 +796,7 @@
           if (probe === 'inbox' || probe.includes('受信')) return 'inbox';
           if (probe.includes('sent') || probe.includes('送信')) return 'sent';
           if (probe.includes('draft') || probe.includes('下書き')) return 'drafts';
+          if (probe.includes('sa2.b2') || probe.includes('長期保存')) return 'cold';
           if (probe.includes('archive') || probe.includes('アーカイブ')) return 'archive';
           if (probe.includes('junk') || probe.includes('spam') || probe.includes('迷惑')) return 'spam';
           if (probe.includes('trash') || probe.includes('bin') || probe.includes('deleted') || probe.includes('ごみ') || probe.includes('ゴミ箱') || probe.includes('削除')) return 'trash';
@@ -813,7 +815,7 @@
 
         function updateBulkUi() {
           const count = state.selected.size;
-          if (bulkBar) bulkBar.hidden = count < 1;
+          if (bulkBar) bulkBar.hidden = count < 1 || currentFolderKind() === 'cold';
           if (bulkCount) {
             bulkCount.textContent = count > 0
               ? i18n.selected.replace(':count', String(count))
@@ -918,6 +920,7 @@
           if (kind === 'sent') return i18n.sent;
           if (kind === 'drafts') return i18n.drafts;
           if (kind === 'archive') return i18n.archive;
+          if (kind === 'cold') return i18n.cold || @json(__('長期保存'));
           if (kind === 'spam') return i18n.spam;
           if (kind === 'trash') return i18n.trash;
           const rawName = String(folder.name || '').trim();
@@ -991,6 +994,8 @@
             if (found) return found;
             return defaults[kind];
           }).filter(Boolean);
+          const cold = fromApi.find((f) => kindOf(f) === 'cold');
+          if (cold && !items.some((f) => kindOf(f) === 'cold')) items.push(cold);
           const labelFolders = [];
           (labels || []).forEach((lab) => {
             labelFolders.push({
