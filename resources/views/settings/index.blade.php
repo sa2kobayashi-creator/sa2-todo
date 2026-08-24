@@ -11,17 +11,17 @@
   </head>
   <body>
     @include('partials.header', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
-    <main class="page-main {{ in_array(($section ?? ''), ['integration', 'storage', 'enhance', 'usage'], true) ? '' : 'page-main-narrow' }}">
+    <main class="page-main">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
-
-      @include('partials.settings-subnav', ['active' => 'settings', 'settingsSection' => $section ?? 'holidays'])
 
       @if(($section ?? 'holidays') === 'nav')
         @include('settings.partials.nav')
       @elseif(($section ?? 'holidays') === 'usage')
         @include('settings.partials.usage')
-      @elseif(($section ?? 'holidays') === 'holidays')
+      @else
+      @include('settings.partials.setup-tabs')
+      @if(($section ?? 'holidays') === 'holidays')
       <div class="panel" id="weekday-holidays">
         <h2>{{ __('曜日による休日') }}</h2>
         <p class="hint">{{ __('期間内でチェックした曜日を定休日にします。除外日を指定すると、その日だけ休日になりません。') }}</p>
@@ -457,6 +457,7 @@
         @endif
       @elseif(($section ?? '') === 'notifications')
       @include('settings.partials.notifications')
+      @endif
       @endif
     </main>
 

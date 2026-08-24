@@ -11,8 +11,6 @@
   <body>
     @include('partials.header', ['active' => 'admin-sales'])
     <main class="page-main page-main-narrow sales-estimate-page">
-      @include('partials.settings-subnav', ['active' => 'admin-sales'])
-
       <div class="panel sales-estimate-controls no-print">
         <h2>{{ __('見積条件') }}</h2>
         <p class="hint">{{ __('数字を変えて「反映」すると下の見積プレビューが更新されます。印刷してお客様に渡せます。') }}</p>

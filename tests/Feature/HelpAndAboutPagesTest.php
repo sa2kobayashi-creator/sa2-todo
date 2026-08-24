@@ -49,7 +49,8 @@ class HelpAndAboutPagesTest extends TestCase
 
         $this->actingAs($admin)->get('/help')
             ->assertOk()
-            ->assertSee('通常のヘルプ', false)
+            ->assertSee('ヘルプ', false)
+            ->assertDontSee('通常のヘルプ', false)
             ->assertSee('このアプリの概要', false)
             ->assertSee('このアプリの使用方法', false);
 

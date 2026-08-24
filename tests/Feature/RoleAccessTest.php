@@ -31,10 +31,17 @@ class RoleAccessTest extends TestCase
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-infra@example.com');
 
-        $this->actingAs($admin)->get('/settings')->assertOk();
+        $this->actingAs($admin)->get('/settings')
+            ->assertOk()
+            ->assertDontSee('settings-subnav', false)
+            ->assertDontSee('page-main-narrow', false);
         $this->actingAs($admin)->get('/settings?section=enhance')
             ->assertOk()
+            ->assertSee('初期設定', false)
             ->assertSee('API設定', false)
+            ->assertSee('settings-setup-tabs', false)
+            ->assertDontSee('settings-subnav', false)
+            ->assertDontSee('page-main-narrow', false)
             ->assertSee('Google マップ（Map / Transit）', false)
             ->assertSee('Google カレンダー（OAuth アプリ）', false)
             ->assertDontSee('写真鮮明化', false);

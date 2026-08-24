@@ -11,8 +11,6 @@
   <body>
     @include('partials.header', ['active' => 'admin-storage'])
     <main class="page-main page-main-narrow sales-estimate-page">
-      @include('partials.settings-subnav', ['active' => 'admin-storage'])
-
       <div class="panel">
         <h2>{{ __('ストレージ監視・アーカイブ') }}</h2>
         <p class="hint">{{ __('このサーバー全体の使用量です（ユーザーごとの内訳ではありません）。しきい値を超えた分の退避は、サーバーの定期処理（cron）が実行します。写真・動画の原本はロリポップには置きません。') }}</p>

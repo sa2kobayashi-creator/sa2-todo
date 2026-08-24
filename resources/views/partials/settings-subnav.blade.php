@@ -5,14 +5,9 @@
 <nav class="settings-subnav" aria-label="{{ __('設定メニュー') }}">
   @if(!empty($canSettings))
     <a href="/settings?section=nav" @class(['active' => $navActive === 'settings' && $navSection === 'nav'])>{{ __('表示メニュー管理') }}</a>
-    <a href="/settings?section=holidays" @class(['active' => $navActive === 'settings' && $navSection === 'holidays'])>{{ __('休日設定') }}</a>
-    <a href="/settings?section=ai&tab=translation" @class(['active' => $navActive === 'settings' && $navSection === 'ai'])>{{ __('AI設定') }}</a>
-    <a href="/settings?section=storage" @class(['active' => $navActive === 'settings' && $navSection === 'storage'])>{{ __('ストレージ設定') }}</a>
-    <a href="/settings?section=enhance" @class(['active' => $navActive === 'settings' && $navSection === 'enhance'])>{{ __('API設定') }}</a>
-    <a href="/settings?section=integration" @class(['active' => $navActive === 'settings' && $navSection === 'integration'])>{{ __('外部連携') }}</a>
-    <a href="/settings?section=notifications" @class(['active' => $navActive === 'settings' && $navSection === 'notifications'])>{{ __('通知設定') }}</a>
+    <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSection) }}" @class(['active' => $navActive === 'settings' && \App\Support\SettingsNav::isSetupSection($navSection)])>{{ __('初期設定') }}</a>
     <a href="/settings?section=usage" @class(['active' => $navActive === 'settings' && $navSection === 'usage'])>{{ __('使用量') }}</a>
-    <a href="/help" @class(['active' => $navActive === 'help'])>{{ __('通常のヘルプ') }}</a>
+    <a href="/help" @class(['active' => $navActive === 'help'])>{{ __('ヘルプ') }}</a>
     <a href="/help/overview" @class(['active' => $navActive === 'help-overview'])>{{ __('このアプリの概要') }}</a>
     <a href="/help/guide" @class(['active' => $navActive === 'help-guide'])>{{ __('このアプリの使用方法') }}</a>
     <a href="/contact" @class(['active' => $navActive === 'contact'])>{{ __('問い合わせ') }}</a>

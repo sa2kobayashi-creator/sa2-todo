@@ -1091,6 +1091,7 @@
     "プロモ情報の取得に失敗しました: :msg": "Failed to fetch promo info: :msg",
     "プロモ期限間近: :code": "Promo ending soon: :code",
     "ヘルプ": "Help",
+    "初期設定": "Initial setup",
     "管理者ヘルプ": "Admin help",
     "通常のヘルプ": "General help",
     "このアプリの概要": "About this app",

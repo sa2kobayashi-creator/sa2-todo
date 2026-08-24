@@ -14,8 +14,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      @include('partials.settings-subnav', ['active' => 'admin'])
-
       <div class="panel">
         <h2>{{ __('ユーザー管理') }}</h2>
         <p class="hint">{{ __('権限の基本メニューに加え、ユーザー単位で追加メニューを指定できます。グループ権限も合算されます。') }}</p>

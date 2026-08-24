@@ -14,8 +14,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      @include('partials.settings-subnav', ['active' => 'admin-mail'])
-
       <div class="panel">
         <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
         <p class="banner notice">

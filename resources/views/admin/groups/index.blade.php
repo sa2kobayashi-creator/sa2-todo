@@ -14,8 +14,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      @include('partials.settings-subnav', ['active' => 'admin-groups'])
-
       <div class="panel">
         <h2>{{ __('グループ管理') }}</h2>
         <p class="hint">{{ __('申請されたグループの承認・却下を行います。承認後に ToDo / Photos の共有先として利用でき、メニュー権限もメンバーに付与できます。') }}</p>

@@ -11,7 +11,6 @@
   <body>
     @include('partials.header', ['active' => 'help-guide'])
     <main class="page-main page-main-narrow">
-      @include('partials.settings-subnav', ['active' => 'help-guide'])
       @include('help.partials.topics', ['helpTopic' => 'guide'])
 
       <div class="panel">
@@ -60,11 +59,11 @@
             </ul>
 
             <h2>6. Holidays and display</h2>
-            <p><a href="/settings?section=holidays">Holiday settings</a> affect the calendar. <a href="/settings?section=nav">Display menus</a> control the header and phone bar for your own account; user/group menus are set in User / Group management.</p>
+            <p><a href="/settings?section=holidays">Initial setup → Holidays</a> affect the calendar. <a href="/settings?section=nav">Display menus</a> control the header and phone bar for your own account; user/group menus are set in User / Group management.</p>
 
             <h2>7. If something fails</h2>
             <p>Check Usage and the relevant Settings panel first. For server or operator issues, use <a href="/contact">{{ __('問い合わせ') }}</a>.</p>
-            <p><a href="/help">{{ __('通常のヘルプ') }}</a> · <a href="/help/overview">{{ __('このアプリの概要') }}</a></p>
+            <p><a href="/help">{{ __('ヘルプ') }}</a> · <a href="/help/overview">{{ __('このアプリの概要') }}</a></p>
           </section>
         @else
           <section class="help-section">
@@ -72,9 +71,9 @@
             <ol>
               <li><a href="/admin/users">ユーザー管理</a>で、<strong>招待コード</strong>を決めます。入れるとそのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、管理者がユーザーを追加します。</li>
               <li>権限（管理者／スタンダード／ライト）を選んでアカウントを作ります。ユーザーごとに追加メニューを付けられます。</li>
-              <li><a href="/settings?section=enhance">API設定</a>で Google マップと Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
-              <li><a href="/settings?section=storage">ストレージ設定</a>で写真用の R2 / B2 などを確認します。</li>
-              <li>翻訳や音声入力を使うなら <a href="/settings?section=ai">AI設定</a> に DeepL と ChatGPT / Gemini を入れます。キー保存後の利用料は管理者の責任です。</li>
+              <li><a href="/settings?section=enhance">初期設定 → API設定</a>で Google マップと Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
+              <li><a href="/settings?section=storage">初期設定 → ストレージ</a>で写真用の R2 / B2 などを確認します。</li>
+              <li>翻訳や音声入力を使うなら <a href="/settings?section=ai">初期設定 → AI</a> に DeepL と ChatGPT / Gemini を入れます。キー保存後の利用料は管理者の責任です。</li>
             </ol>
 
             <h2>2. ユーザー・グループ・メール</h2>
@@ -108,11 +107,11 @@
             </ul>
 
             <h2>6. 休日と表示</h2>
-            <p><a href="/settings?section=holidays">休日設定</a>はカレンダーに反映されます。表示メニュー管理は自分のヘッダーとスマホ下部です。</p>
+            <p><a href="/settings?section=holidays">初期設定の休日</a>はカレンダーに反映されます。表示メニュー管理は自分のヘッダーとスマホ下部です。</p>
 
             <h2>7. うまくいかないとき</h2>
             <p>まず使用量と、該当する設定画面を確認してください。サーバーや運営側の問題は <a href="/contact">{{ __('問い合わせ') }}</a> へ。</p>
-            <p><a href="/help">{{ __('通常のヘルプ') }}</a> · <a href="/help/overview">{{ __('このアプリの概要') }}</a></p>
+            <p><a href="/help">{{ __('ヘルプ') }}</a> · <a href="/help/overview">{{ __('このアプリの概要') }}</a></p>
           </section>
         @endif
       </div>

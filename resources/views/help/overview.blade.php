@@ -11,7 +11,6 @@
   <body>
     @include('partials.header', ['active' => 'help-overview'])
     <main class="page-main page-main-narrow">
-      @include('partials.settings-subnav', ['active' => 'help-overview'])
       @include('help.partials.topics', ['helpTopic' => 'overview'])
 
       <div class="panel">

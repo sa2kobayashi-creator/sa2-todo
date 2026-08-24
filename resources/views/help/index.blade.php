@@ -11,9 +11,6 @@
   <body>
     @include('partials.header', ['active' => 'help'])
     <main class="page-main page-main-narrow">
-      @if(!empty($canSettings))
-        @include('partials.settings-subnav', ['active' => 'help'])
-      @endif
       @include('help.partials.topics', ['helpTopic' => 'basic'])
 
       <div class="panel">

@@ -14,8 +14,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      @include('partials.settings-subnav', ['active' => 'admin'])
-
       <div class="panel">
         <div class="admin-user-card-head">
           <h2>{{ __('ユーザー詳細') }}</h2>

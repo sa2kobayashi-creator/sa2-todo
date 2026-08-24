@@ -14,7 +14,6 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      @include('partials.settings-subnav', ['active' => 'contact'])
       @include('help.partials.topics', ['helpTopic' => 'contact'])
 
       <div class="panel">

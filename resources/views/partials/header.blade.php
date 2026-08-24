@@ -47,14 +47,9 @@
           <div class="nav-dropdown-menu" role="menu">
             @if(!empty($canSettings))
               <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
-              <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
-              <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
-              <a href="/settings?section=storage" class="{{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
-              <a href="/settings?section=enhance" class="{{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
-              <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
-              <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
+              <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSettingsSection ?? '') }}" class="{{ \App\Support\SettingsNav::isSetupSection($navSettingsSection ?? '') ? 'active' : '' }}" role="menuitem">{{ __('初期設定') }}</a>
               <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
-              <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('通常のヘルプ') }}</a>
+              <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
               <a href="/help/overview" class="{{ ($active ?? '') === 'help-overview' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの概要') }}</a>
               <a href="/help/guide" class="{{ ($active ?? '') === 'help-guide' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの使用方法') }}</a>
               <a href="/contact" class="{{ ($active ?? '') === 'contact' ? 'active' : '' }}" role="menuitem">{{ __('問い合わせ') }}</a>
@@ -216,14 +211,9 @@
                   >
                     @if(!empty($canSettings))
                       <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
-                      <a href="/settings?section=holidays" class="{{ ($navSettingsSection ?? '') === 'holidays' ? 'active' : '' }}" role="menuitem">{{ __('休日設定') }}</a>
-                      <a href="/settings?section=ai" class="{{ ($navSettingsSection ?? '') === 'ai' ? 'active' : '' }}" role="menuitem">{{ __('AI設定') }}</a>
-                      <a href="/settings?section=storage" class="{{ ($navSettingsSection ?? '') === 'storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ設定') }}</a>
-                      <a href="/settings?section=enhance" class="{{ ($navSettingsSection ?? '') === 'enhance' ? 'active' : '' }}" role="menuitem">{{ __('API設定') }}</a>
-                      <a href="/settings?section=integration" class="{{ ($navSettingsSection ?? '') === 'integration' ? 'active' : '' }}" role="menuitem">{{ __('外部連携') }}</a>
-                      <a href="/settings?section=notifications" class="{{ ($navSettingsSection ?? '') === 'notifications' ? 'active' : '' }}" role="menuitem">{{ __('通知設定') }}</a>
+                      <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSettingsSection ?? '') }}" class="{{ \App\Support\SettingsNav::isSetupSection($navSettingsSection ?? '') ? 'active' : '' }}" role="menuitem">{{ __('初期設定') }}</a>
                       <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
-                      <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('通常のヘルプ') }}</a>
+                      <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
                       <a href="/help/overview" class="{{ ($active ?? '') === 'help-overview' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの概要') }}</a>
                       <a href="/help/guide" class="{{ ($active ?? '') === 'help-guide' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの使用方法') }}</a>
                       <a href="/contact" class="{{ ($active ?? '') === 'contact' ? 'active' : '' }}" role="menuitem">{{ __('問い合わせ') }}</a>

@@ -69,7 +69,7 @@ class SuperAdminOnlyFeaturesTest extends TestCase
 
         $this->actingAs($super)->get('/photos')
             ->assertOk()
-            ->assertSee('API設定', false);
+            ->assertSee('初期設定', false);
 
         $this->actingAs($super)->get('/dashboard')
             ->assertOk()
