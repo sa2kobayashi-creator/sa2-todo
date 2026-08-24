@@ -144,7 +144,7 @@ class PhotoService
         return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
     }
 
-    /** ユーザーごとの製品無料枠（R2+B2 合算）。契約状態により 20GB / 100GB */
+    /** ユーザーごとの製品無料枠（R2+B2 合算）。契約状態により 50GB / 200GB */
     public function userFreeQuotaBytes(?int $userId = null): int
     {
         if ($userId !== null) {
@@ -154,7 +154,7 @@ class PhotoService
             }
         }
 
-        return max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
+        return max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
     }
 
     public function overagePricePerGbMonthUsd(): float
@@ -341,7 +341,7 @@ class PhotoService
         $showEnhance = $includeEnhance;
         $enhanceReady = $showEnhance && $enhance->isReady();
 
-        // 製品無料枠は契約状態により 20GB / 100GB（R2+B2 合算相当）
+        // 製品無料枠は契約状態により 50GB / 200GB（R2+B2 合算相当）
         $combinedQuota = $this->userFreeQuotaBytes($userId);
         $displayCapacity = max(1, (int) config('photos.storage_display_capacity_bytes', 1024 * 1024 * 1024 * 1024));
         $barUsed = $usedApprox;
@@ -351,7 +351,7 @@ class PhotoService
         $capacityMode = $this->mediaConfig->capacityMode();
 
         // 見込課金: プロバイダごとの無料枠超過を表示（カード合計＝超過課金見込）。
-        // 製品無料枠合計 20GB はアップロード可否判定用。カードは R2 10GB / B2 10GB の内訳単価で見込む。
+        // 製品無料枠合計はアップロード可否判定用。カードは R2 / B2 の内訳単価で見込む。
         $r2OverageUsd = $this->estimateOverageUsd($hotUsedApprox, $quota, $r2Price);
         $b2StorageUsd = $this->estimateOverageUsd($coldUsed, $b2Quota, $b2Price);
         $overflowPrice = $this->mediaConfig->overflowPricePerGbMonthUsd();
@@ -2395,6 +2395,10 @@ class PhotoService
         $primary = $this->diskName();
         $mode = $this->mediaConfig->capacityMode();
 
+        if ($mode === MediaStorageConfigService::CAPACITY_MODE_B2_PRIMARY) {
+            return $this->resolveB2PrimaryUploadTarget($primary);
+        }
+
         if ($mode === MediaStorageConfigService::CAPACITY_MODE_R2_CAP) {
             return $this->resolveR2CapUploadTarget($userId, $incomingBytes, $primary);
         }
@@ -2434,6 +2438,23 @@ class PhotoService
 
         // サーバーローカルは primary と別ディスクになるため overflow ティアで保持
         return ['disk' => 'public', 'tier' => 'overflow'];
+    }
+
+    /**
+     * 原本は最初から B2。サムネは常に主ディスク（R2 / public）。
+     *
+     * @return array{disk: string, tier: string}
+     */
+    private function resolveB2PrimaryUploadTarget(string $primary): array
+    {
+        if (
+            $this->mediaConfig->backblazeEnabled()
+            && $this->mediaConfig->pipelineArchivesToBackblaze()
+        ) {
+            return ['disk' => 'backblaze', 'tier' => 'cold'];
+        }
+
+        return ['disk' => $primary, 'tier' => 'hot'];
     }
 
     /**

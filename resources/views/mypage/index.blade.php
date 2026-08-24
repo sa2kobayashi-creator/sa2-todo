@@ -93,10 +93,13 @@
             <div class="plan-summary-card">
               <dt>{{ __('メールボックス') }}（&#64;{{ $plan['mailboxDomain'] ?? 'sa2-plus.com' }}）</dt>
               <dd>
-                @if(!empty($plan['mailboxAddonActive']))
+                @if(!empty($plan['mailboxIncludedInPlan']))
+                  {{ __('スタンダード契約に含まれています') }}
+                  <span class="hint" style="display:block;margin-top:6px;">{{ __('アドレス作成とパスワード設定は運営者が手動です。パスワードは別途お知らせします。') }}</span>
+                @elseif(!empty($plan['mailboxAddonActive']))
                   {{ __('有料オプション: 有効') }}
                 @else
-                  {{ __('有料オプション: 未契約') }}
+                  {{ __('ライトプランでは個別契約です') }}
                   <span class="hint" style="display:block;margin-top:6px;">
                     {{ __('月額 :price 円（目安）。申請はメール画面から行えます。', ['price' => number_format((int) ($plan['mailboxAddonPriceMonthly'] ?? 300))]) }}
                   </span>
@@ -106,6 +109,14 @@
             </div>
           @endif
         </dl>
+      </div>
+
+      <div class="panel" id="personal-holidays">
+        <h2>{{ __('自分の休日') }}</h2>
+        <p class="hint">{{ __('ここで設定した休日は、あなたのカレンダーと Todo にだけ反映されます。他の人には見えません。') }}</p>
+        <div class="storage-form-actions">
+          <a class="button-link" href="/mypage/holidays">{{ __('休日を設定する') }}</a>
+        </div>
       </div>
 
       <div class="panel">

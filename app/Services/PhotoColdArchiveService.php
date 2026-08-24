@@ -49,6 +49,11 @@ class PhotoColdArchiveService
         $this->mediaConfig->applyRuntimeDisks();
         $mode = $this->mediaConfig->capacityMode();
 
+        if ($mode === MediaStorageConfigService::CAPACITY_MODE_B2_PRIMARY) {
+            // 新規はすでに B2。残っている常用原本だけサムネ概算分を残して移す
+            return $this->archiveToEnforceR2Cap($limit, 1);
+        }
+
         if ($mode === MediaStorageConfigService::CAPACITY_MODE_R2_CAP) {
             return $this->archiveToEnforceR2Cap($limit);
         }
@@ -194,7 +199,7 @@ class PhotoColdArchiveService
      *   bytesMoved: int
      * }
      */
-    private function archiveToEnforceR2Cap(int $limit): array
+    private function archiveToEnforceR2Cap(int $limit, ?int $hotQuotaBytes = null): array
     {
         $archived = 0;
         $skipped = 0;
@@ -204,7 +209,7 @@ class PhotoColdArchiveService
         $lastError = '';
         $lastErrorPhotoId = null;
         $stopReason = '';
-        $quota = max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
+        $quota = max(1, $hotQuotaBytes ?? (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
         $hotDisk = (string) config('photos.disk', 'public');
         $coldDisk = 'backblaze';
         $deadline = $this->batchDeadline();

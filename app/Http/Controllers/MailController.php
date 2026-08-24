@@ -91,6 +91,7 @@ class MailController extends Controller
             ),
             'canRequestDomainMail' => $this->domainMail->userCanRequest($user),
             'hasMailboxAddon' => $this->domainMail->userHasMailboxEntitlement($user),
+            'mailboxIncludedInPlan' => $this->domainMail->mailboxIncludedInPlan($user),
             'mailDomain' => $this->domainMail->domain(),
             'mailboxLimit' => $this->domainMail->mailboxesPerUser(),
             'addonPriceMonthly' => $this->domainMail->addonPriceYenMonthly(),

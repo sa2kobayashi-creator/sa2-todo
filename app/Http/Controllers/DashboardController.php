@@ -59,7 +59,7 @@ class DashboardController extends Controller
 
         $holidayMap = [];
         foreach ($holidayYears as $holidayYear) {
-            $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
+            $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear, (int) $request->user()->id));
         }
 
         $user = $request->user();

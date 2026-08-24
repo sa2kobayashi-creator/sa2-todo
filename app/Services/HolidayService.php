@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\Cache;
 class HolidayService
 {
     /** @return array<string, array{name: string, source: string}> */
-    public function getHolidayInfoMapForYear(int $year): array
+    public function getHolidayInfoMapForYear(int $year, ?int $viewerUserId = null): array
     {
-        return Cache::remember("holiday_map_{$year}", 300, function () use ($year) {
+        $cacheKey = 'holiday_map_'.$this->mapVersion().'_'.$year.'_'.($viewerUserId ?: 'i');
+
+        return Cache::remember($cacheKey, 300, function () use ($year, $viewerUserId) {
             $map = [];
 
-            foreach (WeekdayRule::all() as $rule) {
+            foreach ($this->weekdayRulesForMap($viewerUserId) as $rule) {
                 foreach ($this->expandWeekdayRuleForYear($rule, $year) as $item) {
                     if (! isset($map[$item['date']])) {
                         $map[$item['date']] = ['name' => $item['name'], 'source' => 'weekday'];
@@ -23,7 +25,7 @@ class HolidayService
                 }
             }
 
-            HolidayEntry::query()
+            $this->holidayEntriesQuery($viewerUserId, true)
                 ->whereYear('date', $year)
                 ->orderBy('date')
                 ->orderBy('id')
@@ -51,46 +53,45 @@ class HolidayService
 
     public function clearCache(?int $year = null): void
     {
-        $now = (int) date('Y');
-        $years = [$now, $now + 1];
-        if ($year !== null) {
-            $years[] = $year;
-            $years[] = $year - 1;
-            $years[] = $year + 1;
-        }
-        foreach (array_unique($years) as $y) {
-            Cache::forget("holiday_map_{$y}");
-        }
+        $this->bumpMapVersion();
     }
 
-    public function isJapaneseNationalHolidayDate(?string $date): bool
+    public function isJapaneseNationalHolidayDate(?string $date, ?int $viewerUserId = null): bool
     {
         if (! $date) {
             return false;
         }
         $year = (int) substr($date, 0, 4);
-        $info = $this->getHolidayInfoMapForYear($year)[$date] ?? null;
+        $info = $this->getHolidayInfoMapForYear($year, $viewerUserId)[$date] ?? null;
 
         return ($info['source'] ?? null) === 'national';
     }
 
-    public function isBusinessClosureDate(?string $date): bool
+    public function isBusinessClosureDate(?string $date, ?int $viewerUserId = null): bool
     {
         if (! $date) {
             return false;
         }
         $year = (int) substr($date, 0, 4);
-        $info = $this->getHolidayInfoMapForYear($year)[$date] ?? null;
+        $info = $this->getHolidayInfoMapForYear($year, $viewerUserId)[$date] ?? null;
         $source = $info['source'] ?? null;
 
         return $source === 'custom' || $source === 'weekday';
     }
 
     /** @return list<string> */
-    public function listAllJapaneseNationalHolidayDateKeys(): array
+    public function listAllJapaneseNationalHolidayDateKeys(?int $viewerUserId = null): array
     {
-        return HolidayEntry::query()
-            ->where('source', 'national')
+        $query = HolidayEntry::query()->where('source', 'national');
+        if ($viewerUserId) {
+            $query->where(function ($q) use ($viewerUserId) {
+                $q->whereNull('user_id')->orWhere('user_id', $viewerUserId);
+            });
+        } else {
+            $query->whereNull('user_id');
+        }
+
+        return $query
             ->orderBy('date')
             ->pluck('date')
             ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
@@ -100,11 +101,11 @@ class HolidayService
     }
 
     /** @return list<string> */
-    public function listAllBusinessClosureDateKeys(): array
+    public function listAllBusinessClosureDateKeys(?int $viewerUserId = null): array
     {
         $dates = [];
         foreach ($this->collectYears() as $year) {
-            foreach ($this->getHolidayInfoMapForYear($year) as $date => $info) {
+            foreach ($this->getHolidayInfoMapForYear($year, $viewerUserId) as $date => $info) {
                 if (($info['source'] ?? '') === 'custom' || ($info['source'] ?? '') === 'weekday') {
                     $dates[] = $date;
                 }
@@ -117,11 +118,11 @@ class HolidayService
     }
 
     /** @return list<string> */
-    public function listAllClosureDateKeys(): array
+    public function listAllClosureDateKeys(?int $viewerUserId = null): array
     {
         $dates = [];
         foreach ($this->collectYears() as $year) {
-            foreach (array_keys($this->getHolidayInfoMapForYear($year)) as $date) {
+            foreach (array_keys($this->getHolidayInfoMapForYear($year, $viewerUserId)) as $date) {
                 $dates[] = $date;
             }
         }
@@ -135,9 +136,9 @@ class HolidayService
     {
         $years = [(int) date('Y'), (int) date('Y') + 1];
         HolidayEntry::query()
-            ->get(['date'])
+            ->get(['date', 'user_id'])
             ->each(fn (HolidayEntry $entry) => $years[] = (int) $entry->date->format('Y'));
-        WeekdayRule::all()->each(function (WeekdayRule $rule) use (&$years) {
+        WeekdayRule::query()->get(['start_date', 'end_date'])->each(function (WeekdayRule $rule) use (&$years) {
             $years[] = (int) $rule->start_date->format('Y');
             $years[] = (int) $rule->end_date->format('Y');
         });
@@ -260,7 +261,7 @@ class HolidayService
         return $items;
     }
 
-    public function importNationalHolidays(int $year, string $country = 'jp'): int
+    public function importNationalHolidays(int $year, string $country = 'jp', ?int $ownerUserId = null): int
     {
         $source = $country === 'ph' ? 'national_ph' : 'national';
         $national = $country === 'ph'
@@ -269,7 +270,7 @@ class HolidayService
         $added = 0;
 
         foreach ($national as $item) {
-            $exists = HolidayEntry::query()
+            $exists = $this->holidayEntriesQuery($ownerUserId, false)
                 ->where('date', $item['date'])
                 ->where('source', $source)
                 ->exists();
@@ -277,6 +278,7 @@ class HolidayService
                 continue;
             }
             HolidayEntry::create([
+                'user_id' => $ownerUserId,
                 'date' => $item['date'],
                 'name' => $item['name'],
                 'source' => $source,
@@ -380,9 +382,9 @@ class HolidayService
     }
 
     /** @return list<array{id: int, date: string, name: string, source: string}> */
-    public function listByYear(int $year): array
+    public function listByYear(int $year, ?int $ownerUserId = null): array
     {
-        return HolidayEntry::query()
+        return $this->holidayEntriesQuery($ownerUserId, false)
             ->whereYear('date', $year)
             ->orderBy('date')
             ->orderBy('id')
@@ -397,9 +399,9 @@ class HolidayService
     }
 
     /** @return list<array<string, mixed>> */
-    public function listWeekdayRules(): array
+    public function listWeekdayRules(?int $ownerUserId = null): array
     {
-        return WeekdayRule::query()
+        return $this->weekdayRulesQuery($ownerUserId, false)
             ->orderBy('start_date')
             ->orderBy('id')
             ->get()
@@ -414,7 +416,7 @@ class HolidayService
             ->all();
     }
 
-    public function addCustomHoliday(string $date, string $name): ?HolidayEntry
+    public function addCustomHoliday(string $date, string $name, ?int $ownerUserId = null): ?HolidayEntry
     {
         $normalizedDate = $this->normalizeDate($date);
         $label = trim($name);
@@ -422,16 +424,23 @@ class HolidayService
             return null;
         }
 
-        $entry = HolidayEntry::query()->updateOrCreate(
-            ['date' => $normalizedDate],
-            ['name' => $label, 'source' => 'custom']
-        );
+        $entry = $this->findOwnerHoliday($normalizedDate, $ownerUserId);
+        if ($entry) {
+            $entry->update(['name' => $label, 'source' => 'custom']);
+        } else {
+            $entry = HolidayEntry::create([
+                'user_id' => $ownerUserId,
+                'date' => $normalizedDate,
+                'name' => $label,
+                'source' => 'custom',
+            ]);
+        }
         $this->clearCache();
 
         return $entry;
     }
 
-    public function addCustomHolidayRange(string $startDate, string $endDate, string $name): ?int
+    public function addCustomHolidayRange(string $startDate, string $endDate, string $name, ?int $ownerUserId = null): ?int
     {
         $start = $this->normalizeDate($startDate);
         $end = $this->normalizeDate($endDate);
@@ -445,9 +454,14 @@ class HolidayService
         $last = Carbon::parse($end);
         while ($cur->lte($last)) {
             $dateStr = $cur->format('Y-m-d');
-            $exists = HolidayEntry::query()->where('date', $dateStr)->first();
+            $exists = $this->findOwnerHoliday($dateStr, $ownerUserId);
             if (! $exists) {
-                HolidayEntry::create(['date' => $dateStr, 'name' => $label, 'source' => 'custom']);
+                HolidayEntry::create([
+                    'user_id' => $ownerUserId,
+                    'date' => $dateStr,
+                    'name' => $label,
+                    'source' => 'custom',
+                ]);
                 $added++;
             } elseif ($exists->source === 'custom') {
                 $exists->update(['name' => $label]);
@@ -460,9 +474,10 @@ class HolidayService
         return $added;
     }
 
-    public function removeHoliday(int $id): bool
+    public function removeHoliday(int $id, ?int $ownerUserId = null): bool
     {
-        $deleted = (bool) HolidayEntry::destroy($id);
+        $entry = $this->holidayEntriesQuery($ownerUserId, false)->whereKey($id)->first();
+        $deleted = $entry ? (bool) $entry->delete() : false;
         if ($deleted) {
             $this->clearCache();
         }
@@ -471,7 +486,7 @@ class HolidayService
     }
 
     /** @param array<string, mixed> $input */
-    public function addWeekdayRule(array $input): ?WeekdayRule
+    public function addWeekdayRule(array $input, ?int $ownerUserId = null): ?WeekdayRule
     {
         $startDate = $this->normalizeDate($input['startDate'] ?? null);
         $endDate = $this->normalizeDate($input['endDate'] ?? null);
@@ -487,6 +502,7 @@ class HolidayService
         ));
 
         $rule = WeekdayRule::create([
+            'user_id' => $ownerUserId,
             'name' => $name,
             'start_date' => $startDate,
             'end_date' => $endDate,
@@ -498,9 +514,10 @@ class HolidayService
         return $rule;
     }
 
-    public function removeWeekdayRule(int $id): bool
+    public function removeWeekdayRule(int $id, ?int $ownerUserId = null): bool
     {
-        $deleted = (bool) WeekdayRule::destroy($id);
+        $rule = $this->weekdayRulesQuery($ownerUserId, false)->whereKey($id)->first();
+        $deleted = $rule ? (bool) $rule->delete() : false;
         if ($deleted) {
             $this->clearCache();
         }
@@ -508,9 +525,9 @@ class HolidayService
         return $deleted;
     }
 
-    public function addWeekdayException(int $ruleId, string $date): bool
+    public function addWeekdayException(int $ruleId, string $date, ?int $ownerUserId = null): bool
     {
-        $rule = WeekdayRule::find($ruleId);
+        $rule = $this->weekdayRulesQuery($ownerUserId, false)->whereKey($ruleId)->first();
         $normalizedDate = $this->normalizeDate($date);
         if (! $rule || ! $normalizedDate) {
             return false;
@@ -531,9 +548,9 @@ class HolidayService
         return true;
     }
 
-    public function removeWeekdayException(int $ruleId, string $date): bool
+    public function removeWeekdayException(int $ruleId, string $date, ?int $ownerUserId = null): bool
     {
-        $rule = WeekdayRule::find($ruleId);
+        $rule = $this->weekdayRulesQuery($ownerUserId, false)->whereKey($ruleId)->first();
         $normalizedDate = $this->normalizeDate($date);
         if (! $rule || ! $normalizedDate) {
             return false;
@@ -577,15 +594,15 @@ class HolidayService
     }
 
     /** @return list<string> */
-    public function listJapaneseNationalHolidayDateKeysForRange(string $startDate, string $endDate): array
+    public function listJapaneseNationalHolidayDateKeysForRange(string $startDate, string $endDate, ?int $viewerUserId = null): array
     {
-        return $this->listDateKeysForRange($startDate, $endDate, fn ($info) => ($info['source'] ?? '') === 'national');
+        return $this->listDateKeysForRange($startDate, $endDate, fn ($info) => ($info['source'] ?? '') === 'national', $viewerUserId);
     }
 
     /** @return list<string> */
-    public function listBusinessClosureDateKeysForRange(string $startDate, string $endDate): array
+    public function listBusinessClosureDateKeysForRange(string $startDate, string $endDate, ?int $viewerUserId = null): array
     {
-        return $this->listDateKeysForRange($startDate, $endDate, fn ($info) => in_array($info['source'] ?? '', ['custom', 'weekday'], true));
+        return $this->listDateKeysForRange($startDate, $endDate, fn ($info) => in_array($info['source'] ?? '', ['custom', 'weekday'], true), $viewerUserId);
     }
 
     private function normalizeDate(?string $value): ?string
@@ -598,7 +615,7 @@ class HolidayService
     }
 
     /** @param callable(array{name: string, source: string}): bool $filter */
-    private function listDateKeysForRange(string $startDate, string $endDate, callable $filter): array
+    private function listDateKeysForRange(string $startDate, string $endDate, callable $filter, ?int $viewerUserId = null): array
     {
         $start = $this->normalizeDate($startDate);
         $end = $this->normalizeDate($endDate);
@@ -609,7 +626,7 @@ class HolidayService
         $y2 = (int) substr($end, 0, 4);
         $dates = [];
         for ($year = min($y1, $y2); $year <= max($y1, $y2); $year++) {
-            foreach ($this->getHolidayInfoMapForYear($year) as $date => $info) {
+            foreach ($this->getHolidayInfoMapForYear($year, $viewerUserId) as $date => $info) {
                 if ($filter($info)) {
                     $dates[] = $date;
                 }
@@ -618,5 +635,65 @@ class HolidayService
         sort($dates);
 
         return array_values(array_unique($dates));
+    }
+
+    private function mapVersion(): int
+    {
+        return max(1, (int) Cache::get('holiday_map_ver', 1));
+    }
+
+    private function bumpMapVersion(): void
+    {
+        if (! Cache::has('holiday_map_ver')) {
+            Cache::forever('holiday_map_ver', 2);
+
+            return;
+        }
+        Cache::increment('holiday_map_ver');
+    }
+
+    /**
+     * @param  ?int  $ownerUserId  null = インスタンス全体（管理者設定）
+     * @param  bool  $includeInstance  true なら個人カレンダー用に全体＋本人を合成
+     */
+    private function holidayEntriesQuery(?int $ownerUserId, bool $includeInstance)
+    {
+        $query = HolidayEntry::query();
+        if ($includeInstance && $ownerUserId) {
+            return $query->where(function ($q) use ($ownerUserId) {
+                $q->whereNull('user_id')->orWhere('user_id', $ownerUserId);
+            });
+        }
+        if ($ownerUserId) {
+            return $query->where('user_id', $ownerUserId);
+        }
+
+        return $query->whereNull('user_id');
+    }
+
+    private function weekdayRulesQuery(?int $ownerUserId, bool $includeInstance)
+    {
+        $query = WeekdayRule::query();
+        if ($includeInstance && $ownerUserId) {
+            return $query->where(function ($q) use ($ownerUserId) {
+                $q->whereNull('user_id')->orWhere('user_id', $ownerUserId);
+            });
+        }
+        if ($ownerUserId) {
+            return $query->where('user_id', $ownerUserId);
+        }
+
+        return $query->whereNull('user_id');
+    }
+
+    /** @return \Illuminate\Support\Collection<int, WeekdayRule> */
+    private function weekdayRulesForMap(?int $viewerUserId)
+    {
+        return $this->weekdayRulesQuery($viewerUserId, true)->get();
+    }
+
+    private function findOwnerHoliday(string $date, ?int $ownerUserId): ?HolidayEntry
+    {
+        return $this->holidayEntriesQuery($ownerUserId, false)->where('date', $date)->first();
     }
 }

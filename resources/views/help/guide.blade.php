@@ -24,7 +24,7 @@
               <li>Open <a href="/admin/users">User management</a> and set an <strong>invite code</strong> if people should self-register. Leave it empty to close self-registration and add users yourself.</li>
               <li>Create accounts with the right role (Admin / Standard / Light). Extra menus can be ticked per user.</li>
               <li>Under <a href="/settings?section=enhance">API Settings</a>, add Google Maps and Google Calendar OAuth (Client ID / Secret). Users then connect their own Google account on My Page.</li>
-              <li>Under <a href="/settings?section=storage">Storage</a>, confirm R2 / B2 (and related) credentials if photos should upload.</li>
+              <li>Under <a href="/settings?section=storage">Storage</a>, confirm R2 / B2 (and related) credentials if photos should upload. For personal sales, save capacity mode “Store originals on B2”. Thumbnails stay on R2; new originals go to B2.</li>
               <li>Under <a href="/settings?section=ai">AI Settings</a>, add DeepL for translation and ChatGPT / Gemini for voice entry if you want those features. Usage fees are yours after you save keys.</li>
             </ol>
 
@@ -32,7 +32,7 @@
             <ul>
               <li><a href="/admin/users">User management</a> — roles, menus, invite code.</li>
               <li><a href="/admin/groups">Group management</a> — approve groups and optional extra menus for members.</li>
-              <li><a href="/admin/mail-requests">Mailbox requests</a> — paid add-on addresses, if you offer them.</li>
+              <li><a href="/admin/mail-requests">Mailbox requests</a> — included in Standard; add-on on Light. The operator creates the address and password in Lolipop by hand, tells the user the password, then marks it provisioned.</li>
             </ul>
 
             <h2>3. Calendar, maps, messaging</h2>
@@ -72,7 +72,7 @@
               <li><a href="/admin/users">ユーザー管理</a>で、<strong>招待コード</strong>を決めます。入れるとそのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、管理者がユーザーを追加します。</li>
               <li>権限（管理者／スタンダード／ライト）を選んでアカウントを作ります。ユーザーごとに追加メニューを付けられます。</li>
               <li><a href="/settings?section=enhance">初期設定 → API設定</a>で Google マップと Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
-              <li><a href="/settings?section=storage">初期設定 → ストレージ</a>で写真用の R2 / B2 などを確認します。</li>
+              <li><a href="/settings?section=storage">初期設定 → ストレージ</a>で写真用の R2 / B2 などを確認します。個人販売では容量モード「原本はB2に置く」を保存してください。サムネは R2、新規原本は B2 です。</li>
               <li>翻訳や音声入力を使うなら <a href="/settings?section=ai">初期設定 → AI</a> に DeepL と ChatGPT / Gemini を入れます。キー保存後の利用料は管理者の責任です。</li>
             </ol>
 
@@ -80,7 +80,7 @@
             <ul>
               <li><a href="/admin/users">ユーザー管理</a> … 権限、メニュー、招待コード。</li>
               <li><a href="/admin/groups">グループ管理</a> … グループの承認と、メンバーへの追加メニュー。</li>
-              <li><a href="/admin/mail-requests">メール申請</a> … 有料オプションのメールボックスを扱う場合。</li>
+              <li><a href="/admin/mail-requests">メール申請</a> … スタンダードはプランに含む。ライトは個別契約。アドレス作成とパスワード設定は運営者がロリポップで手動。利用者へパスワードを伝えたあと「作成済み」にする。</li>
             </ul>
 
             <h2>3. カレンダー・地図・通知</h2>
@@ -107,7 +107,7 @@
             </ul>
 
             <h2>6. 休日と表示</h2>
-            <p><a href="/settings?section=holidays">初期設定の休日</a>はカレンダーに反映されます。表示メニュー管理は自分のヘッダーとスマホ下部です。</p>
+            <p><a href="/settings?section=holidays">初期設定の休日</a>は組織全体のカレンダーに反映されます。各ユーザーは <a href="/mypage/holidays">マイページ → 休日</a> で自分専用の休日を持てます。表示メニュー管理は自分のヘッダーとスマホ下部です。</p>
 
             <h2>7. うまくいかないとき</h2>
             <p>まず使用量と、該当する設定画面を確認してください。サーバーや運営側の問題は <a href="/contact">{{ __('問い合わせ') }}</a> へ。</p>

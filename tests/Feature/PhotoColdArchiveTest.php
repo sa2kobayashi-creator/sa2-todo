@@ -334,4 +334,31 @@ class PhotoColdArchiveTest extends TestCase
         // 先頭の欠落はスキップとして数えられる
         $this->assertSame('hot', $photo->refresh()->storage_tier);
     }
+
+    private function useB2PrimaryMode(): void
+    {
+        $config = \Mockery::mock(MediaStorageConfigService::class)->makePartial();
+        $config->shouldReceive('pipelineArchivesToBackblaze')->andReturnTrue();
+        $config->shouldReceive('backblazeEnabled')->andReturnTrue();
+        $config->shouldReceive('capacityMode')->andReturn(MediaStorageConfigService::CAPACITY_MODE_B2_PRIMARY);
+        $config->shouldReceive('applyRuntimeDisks')->andReturnNull();
+        $config->shouldReceive('recordB2Usage')->andReturnNull();
+
+        $this->app->instance(MediaStorageConfigService::class, $config);
+    }
+
+    public function test_b2_primary_archives_remaining_hot_originals_even_under_r2_quota(): void
+    {
+        $this->useB2PrimaryMode();
+        $user = $this->makeUser('b2-left@example.com');
+        $photo = $this->makePhoto($user, 1);
+
+        $stats = app(PhotoColdArchiveService::class)->archiveDuePhotos(40);
+
+        $this->assertSame(1, $stats['archived']);
+        $this->assertSame('cold', $photo->refresh()->storage_tier);
+        $this->assertSame('backblaze', $photo->cold_disk);
+        $this->assertTrue(Storage::disk('backblaze')->exists($photo->path));
+        $this->assertFalse(Storage::disk('public')->exists($photo->path));
+    }
 }

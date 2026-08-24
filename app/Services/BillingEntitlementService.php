@@ -70,12 +70,12 @@ class BillingEntitlementService
 
     /**
      * 製品上の無料枠バイト数。
-     * Light / 未契約: config の 20GB。Standard（ロール）かつ有料有効: 100GB。
+     * Light / 未契約: config の 50GB。Standard（ロール）およびスタッフ: 200GB。
      */
     public function storageFreeQuotaBytes(User $user): int
     {
-        $base = max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
-        $standard = max($base, (int) config('photos.standard_quota_bytes', 100 * 1024 * 1024 * 1024));
+        $base = max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
+        $standard = max($base, (int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
 
         if ($this->qualifiesForStandardStorageQuota($user)) {
             return $standard;
@@ -85,7 +85,7 @@ class BillingEntitlementService
     }
 
     /**
-     * Standard ロール／スタッフは 100GB 枠。
+     * Standard ロール／スタッフは 200GB 枠。
      * Light でも有料契約（請求書運用など）があれば Standard 枠。
      */
     public function qualifiesForStandardStorageQuota(User $user): bool

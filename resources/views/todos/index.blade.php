@@ -24,7 +24,7 @@
           <span class="app-accordion-caret" aria-hidden="true">▾</span>
         </summary>
         <div class="app-accordion-body">
-        <p class="hint">{{ __('日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }}@if(!empty($canSettings)) {{ __('定休日の設定は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('で行います。') }}@endif</p>
+        <p class="hint">{{ __('日付は単日または期間を選べます。期間モードでは曜日を指定すると、該当する日ごとに ToDo を作成します。') }} {{ __('定休日の設定は') }} <a href="/mypage/holidays">{{ __('マイページ → 休日') }}</a> {{ __('で行います。') }}@if(!empty($canSettings)) {{ __('組織全体の休日は') }} <a href="/settings?section=holidays#weekday-holidays">{{ __('設定 → 休日設定') }}</a> {{ __('です。') }}@endif</p>
         <form class="add" method="post" action="/todos" id="add-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $listReturnTo }}" />

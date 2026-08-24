@@ -10,10 +10,11 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_the_application_redirects_guests_to_login(): void
+    public function test_the_application_shows_a_public_top_page_to_guests(): void
     {
         $response = $this->get('/');
 
-        $response->assertRedirect('/login');
+        $response->assertOk();
+        $response->assertSee(config('app.name'), false);
     }
 }

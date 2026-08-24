@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\MailDomainRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
@@ -50,14 +51,24 @@ class Sa2PlusMailboxService
         return array_map('strtolower', (array) config('mail_domain.reserved_local_parts', []));
     }
 
-    /** 有料オプションまたはスタッフなら申請資格あり */
-    public function userHasMailboxEntitlement(User $user): bool
+    /**
+     * スタンダードはメールボックスがプランに含まれる。
+     * ライトは mailbox_addon_active の個別契約。スタッフは常に可。
+     * ライトの有料契約（容量など）だけではメールは付かない。
+     */
+    public function mailboxIncludedInPlan(User $user): bool
     {
         if ($user->isAdmin()) {
             return true;
         }
 
-        return $this->billing->hasMailboxAddon($user);
+        return $user->roleEnum() === UserRole::Standard;
+    }
+
+    /** プラン同梱・有料オプション・スタッフなら申請資格あり */
+    public function userHasMailboxEntitlement(User $user): bool
+    {
+        return $this->mailboxIncludedInPlan($user) || $this->billing->hasMailboxAddon($user);
     }
 
     public function userSlotUsed(User $user): int

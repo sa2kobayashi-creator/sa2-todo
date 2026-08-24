@@ -4,7 +4,8 @@ return [
     'domain' => env('MAIL_DOMAIN', 'sa2-plus.com'),
 
     /**
-     * 無料で持てる @domain 件数。有料オプション化後は 0（申請には mailbox_addon_active が必要）。
+     * 無料で持てる @domain 件数。有料オプション化後は 0。
+     * スタンダードはプランに含む。ライトは mailbox_addon_active が必要。
      * スタッフ（Admin / SuperAdmin）はアドオン無しでも申請可。
      */
     'free_mailboxes_per_user' => (int) env('MAIL_FREE_MAILBOXES_PER_USER', 0),

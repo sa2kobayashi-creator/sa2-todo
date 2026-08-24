@@ -65,6 +65,7 @@ class MyPageController extends Controller
                 'trialEndsAt' => optional($user->trial_ends_at)?->format('Y-m-d'),
                 'storageOverageActive' => (bool) $user->storage_overage_active,
                 'mailboxAddonActive' => $this->domainMail->userHasMailboxEntitlement($user),
+                'mailboxIncludedInPlan' => $this->domainMail->mailboxIncludedInPlan($user),
                 'mailboxAddonPriceMonthly' => $this->domainMail->addonPriceYenMonthly(),
                 'mailboxDomain' => $this->domainMail->domain(),
                 'storageQuotaLabel' => $storage['formattedCombinedQuota'] ?? null,

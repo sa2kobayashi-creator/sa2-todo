@@ -13,7 +13,7 @@
 
 <div class="panel storage-settings" id="storage-pipeline">
   <h2>{{ __('保存パイプライン') }}</h2>
-  <p class="hint">{{ __('アップロード → Cloudflare R2（原本）。Cloudinary は編集用、古い原本は Backblaze B2 へ、という流れをここで切り替えます。') }}@if(!empty($canSuperAdmin)) {{ __('AI鮮明化は「API設定」で行います。') }}@endif</p>
+  <p class="hint">{{ __('アップロード → 原本は Backblaze B2、サムネは Cloudflare R2。Cloudinary は編集用です。容量モードで振り分けを切り替えます。') }}@if(!empty($canSuperAdmin)) {{ __('AI鮮明化は「API設定」で行います。') }}@endif</p>
   <form method="post" action="/settings/storage/pipeline" class="storage-provider-form" id="storage-pipeline-form">
     @csrf
     <label class="storage-enable">
@@ -24,13 +24,14 @@
       <input type="checkbox" name="allow_paid_overage" value="1" @checked(!empty($pSettings['allow_paid_overage'])) />
       {{ __('有料枠（無料枠超過）を許可する') }}
     </label>
-    <p class="hint">{{ __('オンにすると、製品無料枠（合計20GB）を超えても写真・動画を追加できます。実課金ではなく、運営が超過利用を認めるスイッチです。') }}</p>
-    <label>{{ __('原本の保存先') }}
+    <p class="hint">{{ __('オンにすると、製品の無料枠を超えても写真・動画を追加できます。実課金ではなく、運営が超過利用を認めるスイッチです。') }}</p>
+    <label>{{ __('常用ディスク（サムネ／ホット）') }}
       <select name="primary_disk">
         <option value="r2" @selected(($pSettings['primary_disk'] ?? 'r2') === 'r2')>Cloudflare R2</option>
         <option value="public" @selected(($pSettings['primary_disk'] ?? '') === 'public')>{{ __('サーバーローカル (public)') }}</option>
       </select>
     </label>
+    <p class="hint">{{ __('B2中心モードでは新規原本は B2 です。この欄はサムネと、B2 未設定時の退避先です。他のモードでは新規原本もここに置きます。') }}</p>
     <label class="storage-enable">
       <input type="checkbox" name="use_cloudinary_display" value="1" @checked(!empty($pSettings['use_cloudinary_display'])) />
       {{ __('一覧表示にも Cloudinary を使う（非推奨・Cloudinary に常設コピーが増えます）') }}
@@ -46,17 +47,23 @@
     @endphp
     <label>{{ __('容量の運用モード') }}
       <select name="capacity_mode" id="storage-capacity-mode">
+        <option value="b2_primary" @selected($capacityMode === 'b2_primary')>
+          {{ __('1. 原本はB2に置く（推奨）') }}
+        </option>
         <option value="r2_cap" @selected($capacityMode === 'r2_cap')>
-          {{ __('1. R2は無料枠（10GB）までしか使わない') }}
+          {{ __('2. R2は無料枠（10GB）までしか使わない') }}
         </option>
         <option value="age_archive" @selected($capacityMode === 'age_archive')>
-          {{ __('2. 日数経過でB2へアーカイブ（現行）') }}
+          {{ __('3. 日数経過でB2へアーカイブ') }}
         </option>
         <option value="overflow_priority" @selected($capacityMode === 'overflow_priority')>
-          {{ __('3. R2/B2とも無料枠超過後は次の保存先へ') }}
+          {{ __('4. R2/B2とも無料枠超過後は次の保存先へ') }}
         </option>
       </select>
     </label>
+    <p class="hint" data-capacity-hint="b2_primary" @if($capacityMode !== 'b2_primary') hidden @endif>
+      {{ __('新規原本は最初から B2 へ保存し、一覧用サムネだけを R2 に残します。既存の常用原本は「B2へアーカイブ」と毎日 3:30 の自動処理で移します。B2 が未設定のときは常用ディスクへ退避します。') }}
+    </p>
     <p class="hint" data-capacity-hint="r2_cap" @if($capacityMode !== 'r2_cap') hidden @endif>
       {{ __('R2（ホット）が約10GBを超えないよう運用します。枠内は R2 へ保存し、超えそうな新規原本は最初から B2 へ直書きします。一覧用サムネは常に R2 に残します。既存の超過分は「B2へアーカイブ」や毎日 3:30 の自動移動で減らします。') }}
     </p>
@@ -69,6 +76,11 @@
 
     <div data-capacity-panel="age_archive" @if($capacityMode !== 'age_archive') hidden @endif>
       <p class="hint">{{ __('毎日 3:30 に自動実行します。手動実行: php artisan photos:archive-cold') }}</p>
+      <p class="hint">{{ __('Photosの「B2へアーカイブ」はバックグラウンド実行です（他画面へ移っても継続）。毎分の tick と毎日 3:30 の自動実行があります。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES') }}</p>
+    </div>
+
+    <div data-capacity-panel="b2_primary" @if($capacityMode !== 'b2_primary') hidden @endif>
+      <p class="hint">{{ __('新規: 原本は B2、サムネは R2。残っている常用原本は毎日 3:30 と Photos の「B2へアーカイブ」で移します。') }}</p>
       <p class="hint">{{ __('Photosの「B2へアーカイブ」はバックグラウンド実行です（他画面へ移っても継続）。毎分の tick と毎日 3:30 の自動実行があります。調整: PHOTO_ARCHIVE_COLD_BATCH_SECONDS・PHOTO_ARCHIVE_COLD_BATCH_SIZE・PHOTO_ARCHIVE_COLD_LARGE_FILE_BYTES') }}</p>
     </div>
 
@@ -96,7 +108,7 @@
         <input type="number" name="archive_after_days" min="0" value="{{ (int) ($pSettings['archive_after_days'] ?? 365) }}" />
       </label>
       <p class="hint" data-capacity-hint-days="overflow_priority" @if($capacityMode !== 'overflow_priority') hidden @endif>
-        {{ __('0 にすると日数アーカイブは行わず、容量ベースの振り分けのみです。モード2では日数経過で B2 へ移します。') }}
+        {{ __('0 にすると日数アーカイブは行わず、容量ベースの振り分けのみです。日数モードでは経過後に B2 へ移します。') }}
       </p>
     </div>
 
@@ -132,7 +144,7 @@
 
 <div class="panel storage-settings" id="storage-r2">
   <h2>Cloudflare R2</h2>
-  <p class="hint">{{ __('写真・動画の原本保存先です。空欄のシークレットは既存値を維持します。.env の R2_* がある場合はフォールバックします。') }}</p>
+  <p class="hint">{{ __('写真・動画のサムネと、常用ディスクに置くファイルの保存先です。空欄のシークレットは既存値を維持します。.env の R2_* がある場合はフォールバックします。') }}</p>
   @if(!empty($r2['last_test_message']))
     <p class="hint storage-test-result {{ ($r2['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
       {{ ($r2['last_tested_at'] ?? '') }} — {{ $r2['last_test_message'] }}

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class WeekdayRule extends Model
 {
     protected $fillable = [
+        'user_id',
         'name',
         'start_date',
         'end_date',

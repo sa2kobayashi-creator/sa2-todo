@@ -23,6 +23,8 @@ class ShareViewData
 
     public function handle(Request $request, Closure $next): Response
     {
+        $viewerId = $request->user()?->id;
+
         View::share([
             'importanceLabels' => [
                 'high' => __('高'),
@@ -40,9 +42,9 @@ class ShareViewData
             'reminderOptions' => TodoService::REMINDER_OPTIONS,
             'notifyViaLabels' => collect(TodoService::NOTIFY_VIA_LABELS)->map(fn (string $label) => __($label))->all(),
             'notifyViaOptions' => TodoService::NOTIFY_VIA_OPTIONS,
-            'nationalHolidayDates' => $this->holidays->listAllJapaneseNationalHolidayDateKeys(),
-            'closureDates' => $this->holidays->listAllClosureDateKeys(),
-            'businessClosureDates' => $this->holidays->listAllBusinessClosureDateKeys(),
+            'nationalHolidayDates' => $this->holidays->listAllJapaneseNationalHolidayDateKeys($viewerId),
+            'closureDates' => $this->holidays->listAllClosureDateKeys($viewerId),
+            'businessClosureDates' => $this->holidays->listAllBusinessClosureDateKeys($viewerId),
             'clearFiltersHref' => $this->todos->buildClearFiltersHref(),
             'noteColors' => collect(NoteService::NOTE_COLORS)->mapWithKeys(fn (array $color, string $key) => [
                 $key => [

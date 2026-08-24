@@ -19,6 +19,7 @@ use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GoogleMapsSettingsController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\HelpController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MapController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\MailController;
 use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
+use App\Http\Controllers\PersonalHolidayController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -50,9 +52,7 @@ use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\ShareViewData;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return auth()->check() ? redirect('/dashboard') : redirect('/login');
-});
+Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/terms', [LegalController::class, 'terms']);
 Route::get('/privacy', [LegalController::class, 'privacy']);
@@ -293,6 +293,14 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/mypage', [MyPageController::class, 'update']);
     Route::get('/mypage/export', [MyPageController::class, 'export']);
     Route::post('/mypage/delete', [MyPageController::class, 'destroy']);
+    Route::get('/mypage/holidays', [PersonalHolidayController::class, 'index']);
+    Route::post('/mypage/holidays/import', [PersonalHolidayController::class, 'importHolidays']);
+    Route::post('/mypage/holidays/add', [PersonalHolidayController::class, 'addHoliday']);
+    Route::post('/mypage/holidays/{id}/delete', [PersonalHolidayController::class, 'deleteHoliday'])->whereNumber('id');
+    Route::post('/mypage/weekday-rules/add', [PersonalHolidayController::class, 'addWeekdayRule']);
+    Route::post('/mypage/weekday-rules/{id}/delete', [PersonalHolidayController::class, 'deleteWeekdayRule'])->whereNumber('id');
+    Route::post('/mypage/weekday-rules/{id}/exceptions/add', [PersonalHolidayController::class, 'addWeekdayException'])->whereNumber('id');
+    Route::post('/mypage/weekday-rules/{id}/exceptions/delete', [PersonalHolidayController::class, 'deleteWeekdayException'])->whereNumber('id');
     Route::get('/help', [HelpController::class, 'index']);
     Route::get('/about', [HelpController::class, 'about']);
     Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {

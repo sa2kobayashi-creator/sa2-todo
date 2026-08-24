@@ -260,7 +260,7 @@ class MediaStorageConfigService
             return false;
         }
 
-        // 3つの運用モードはいずれも B2 連携を前提にする
+        // 運用モードはいずれも B2 連携を前提にする
         return in_array($this->capacityMode(), $this->capacityModes(), true);
     }
 
@@ -284,6 +284,8 @@ class MediaStorageConfigService
         return false;
     }
 
+    public const CAPACITY_MODE_B2_PRIMARY = 'b2_primary';
+
     public const CAPACITY_MODE_R2_CAP = 'r2_cap';
 
     public const CAPACITY_MODE_AGE_ARCHIVE = 'age_archive';
@@ -294,6 +296,7 @@ class MediaStorageConfigService
     public function capacityModes(): array
     {
         return [
+            self::CAPACITY_MODE_B2_PRIMARY,
             self::CAPACITY_MODE_R2_CAP,
             self::CAPACITY_MODE_AGE_ARCHIVE,
             self::CAPACITY_MODE_OVERFLOW,

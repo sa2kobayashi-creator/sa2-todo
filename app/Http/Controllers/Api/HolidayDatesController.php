@@ -16,8 +16,8 @@ class HolidayDatesController extends Controller
         $end = is_string($request->query('end')) ? $request->query('end') : '';
 
         return response()->json([
-            'national' => $this->holidays->listJapaneseNationalHolidayDateKeysForRange($start, $end),
-            'closure' => $this->holidays->listBusinessClosureDateKeysForRange($start, $end),
+            'national' => $this->holidays->listJapaneseNationalHolidayDateKeysForRange($start, $end, $request->user()?->id),
+            'closure' => $this->holidays->listBusinessClosureDateKeysForRange($start, $end, $request->user()?->id),
         ]);
     }
 }

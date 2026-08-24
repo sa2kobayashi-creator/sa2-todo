@@ -406,6 +406,7 @@ class TodoService
         $expansionOptions = $this->resolveWeekdayExpansionOptions($weekdays, [
             'excludeHolidays' => $options['excludeHolidays'] ?? null,
             'excludeClosures' => $options['excludeClosures'] ?? null,
+            'userId' => $userId,
         ]);
         $expandedDates = count($weekdays) > 0 && $period['startDate'] && $period['endDate']
             ? $this->expandDatesByWeekdays($period['startDate'], $period['endDate'], $weekdays, $expansionOptions)
@@ -1085,16 +1086,21 @@ class TodoService
         return [
             'excludeHolidays' => ! $this->isExplicitlyDisabled($options['excludeHolidays'] ?? null),
             'excludeClosures' => ! $this->isExplicitlyDisabled($options['excludeClosures'] ?? null),
+            'userId' => isset($options['userId']) ? (int) $options['userId'] : null,
         ];
     }
 
     /** @param array<string, bool> $options */
     private function shouldSkipExpandedDate(string $date, array $options = []): bool
     {
-        if (($options['excludeHolidays'] ?? false) && $this->holidays->isJapaneseNationalHolidayDate($date)) {
+        $userId = isset($options['userId']) ? (int) $options['userId'] : null;
+        if (! $userId) {
+            $userId = null;
+        }
+        if (($options['excludeHolidays'] ?? false) && $this->holidays->isJapaneseNationalHolidayDate($date, $userId)) {
             return true;
         }
-        if (($options['excludeClosures'] ?? false) && $this->holidays->isBusinessClosureDate($date)) {
+        if (($options['excludeClosures'] ?? false) && $this->holidays->isBusinessClosureDate($date, $userId)) {
             return true;
         }
 

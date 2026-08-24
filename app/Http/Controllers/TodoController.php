@@ -119,7 +119,7 @@ class TodoController extends Controller
             }
             $holidayMap = [];
             foreach (array_values(array_unique($holidayYears)) as $holidayYear) {
-                $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear));
+                $holidayMap = array_merge($holidayMap, $this->holidays->getHolidayInfoMapForYear($holidayYear, $userId));
             }
 
             $todosForJs = $mergedTodos;

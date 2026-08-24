@@ -21,8 +21,8 @@ class BillingEntitlementServiceTest extends TestCase
         parent::setUp();
         $this->billing = app(BillingEntitlementService::class);
         config([
-            'photos.user_free_quota_bytes' => 20 * 1024 * 1024 * 1024,
-            'photos.standard_quota_bytes' => 100 * 1024 * 1024 * 1024,
+            'photos.user_free_quota_bytes' => 50 * 1024 * 1024 * 1024,
+            'photos.standard_quota_bytes' => 200 * 1024 * 1024 * 1024,
             'photos.paid_overage_enabled' => true,
         ]);
     }
@@ -41,7 +41,7 @@ class BillingEntitlementServiceTest extends TestCase
     {
         $user = $this->makeUser(UserRole::Light);
 
-        $this->assertSame(20 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user));
+        $this->assertSame(50 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user));
         $this->assertFalse($this->billing->hasActiveSubscription($user));
     }
 
@@ -49,7 +49,7 @@ class BillingEntitlementServiceTest extends TestCase
     {
         $user = $this->makeUser(UserRole::Standard);
 
-        $this->assertSame(100 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user));
+        $this->assertSame(200 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user));
     }
 
     public function test_light_with_active_subscription_gets_standard_quota(): void
@@ -58,7 +58,7 @@ class BillingEntitlementServiceTest extends TestCase
         $this->billing->apply($user, ['subscription_status' => SubscriptionStatus::Active]);
 
         $this->assertTrue($this->billing->hasActiveSubscription($user->fresh()));
-        $this->assertSame(100 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user->fresh()));
+        $this->assertSame(200 * 1024 * 1024 * 1024, $this->billing->storageFreeQuotaBytes($user->fresh()));
     }
 
     public function test_expired_trial_does_not_grant_paid_access(): void

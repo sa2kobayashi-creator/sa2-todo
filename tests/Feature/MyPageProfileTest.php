@@ -37,7 +37,10 @@ class MyPageProfileTest extends TestCase
             ->assertSee('契約状態', false)
             ->assertSee('写真の容量', false)
             ->assertSee('メールボックス', false)
-            ->assertSee('/mail?tab=domain', false);
+            ->assertSee('/mail?tab=domain', false)
+            ->assertSee('自分の休日', false)
+            ->assertSee('href="/mypage/holidays"', false)
+            ->assertSee('休日を設定する', false);
     }
 
     public function test_timezone_can_be_updated_on_mypage(): void

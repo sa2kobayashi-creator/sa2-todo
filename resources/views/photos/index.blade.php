@@ -317,6 +317,9 @@
                   $archiveConfirm = __('常用（R2）の使用量が約 :quota 以下になるまで、古い原本を Backblaze B2 へバックグラウンドで移します。他の画面へ移っても処理は続きます。実行しますか？', [
                     'quota' => $hotQuotaLabel,
                   ]);
+                } elseif ($archiveCapacityMode === 'b2_primary') {
+                  $archiveBtnTitle = __('残っている常用原本を Backblaze B2 へ分割移動します');
+                  $archiveConfirm = __('常用ディスクに残っている原本を Backblaze B2 へバックグラウンドで移します。他の画面へ移っても処理は続きます。実行しますか？');
                 } else {
                   $archiveBtnTitle = __('古い常用原本を Backblaze B2 へ分割移動します（photos:archive-cold）');
                   $archiveConfirm = __('常用（R2）の古い原本を Backblaze B2 へバックグラウンドで移します。他の画面へ移っても処理は続きます。実行しますか？');
@@ -367,6 +370,8 @@
           <p class="photos-storage-note photos-archive-mode-note">
             @if($archiveCapacityMode === 'r2_cap')
               {{ __('アーカイブ方式: 常用（R2）が :quota 以下になるよう、超過しそうな新規原本は B2 直書き（サムネは R2）。既存分は古い原本を B2 へ移します。', ['quota' => $hotQuotaLabel]) }}
+            @elseif($archiveCapacityMode === 'b2_primary')
+              {{ __('アーカイブ方式: 新規原本は B2、サムネは R2。残っている常用原本を B2 へ移します。') }}
             @else
               {{ __('アーカイブ方式: :days 日より古い原本だけを移します。常用（R2）が :quota を超えていても、日数条件を満たさない写真は移動しません。R2 を :quota 以下まで減らしたい場合は、設定 → ストレージで容量モードを「R2は無料枠までしか使わない」に変更してください。', [
                 'days' => (string) ($storageStats['archiveAfterDays'] ?? 365),
@@ -1407,6 +1412,7 @@
                 </div>
                 <div class="photos-sim-presets" role="group" aria-label="{{ __('容量プリセット') }}">
                   <button type="button" class="photos-secondary-btn" data-sim-total-gb="100">100 GB</button>
+                  <button type="button" class="photos-secondary-btn" data-sim-total-gb="200">200 GB</button>
                   <button type="button" class="photos-secondary-btn" data-sim-total-gb="500">500 GB</button>
                   <button type="button" class="photos-secondary-btn" data-sim-total-gb="1024">1 TB</button>
                   <button type="button" class="photos-secondary-btn" data-sim-total-gb="5120">5 TB</button>

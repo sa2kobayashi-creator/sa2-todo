@@ -228,6 +228,10 @@
       @elseif($tab === 'domain')
         <section class="panel">
           <h2>{{ __('@:domain メール申請', ['domain' => $mailDomain]) }}</h2>
+          @if(!empty($mailboxIncludedInPlan))
+            <p class="hint">{{ __('スタンダード契約に :count アドレス含まれます。外部の Gmail 等の接続はこれまでどおり無料です。', ['count' => $mailboxLimit ?? 1]) }}</p>
+            <p class="hint">{{ __('アドレスの作成とパスワード設定は運営者が手動で行います。パスワードは別途お知らせします。届いたらメール設定に入力してください。') }}</p>
+          @else
           <div class="mail-price-grid" aria-label="{{ __('料金') }}">
             <div class="mail-price-card">
               <span class="mail-price-label">{{ __('月額') }}</span>
@@ -241,12 +245,13 @@
             </div>
           </div>
           <p class="hint">
-            {{ __('外部の Gmail 等の接続は無料のままです。契約あたり :count 件まで。お支払い確認後に管理者がオプションを有効化し、承認・作成します。', ['count' => $mailboxLimit ?? 1]) }}
+            {{ __('ライトプランではメールボックスは個別契約です。外部の Gmail 等の接続は無料のままです。契約あたり :count 件まで。お支払い確認後、運営者がアドレスとパスワードを作成します。', ['count' => $mailboxLimit ?? 1]) }}
           </p>
           @if(empty($hasMailboxAddon))
             <p class="banner error">
               {{ __('まだ有料オプションが有効になっていません。お申し込み・お支払いのうえ、管理者による有効化をお待ちください。') }}
             </p>
+          @endif
           @endif
 
           @if(!empty($domainRequests))
@@ -296,7 +301,7 @@
                 </span>
               </label>
               <label>{{ __('メモ（任意）') }}<textarea name="user_note" rows="2" maxlength="1000"></textarea></label>
-              <p class="hint">{{ __('パスワードはメールボックス作成後、ご自身でメーラー設定に入力してください。管理者は平文パスワード一覧を持ちません。') }}</p>
+              <p class="hint">{{ __('アドレスの作成とパスワード設定は運営者が手動で行います。パスワードは別途お知らせします。届いたら、アカウント設定の「パスワード / アプリパスワード」に入力してください。このアプリにパスワード一覧はありません。') }}</p>
               <button type="submit">{{ __('申請する') }}</button>
             </form>
           @elseif(!empty($hasMailboxAddon))

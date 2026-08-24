@@ -17,17 +17,80 @@
 |------|------|
 | R2 / B2 / Cloudinary 等の API キー | **アプリ全体で1セット**（`media_storage_settings` は `provider` 単位。`user_id` なし） |
 | 写真・動画データ | **ユーザーごと**（`photos.user_id`） |
-| 無料枠 | **ユーザーごと合計 20GB**（R2+B2 合算相当） |
+| 無料枠 | **ユーザーごと。Light 50GB / Standard 200GB**（R2+B2 合算相当） |
 | 超過時 | 新規追加を拒否（`PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA`） |
 | 課金 | **見込表示のみ**（2A）。実徴収（Stripe 等・2B）は未実装 |
 | 有料超過フック | `PHOTO_PAID_OVERAGE_ENABLED` + `users.storage_overage_active`（`BillingEntitlementService`） |
 
 ## 決定済みの製品方針（クォータ）
 
-- **1A:** 無料枠はユーザーごと。Light **20GB** / Standard（有料）**100GB**
+- **1A:** 無料枠はユーザーごと。Light **50GB** / Standard（有料）**200GB**（2026-08-24 実装）
 - **2A（今）:** 超過は見込料金表示のみ
 - **3B:** 無料枠超過かつ有料未契約ならアップロード等を停止
 - **2B（将来）:** Stripe 等で実課金し、超過利用を解禁（手動フラグは 2026-08-21 実装済み）
+
+## 個人販売（販路 B）で Photos を売りにする
+
+ステータス: **クォータ実装済み。B2 中心パイプラインは `b2_primary` として実装（2026-08-24）**  
+前提: 個人にとって Photos は大きなアピール。容量が小さいと売れない。一方 Google One（¥290 / 100GB / 5人）より「安い GB」では勝てない。
+
+**読み替え:** 「容量を看板にしない」＝容量で Google と戦うな、という意味。個人向けでは **十分広い枠を Standard に込みにして、容量不足を理由に落とされない** のが正解。看板は原本・アルバム・グループ・生活アプリ一体。数字は「困らない大きさ」として後ろに置く。
+
+### なぜ 20GB / 100GB だと弱いか
+
+| 現実 | 意味 |
+|---|---|
+| スマホの写真＋短い動画で、1年で 20〜80GB は普通 | Light 20GB は「お試し」止まり。本気の置き場に見えない |
+| Google 無料 15GB ＋ One 100GB が頭にある | Standard 100GB は「並」で、¥980 と並べると高い |
+| 4K 動画・運動会・子どもの成長記録 | 100GB はすぐ見える天井。売れない理由になる |
+| 実使用は満杯にならない | 売る枠と、運営が払う実バイトは別。枠を厚くしても原価は平均使用量 |
+
+### 原価（保管のみ・B2 $0.006/GB・¥150/$）
+
+満杯の最悪ケース。平均使用は満杯の 2〜4 割を見込む。
+
+| 売る枠 | 満杯の保管 | 平均 30% 使用 |
+|---|---|---|
+| 20GB | 約 ¥18／人・月 | 約 ¥5 |
+| 100GB | 約 ¥90 | 約 ¥27 |
+| 200GB | 約 ¥180 | 約 ¥54 |
+| 500GB | 約 ¥450 | 約 ¥135 |
+| 1TB | 約 ¥900 | 約 ¥270 |
+
+Standard ¥980 に 200GB 込みでも、保管だけなら十分乗る。**本当に効くのは動画の転送（egress）と Cloudinary 変換**。GB 枠を削っても、動画をアプリ経由で何度も再生されるとそっちが先に膨らむ。
+
+### 推奨（個人・共有インスタンス）
+
+| プラン | 枠 | 保存 | 役割 |
+|---|---|---|---|
+| **Light** | **50GB**（20GB から上げる） | 原本 B2。サムネは Cloudinary／軽量 | 本気で試せる。動画多めはすぐ Standard へ |
+| **Standard** | **200GB 込み**（100GB から上げる） | 同じ B2 中心。直近・よく見る分だけ R2 ホット可 | 「容量で困らない」が売り。Google One 100GB より広く見せる |
+| **超過** | **¥300／100GB／月** のまま | 同じく B2 | 従来の ¥200／10GB は使わない |
+
+500GB や 1TB を Standard 込みにすると、動画置き場ビジネスになり egress が読みにくい。まずは 200GB。足りない人だけ超過。
+
+専用インスタンス（販路 A）は顧客キー（BYOK）または見積どおり。個人の共有枠を専用にそのまま載せない。
+
+### 技術（安く広くするための順番）
+
+1. **共有インスタンスは原本 B2 が既定候補。** 設定 → ストレージの容量モード `b2_primary`（原本はB2に置く）。R2 はサムネ／ホット。キーはアプリ全体1セットのまま（ユーザーごとキーは個人販売ではやらない）
+2. **一覧・サムネは原本を毎回引かない。** Cloudinary または自前サムネ。原本ダウンロードは明示操作
+3. **動画が原価の栓。** 1本上限は現状 1GB。必要なら Standard でも「動画は月あたり○GB」のソフト目安、または再生は署名 URL＋キャッシュ。圧縮品質を落とさない（原本維持が売り）
+4. **招待制を維持**するあいだは、枠を厚くしても破産しにくい。自己登録フルオープンの前に平均使用量を見る
+5. クォータ変更は `PHOTO_USER_FREE_QUOTA_BYTES` / `PHOTO_STANDARD_QUOTA_BYTES` と `BillingEntitlementService`
+6. **運用:** 既存の `age_archive` 保存値はそのまま。B2 中心にするにはパイプラインを有効にし、容量モードを「原本はB2に置く」で保存する。B2 認証も有効であること
+
+### ユーザー向けメッセージ（案）
+
+- 売り: 「写真・動画の原本を、このアプリにまとめて置ける。アルバムとグループ共有。Standard は 200GB 込み」
+- 言わない: 「Google より安いクラウド」「無制限」
+- Light: 「まず 50GB。本格的に残すなら Standard」
+
+### まだやらない
+
+- Stripe 実課金、テナント分離、ユーザーごと API キー
+- 鮮明化を個人プランに出す（原価が高い）
+- 3段階の Plus（速さ課金）— 個人の第一声は広さ。速さは専用インスタンスか後続
 
 ## 販売レベルで将来実装する項目
 
@@ -69,9 +132,10 @@
 ## 関連コード（現状）
 
 - `config/photos.php` … `user_free_quota_bytes`, `paid_overage_enabled`, `block_uploads_over_free_quota`
-- `app/Services/PhotoService.php` … `userFreeQuotaBytes`, `assertWithinFreeQuotaOrPaid`, `userAllowsPaidOverageUploads`
+- `app/Services/PhotoService.php` … `userFreeQuotaBytes`, `assertWithinFreeQuotaOrPaid`, `resolveUploadTarget`（`b2_primary`）
 - `app/Models/MediaStorageSetting.php` … プロバイダ単位のグローバル設定
-- `app/Services/MediaStorageConfigService.php` … ランタイムディスク適用
+- `app/Services/MediaStorageConfigService.php` … `CAPACITY_MODE_B2_PRIMARY`、ランタイムディスク適用
+- `app/Services/PhotoColdArchiveService.php` … `b2_primary` は残ホット原本を B2 へ
 
 ## 将来の料金プラン構想（円熟後・記録のみ）
 
@@ -85,6 +149,8 @@
 - 家族無料枠消費後に他者を最初から B2 だけに流すと **料金は抑えられるが体感速度が落ちる**。
 
 ### プラン案（製品メッセージ）
+
+個人販売の枠とメッセージは **「個人販売（販路 B）で Photos を売りにする」** を正とする（Light 50GB / Standard 200GB 案）。下表の Plus 3段階は円熟後の速度課金メモで、個人の初回販売では使わない。
 
 | プラン | 位置づけ | 保存の考え方 | ユーザー向け説明 |
 |---|---|---|---|

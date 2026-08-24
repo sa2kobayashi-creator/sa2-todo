@@ -28,16 +28,18 @@
             <h2>ToDos &amp; notes</h2>
             <ul>
               <li>ToDos have list and calendar views, reminders, and group sharing when your role allows it.</li>
+              <li>Set your own holidays on <a href="/mypage/holidays">My Page → Holidays</a>. They apply only to your calendar and ToDos.</li>
               <li>Notes can be pinned, archived, and filtered. If translation is set up, use the translate button (Japanese ⇔ English).</li>
             </ul>
             <h2>Photos</h2>
             <ul>
-              <li>Each account has a free storage allowance. Uploads stop when that quota is full.</li>
+              <li>Each account has a storage allowance (about 50GB on Light, 200GB on Standard). Uploads stop when that quota is full.</li>
               <li>Albums can be private or shared with groups you belong to.</li>
             </ul>
             <h2>Messages, mail, and more</h2>
             <ul>
               <li>Groups are join-by-invite. You cannot browse every user’s email.</li>
+              <li>A @sa2-plus.com address is included in Standard. On Light it is a separate add-on. Connecting Gmail stays free. The operator creates the address and password by hand and sends you the password separately.</li>
               <li>LINE / Messenger reminders need an admin to save the channel, then you link on My Page.</li>
               <li>Other menus (expenses, maps, transit, translate, music, videos, mail) appear when your account includes them.</li>
             </ul>
@@ -61,16 +63,18 @@
             <h2>Todo・メモ</h2>
             <ul>
               <li>Todo は一覧またはカレンダー、リマインダ、権限があればグループ共有が使えます。</li>
+              <li>自分の休日は <a href="/mypage/holidays">マイページ → 休日</a> で設定します。カレンダーと Todo の定休日にだけ反映され、他の人には見えません。</li>
               <li>メモはピン留め・アーカイブ、カテゴリや日付での絞り込みができます。翻訳が使える場合は、日本語⇔英語の「訳」ボタンがあります。</li>
             </ul>
             <h2>Photos</h2>
             <ul>
-              <li>ユーザーごとに無料の保管枠があります。枠を超えると追加アップロードが止まることがあります。</li>
+              <li>ユーザーごとに保管枠があります（ライトは約 50GB、スタンダードは約 200GB）。枠を超えると追加アップロードが止まることがあります。</li>
               <li>アルバムは非公開、または所属グループへの共有ができます。</li>
             </ul>
             <h2>メッセージ・メール・その他</h2>
             <ul>
               <li>グループは招待／承諾で参加します。全ユーザーのメール一覧は出ません。</li>
+              <li>@sa2-plus.com のメールアドレスはスタンダード契約に含まれます。ライトは個別契約です。Gmail などの外部接続はこれまでどおり無料です。アドレス作成とパスワード設定は運営者が手動で行い、パスワードは別途お知らせします。</li>
               <li>LINE／Messenger 通知は、管理者がチャネルを設定したあと、各自がマイページで連携します。</li>
               <li>入出金、マップ、路線、翻訳、音楽、動画、メールなどは、アカウントにメニューがあるとき表示されます。</li>
             </ul>

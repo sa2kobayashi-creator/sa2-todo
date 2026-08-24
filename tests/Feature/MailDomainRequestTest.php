@@ -23,9 +23,9 @@ class MailDomainRequestTest extends TestCase
         ], $extra));
     }
 
-    public function test_user_without_addon_cannot_request_mailbox(): void
+    public function test_light_user_without_addon_cannot_request_mailbox(): void
     {
-        $user = $this->makeUser(UserRole::Standard, 'user@example.com');
+        $user = $this->makeUser(UserRole::Light, 'user@example.com');
 
         $this->actingAs($user)
             ->post('/mail/domain-requests', ['local_part' => 'alice'])
@@ -33,6 +33,36 @@ class MailDomainRequestTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertSame(0, MailDomainRequest::query()->count());
+    }
+
+    public function test_light_with_active_subscription_still_needs_mailbox_addon(): void
+    {
+        $user = $this->makeUser(UserRole::Light, 'light-sub-mail@example.com', [
+            'subscription_status' => 'active',
+        ]);
+
+        $this->actingAs($user)
+            ->post('/mail/domain-requests', ['local_part' => 'alice'])
+            ->assertRedirect('/mail?tab=domain')
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, MailDomainRequest::query()->count());
+    }
+
+    public function test_standard_user_can_request_mailbox_without_addon_flag(): void
+    {
+        $user = $this->makeUser(UserRole::Standard, 'standard-mail@example.com');
+
+        $this->actingAs($user)
+            ->post('/mail/domain-requests', ['local_part' => 'alice'])
+            ->assertRedirect('/mail?tab=domain');
+
+        $this->assertDatabaseHas('mail_domain_requests', [
+            'user_id' => $user->id,
+            'local_part' => 'alice',
+            'domain' => 'sa2-plus.com',
+            'status' => MailDomainRequest::STATUS_PENDING,
+        ]);
     }
 
     public function test_user_with_addon_can_request_one_mailbox(): void
@@ -70,6 +100,25 @@ class MailDomainRequestTest extends TestCase
             ->assertSee('月額', false)
             ->assertSee('300', false)
             ->assertSee('まだ有料オプションが有効になっていません', false);
+
+        $standard = $this->makeUser(UserRole::Standard, 'std-mail-tab@example.com');
+        $this->actingAs($standard)
+            ->get('/mail?tab=domain')
+            ->assertOk()
+            ->assertSee('スタンダード契約に', false)
+            ->assertSee('運営者が手動', false)
+            ->assertDontSee('まだ有料オプションが有効になっていません', false);
+    }
+
+    public function test_admin_mail_requests_page_explains_manual_lolipop_work(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-mail-ui@example.com');
+
+        $this->actingAs($admin)
+            ->get('/admin/mail-requests')
+            ->assertOk()
+            ->assertSee('ロリポップ管理画面で手動', false)
+            ->assertSee('作成済みにする（手動）', false);
     }
 
     public function test_user_can_cancel_pending_request(): void
