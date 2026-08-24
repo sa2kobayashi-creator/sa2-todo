@@ -17,6 +17,10 @@ class MailDomainRequestController extends Controller
 
     public function index(Request $request)
     {
+        $actor = $request->user();
+        if ($actor->isTenantAdmin()) {
+            abort(403, __('メール申請の処理は運営のみが行います。'));
+        }
         return view('admin.mail-requests.index', [
             'pending' => array_map(fn ($r) => $r->toPublicArray(), $this->domainMail->listPendingForAdmin()),
             'recent' => array_map(fn ($r) => $r->toPublicArray(), $this->domainMail->listRecentForAdmin()),
@@ -30,6 +34,7 @@ class MailDomainRequestController extends Controller
 
     public function approve(Request $request, int $id)
     {
+        $this->assertPlatformMailAdmin($request);
         try {
             $this->domainMail->approve($request->user(), $id, $request->input('admin_note'));
         } catch (\Throwable $e) {
@@ -44,6 +49,7 @@ class MailDomainRequestController extends Controller
 
     public function reject(Request $request, int $id)
     {
+        $this->assertPlatformMailAdmin($request);
         try {
             $this->domainMail->reject($request->user(), $id, $request->input('admin_note'));
         } catch (\Throwable $e) {
@@ -55,6 +61,7 @@ class MailDomainRequestController extends Controller
 
     public function provision(Request $request, int $id)
     {
+        $this->assertPlatformMailAdmin($request);
         try {
             $this->domainMail->markProvisioned($request->user(), $id, $request->input('admin_note'));
         } catch (\Throwable $e) {
@@ -69,6 +76,7 @@ class MailDomainRequestController extends Controller
 
     public function suspend(Request $request, int $id)
     {
+        $this->assertPlatformMailAdmin($request);
         try {
             $this->domainMail->suspend($request->user(), $id, $request->input('admin_note'));
         } catch (\Throwable $e) {
@@ -76,5 +84,12 @@ class MailDomainRequestController extends Controller
         }
 
         return $this->redirectWithMessage('/admin/mail-requests', __('停止扱いにしました。'));
+    }
+
+    private function assertPlatformMailAdmin(Request $request): void
+    {
+        if ($request->user()?->isTenantAdmin()) {
+            abort(403, __('メール申請の処理は運営のみが行います。'));
+        }
     }
 }

@@ -15,10 +15,13 @@
   @if(!empty($canAdminUsers))
     <a href="/admin/users" @class(['active' => $navActive === 'admin'])>{{ __('ユーザー管理') }}</a>
     <a href="/admin/groups" @class(['active' => $navActive === 'admin-groups'])>{{ __('グループ管理') }}</a>
-    <a href="/admin/mail-requests" @class(['active' => $navActive === 'admin-mail'])>{{ __('メール申請') }}</a>
+    @if(!empty($canManagePlatformOps))
+      <a href="/admin/mail-requests" @class(['active' => $navActive === 'admin-mail'])>{{ __('メール申請') }}</a>
+      <a href="/admin/storage-archive" @class(['active' => $navActive === 'admin-storage'])>{{ __('ストレージ監視') }}</a>
+    @endif
   @endif
-  @if(!empty($canAdminUsers))
-    <a href="/admin/storage-archive" @class(['active' => $navActive === 'admin-storage'])>{{ __('ストレージ監視') }}</a>
+  @if(!empty($canManageTenants))
+    <a href="/admin/tenants" @class(['active' => $navActive === 'admin-tenants'])>{{ __('テナント契約') }}</a>
   @endif
   @if(!empty($canSuperAdmin))
     <a href="/admin/sales/estimate" @class(['active' => $navActive === 'admin-sales'])>{{ __('見積（専用）') }}</a>

@@ -52,6 +52,11 @@ class MailColdArchiveService
             ->get();
 
         foreach ($accounts as $account) {
+            $owner = $account->user;
+            \App\Support\TenantContext::current()->fromUser($owner);
+            $this->media->flush();
+            $this->media->applyRuntimeDisks();
+
             if ($examined >= $accountLimit) {
                 break;
             }

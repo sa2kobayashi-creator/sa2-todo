@@ -10,7 +10,7 @@ class TravelpayoutsConfigService
 {
     public function configRow(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_TRAVELPAYOUTS);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_TRAVELPAYOUTS);
     }
 
     public function token(): string
@@ -103,7 +103,7 @@ class TravelpayoutsConfigService
      */
     public function saveConfig(bool $enabled, array $input): MediaStorageSetting
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_TRAVELPAYOUTS);
         $secrets = $row->secretsArray();
         $settings = $row->settingsArray();
 
@@ -144,7 +144,7 @@ class TravelpayoutsConfigService
     /** @return array<string, mixed> */
     public function formState(): array
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_TRAVELPAYOUTS);
         $settings = $row->settingsArray();
 
         return [
@@ -221,7 +221,7 @@ class TravelpayoutsConfigService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_TRAVELPAYOUTS);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',

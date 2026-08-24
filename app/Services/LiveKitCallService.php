@@ -32,6 +32,11 @@ class LiveKitCallService
             throw new \RuntimeException(__('通話機能はまだ設定されていません。'));
         }
 
+        $peer = User::query()->find($peerUserId);
+        if ($peer && ! $user->sharesContractWith($peer)) {
+            throw new \RuntimeException(__('別の契約のユーザーとは通話できません。'));
+        }
+
         $roomName = $this->directRoomName($groupId, (int) $user->id, $peerUserId);
         $options = (new AccessTokenOptions())
             ->setIdentity('user-'.(int) $user->id)

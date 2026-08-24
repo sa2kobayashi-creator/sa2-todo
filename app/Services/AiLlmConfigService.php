@@ -13,7 +13,7 @@ class AiLlmConfigService
 
     public function row(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_LLM);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_LLM);
     }
 
     public function isReady(): bool
@@ -67,7 +67,7 @@ class AiLlmConfigService
      */
     public function save(bool $enabled, array $settings, array $secrets): MediaStorageSetting
     {
-        $row = $this->row();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_LLM);
         $mergedSecrets = $row->secretsArray();
         foreach ($secrets as $key => $value) {
             if (! is_string($key)) {
@@ -151,7 +151,7 @@ class AiLlmConfigService
     /** @return array<string, mixed> */
     public function formState(): array
     {
-        $row = $this->row();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_LLM);
 
         return [
             'enabled' => (bool) $row->enabled,
@@ -172,7 +172,7 @@ class AiLlmConfigService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->row();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_LLM);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',

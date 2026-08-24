@@ -32,12 +32,24 @@ class MediaStorageConfigService
 
     public function get(string $provider): MediaStorageSetting
     {
-        // テーブル未作成時のフォールバックはキャッシュしない（migrate 後に本物を読めるようにする）
         if (! MediaStorageSetting::tableExists()) {
             return MediaStorageSetting::unavailable($provider);
         }
 
-        return $this->providerCache[$provider] ??= MediaStorageSetting::forProvider($provider);
+        $key = $this->cacheKey($provider, 'use');
+
+        return $this->providerCache[$key] ??= MediaStorageSetting::forUse($provider);
+    }
+
+    public function flush(): void
+    {
+        $this->providerCache = [];
+        $this->pipelineCloudinaryDisplayCache = null;
+    }
+
+    private function cacheKey(string $provider, string $mode): string
+    {
+        return $mode.':'.MediaStorageSetting::currentScopeForProvider($provider).':'.$provider;
     }
 
     /**
@@ -46,7 +58,7 @@ class MediaStorageConfigService
      */
     public function save(string $provider, bool $enabled, array $settings, array $secrets): MediaStorageSetting
     {
-        $row = $this->get($provider);
+        $row = MediaStorageSetting::writeForProvider($provider);
 
         // APP_KEY 不一致などで復号できない場合は空から作り直す
         $mergedSecrets = $row->secretsArray();
@@ -102,16 +114,19 @@ class MediaStorageConfigService
             report($e);
             // 最終手段: クエリで settings のみ更新し、secrets は空で書き直す
             MediaStorageSetting::query()->updateOrCreate(
-                ['provider' => $provider],
                 [
+                    'tenant_scope' => MediaStorageSetting::currentScopeForProvider($provider),
+                    'provider' => $provider,
+                ],
+                [
+                    'tenant_id' => MediaStorageSetting::currentTenantIdForProvider($provider),
                     'enabled' => $enabled,
                     'settings' => $cleanSettings,
                     'secrets' => [],
                 ]
             );
-            unset($this->providerCache[$provider]);
-            $this->pipelineCloudinaryDisplayCache = null;
-            $row = $this->get($provider);
+            $this->flush();
+            $row = MediaStorageSetting::writeForProvider($provider);
             if ($provider !== MediaStorageSetting::PROVIDER_PIPELINE && $mergedSecrets !== []) {
                 try {
                     $row->secrets = $mergedSecrets;
@@ -123,8 +138,8 @@ class MediaStorageConfigService
             }
         }
 
-        $this->providerCache[$provider] = $row;
-        $this->pipelineCloudinaryDisplayCache = null;
+        $this->flush();
+        $this->providerCache[$this->cacheKey($provider, 'use')] = $row;
         $this->applyRuntimeDisks();
 
         return $row;
@@ -488,11 +503,11 @@ class MediaStorageConfigService
     /** @return array<string, mixed> */
     public function formState(string $provider): array
     {
-        $row = $this->get($provider);
+        $row = MediaStorageSetting::forProvider($provider);
         $settings = $row->settingsArray();
         $envFallback = [];
 
-        if ($provider === MediaStorageSetting::PROVIDER_R2) {
+        if ($provider === MediaStorageSetting::PROVIDER_R2 && \App\Support\TenantContext::current()->isPlatform()) {
             $envFallback = [
                 'access_key_id' => (string) config('filesystems.disks.r2.key', ''),
                 'secret_access_key' => (string) config('filesystems.disks.r2.secret', ''),

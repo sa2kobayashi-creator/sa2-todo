@@ -8,8 +8,10 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Http\Controllers\Controller;
 use App\Jobs\DeleteUserAccountJob;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\BillingEntitlementService;
+use App\Services\TenantContractService;
 use App\Support\FooterNav;
 use App\Support\Registration;
 use Illuminate\Http\Request;
@@ -23,16 +25,25 @@ class UserController extends Controller
 
     public function __construct(
         private BillingEntitlementService $billing,
+        private TenantContractService $tenants,
     ) {}
 
     public function index(Request $request)
     {
         $actor = $request->user();
-        $users = User::query()->orderBy('id')->get()->map(fn (User $user) => $this->presentUser($user, $request));
+        $users = User::query()
+            ->with('tenant')
+            ->visibleTo($actor)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (User $user) => $this->presentUser($user, $request));
 
         return view('admin.users.index', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
             'users' => $users,
-            'canManageRegistration' => $actor->isAdmin(),
+            'canManageRegistration' => $actor->isPlatformStaff(),
+            'showTenantColumn' => $actor->isSuperAdmin(),
+            'tenantName' => $actor->tenant?->name,
+            'includedUsers' => $actor->tenant?->max_users ?: Tenant::defaultMaxUsers(),
             'registrationInviteCode' => Registration::inviteCode(),
             'registrationConfiguredInDatabase' => Registration::isConfiguredInDatabase(),
             'registrationOpen' => Registration::isOpen(),
@@ -41,8 +52,8 @@ class UserController extends Controller
 
     public function updateRegistration(Request $request)
     {
-        if (! $request->user()->isAdmin()) {
-            abort(403, __('招待コードを変更できるのは管理者だけです。'));
+        if (! $request->user()->isPlatformStaff()) {
+            abort(403, __('招待コードを変更できるのは運営だけです。'));
         }
 
         $data = $request->validate([
@@ -66,6 +77,9 @@ class UserController extends Controller
     public function show(Request $request, int $id)
     {
         $user = User::query()->findOrFail($id);
+        if (! $request->user()->canViewUser($user)) {
+            abort(403, __('このユーザーを表示する権限がありません。'));
+        }
 
         return view('admin.users.show', array_merge($this->flashFromQuery($request), [
             'user' => $this->presentUser($user, $request),
@@ -82,7 +96,7 @@ class UserController extends Controller
             return $this->redirectWithMessage('/admin/users', $error, 'error');
         }
 
-        return view('admin.users.edit', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
+        return view('admin.users.edit', array_merge($this->flashFromQuery($request), $this->formMeta($actor, $user), [
             'user' => $this->presentUser($user, $request),
         ]));
     }
@@ -90,7 +104,7 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $actor = $request->user();
-        $allowedRoles = array_map(fn (UserRole $role) => $role->value, UserRole::assignableBy($actor->roleEnum()));
+        $allowedRoles = array_map(fn (UserRole $role) => $role->value, $this->formMeta($actor)['assignableRoles']);
 
         $data = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -107,12 +121,26 @@ class UserController extends Controller
             $menuFeatures = $this->normalizeMenuFeaturesForStorage($role, $data['menuFeatures'] ?? []);
         }
 
+        $tenantId = $actor->tenant_id;
+        if ($tenantId) {
+            $tenant = Tenant::query()->findOrFail($tenantId);
+            try {
+                $this->tenants->assertCanAddUser($tenant);
+            } catch (\InvalidArgumentException $e) {
+                return $this->redirectWithMessage('/admin/users', $e->getMessage(), 'error');
+            }
+            if ($error = $this->assertTenantAdminSeat($tenant, $role, null)) {
+                return $this->redirectWithMessage('/admin/users', $error, 'error');
+            }
+        }
+
         User::create([
             'email' => strtolower(trim($data['email'])),
             'display_name' => trim($data['displayName']),
             'password' => Hash::make($data['password']),
             'role' => $role,
             'menu_features' => $menuFeatures,
+            'tenant_id' => $tenantId,
         ]);
 
         return $this->redirectWithMessage('/admin/users', __('ユーザーを追加しました。'));
@@ -127,7 +155,7 @@ class UserController extends Controller
             return $this->redirectWithMessage("/admin/users/{$id}/edit", $error, 'error');
         }
 
-        $allowedRoles = array_map(fn (UserRole $role) => $role->value, UserRole::assignableBy($actor->roleEnum()));
+        $allowedRoles = array_map(fn (UserRole $role) => $role->value, $this->formMeta($actor, $user)['assignableRoles']);
         // 編集対象の現在ロールが選択肢外でも、変更しない限り維持できるよう含める
         $allowedRoles[] = $user->roleEnum()->value;
         $allowedRoles = array_values(array_unique($allowedRoles));
@@ -164,6 +192,13 @@ class UserController extends Controller
 
         if (! $actor->isSuperAdmin() && $newRole === UserRole::SuperAdmin) {
             return $this->redirectWithMessage("/admin/users/{$id}/edit", __('スーパー管理者を付与できるのはスーパー管理者だけです。'), 'error');
+        }
+
+        if ($user->tenant_id) {
+            $tenant = Tenant::query()->find($user->tenant_id);
+            if ($tenant && ($error = $this->assertTenantAdminSeat($tenant, $newRole, $user))) {
+                return $this->redirectWithMessage("/admin/users/{$id}/edit", $error, 'error');
+            }
         }
 
         $user->email = strtolower(trim($data['email']));
@@ -216,6 +251,13 @@ class UserController extends Controller
             return $this->redirectWithMessage('/admin/users', __('最後のスーパー管理者は削除できません。'), 'error');
         }
 
+        if ($user->tenant_id) {
+            $tenant = Tenant::query()->find($user->tenant_id);
+            if ($tenant && $tenant->isOwner($user)) {
+                return $this->redirectWithMessage('/admin/users', __('契約代表は削除できません。'), 'error');
+            }
+        }
+
         $userId = (int) $user->id;
         $user->forceFill([
             'password' => Hash::make(Str::random(64)),
@@ -228,9 +270,15 @@ class UserController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function formMeta(User $actor): array
+    private function formMeta(User $actor, ?User $target = null): array
     {
         $assignable = UserRole::assignableBy($actor->roleEnum());
+        if ($actor->isTenantAdmin()) {
+            $assignable = [UserRole::Standard, UserRole::Light];
+            if ($target && (int) $target->id === (int) $actor->id) {
+                array_unshift($assignable, UserRole::Admin);
+            }
+        }
 
         return [
             'roles' => UserRole::assignable(),
@@ -261,6 +309,7 @@ class UserController extends Controller
             ...$user->toPublicArray(),
             'isSelf' => $user->id === $actor->id,
             'canManageTarget' => $this->guardTargetEditable($actor, $user) === null,
+            'tenantName' => $user->tenant?->name,
             'menuFeatureLabels' => $user->isAdmin()
                 ? [$staffLabel]
                 : $menuLabels,
@@ -294,8 +343,28 @@ class UserController extends Controller
         return $selected;
     }
 
+    private function assertTenantAdminSeat(Tenant $tenant, UserRole $role, ?User $target): ?string
+    {
+        if ($role === UserRole::Admin) {
+            if ($target && $tenant->isOwner($target)) {
+                return null;
+            }
+
+            return __('この契約の管理者は代表1名だけです。追加ユーザーはスタンダードまたはライトにしてください。');
+        }
+
+        if ($target && $tenant->isOwner($target) && $role !== UserRole::Admin) {
+            return __('契約代表の管理者権限は外せません。');
+        }
+
+        return null;
+    }
+
     private function guardTargetEditable(User $actor, User $target): ?string
     {
+        if (! $actor->canViewUser($target)) {
+            return __('このユーザーを表示する権限がありません。');
+        }
         if ($target->isSuperAdmin() && ! $actor->isSuperAdmin()) {
             return __('スーパー管理者はスーパー管理者のみ編集できます。');
         }

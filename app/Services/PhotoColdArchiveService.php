@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Photo;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -41,6 +42,53 @@ class PhotoColdArchiveService
      * }
      */
     public function archiveDuePhotos(int $limit = 40): array
+    {
+        $tenantIds = array_merge([null], app(\App\Services\TenantContractService::class)->allTenantIds());
+        $merged = $this->stats();
+        $remaining = $limit;
+        $context = \App\Support\TenantContext::current();
+
+        foreach ($tenantIds as $tenantId) {
+            if ($remaining <= 0) {
+                $merged['hasMore'] = true;
+                break;
+            }
+            $partial = $context->run($tenantId, function () use ($remaining) {
+                $this->mediaConfig->flush();
+
+                return $this->archiveDuePhotosOnce($remaining);
+            });
+            $merged['archived'] += $partial['archived'];
+            $merged['skipped'] += $partial['skipped'];
+            $merged['errors'] += $partial['errors'];
+            $merged['bytesMoved'] += $partial['bytesMoved'];
+            $merged['hasMore'] = $merged['hasMore'] || $partial['hasMore'];
+            if ($partial['lastError'] !== '') {
+                $merged['lastError'] = $partial['lastError'];
+                $merged['lastErrorPhotoId'] = $partial['lastErrorPhotoId'];
+            }
+            if ($partial['reason'] !== '' && $merged['reason'] === '') {
+                $merged['reason'] = $partial['reason'];
+            }
+            $remaining -= $partial['archived'];
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @return array{
+     *   archived: int,
+     *   skipped: int,
+     *   errors: int,
+     *   hasMore: bool,
+     *   reason: string,
+     *   lastError: string,
+     *   lastErrorPhotoId: ?int,
+     *   bytesMoved: int
+     * }
+     */
+    private function archiveDuePhotosOnce(int $limit = 40): array
     {
         if (! $this->mediaConfig->pipelineArchivesToBackblaze() || ! $this->mediaConfig->backblazeEnabled()) {
             return $this->stats(reason: self::REASON_DISABLED);
@@ -137,7 +185,7 @@ class PhotoColdArchiveService
                 break;
             }
 
-            $photo = Photo::query()
+            $photo = $this->photosQuery()
                 ->where('user_id', $userId)
                 ->where(function ($q) {
                     $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
@@ -215,7 +263,7 @@ class PhotoColdArchiveService
         $deadline = $this->batchDeadline();
         $largeBytes = $this->largeFileBytes();
 
-        $userIds = Photo::query()
+        $userIds = $this->photosQuery()
             ->where(function ($q) {
                 $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
             })
@@ -246,7 +294,7 @@ class PhotoColdArchiveService
                     return $this->stats($archived, $skipped, $errors, $continue, $stopReason, $lastError, $lastErrorPhotoId, $bytesMoved);
                 }
 
-                $photo = Photo::query()
+                $photo = $this->photosQuery()
                     ->where('user_id', $userId)
                     ->where(function ($q) {
                         $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
@@ -396,7 +444,7 @@ class PhotoColdArchiveService
                 );
             }
 
-            $photo = Photo::query()
+            $photo = $this->photosQuery()
                 ->where(function ($q) {
                     $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
                 })
@@ -440,7 +488,7 @@ class PhotoColdArchiveService
                     $bytesMoved += $size;
                     if ($size >= $largeBytes) {
                         // 大きな動画を1本移したら一旦返す。まだ期限対象が残っていれば続きあり
-                        $moreDue = Photo::query()
+                        $moreDue = $this->photosQuery()
                             ->where(function ($q) {
                                 $q->whereNull('storage_tier')->orWhere('storage_tier', 'hot');
                             })
@@ -582,6 +630,31 @@ class PhotoColdArchiveService
         $photo->save();
 
         return true;
+    }
+
+    private function photosQuery()
+    {
+        $ids = $this->currentTenantUserIds();
+        $query = Photo::query();
+        if ($ids === []) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->whereIn('user_id', $ids);
+    }
+
+    /** @return list<int> */
+    private function currentTenantUserIds(): array
+    {
+        $tenantId = \App\Support\TenantContext::idOrNull();
+        $query = User::query();
+        if ($tenantId) {
+            $query->where('tenant_id', $tenantId);
+        } else {
+            $query->whereNull('tenant_id');
+        }
+
+        return $query->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     /** 共有ホストのプロキシ切断より先にレスポンスを返すためのソフト期限 */

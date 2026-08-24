@@ -33,6 +33,7 @@ final class Registration
         try {
             $row = MediaStorageSetting::query()
                 ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION)
+                ->where('tenant_scope', 0)
                 ->first();
             if (! $row) {
                 return null;
@@ -52,7 +53,7 @@ final class Registration
     public static function setInviteCode(?string $code): void
     {
         $code = trim((string) $code);
-        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_REGISTRATION);
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_REGISTRATION);
         $settings = $row->settingsArray();
         $settings['invite_code'] = $code;
         $row->enabled = $code !== '';

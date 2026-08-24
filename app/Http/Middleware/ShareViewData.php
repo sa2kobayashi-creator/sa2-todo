@@ -121,6 +121,8 @@ class ShareViewData
                 'canSettings' => $user->canAccess('settings'),
                 'canAdminUsers' => $user->canAccess('admin'),
                 'canSuperAdmin' => $user->isSuperAdmin(),
+                'canManageTenants' => $user->isSuperAdmin(),
+                'canManagePlatformOps' => $user->isPlatformStaff(),
                 'appContext' => $appContext->value,
                 'appContextIsWork' => $appContext === \App\Enums\AppContext::Work,
                 'appContextLabel' => $appContext->label(),

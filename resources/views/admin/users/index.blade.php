@@ -16,6 +16,10 @@
 
       <div class="panel">
         <h2>{{ __('ユーザー管理') }}</h2>
+        @if(!empty($tenantName))
+          <p class="hint">{{ __('この一覧は契約「:name」のユーザーだけです。', ['name' => $tenantName]) }}</p>
+          <p class="hint">{{ __('管理者は契約代表1名だけです。追加ユーザーはスタンダードまたはライトにしてください。上限は:count人（代表を含む）で、@sa2-plus.com メールは各1アドレス込みです。', ['count' => $includedUsers ?? 5]) }}</p>
+        @endif
         <p class="hint">{{ __('権限の基本メニューに加え、ユーザー単位で追加メニューを指定できます。グループ権限も合算されます。') }}</p>
         <ul class="role-permission-summary">
           @foreach($roles as $role)
@@ -114,6 +118,9 @@
                 <tr>
                   <th scope="col">{{ __('表示名') }}</th>
                   <th scope="col">{{ __('メールアドレス') }}</th>
+                  @if(!empty($showTenantColumn))
+                    <th scope="col">{{ __('契約') }}</th>
+                  @endif
                   <th scope="col">{{ __('権限') }}</th>
                   <th scope="col">{{ __('利用メニュー') }}</th>
                   <th scope="col">{{ __('操作') }}</th>
@@ -129,6 +136,9 @@
                       @endif
                     </td>
                     <td>{{ $user['email'] }}</td>
+                    @if(!empty($showTenantColumn))
+                      <td>{{ $user['tenantName'] ?? __('（個人）') }}</td>
+                    @endif
                     <td>
                       <span class="role-badge {{ $user['role'] }}">{{ $user['roleLabel'] }}</span>
                     </td>

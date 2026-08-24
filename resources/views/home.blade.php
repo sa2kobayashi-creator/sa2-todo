@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2563eb" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="description" content="{{ __('個人の招待利用と、組織・管理者向けの専用インスタンス。Todo、メモ、Photos、メッセージ、メール、マップをまとめます。') }}" />
+    <meta name="description" content="{{ __('個人の招待利用、家族向けテナント契約、組織向け専用インスタンス。Todo、メモ、Photos、メッセージ、メール、マップをまとめます。') }}" />
     <title>{{ $appName }} — {{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</title>
     @include('partials.app-css')
   </head>
@@ -40,7 +40,7 @@
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
             <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
-            <p class="lp-hero-lead">{{ __('まずは招待で無料利用できます。気に入ったら有料へ。家族・小組織で分けて使いたいときは、専用環境（管理者契約）に進めます。') }}</p>
+            <p class="lp-hero-lead">{{ __('まずは招待で無料利用できます。気に入ったら有料へ。家族で管理者とメールが必要ならテナント契約、サーバーを分けたいときは専用環境です。') }}</p>
             <p class="lp-cta">
               <a href="/login" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('ログイン') }}</a>
               @if(!empty($registrationOpen))
@@ -150,15 +150,40 @@
               <h3>{{ __('専用インスタンス') }}</h3>
             </header>
             <div class="lp-plan-body">
-              <p>{{ __('家族・小組織向けに、お客様専用のアプリ環境を構築します。データは他のお客様と同居しません。') }}</p>
+              <p>{{ __('運営がお客様専用のサーバーへ、同じアプリを設置します。sa2-plus.com の共有環境とは別です。') }}</p>
+              <ul class="lp-plan-includes">
+                <li>{{ __('契約代表が管理者（ユーザー・休日・メニュー）') }}</li>
+                <li>{{ __('写真はお客様のクラウド（R2／B2）接続を推奨') }}</li>
+                <li>{{ __('月額はアプリ更新・障害一次対応・バックアップ確認') }}</li>
+                <li>{{ __('サーバー代・独自ドメインメールは含みません（別途）') }}</li>
+              </ul>
               <ul class="lp-price-rows">
                 <li><span>{{ __('初期構築') }}</span><strong>{{ __('¥50,000〜') }}</strong></li>
                 <li><span>{{ __('月額保守（5ユーザーまで）') }}</span><strong>{{ __('¥8,000〜／月') }}</strong></li>
                 <li><span>{{ __('追加ユーザー') }}</span><strong>{{ __('¥1,000／人／月') }}</strong></li>
                 <li><span>{{ __('メールボックス（1アドレス）') }}</span><strong>{{ __('¥300／月 または ¥3,000／年') }}</strong></li>
               </ul>
-              <p class="hint">{{ __('写真・ファイルはお客様自身のクラウド（例: Cloudflare R2）へ置く方式を推奨します。クラウド利用料はお客様負担です。年一括の保守は1か月分相当オフにできます。') }}</p>
+              <p class="hint">{{ __('専用は別サーバーです。共有 sa2-plus.com 上の管理者契約はテナント契約です。') }}</p>
               <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('専用環境の相談') }}</a>
+            </div>
+          </article>
+
+          <article class="lp-plan is-tenant">
+            <header class="lp-plan-head">
+              <p>{{ __('家族・小規模向け') }}</p>
+              <h3>{{ __('テナント契約') }}</h3>
+            </header>
+            <div class="lp-plan-body">
+              <p>{{ __('同じ sa2-plus.com 上で、契約ごとにユーザーと鍵を分けます。月額は個別のご相談です。') }}</p>
+              <ul class="lp-plan-includes">
+                <li>{{ __('管理者は契約代表1名だけ') }}</li>
+                <li>{{ __('月5ユーザーまで（代表を含む）') }}</li>
+                <li>{{ __('@sa2-plus.com メールは各1アドレス込み') }}</li>
+                <li>{{ __('代表が R2／B2／AI／API キーを設定できる') }}</li>
+                <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
+              </ul>
+              <p class="lp-plan-price">{{ __('料金はお問い合わせ') }}</p>
+              <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約の相談') }}</a>
             </div>
           </article>
 
@@ -171,9 +196,11 @@
               <p class="lp-plan-price">{{ __('¥980／月') }}</p>
               <p class="hint">{{ __('年額 ¥9,800。約 200GB 込み。周辺メニューも使えます。') }}</p>
               <ul class="lp-plan-includes">
+                <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
                 <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
                 <li>{{ __('@sa2-plus.com メール（プランに含む）') }}</li>
                 <li>{{ __('Gmail などの外部接続は無料') }}</li>
+                <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
               </ul>
             </div>
           </article>
@@ -187,13 +214,15 @@
               <p class="lp-plan-price">{{ __('¥0') }}</p>
               <p class="hint">{{ __('約 50GB。まずは試せる枠です。') }}</p>
               <ul class="lp-plan-includes">
+                <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
                 <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
                 <li>{{ __('@sa2-plus.com はオプション') }}</li>
+                <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
               </ul>
             </div>
           </article>
         </div>
-        <p class="hint lp-plans-note">{{ __('個人向けは共有インスタンスです。ストレージ超過は ¥300／100GB／月。専用環境は試用後でも、最初から分離が必要な場合でも相談できます。') }}</p>
+        <p class="hint lp-plans-note">{{ __('個人向けは運営の共有インスタンスです。ライト／スタンダードに管理者はありません。家族向けの管理者契約はテナント、サーバー分離は専用です。') }}</p>
       </section>
 
       <section class="lp-section" id="flow" aria-labelledby="landing-flow-title">
@@ -212,8 +241,8 @@
           </li>
           <li>
             <span class="lp-flow-num">3</span>
-            <h3>{{ __('組織・家族なら専用環境') }}</h3>
-            <p>{{ __('同居したくない、管理者が必要、クラウドを自分で持ちたい、という段階で専用インスタンスへ。') }}</p>
+            <h3>{{ __('家族ならテナント契約') }}</h3>
+            <p>{{ __('同じ共有サーバー上で、管理者1名・5ユーザー・メール各1アドレスの契約にできます。サーバーを分けたいときは専用インスタンスへ。') }}</p>
           </li>
         </ol>
       </section>
@@ -234,7 +263,7 @@
           <li>
             <span class="lp-value-icon is-admin" aria-hidden="true"></span>
             <strong>{{ __('管理者もらくらく運用') }}</strong>
-            <span>{{ __('専用契約の代表がユーザー・休日・メニューを管理できます。バックアップ方針もお渡しします。') }}</span>
+            <span>{{ __('専用契約の代表、またはテナント契約の代表がユーザー・休日・メニューを管理できます。バックアップ方針もお渡しします。') }}</span>
           </li>
         </ul>
       </section>
@@ -244,11 +273,15 @@
         <div class="lp-faq">
           <details open>
             <summary>{{ __('最初から専用環境を契約すべきですか？') }}</summary>
-            <p>{{ __('多くの場合は不要です。まずライトで試し、必要ならスタンダードへ。同居や管理者が必要になったら専用へ進むのが費用対効果が高いです。最初から分離が必要な組織は、その旨をご相談ください。') }}</p>
+            <p>{{ __('多くの場合は不要です。まずライトで試し、必要ならスタンダードへ。家族で管理者が必要ならテナント契約、サーバー分離が必要なら専用へ。最初から分離が必要な組織は、その旨をご相談ください。') }}</p>
           </details>
           <details>
             <summary>{{ __('個人向けと専用環境の違いは何ですか？') }}</summary>
-            <p>{{ __('個人向けは運営の共有インスタンスです。専用はお客様だけのアプリとデータベースで、契約代表が管理者になります。ストレージの鍵もお客様持ちにできます。') }}</p>
+            <p>{{ __('個人向けは運営の sa2-plus.com で同居し、管理者はありません。テナント契約は同じ共有サーバー上で契約ごとに分け、代表が管理者になります。専用は別サーバーに同じアプリを置きます。写真のクラウド接続は、テナントでは代表が、専用では運営が行います。サーバー代や独自ドメインメールは専用に含みません。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('sa2-plus.com で管理者アカウントを発行してもらえますか？') }}</summary>
+            <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。') }}</p>
           </details>
           <details>
             <summary>{{ __('招待コードがないと使えませんか？') }}</summary>
@@ -259,7 +292,7 @@
 
       <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
         <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
-        <p class="lp-section-lead">{{ __('専用環境のご相談、導入の見積は運営が対応します。まずは招待で触っていただき、そのうえでご連絡いただく形がスムーズです。') }}</p>
+        <p class="lp-section-lead">{{ __('テナント契約や専用環境のご相談、導入の見積は運営が対応します。まずは招待で触っていただき、そのうえでご連絡いただく形がスムーズです。') }}</p>
         <p class="lp-cta">
           <a href="/login" class="lp-btn lp-btn-primary">{{ __('ログイン') }}</a>
           @if(!empty($registrationOpen))

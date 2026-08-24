@@ -37,7 +37,7 @@
       @endforelse
       @if(!empty($canSettings) || !empty($canAdminUsers))
         @php
-          $settingsMenuActive = in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'help', 'help-overview', 'help-guide', 'contact'], true);
+          $settingsMenuActive = in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'admin-tenants', 'help', 'help-overview', 'help-guide', 'contact'], true);
         @endphp
         <div class="nav-dropdown {{ $settingsMenuActive ? 'is-active' : '' }}" id="settings-dropdown">
           <button type="button" class="nav-dropdown-toggle {{ $settingsMenuActive ? 'active' : '' }}" aria-haspopup="true" aria-expanded="false" id="settings-dropdown-toggle">
@@ -57,8 +57,13 @@
             @if(!empty($canAdminUsers))
               <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
               <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
-              <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
-              <a href="/admin/storage-archive" class="{{ ($active ?? '') === 'admin-storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ監視') }}</a>
+              @if(!empty($canManagePlatformOps))
+                <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
+                <a href="/admin/storage-archive" class="{{ ($active ?? '') === 'admin-storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ監視') }}</a>
+              @endif
+            @endif
+            @if(!empty($canManageTenants))
+              <a href="/admin/tenants" class="{{ ($active ?? '') === 'admin-tenants' ? 'active' : '' }}" role="menuitem">{{ __('テナント契約') }}</a>
             @endif
             @if(!empty($canSuperAdmin))
               <a href="/admin/sales/estimate" class="{{ ($active ?? '') === 'admin-sales' ? 'active' : '' }}" role="menuitem">{{ __('見積（専用）') }}</a>
@@ -193,7 +198,7 @@
                 <div class="header-more-submenu" id="more-settings-submenu">
                   <button
                     type="button"
-                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'help', 'help-overview', 'help-guide', 'contact'], true) ? ' active' : '' }}"
+                    class="header-more-submenu-toggle{{ in_array($active ?? '', ['settings', 'admin', 'admin-groups', 'admin-mail', 'admin-sales', 'admin-storage', 'admin-tenants', 'help', 'help-overview', 'help-guide', 'contact'], true) ? ' active' : '' }}"
                     id="more-settings-toggle"
                     aria-haspopup="true"
                     aria-expanded="false"
@@ -221,8 +226,13 @@
                     @if(!empty($canAdminUsers))
                       <a href="/admin/users" class="{{ ($active ?? '') === 'admin' ? 'active' : '' }}" role="menuitem">{{ __('ユーザー管理') }}</a>
                       <a href="/admin/groups" class="{{ ($active ?? '') === 'admin-groups' ? 'active' : '' }}" role="menuitem">{{ __('グループ管理') }}</a>
-                      <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
-                      <a href="/admin/storage-archive" class="{{ ($active ?? '') === 'admin-storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ監視') }}</a>
+                      @if(!empty($canManagePlatformOps))
+                        <a href="/admin/mail-requests" class="{{ ($active ?? '') === 'admin-mail' ? 'active' : '' }}" role="menuitem">{{ __('メール申請') }}</a>
+                        <a href="/admin/storage-archive" class="{{ ($active ?? '') === 'admin-storage' ? 'active' : '' }}" role="menuitem">{{ __('ストレージ監視') }}</a>
+                      @endif
+                    @endif
+                    @if(!empty($canManageTenants))
+                      <a href="/admin/tenants" class="{{ ($active ?? '') === 'admin-tenants' ? 'active' : '' }}" role="menuitem">{{ __('テナント契約') }}</a>
                     @endif
                     @if(!empty($canSuperAdmin))
                       <a href="/admin/sales/estimate" class="{{ ($active ?? '') === 'admin-sales' ? 'active' : '' }}" role="menuitem">{{ __('見積（専用）') }}</a>

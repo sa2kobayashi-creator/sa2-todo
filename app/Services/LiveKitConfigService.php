@@ -9,7 +9,7 @@ class LiveKitConfigService
 {
     public function configRow(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_LIVEKIT);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_LIVEKIT);
     }
 
     public function url(): string
@@ -67,7 +67,7 @@ class LiveKitConfigService
      */
     public function saveConfig(bool $enabled, array $input): MediaStorageSetting
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_LIVEKIT);
         $secrets = $row->secretsArray();
         $settings = $row->settingsArray();
 
@@ -96,7 +96,7 @@ class LiveKitConfigService
     /** @return array<string, mixed> */
     public function formState(): array
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_LIVEKIT);
 
         return [
             'enabled' => (bool) $row->enabled,
@@ -150,7 +150,7 @@ class LiveKitConfigService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_LIVEKIT);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',

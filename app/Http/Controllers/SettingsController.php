@@ -75,11 +75,11 @@ class SettingsController extends Controller
                 ? $this->photos->storageStats((int) $request->user()->id, $isSuperAdmin)
                 : null,
             'translationKeys' => $section === 'ai'
-                ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
+                ? TranslationApiKey::queryForCurrentTenant()->orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
             'deeplPricing' => $section === 'ai' ? $this->deeplUsage->pricingFormState() : null,
             'deeplUsageSummaries' => $section === 'ai'
-                ? TranslationApiKey::orderBy('priority', 'desc')->orderBy('id')->get()
+                ? TranslationApiKey::queryForCurrentTenant()->orderBy('priority', 'desc')->orderBy('id')->get()
                     ->mapWithKeys(fn (TranslationApiKey $key) => [
                         $key->id => $this->deeplUsage->usageSummary($key),
                     ])->all()
@@ -95,6 +95,7 @@ class SettingsController extends Controller
             'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
             'googleCalendarOauthSettings' => $section === 'enhance' ? $this->googleCalendarOauth->formState() : null,
             'isSuperAdmin' => $isSuperAdmin,
+            'isTenantAdmin' => (bool) $request->user()?->isTenantAdmin(),
             'lineMessaging' => $messagingSection
                 ? $this->lineMessaging->formState($request->user())
                 : null,

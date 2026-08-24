@@ -24,10 +24,18 @@ class HomePageTest extends TestCase
             ->assertSee(__('ご利用の流れ'), false)
             ->assertSee(__('無料で触る'), false)
             ->assertSee(__('専用インスタンス'), false)
+            ->assertSee(__('テナント契約'), false)
+            ->assertSee(__('管理者は契約代表1名だけ'), false)
+            ->assertSee(__('月5ユーザーまで（代表を含む）'), false)
+            ->assertSee(__('@sa2-plus.com メールは各1アドレス込み'), false)
+            ->assertSee(__('料金はお問い合わせ'), false)
             ->assertSee(__('¥50,000〜'), false)
             ->assertSee(__('¥8,000〜／月'), false)
             ->assertSee(__('¥980／月'), false)
             ->assertSee(__('よくある質問'), false)
+            ->assertSee(__('運営がお客様専用のサーバーへ、同じアプリを設置します。sa2-plus.com の共有環境とは別です。'), false)
+            ->assertSee(__('管理者権限・ストレージ鍵の設定はありません'), false)
+            ->assertSee(__('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。'), false)
             ->assertSee('href="/terms"', false)
             ->assertSee('href="/privacy"', false);
     }

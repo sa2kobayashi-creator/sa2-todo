@@ -39,7 +39,7 @@ class DeeplUsageService
      */
     public function savePricing(array $settings): MediaStorageSetting
     {
-        $row = $this->pricingRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_DEEPL);
         $row->fill([
             'enabled' => true,
             'settings' => [

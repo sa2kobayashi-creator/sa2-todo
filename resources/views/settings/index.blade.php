@@ -14,6 +14,9 @@
     <main class="page-main">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
+      @if(!empty($isTenantAdmin))
+        <div class="banner notice">{{ __('この画面のストレージ・AI・Maps などのキーは、あなたの契約だけに使われます。LINE 公式アカウントと Web Push は運営の共有設定です。') }}</div>
+      @endif
 
       @if(($section ?? 'holidays') === 'nav')
         @include('settings.partials.nav')

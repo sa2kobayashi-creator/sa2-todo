@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectUsersTo('/dashboard');
         $middleware->web(append: [
             \App\Http\Middleware\SetLocale::class,
+            \App\Http\Middleware\SetTenantContext::class,
             \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
         $middleware->validateCsrfTokens(except: [

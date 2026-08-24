@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AiLlmSettingsController;
 use App\Http\Controllers\Admin\SalesEstimateController as AdminSalesEstimateController;
+use App\Http\Controllers\Admin\TenantController as AdminTenantController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Api\HolidayDatesController;
@@ -492,5 +493,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
     Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
         Route::get('/admin/sales/estimate', [AdminSalesEstimateController::class, 'show']);
+        Route::get('/admin/tenants', [AdminTenantController::class, 'index']);
+        Route::post('/admin/tenants', [AdminTenantController::class, 'store']);
+        Route::get('/admin/tenants/{id}', [AdminTenantController::class, 'show'])->whereNumber('id');
+        Route::post('/admin/tenants/{id}', [AdminTenantController::class, 'update'])->whereNumber('id');
     });
 });

@@ -61,11 +61,21 @@ class GroupService
     }
 
     /** @return Collection<int, array<string, mixed>> */
-    public function listAllForAdmin(): Collection
+    public function listAllForAdmin(?User $actor = null): Collection
     {
-        return Group::query()
+        $query = Group::query()
             ->with(['owner', 'menuFeatures'])
-            ->withCount('members')
+            ->withCount('members');
+
+        if ($actor && ! $actor->isSuperAdmin()) {
+            if ($actor->tenant_id) {
+                $query->whereHas('owner', fn ($q) => $q->where('tenant_id', $actor->tenant_id));
+            } else {
+                $query->whereHas('owner', fn ($q) => $q->whereNull('tenant_id'));
+            }
+        }
+
+        return $query
             ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END")
             ->orderByDesc('id')
             ->get()
@@ -181,6 +191,10 @@ class GroupService
         $invitee = User::query()->where('email', $email)->first();
         if (! $invitee) {
             throw new \InvalidArgumentException(__('そのメールのユーザーは見つかりません。先にアカウントを作成してもらってください。'));
+        }
+        $actor = User::query()->find($actorUserId);
+        if ($actor && ! $actor->sharesContractWith($invitee)) {
+            throw new \InvalidArgumentException(__('別の契約のユーザーは招待できません。'));
         }
         if ((int) $invitee->id === $actorUserId) {
             throw new \InvalidArgumentException(__('自分自身は招待できません。'));

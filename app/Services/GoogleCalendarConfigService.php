@@ -9,7 +9,7 @@ class GoogleCalendarConfigService
 {
     public function configRow(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_CALENDAR);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_GOOGLE_CALENDAR);
     }
 
     public function clientId(): string
@@ -74,7 +74,7 @@ class GoogleCalendarConfigService
      */
     public function saveConfig(bool $enabled, array $input): MediaStorageSetting
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_GOOGLE_CALENDAR);
         $settings = $row->settingsArray();
         $secrets = $row->secretsArray();
 
@@ -106,7 +106,7 @@ class GoogleCalendarConfigService
     /** @return array<string, mixed> */
     public function formState(): array
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_CALENDAR);
         $storedId = trim((string) $row->setting('client_id', ''));
 
         return [
@@ -168,7 +168,7 @@ class GoogleCalendarConfigService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_GOOGLE_CALENDAR);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',

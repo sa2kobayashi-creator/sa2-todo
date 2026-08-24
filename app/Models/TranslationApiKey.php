@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 class TranslationApiKey extends Model
 {
     protected $fillable = [
+        'tenant_id',
+        'tenant_scope',
         'name',
         'api_key',
         'provider',
@@ -69,9 +71,20 @@ class TranslationApiKey extends Model
      *
      * @return Collection<int, TranslationApiKey>
      */
+    public static function queryForCurrentTenant(bool $fallbackToPlatform = false)
+    {
+        $scope = \App\Support\TenantContext::scopeOrZero();
+        $query = static::query()->where('tenant_scope', $scope);
+        if ($fallbackToPlatform && $scope !== 0 && ! (clone $query)->exists()) {
+            return static::query()->where('tenant_scope', 0);
+        }
+
+        return $query;
+    }
+
     public static function getAvailableKeys(string $provider = 'deepl'): Collection
     {
-        return static::query()
+        return static::queryForCurrentTenant(true)
             ->where('is_active', true)
             ->where('provider', $provider)
             ->where(function ($query) {

@@ -15,7 +15,7 @@ class YoutubeVideoService
 
     public function configRow(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_YOUTUBE);
     }
 
     public function apiKey(): string
@@ -40,7 +40,7 @@ class YoutubeVideoService
      */
     public function saveConfig(bool $enabled, array $secrets): MediaStorageSetting
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
         $merged = $row->secretsArray();
         $key = is_string($secrets['api_key'] ?? null) ? trim($secrets['api_key']) : '';
         if ($key !== '' && $key !== '••••••••' && ! str_starts_with($key, '••••')) {
@@ -60,7 +60,7 @@ class YoutubeVideoService
     /** @return array{enabled: bool, api_key_masked: string, ready: bool, last_test_status: ?string, last_test_message: ?string, last_tested_at: ?string} */
     public function formState(): array
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
 
         return [
             'enabled' => (bool) $row->enabled,
@@ -108,7 +108,7 @@ class YoutubeVideoService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',

@@ -49,6 +49,30 @@ class MailDomainRequestTest extends TestCase
         $this->assertSame(0, MailDomainRequest::query()->count());
     }
 
+    public function test_tenant_light_user_can_request_mailbox_without_addon(): void
+    {
+        $tenant = app(\App\Services\TenantContractService::class)->createWithOwner([
+            'name' => 'メール込み家',
+            'owner_email' => 'mail-owner@example.com',
+            'owner_display_name' => 'メール代表',
+            'owner_password' => 'password123',
+        ]);
+        $light = $this->makeUser(UserRole::Light, 'tenant-light-mail@example.com', [
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $this->actingAs($light)
+            ->post('/mail/domain-requests', ['local_part' => 'family'])
+            ->assertRedirect('/mail?tab=domain');
+
+        $this->assertDatabaseHas('mail_domain_requests', [
+            'user_id' => $light->id,
+            'local_part' => 'family',
+            'domain' => 'sa2-plus.com',
+            'status' => MailDomainRequest::STATUS_PENDING,
+        ]);
+    }
+
     public function test_standard_user_can_request_mailbox_without_addon_flag(): void
     {
         $user = $this->makeUser(UserRole::Standard, 'standard-mail@example.com');

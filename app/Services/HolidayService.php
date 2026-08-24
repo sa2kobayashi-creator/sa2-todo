@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\HolidayEntry;
+use App\Models\User;
 use App\Models\WeekdayRule;
+use App\Support\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,7 +14,7 @@ class HolidayService
     /** @return array<string, array{name: string, source: string}> */
     public function getHolidayInfoMapForYear(int $year, ?int $viewerUserId = null): array
     {
-        $cacheKey = 'holiday_map_'.$this->mapVersion().'_'.$year.'_'.($viewerUserId ?: 'i');
+        $cacheKey = 'holiday_map_'.$this->mapVersion().'_'.$year.'_'.($viewerUserId ?: 'i').'_'.($this->viewerTenantId($viewerUserId) ?: 'p');
 
         return Cache::remember($cacheKey, 300, function () use ($year, $viewerUserId) {
             $map = [];
@@ -279,6 +281,7 @@ class HolidayService
             }
             HolidayEntry::create([
                 'user_id' => $ownerUserId,
+                'tenant_id' => $this->instanceTenantId($ownerUserId),
                 'date' => $item['date'],
                 'name' => $item['name'],
                 'source' => $source,
@@ -430,6 +433,7 @@ class HolidayService
         } else {
             $entry = HolidayEntry::create([
                 'user_id' => $ownerUserId,
+                'tenant_id' => $this->instanceTenantId($ownerUserId),
                 'date' => $normalizedDate,
                 'name' => $label,
                 'source' => 'custom',
@@ -458,6 +462,7 @@ class HolidayService
             if (! $exists) {
                 HolidayEntry::create([
                     'user_id' => $ownerUserId,
+                    'tenant_id' => $this->instanceTenantId($ownerUserId),
                     'date' => $dateStr,
                     'name' => $label,
                     'source' => 'custom',
@@ -503,6 +508,7 @@ class HolidayService
 
         $rule = WeekdayRule::create([
             'user_id' => $ownerUserId,
+            'tenant_id' => $this->instanceTenantId($ownerUserId),
             'name' => $name,
             'start_date' => $startDate,
             'end_date' => $endDate,
@@ -660,30 +666,78 @@ class HolidayService
     {
         $query = HolidayEntry::query();
         if ($includeInstance && $ownerUserId) {
-            return $query->where(function ($q) use ($ownerUserId) {
-                $q->whereNull('user_id')->orWhere('user_id', $ownerUserId);
+            $tenantId = $this->viewerTenantId($ownerUserId);
+
+            return $query->where(function ($q) use ($ownerUserId, $tenantId) {
+                $q->where('user_id', $ownerUserId)
+                    ->orWhere(function ($instance) use ($tenantId) {
+                        $instance->whereNull('user_id');
+                        $this->constrainInstanceTenant($instance, $tenantId);
+                    });
             });
         }
         if ($ownerUserId) {
             return $query->where('user_id', $ownerUserId);
         }
 
-        return $query->whereNull('user_id');
+        $query->whereNull('user_id');
+        $this->constrainInstanceTenant($query, TenantContext::idOrNull());
+
+        return $query;
     }
 
     private function weekdayRulesQuery(?int $ownerUserId, bool $includeInstance)
     {
         $query = WeekdayRule::query();
         if ($includeInstance && $ownerUserId) {
-            return $query->where(function ($q) use ($ownerUserId) {
-                $q->whereNull('user_id')->orWhere('user_id', $ownerUserId);
+            $tenantId = $this->viewerTenantId($ownerUserId);
+
+            return $query->where(function ($q) use ($ownerUserId, $tenantId) {
+                $q->where('user_id', $ownerUserId)
+                    ->orWhere(function ($instance) use ($tenantId) {
+                        $instance->whereNull('user_id');
+                        $this->constrainInstanceTenant($instance, $tenantId);
+                    });
             });
         }
         if ($ownerUserId) {
             return $query->where('user_id', $ownerUserId);
         }
 
-        return $query->whereNull('user_id');
+        $query->whereNull('user_id');
+        $this->constrainInstanceTenant($query, TenantContext::idOrNull());
+
+        return $query;
+    }
+
+    private function constrainInstanceTenant($query, ?int $tenantId): void
+    {
+        if ($tenantId) {
+            $query->where('tenant_id', $tenantId);
+
+            return;
+        }
+        $query->whereNull('tenant_id');
+    }
+
+    private function instanceTenantId(?int $ownerUserId): ?int
+    {
+        if ($ownerUserId) {
+            return null;
+        }
+
+        return TenantContext::idOrNull();
+    }
+
+    private function viewerTenantId(?int $viewerUserId): ?int
+    {
+        if ($viewerUserId) {
+            $value = User::query()->whereKey($viewerUserId)->value('tenant_id');
+
+            return $value ? (int) $value : null;
+        }
+
+        return TenantContext::idOrNull();
     }
 
     /** @return \Illuminate\Support\Collection<int, WeekdayRule> */

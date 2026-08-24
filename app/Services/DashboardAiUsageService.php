@@ -120,7 +120,7 @@ class DashboardAiUsageService
     /** @return array<string, mixed> */
     private function deeplSummary(): array
     {
-        $keys = TranslationApiKey::query()
+        $keys = TranslationApiKey::queryForCurrentTenant(true)
             ->where('provider', 'deepl')
             ->where('is_active', true)
             ->orderByDesc('priority')

@@ -11,6 +11,9 @@ class StorageArchiveController extends Controller
 {
     public function show(StorageUsageService $usage): View
     {
+        if (request()->user()?->isTenantAdmin()) {
+            abort(403, __('ストレージ監視は運営のみ利用できます。'));
+        }
         $snap = $usage->snapshot();
         $logs = StorageManagementLog::query()->orderByDesc('id')->limit(20)->get();
 

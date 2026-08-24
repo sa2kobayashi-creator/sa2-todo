@@ -4182,14 +4182,64 @@
         })
 
         let lightboxZoom = 1
+        let lightboxPanX = 0
+        let lightboxPanY = 0
         const lightboxMedia = document.getElementById('photos-lightbox-media')
         let lightboxPinchStartDist = 0
         let lightboxPinchStartZoom = 1
         let lightboxLastTapAt = 0
+        let lightboxPanPointerId = null
+        let lightboxPanStartX = 0
+        let lightboxPanStartY = 0
+        let lightboxPanOriginX = 0
+        let lightboxPanOriginY = 0
+        let lightboxPanMoved = false
+
+        function lightboxZoomTarget() {
+          if (lightboxVideo && !lightboxVideo.hidden) return lightboxVideo
+          return lightboxImage
+        }
+
+        function clampLightboxPan() {
+          const target = lightboxZoomTarget()
+          if (!target || !lightboxMedia || lightboxZoom <= 1) {
+            lightboxPanX = 0
+            lightboxPanY = 0
+            return
+          }
+          const box = lightboxMedia.getBoundingClientRect()
+          const layoutW = target.clientWidth || box.width
+          const layoutH = target.clientHeight || box.height
+          const maxX = Math.max(0, (layoutW * lightboxZoom - box.width) / 2)
+          const maxY = Math.max(0, (layoutH * lightboxZoom - box.height) / 2)
+          lightboxPanX = Math.min(maxX, Math.max(-maxX, lightboxPanX))
+          lightboxPanY = Math.min(maxY, Math.max(-maxY, lightboxPanY))
+        }
+
+        function applyLightboxTransform() {
+          clampLightboxPan()
+          const target = lightboxZoomTarget()
+          if (lightboxMedia) {
+            lightboxMedia.style.transform = ''
+            lightboxMedia.classList.toggle('is-zoomed', lightboxZoom > 1)
+          }
+          ;[lightboxImage, lightboxVideo].forEach((el) => {
+            if (!el) return
+            if (el === target) {
+              el.style.transform = `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxZoom})`
+            } else {
+              el.style.transform = ''
+            }
+          })
+        }
 
         function setLightboxZoom(next) {
           lightboxZoom = Math.max(1, Math.min(4, Number(next) || 1))
-          if (lightboxMedia) lightboxMedia.style.transform = `scale(${lightboxZoom})`
+          if (lightboxZoom <= 1) {
+            lightboxPanX = 0
+            lightboxPanY = 0
+          }
+          applyLightboxTransform()
         }
 
         function lightboxTouchDistance(touches) {
@@ -4199,6 +4249,33 @@
           return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
         }
 
+        function startLightboxPan(clientX, clientY, pointerId) {
+          if (lightboxZoom <= 1) return false
+          lightboxPanPointerId = pointerId ?? 'touch'
+          lightboxPanStartX = clientX
+          lightboxPanStartY = clientY
+          lightboxPanOriginX = lightboxPanX
+          lightboxPanOriginY = lightboxPanY
+          lightboxPanMoved = false
+          lightboxMedia?.classList.add('is-panning')
+          return true
+        }
+
+        function moveLightboxPan(clientX, clientY) {
+          if (lightboxPanPointerId == null || lightboxZoom <= 1) return
+          const dx = clientX - lightboxPanStartX
+          const dy = clientY - lightboxPanStartY
+          if (Math.hypot(dx, dy) > 6) lightboxPanMoved = true
+          lightboxPanX = lightboxPanOriginX + dx
+          lightboxPanY = lightboxPanOriginY + dy
+          applyLightboxTransform()
+        }
+
+        function endLightboxPan() {
+          lightboxPanPointerId = null
+          lightboxMedia?.classList.remove('is-panning')
+        }
+
         // Web: マウスホイール / キーボード +/-
         lightboxMedia?.addEventListener('wheel', (e) => {
           if (lightbox?.hidden) return
@@ -4206,10 +4283,32 @@
           setLightboxZoom(lightboxZoom + (e.deltaY < 0 ? 0.15 : -0.15))
         }, { passive: false })
 
-        // スマホ: ピンチで拡大縮小、ダブルタップでリセット
+        lightboxMedia?.addEventListener('pointerdown', (e) => {
+          if (lightbox?.hidden || e.button !== 0 || lightboxZoom <= 1) return
+          if (e.pointerType === 'touch') return
+          e.preventDefault()
+          lightboxMedia.setPointerCapture?.(e.pointerId)
+          startLightboxPan(e.clientX, e.clientY, e.pointerId)
+        })
+
+        lightboxMedia?.addEventListener('pointermove', (e) => {
+          if (lightboxPanPointerId !== e.pointerId) return
+          e.preventDefault()
+          moveLightboxPan(e.clientX, e.clientY)
+        })
+
+        const stopLightboxPanPointer = (e) => {
+          if (lightboxPanPointerId !== e.pointerId) return
+          endLightboxPan()
+        }
+        lightboxMedia?.addEventListener('pointerup', stopLightboxPanPointer)
+        lightboxMedia?.addEventListener('pointercancel', stopLightboxPanPointer)
+
+        // スマホ: ピンチで拡大縮小、1本指でパン、ダブルタップでリセット
         lightboxMedia?.addEventListener('touchstart', (e) => {
           if (lightbox?.hidden) return
           if (e.touches.length === 2) {
+            endLightboxPan()
             lightboxPinchStartDist = lightboxTouchDistance(e.touches)
             lightboxPinchStartZoom = lightboxZoom
             lightboxLastTapAt = 0
@@ -4220,26 +4319,38 @@
             if (now - lightboxLastTapAt < 280) {
               setLightboxZoom(1)
               lightboxLastTapAt = 0
-            } else {
-              lightboxLastTapAt = now
+              return
+            }
+            lightboxLastTapAt = now
+            if (lightboxZoom > 1) {
+              startLightboxPan(e.touches[0].clientX, e.touches[0].clientY, 'touch')
             }
           }
         }, { passive: true })
 
         lightboxMedia?.addEventListener('touchmove', (e) => {
-          if (lightbox?.hidden || e.touches.length !== 2 || lightboxPinchStartDist <= 0) return
-          e.preventDefault()
-          const dist = lightboxTouchDistance(e.touches)
-          if (dist <= 0) return
-          setLightboxZoom(lightboxPinchStartZoom * (dist / lightboxPinchStartDist))
+          if (lightbox?.hidden) return
+          if (e.touches.length === 2 && lightboxPinchStartDist > 0) {
+            e.preventDefault()
+            const dist = lightboxTouchDistance(e.touches)
+            if (dist <= 0) return
+            setLightboxZoom(lightboxPinchStartZoom * (dist / lightboxPinchStartDist))
+            return
+          }
+          if (e.touches.length === 1 && lightboxPanPointerId === 'touch') {
+            e.preventDefault()
+            moveLightboxPan(e.touches[0].clientX, e.touches[0].clientY)
+          }
         }, { passive: false })
 
         lightboxMedia?.addEventListener('touchend', (e) => {
           if (e.touches.length < 2) lightboxPinchStartDist = 0
+          if (e.touches.length === 0) endLightboxPan()
         })
 
         lightboxMedia?.addEventListener('touchcancel', () => {
           lightboxPinchStartDist = 0
+          endLightboxPan()
         })
 
         function photosFullscreenElement() {
@@ -5822,8 +5933,20 @@
             e.preventDefault()
             togglePhotosFullscreen(lightbox)
           }
-          if (e.key === 'ArrowLeft') stepLightbox(-1)
-          if (e.key === 'ArrowRight') stepLightbox(1)
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            if (lightboxZoom > 1) {
+              e.preventDefault()
+              const step = 72
+              if (e.key === 'ArrowLeft') lightboxPanX += step
+              if (e.key === 'ArrowRight') lightboxPanX -= step
+              if (e.key === 'ArrowUp') lightboxPanY += step
+              if (e.key === 'ArrowDown') lightboxPanY -= step
+              applyLightboxTransform()
+              return
+            }
+            if (e.key === 'ArrowLeft') stepLightbox(-1)
+            if (e.key === 'ArrowRight') stepLightbox(1)
+          }
           if (e.key === '+' || e.key === '=') setLightboxZoom(lightboxZoom + 0.25)
           if (e.key === '-') setLightboxZoom(lightboxZoom - 0.25)
         }, true)

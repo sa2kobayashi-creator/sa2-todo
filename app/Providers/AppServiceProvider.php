@@ -13,6 +13,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(\App\Support\TenantContext::class);
         $this->app->singleton(MediaStorageConfigService::class);
     }
 

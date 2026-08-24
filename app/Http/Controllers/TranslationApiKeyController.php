@@ -31,7 +31,7 @@ class TranslationApiKeyController extends Controller
 
     public function edit(int $id)
     {
-        $key = TranslationApiKey::find($id);
+        $key = TranslationApiKey::queryForCurrentTenant()->find($id);
         if (! $key) {
             return response()->json(['error' => 'APIキーが見つかりません'], 404);
         }
@@ -55,7 +55,7 @@ class TranslationApiKeyController extends Controller
 
     public function update(Request $request, int $id)
     {
-        $key = TranslationApiKey::find($id);
+        $key = TranslationApiKey::queryForCurrentTenant()->find($id);
         if (! $key) {
             return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
@@ -92,7 +92,7 @@ class TranslationApiKeyController extends Controller
 
     public function destroy(int $id)
     {
-        $key = TranslationApiKey::find($id);
+        $key = TranslationApiKey::queryForCurrentTenant()->find($id);
         if (! $key) {
             return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
@@ -103,7 +103,7 @@ class TranslationApiKeyController extends Controller
 
     public function resetUsage(int $id)
     {
-        $key = TranslationApiKey::find($id);
+        $key = TranslationApiKey::queryForCurrentTenant()->find($id);
         if (! $key) {
             return $this->redirectWithMessage(self::SETTINGS_PATH, __('APIキーが見つかりません'), 'error');
         }
@@ -125,7 +125,7 @@ class TranslationApiKeyController extends Controller
      */
     public function fetchUsageFromDeepL(int $id)
     {
-        $key = TranslationApiKey::find($id);
+        $key = TranslationApiKey::queryForCurrentTenant()->find($id);
         if (! $key) {
             return response()->json(['ok' => false, 'message' => __('APIキーが見つかりません')], 404);
         }
@@ -138,7 +138,7 @@ class TranslationApiKeyController extends Controller
      */
     public function fetchAllUsageFromDeepL()
     {
-        $keys = TranslationApiKey::query()
+        $keys = TranslationApiKey::queryForCurrentTenant()
             ->where('provider', 'deepl')
             ->where('is_active', true)
             ->orderByDesc('priority')
@@ -251,6 +251,8 @@ class TranslationApiKeyController extends Controller
         $data = [
             'name' => $request->input('name'),
             'provider' => 'deepl',
+            'tenant_id' => \App\Support\TenantContext::idOrNull(),
+            'tenant_scope' => \App\Support\TenantContext::scopeOrZero(),
             'api_url' => $request->input('api_url') ?: null,
             'daily_limit' => $request->filled('daily_limit') ? (int) $request->input('daily_limit') : null,
             'monthly_limit' => $request->filled('monthly_limit') ? (int) $request->input('monthly_limit') : null,

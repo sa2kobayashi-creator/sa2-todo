@@ -53,12 +53,16 @@ class Sa2PlusMailboxService
 
     /**
      * スタンダードはメールボックスがプランに含まれる。
-     * ライトは mailbox_addon_active の個別契約。スタッフは常に可。
-     * ライトの有料契約（容量など）だけではメールは付かない。
+     * テナント契約の所属ユーザーも、専用インスタンスと同じく各1アドレス込み。
+     * ライト（個人）は mailbox_addon_active の個別契約。スタッフは常に可。
      */
     public function mailboxIncludedInPlan(User $user): bool
     {
         if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->tenant_id) {
             return true;
         }
 

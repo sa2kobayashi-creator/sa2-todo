@@ -39,6 +39,7 @@ class User extends Authenticatable
         'trial_ends_at',
         'storage_overage_active',
         'mailbox_addon_active',
+        'tenant_id',
     ];
 
     protected $hidden = [
@@ -85,6 +86,73 @@ class User extends Authenticatable
     public function messagingConnections()
     {
         return $this->hasMany(MessagingConnection::class);
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function isTenantAdmin(): bool
+    {
+        return $this->isAdmin() && ! $this->isSuperAdmin() && $this->tenant_id !== null;
+    }
+
+    public function isPlatformStaff(): bool
+    {
+        return $this->isSuperAdmin() || ($this->isAdmin() && $this->tenant_id === null);
+    }
+
+    public function canManageOwnKeys(): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+        if ($this->isTenantAdmin()) {
+            return (bool) ($this->tenant?->allow_own_keys ?? true);
+        }
+
+        return $this->isAdmin();
+    }
+
+    public function sharesContractWith(?User $other): bool
+    {
+        if (! $other) {
+            return false;
+        }
+
+        return $this->tenant_id === $other->tenant_id;
+    }
+
+    public function canViewUser(User $target): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+        if ($this->isTenantAdmin()) {
+            return (int) $target->tenant_id === (int) $this->tenant_id;
+        }
+        if ($this->isAdmin()) {
+            return $target->tenant_id === null;
+        }
+
+        return $this->id === $target->id;
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<User>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<User>
+     */
+    public function scopeVisibleTo($query, User $actor)
+    {
+        if ($actor->isSuperAdmin()) {
+            return $query;
+        }
+        if ($actor->tenant_id) {
+            return $query->where('tenant_id', $actor->tenant_id);
+        }
+
+        return $query->whereNull('tenant_id');
     }
 
     public function roleEnum(): UserRole
@@ -192,6 +260,8 @@ class User extends Authenticatable
             'trialEndsAt' => optional($this->trial_ends_at)?->format('Y-m-d'),
             'storageOverageActive' => (bool) $this->storage_overage_active,
             'mailboxAddonActive' => (bool) $this->mailbox_addon_active,
+            'tenantId' => $this->tenant_id,
+            'tenantName' => $this->tenant?->name,
             'createdAt' => optional($this->created_at)?->format('Y-m-d H:i'),
             'updatedAt' => optional($this->updated_at)?->format('Y-m-d H:i'),
         ];

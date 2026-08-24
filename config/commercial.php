@@ -7,6 +7,7 @@
 return [
     'setup_fee_yen' => (int) env('COMMERCIAL_SETUP_FEE_YEN', 50000),
     'monthly_base_yen' => (int) env('COMMERCIAL_MONTHLY_BASE_YEN', 8000),
+    /** 専用インスタンス／テナント契約の月額に含むユーザー数（代表を含む） */
     'included_users' => (int) env('COMMERCIAL_INCLUDED_USERS', 5),
     'extra_user_yen_monthly' => (int) env('COMMERCIAL_EXTRA_USER_YEN', 1000),
     'mailbox_yen_monthly' => (int) env('MAIL_ADDON_PRICE_YEN_MONTHLY', 300),

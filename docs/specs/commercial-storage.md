@@ -15,7 +15,7 @@
 
 | 項目 | 現状 |
 |------|------|
-| R2 / B2 / Cloudinary 等の API キー | **アプリ全体で1セット**（`media_storage_settings` は `provider` 単位。`user_id` なし） |
+| R2 / B2 / Cloudinary 等の API キー | **契約者（テナント）ごと**に持てる。未設定は運営の1セット（`tenant_scope = 0`） |
 | 写真・動画データ | **ユーザーごと**（`photos.user_id`） |
 | 無料枠 | **ユーザーごと。Light 50GB / Standard 200GB**（R2+B2 合算相当） |
 | 超過時 | 新規追加を拒否（`PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA`） |
@@ -88,7 +88,7 @@ Standard ¥980 に 200GB 込みでも、保管だけなら十分乗る。**本�
 
 ### まだやらない
 
-- Stripe 実課金、テナント分離、ユーザーごと API キー
+- Stripe 実課金。ユーザーごと API キーはテナント契約として実装済み（`docs/specs/commercial-tenants.md`）
 - 鮮明化を個人プランに出す（原価が高い）
 - 3段階の Plus（速さ課金）— 個人の第一声は広さ。速さは専用インスタンスか後続
 

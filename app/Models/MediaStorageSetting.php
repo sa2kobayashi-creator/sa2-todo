@@ -59,7 +59,22 @@ class MediaStorageSetting extends Model
     /** 新規登録の招待コード（管理画面で設定） */
     public const PROVIDER_REGISTRATION = 'registration';
 
+    /** 契約者には渡さない（ドメイン・Webhook・試作） */
+    public const PLATFORM_ONLY_PROVIDERS = [
+        self::PROVIDER_WEB_PUSH,
+        self::PROVIDER_REGISTRATION,
+        self::PROVIDER_LINE,
+        self::PROVIDER_FACEBOOK,
+        self::PROVIDER_ENHANCE,
+        self::PROVIDER_STABILITY,
+        self::PROVIDER_REMINI,
+        self::PROVIDER_SWINIR,
+        self::PROVIDER_REALESRGAN,
+    ];
+
     protected $fillable = [
+        'tenant_id',
+        'tenant_scope',
         'provider',
         'enabled',
         'settings',
@@ -102,26 +117,151 @@ class MediaStorageSetting extends Model
         return $row;
     }
 
+    public static function isPlatformOnly(string $provider): bool
+    {
+        return in_array($provider, self::PLATFORM_ONLY_PROVIDERS, true);
+    }
+
+    public static function currentTenantIdForProvider(string $provider): ?int
+    {
+        if (self::isPlatformOnly($provider)) {
+            return null;
+        }
+
+        return \App\Support\TenantContext::idOrNull();
+    }
+
+    public static function currentScopeForProvider(string $provider): int
+    {
+        return self::currentTenantIdForProvider($provider) ?? 0;
+    }
+
+    /** 設定画面用。テナント未保存なら空行（運営キーは見せない） */
     public static function forProvider(string $provider): self
     {
-        // 起動時・テスト migrate 前にテーブルが無いのは想定内。report しない。
         if (! static::tableExists()) {
             return static::unavailable($provider);
         }
 
+        $scope = self::currentScopeForProvider($provider);
+        $tenantId = self::currentTenantIdForProvider($provider);
+
         try {
-            return static::query()->firstOrCreate(
-                ['provider' => $provider],
-                ['enabled' => false, 'settings' => [], 'secrets' => []]
-            );
+            $row = static::query()
+                ->where('tenant_scope', $scope)
+                ->where('provider', $provider)
+                ->first();
+            if ($row) {
+                return $row;
+            }
+            if ($scope === 0) {
+                return static::query()->firstOrCreate(
+                    ['tenant_scope' => 0, 'provider' => $provider],
+                    [
+                        'tenant_id' => null,
+                        'enabled' => false,
+                        'settings' => [],
+                        'secrets' => [],
+                    ]
+                );
+            }
+
+            return static::unavailable($provider);
         } catch (\Throwable $e) {
-            // 復号失敗などは報告。テーブル欠如は再度黙ってフォールバック。
             if (! static::isMissingTableError($e)) {
                 report($e);
             }
 
             return static::unavailable($provider);
         }
+    }
+
+    /** 保存用。現在の契約（または運営）の行を必ず作る */
+    public static function writeForProvider(string $provider): self
+    {
+        if (! static::tableExists()) {
+            return static::unavailable($provider);
+        }
+
+        $tenantId = self::currentTenantIdForProvider($provider);
+        $scope = $tenantId ?? 0;
+
+        try {
+            return static::query()->firstOrCreate(
+                ['tenant_scope' => $scope, 'provider' => $provider],
+                [
+                    'tenant_id' => $tenantId,
+                    'enabled' => false,
+                    'settings' => [],
+                    'secrets' => [],
+                ]
+            );
+        } catch (\Throwable $e) {
+            if (! static::isMissingTableError($e)) {
+                report($e);
+            }
+
+            return static::unavailable($provider);
+        }
+    }
+
+    /** 実行時。テナント未設定なら運営キーへフォールバック */
+    public static function forUse(string $provider): self
+    {
+        $row = static::forProvider($provider);
+        $tenantId = self::currentTenantIdForProvider($provider);
+        if ($tenantId === null) {
+            return $row;
+        }
+        if ($row->exists && ($row->enabled || $row->hasAnySecret())) {
+            return $row;
+        }
+
+        try {
+            return static::query()->firstOrCreate(
+                ['tenant_scope' => 0, 'provider' => $provider],
+                [
+                    'tenant_id' => null,
+                    'enabled' => false,
+                    'settings' => [],
+                    'secrets' => [],
+                ]
+            );
+        } catch (\Throwable $e) {
+            if (! static::isMissingTableError($e)) {
+                report($e);
+            }
+
+            return static::unavailable($provider);
+        }
+    }
+
+    public function hasAnySecret(): bool
+    {
+        foreach ($this->secretsArray() as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $row) {
+            $user = auth()->user();
+            if (! $user instanceof \App\Models\User || ! $user->isTenantAdmin()) {
+                return;
+            }
+            $provider = (string) $row->provider;
+            if (self::isPlatformOnly($provider)) {
+                abort(403, __('この設定は運営のみが変更できます。'));
+            }
+            if (! $user->canManageOwnKeys()) {
+                abort(403, __('この契約では外部サービスの鍵を設定できません。'));
+            }
+        });
     }
 
     private static function isMissingTableError(\Throwable $e): bool

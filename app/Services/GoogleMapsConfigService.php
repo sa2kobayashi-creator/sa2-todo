@@ -9,7 +9,7 @@ class GoogleMapsConfigService
 {
     public function configRow(): MediaStorageSetting
     {
-        return MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
+        return MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
     }
 
     public function apiKey(): string
@@ -41,7 +41,7 @@ class GoogleMapsConfigService
      */
     public function saveConfig(bool $enabled, array $input): MediaStorageSetting
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
         $secrets = $row->secretsArray();
         $key = is_string($input['api_key'] ?? null) ? trim($input['api_key']) : '';
         if ($key !== '' && $key !== '••••••••' && ! str_starts_with($key, '••••')) {
@@ -61,7 +61,7 @@ class GoogleMapsConfigService
     /** @return array<string, mixed> */
     public function formState(): array
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
 
         return [
             'enabled' => (bool) $row->enabled || $this->usesEnvFallback() || ! $row->hasSecret('api_key'),
@@ -133,7 +133,7 @@ class GoogleMapsConfigService
 
     public function recordTestResult(bool $ok, string $message): void
     {
-        $row = $this->configRow();
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
         $row->fill([
             'last_tested_at' => now(),
             'last_test_status' => $ok ? 'ok' : 'fail',
