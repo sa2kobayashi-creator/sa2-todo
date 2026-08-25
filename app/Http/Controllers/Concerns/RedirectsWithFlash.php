@@ -24,7 +24,7 @@ trait RedirectsWithFlash
         return $fallback;
     }
 
-    /** @return array{notice: ?string, error: ?string} */
+    /** @return array{notice: ?string, error: ?string, linkCode: ?string, linkCodeMinutes: int, linkCodeProvider: ?string} */
     protected function flashFromQuery(Request $request): array
     {
         $notice = $request->session()->pull('notice');
@@ -38,9 +38,16 @@ trait RedirectsWithFlash
             $error = is_string($request->query('error')) ? $request->query('error') : null;
         }
 
+        $linkCode = $request->session()->pull('link_code');
+        $linkCodeMinutes = $request->session()->pull('link_code_minutes');
+        $linkCodeProvider = $request->session()->pull('link_code_provider');
+
         return [
             'notice' => $notice,
             'error' => $error,
+            'linkCode' => is_string($linkCode) && $linkCode !== '' ? $linkCode : null,
+            'linkCodeMinutes' => is_numeric($linkCodeMinutes) ? (int) $linkCodeMinutes : 15,
+            'linkCodeProvider' => is_string($linkCodeProvider) ? $linkCodeProvider : null,
         ];
     }
 

@@ -13,5 +13,6 @@ abstract class TestCase extends BaseTestCase
         if (app()->bound(TenantContext::class)) {
             app(TenantContext::class)->set(null);
         }
+        \App\Models\MediaStorageSetting::forgetSchemaCache();
     }
 }

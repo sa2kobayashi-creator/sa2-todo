@@ -107,8 +107,9 @@
       <ol class="line-setup-steps">
         <li>{{ __('LINE Developers Console で Messaging API チャネルを作成します。') }}</li>
         <li>{{ __('Channel Secret と Channel Access Token を取得し、左のフォームに入力します。') }}</li>
-        <li>{{ __('表示されている Webhook URL を LINE Developers の Webhook に設定し、Webhook をオンにします。') }}</li>
-        <li>{{ __('友だち追加用 QR をアップロードし、ユーザーに公式アカウントを追加してもらいます。連携コードで個人アカウントを接続します。') }}</li>
+        <li>{{ __('表示されている Webhook URL を LINE Developers の Webhook に設定し、「Webhook の利用」をオンにします。') }}</li>
+        <li>{{ __('LINE公式アカウントマネージャーの「設定 → 応答設定」で、応答モードを Bot、応答メッセージと AI 応答をオフ、Webhook をオンにします。初期の「個別のお問い合わせを受け付けておりません」は公式アカウントの自動応答です。') }}</li>
+        <li>{{ __('友だち追加用 QR をアップロードし、ユーザーに公式アカウントを追加してもらいます。マイページで6桁コードを発行し、公式アカウントのトークへそのコードだけを送ります。') }}</li>
       </ol>
 
       <div class="line-notify-examples">

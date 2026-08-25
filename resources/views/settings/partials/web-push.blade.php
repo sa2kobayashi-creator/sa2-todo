@@ -46,8 +46,9 @@
       <span class="storage-test-live hint" id="web-push-test-live"></span>
     </div>
   </form>
-  <p class="hint">{{ __('端末ごとの通知許可は「設定 → 通知設定」から各ユーザーが登録します。') }}</p>
+  <p class="hint">{{ __('端末ごとの通知許可は、各ユーザーがマイページの「通話の着信通知を登録」から行います。管理者は下の通知設定からも登録できます。') }}</p>
   <div class="storage-form-actions">
+    <a class="button-link secondary" href="/mypage#web-push-subscribe">{{ __('マイページで端末を登録') }}</a>
     <a class="button-link secondary" href="/settings?section=notifications">{{ __('通知設定を開く') }}</a>
   </div>
 </div>

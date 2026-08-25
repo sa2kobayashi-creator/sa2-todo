@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\Group;
 use App\Models\GroupMember;
 use App\Models\User;
+use App\Services\WebPushConfigService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -134,5 +135,43 @@ class MyPageProfileTest extends TestCase
             ->assertOk()
             ->assertSee('所属グループ')
             ->assertSee('デザイン班');
+    }
+
+    public function test_standard_user_sees_web_push_subscribe_on_mypage_even_without_settings(): void
+    {
+        $user = $this->makeUser('mypage-push@example.com');
+
+        $this->actingAs($user)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee('id="web-push-subscribe"', false)
+            ->assertSee('通話の着信通知を登録', false)
+            ->assertSee('通知サーバーが未設定です。管理者に Web Push の設定を依頼してください。', false)
+            ->assertDontSee('push-client.js', false);
+
+        $this->actingAs($user)
+            ->get('/settings')
+            ->assertForbidden();
+    }
+
+    public function test_standard_user_can_register_a_device_from_mypage_when_web_push_is_configured(): void
+    {
+        $user = $this->makeUser('mypage-push-ready@example.com');
+        $publicKey = rtrim(strtr(base64_encode("\x04".str_repeat("\0", 64)), '+/', '-_'), '=');
+        $privateKey = rtrim(strtr(base64_encode(str_repeat("\1", 32)), '+/', '-_'), '=');
+
+        app(WebPushConfigService::class)->saveConfig(true, [
+            'subject' => 'mailto:admin@example.com',
+            'public_key' => $publicKey,
+            'private_key' => $privateKey,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee('id="push-subscribe-btn"', false)
+            ->assertSee('この端末で通知を許可してください。', false)
+            ->assertSee('push-client.js', false)
+            ->assertDontSee('id="push-subscribe-btn" disabled', false);
     }
 }

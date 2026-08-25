@@ -176,7 +176,9 @@ class MediaStorageConfigService
                 }
             }
         } catch (\Throwable $e) {
-            if (! str_contains($e->getMessage(), 'no such table')
+            $message = $e->getMessage();
+            if (! str_contains($message, 'no such table')
+                && ! (str_contains($message, 'Unknown column') && str_contains($message, 'tenant_scope'))
                 && ! (str_contains($e->getMessage(), 'media_storage_settings')
                     && str_contains(strtolower($e->getMessage()), 'does not exist'))) {
                 report($e);

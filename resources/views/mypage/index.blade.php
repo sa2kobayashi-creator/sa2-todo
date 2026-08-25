@@ -189,6 +189,7 @@
       @include('settings.partials.google-calendar')
       @include('mypage.partials.line-link')
       @include('mypage.partials.messenger-link')
+      @include('mypage.partials.web-push-subscribe')
 
       <div class="panel" id="account-delete" style="border-color:#f3c1c1;">
         <h2>{{ __('退会（アカウント削除）') }}</h2>

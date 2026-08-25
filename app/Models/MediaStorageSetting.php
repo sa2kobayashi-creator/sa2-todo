@@ -94,6 +94,8 @@ class MediaStorageSetting extends Model
         ];
     }
 
+    private static ?bool $hasTenantScopeColumn = null;
+
     public static function tableExists(): bool
     {
         try {
@@ -101,6 +103,26 @@ class MediaStorageSetting extends Model
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    public static function hasTenantScopeColumn(): bool
+    {
+        if (self::$hasTenantScopeColumn !== null) {
+            return self::$hasTenantScopeColumn;
+        }
+        if (! static::tableExists()) {
+            return false;
+        }
+        try {
+            return self::$hasTenantScopeColumn = Schema::hasColumn((new static)->getTable(), 'tenant_scope');
+        } catch (\Throwable) {
+            return self::$hasTenantScopeColumn = false;
+        }
+    }
+
+    public static function forgetSchemaCache(): void
+    {
+        self::$hasTenantScopeColumn = null;
     }
 
     /** マイグレーション前など、DB 行が使えないときのメモリ上フォールバック */
@@ -143,6 +165,10 @@ class MediaStorageSetting extends Model
             return static::unavailable($provider);
         }
 
+        if (! static::hasTenantScopeColumn()) {
+            return static::legacyRowByProvider($provider);
+        }
+
         $scope = self::currentScopeForProvider($provider);
         $tenantId = self::currentTenantIdForProvider($provider);
 
@@ -183,6 +209,10 @@ class MediaStorageSetting extends Model
             return static::unavailable($provider);
         }
 
+        if (! static::hasTenantScopeColumn()) {
+            return static::legacyRowByProvider($provider);
+        }
+
         $tenantId = self::currentTenantIdForProvider($provider);
         $scope = $tenantId ?? 0;
 
@@ -215,6 +245,10 @@ class MediaStorageSetting extends Model
         }
         if ($row->exists && ($row->enabled || $row->hasAnySecret())) {
             return $row;
+        }
+
+        if (! static::hasTenantScopeColumn()) {
+            return static::legacyRowByProvider($provider);
         }
 
         try {
@@ -264,11 +298,38 @@ class MediaStorageSetting extends Model
         });
     }
 
+    private static function legacyRowByProvider(string $provider): self
+    {
+        try {
+            $row = static::query()->where('provider', $provider)->first();
+            if ($row) {
+                return $row;
+            }
+
+            return static::query()->firstOrCreate(
+                ['provider' => $provider],
+                [
+                    'enabled' => false,
+                    'settings' => [],
+                    'secrets' => [],
+                ]
+            );
+        } catch (\Throwable $e) {
+            if (! static::isMissingTableError($e)) {
+                report($e);
+            }
+
+            return static::unavailable($provider);
+        }
+    }
+
     private static function isMissingTableError(\Throwable $e): bool
     {
         $message = $e->getMessage();
 
         return str_contains($message, 'no such table')
+            || (str_contains($message, 'Unknown column') && str_contains($message, 'tenant_scope'))
+            || (str_contains($message, 'Unknown column') && str_contains($message, 'tenant_id'))
             || (str_contains($message, 'media_storage_settings')
                 && str_contains(strtolower($message), 'does not exist'));
     }

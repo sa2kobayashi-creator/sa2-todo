@@ -4,76 +4,12 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * 2026_08_24 が migrations 表では完了でも、MySQL の途中失敗で列が無い環境を直す。
+ */
 return new class extends Migration
 {
     public function up(): void
-    {
-        $this->ensureTenantSchema();
-    }
-
-    public function down(): void
-    {
-        if (Schema::hasTable('weekday_rules') && Schema::hasColumn('weekday_rules', 'tenant_id')) {
-            Schema::table('weekday_rules', function (Blueprint $table) {
-                $table->dropConstrainedForeignId('tenant_id');
-            });
-        }
-        if (Schema::hasTable('holiday_entries') && Schema::hasColumn('holiday_entries', 'tenant_id')) {
-            Schema::table('holiday_entries', function (Blueprint $table) {
-                $table->dropConstrainedForeignId('tenant_id');
-            });
-        }
-        if (Schema::hasTable('translation_api_keys') && Schema::hasColumn('translation_api_keys', 'tenant_id')) {
-            Schema::table('translation_api_keys', function (Blueprint $table) {
-                try {
-                    $table->dropForeign(['tenant_id']);
-                } catch (\Throwable) {
-                }
-                try {
-                    $table->dropIndex(['tenant_scope', 'provider']);
-                } catch (\Throwable) {
-                }
-                $drop = array_values(array_filter(
-                    ['tenant_id', 'tenant_scope'],
-                    fn (string $column) => Schema::hasColumn('translation_api_keys', $column)
-                ));
-                if ($drop !== []) {
-                    $table->dropColumn($drop);
-                }
-            });
-        }
-        if (Schema::hasTable('media_storage_settings') && Schema::hasColumn('media_storage_settings', 'tenant_scope')) {
-            Schema::table('media_storage_settings', function (Blueprint $table) {
-                try {
-                    $table->dropUnique(['tenant_scope', 'provider']);
-                } catch (\Throwable) {
-                }
-                try {
-                    $table->dropForeign(['tenant_id']);
-                } catch (\Throwable) {
-                }
-                $drop = array_values(array_filter(
-                    ['tenant_id', 'tenant_scope'],
-                    fn (string $column) => Schema::hasColumn('media_storage_settings', $column)
-                ));
-                if ($drop !== []) {
-                    $table->dropColumn($drop);
-                }
-                try {
-                    $table->unique('provider');
-                } catch (\Throwable) {
-                }
-            });
-        }
-        if (Schema::hasTable('users') && Schema::hasColumn('users', 'tenant_id')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropConstrainedForeignId('tenant_id');
-            });
-        }
-        Schema::dropIfExists('tenants');
-    }
-
-    public function ensureTenantSchema(): void
     {
         if (! Schema::hasTable('tenants')) {
             Schema::create('tenants', function (Blueprint $table) {
@@ -141,6 +77,11 @@ return new class extends Migration
         }
     }
 
+    public function down(): void
+    {
+        // 修復用。巻き戻しは 2026_08_24 側。
+    }
+
     private function dropProviderOnlyUnique(): void
     {
         try {
@@ -150,7 +91,6 @@ return new class extends Migration
 
             return;
         } catch (\Throwable) {
-            // インデックス名が環境で違う場合は一覧から探す
         }
 
         if (! Schema::hasTable('media_storage_settings')) {
@@ -213,7 +153,6 @@ return new class extends Migration
                 $blueprint->foreign($column)->references('id')->on($references)->nullOnDelete();
             });
         } catch (\Throwable) {
-            // 既存データやエンジン差で FK が張れない場合は列だけ残す
         }
     }
 };

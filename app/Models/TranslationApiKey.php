@@ -73,6 +73,10 @@ class TranslationApiKey extends Model
      */
     public static function queryForCurrentTenant(bool $fallbackToPlatform = false)
     {
+        if (! \Illuminate\Support\Facades\Schema::hasColumn((new static)->getTable(), 'tenant_scope')) {
+            return static::query();
+        }
+
         $scope = \App\Support\TenantContext::scopeOrZero();
         $query = static::query()->where('tenant_scope', $scope);
         if ($fallbackToPlatform && $scope !== 0 && ! (clone $query)->exists()) {

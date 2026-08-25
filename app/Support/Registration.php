@@ -31,10 +31,12 @@ final class Registration
     public static function inviteCodeFromDatabase(): ?string
     {
         try {
-            $row = MediaStorageSetting::query()
-                ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION)
-                ->where('tenant_scope', 0)
-                ->first();
+            $query = MediaStorageSetting::query()
+                ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION);
+            if (MediaStorageSetting::hasTenantScopeColumn()) {
+                $query->where('tenant_scope', 0);
+            }
+            $row = $query->first();
             if (! $row) {
                 return null;
             }

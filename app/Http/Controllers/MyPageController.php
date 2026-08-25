@@ -14,6 +14,7 @@ use App\Services\MessengerMessagingService;
 use App\Services\PhotoService;
 use App\Services\Sa2PlusMailboxService;
 use App\Services\UserDataExportService;
+use App\Services\WebPushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -36,6 +37,7 @@ class MyPageController extends Controller
         private BillingEntitlementService $billing,
         private PhotoService $photos,
         private Sa2PlusMailboxService $domainMail,
+        private WebPushService $webPush,
     ) {}
 
     public function show(Request $request)
@@ -83,6 +85,7 @@ class MyPageController extends Controller
             'lineMessagingActionBase' => '/mypage/messaging/line',
             'messengerMessaging' => $this->messengerMessaging->formState($user),
             'messengerMessagingActionBase' => '/mypage/messaging/messenger',
+            'pushConfigured' => $this->webPush->isConfigured(),
         ]));
     }
 

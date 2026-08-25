@@ -254,6 +254,31 @@ class MessagingNotificationTest extends TestCase
             ->assertSee('設定手順', false);
     }
 
+    public function test_issued_link_code_shows_beside_the_button_not_at_the_top(): void
+    {
+        $this->configureLine();
+        $user = $this->makeAdmin();
+
+        $this->actingAs($user)
+            ->post('/mypage/messaging/line/code')
+            ->assertRedirect('/mypage#line-messaging')
+            ->assertSessionMissing('notice')
+            ->assertSessionHas('link_code');
+
+        $code = (string) session('link_code');
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{6}$/', $code);
+
+        $this->actingAs($user)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee($code, false)
+            ->assertSee('class="line-issued-code"', false)
+            ->assertDontSee(__('連携コードを発行しました: :code （:minutes分有効）。公式アカウント／ページにこのコードを送ってください。', [
+                'code' => $code,
+                'minutes' => 15,
+            ]), false);
+    }
+
     public function test_line_qr_code_is_served_through_app_route(): void
     {
         Storage::fake('public');

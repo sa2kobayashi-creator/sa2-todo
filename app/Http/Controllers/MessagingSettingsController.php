@@ -127,13 +127,11 @@ class MessagingSettingsController extends Controller
         $code = $this->links->issueCode($request->user(), $provider);
         $minutes = 15;
 
-        return $this->redirectWithMessage(
-            $path,
-            __('連携コードを発行しました: :code （:minutes分有効）。公式アカウント／ページにこのコードを送ってください。', [
-                'code' => $code,
-                'minutes' => $minutes,
-            ])
-        );
+        return redirect($this->urlWithoutFlashParams($path))->with([
+            'link_code' => $code,
+            'link_code_minutes' => $minutes,
+            'link_code_provider' => $provider,
+        ]);
     }
 
     public function disconnect(Request $request, string $provider)

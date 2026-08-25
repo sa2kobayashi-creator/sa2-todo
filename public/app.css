@@ -1017,6 +1017,29 @@ a {
   gap: 10px;
 }
 
+.line-code-issue-row {
+  align-items: center;
+}
+
+.line-issued-code {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #137333;
+}
+
+.line-issued-code-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #0b57d0;
+}
+
 .storage-test-result.is-ok,
 .storage-test-live.is-ok {
   color: #137333;
