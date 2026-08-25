@@ -21342,6 +21342,13 @@ body.dash-home-lightbox-open {
   background: #f8fbfa;
 }
 .usage-overview-card strong { color: #10231f; }
+.usage-overview-card .usage-overview-free {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #0f766e;
+  font-weight: 600;
+}
 .usage-overview-desc {
   margin: 0;
   font-size: 12px;

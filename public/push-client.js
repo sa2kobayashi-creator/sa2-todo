@@ -20,6 +20,17 @@
     if (status) status.textContent = text
   }
 
+  function permissionDeniedHelp() {
+    return 'このサイトの通知がブロックされています。アドレスバー左の鍵（またはサイト情報）→ サイトの設定 → 通知を「許可」にしてから、もう一度「登録」を押してください。'
+  }
+
+  function permissionNeededHelp() {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+      return permissionDeniedHelp()
+    }
+    return 'ブラウザの確認で「許可」を選んでください。確認が出ないときは、アドレスバー左の鍵から通知を許可してください。'
+  }
+
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -44,6 +55,10 @@
       return
     }
     try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        setStatus(permissionDeniedHelp())
+        return
+      }
       const reg = await registration()
       const sub = await reg.pushManager.getSubscription()
       if (sub) {
@@ -67,7 +82,9 @@
     try {
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') {
-        alert('通知の許可が必要です')
+        const help = permissionNeededHelp()
+        setStatus(help)
+        alert(help)
         return
       }
 

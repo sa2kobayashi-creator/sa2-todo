@@ -31,6 +31,9 @@
               @if(!empty($row['description']))
                 <p class="usage-overview-desc">{{ $row['description'] }}</p>
               @endif
+              @if(!empty($row['freeTier']))
+                <span class="usage-overview-free">{{ __('無料枠') }}: {{ $row['freeTier'] }}</span>
+              @endif
               <span>{{ $row['metric'] }}</span>
               @if($provider === 'web_push_subscriptions')
                 <b>{{ __('登録 :count 台', ['count' => number_format($row['today'])]) }}</b>
@@ -52,7 +55,12 @@
   <section class="panel" id="storage-usage">
     <h2>{{ __('ストレージ使用状況') }}</h2>
     <p class="hint">
-      {{ __('無料枠') }}: {{ $storage['formattedCombinedQuota'] ?? '' }}
+      {{ __('無料枠') }}:
+      {{ __('Light :light / Standard :standard', [
+        'light' => $storage['formattedLightQuota'] ?? '',
+        'standard' => $storage['formattedStandardQuota'] ?? '',
+      ]) }}
+      （{{ __('このアカウント') }} {{ $storage['formattedCombinedQuota'] ?? '' }}）
       @if(!empty($storage['archiveEnabled']))
         （{{ __('内訳目安') }} R2 {{ $storage['formattedQuota'] ?? '' }} + B2 {{ $storage['formattedB2Quota'] ?? '' }}）
       @endif
