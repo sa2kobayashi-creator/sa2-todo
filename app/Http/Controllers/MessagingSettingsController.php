@@ -89,6 +89,11 @@ class MessagingSettingsController extends Controller
         );
     }
 
+    public function qrCode()
+    {
+        return $this->lineConfig->qrCodeResponse();
+    }
+
     public function testChannel(string $provider): JsonResponse
     {
         $provider = $this->normalizeProvider($provider);

@@ -60,12 +60,12 @@ class LineConfigService
 
     public function qrCodeUrl(): ?string
     {
-        $path = $this->qrCodePath();
-        if ($path === '' || ! Storage::disk('public')->exists($path)) {
+        if (! $this->qrCodeExists()) {
             return null;
         }
 
-        return Storage::disk('public')->url($path);
+        // public/storage のシンボリックリンクに依存しない（ロリポップではリンクできないことが多い）
+        return url('/line/qr-code').'?v='.Storage::disk('public')->lastModified($this->qrCodePath());
     }
 
     public function qrCodeFilename(): string
@@ -73,6 +73,28 @@ class LineConfigService
         $path = $this->qrCodePath();
 
         return $path !== '' ? basename($path) : '';
+    }
+
+    public function qrCodeExists(): bool
+    {
+        $path = $this->qrCodePath();
+
+        return $path !== '' && Storage::disk('public')->exists($path);
+    }
+
+    public function qrCodeResponse(): \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response
+    {
+        if (! $this->qrCodeExists()) {
+            abort(404);
+        }
+
+        $path = $this->qrCodePath();
+        $mime = Storage::disk('public')->mimeType($path) ?: 'image/png';
+
+        return Storage::disk('public')->response($path, $this->qrCodeFilename(), [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, max-age=86400',
+        ]);
     }
 
     public function isReady(): bool
@@ -142,7 +164,11 @@ class LineConfigService
             Storage::disk('public')->delete($previousPath);
         }
 
-        $name = 'line_qr_code_'.time().'.'.$file->getClientOriginalExtension();
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+        if (! in_array($ext, ['jpg', 'jpeg', 'png', 'gif'], true)) {
+            $ext = 'png';
+        }
+        $name = 'line_qr_code_'.time().'.'.$ext;
 
         return $file->storeAs(self::QR_DIR, $name, 'public');
     }

@@ -291,6 +291,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/archives/{id}/restore', [\App\Http\Controllers\DataArchiveController::class, 'restore'])->whereNumber('id');
     Route::post('/archives/keep', [\App\Http\Controllers\DataArchiveController::class, 'keep']);
     Route::get('/mypage', [MyPageController::class, 'show']);
+    Route::get('/line/qr-code', [MessagingSettingsController::class, 'qrCode']);
     Route::post('/mypage', [MyPageController::class, 'update']);
     Route::get('/mypage/export', [MyPageController::class, 'export']);
     Route::post('/mypage/delete', [MyPageController::class, 'destroy']);

@@ -11,8 +11,10 @@ use App\Services\LineConfigService;
 use App\Services\MessagingLinkService;
 use App\Services\ReminderNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MessagingNotificationTest extends TestCase
@@ -250,5 +252,43 @@ class MessagingNotificationTest extends TestCase
             ->assertSee('Facebook Messenger 通知連携', false)
             ->assertSee('Channel Access Token', false)
             ->assertSee('設定手順', false);
+    }
+
+    public function test_line_qr_code_is_served_through_app_route(): void
+    {
+        Storage::fake('public');
+        $this->get('/line/qr-code')->assertRedirect('/login');
+
+        $admin = $this->makeAdmin();
+        $qr = UploadedFile::fake()->image('friend-qr.png', 80, 80);
+
+        $this->actingAs($admin)->post('/settings/messaging/line/channel', [
+            'enabled' => '1',
+            'channel_access_token' => 'qr-token',
+            'channel_secret' => 'qr-secret',
+            'qr_code' => $qr,
+        ])->assertRedirect();
+
+        $url = app(LineConfigService::class)->qrCodeUrl();
+        $this->assertNotNull($url);
+        $this->assertStringContainsString('/line/qr-code', (string) $url);
+        $this->assertStringNotContainsString('/storage/', (string) $url);
+
+        $this->actingAs($admin)
+            ->get('/settings?section=integration')
+            ->assertOk()
+            ->assertSee('/line/qr-code', false);
+
+        $this->actingAs($admin)
+            ->get((string) $url)
+            ->assertOk();
+
+        $light = User::create([
+            'email' => 'light-qr@example.com',
+            'display_name' => 'Light',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+        $this->actingAs($light)->get('/line/qr-code')->assertOk();
     }
 }
