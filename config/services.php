@@ -116,6 +116,19 @@ return [
         'direct_only' => filter_var(env('TRAVELPAYOUTS_DIRECT_ONLY', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    // Google Maps Routes API（路線検索）。通常は 設定 → API設定 で保存し、DB 未設定のときだけここが使われる。
+    'google_routes' => [
+        'api_key' => env('GOOGLE_ROUTES_API_KEY'),
+        'timeout' => (int) env('GOOGLE_ROUTES_TIMEOUT', 20),
+    ],
+
+    // 駅すぱあと（路線検索）。通常は 設定 → API設定 で保存し、DB 未設定のときだけここが使われる。
+    'ekispert' => [
+        'api_key' => env('EKISPERT_API_KEY'),
+        'base_url' => env('EKISPERT_BASE_URL', 'https://api.ekispert.jp/v1/json'),
+        'timeout' => (int) env('EKISPERT_TIMEOUT', 20),
+    ],
+
     // NAVITIME API（路線検索）。通常は 設定 → API設定 で保存し、DB 未設定のときだけここが使われる。
     'navitime' => [
         'mode' => env('NAVITIME_MODE', 'rapidapi'),

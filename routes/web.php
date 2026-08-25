@@ -1,59 +1,64 @@
 <?php
 
-use App\Http\Controllers\AiLlmSettingsController;
+use App\Http\Controllers\Admin\GroupController as AdminGroupController;
+use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
 use App\Http\Controllers\Admin\SalesEstimateController as AdminSalesEstimateController;
+use App\Http\Controllers\Admin\StorageArchiveController;
 use App\Http\Controllers\Admin\TenantController as AdminTenantController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
-use App\Http\Controllers\Admin\GroupController as AdminGroupController;
+use App\Http\Controllers\AiLlmSettingsController;
 use App\Http\Controllers\Api\HolidayDatesController;
+use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordSetupController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DataArchiveController;
+use App\Http\Controllers\EkispertSettingsController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GoogleCalendarOauthSettingsController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GoogleMapsSettingsController;
+use App\Http\Controllers\GoogleRoutesSettingsController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HelpController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LegalController;
-use App\Http\Controllers\LocaleController;
-use App\Http\Controllers\MapController;
 use App\Http\Controllers\LineWebhookController;
-use App\Http\Controllers\MessengerWebhookController;
 use App\Http\Controllers\LiveKitSettingsController;
-use App\Http\Controllers\WebPushSettingsController;
-use App\Http\Controllers\MessagingSettingsController;
+use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\MailController;
+use App\Http\Controllers\MapController;
 use App\Http\Controllers\MediaStorageSettingsController;
 use App\Http\Controllers\MessageController;
-use App\Http\Controllers\MailController;
-use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
+use App\Http\Controllers\MessagingSettingsController;
+use App\Http\Controllers\MessengerWebhookController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
 use App\Http\Controllers\NavitimeSettingsController;
-use App\Http\Controllers\PersonalHolidayController;
-use App\Http\Controllers\RouteSearchSettingsController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\PersonalHolidayController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\RouteSearchSettingsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslateController;
+use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\TravelController;
 use App\Http\Controllers\TravelpayoutsSettingsController;
-use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\VideoController;
+use App\Http\Controllers\WebPushSettingsController;
 use App\Http\Controllers\WorkersAiSettingsController;
 use App\Http\Controllers\YoutubeSettingsController;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
+use App\Http\Middleware\RequireSuperAdmin;
 use App\Http\Middleware\ShareViewData;
 use Illuminate\Support\Facades\Route;
 
@@ -102,6 +107,7 @@ Route::post('/webhooks/messenger', [MessengerWebhookController::class, 'receive'
 Route::get('/.well-known/assetlinks.json', function () {
     $path = public_path('.well-known/assetlinks.json');
     abort_unless(is_file($path), 404);
+
     return response()->file($path, [
         'Content-Type' => 'application/json; charset=utf-8',
         'Cache-Control' => 'public, max-age=300',
@@ -300,9 +306,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/groups/{id}/delete', [GroupController::class, 'destroy'])->whereNumber('id');
     });
 
-    Route::get('/archives', [\App\Http\Controllers\DataArchiveController::class, 'index']);
-    Route::post('/archives/{id}/restore', [\App\Http\Controllers\DataArchiveController::class, 'restore'])->whereNumber('id');
-    Route::post('/archives/keep', [\App\Http\Controllers\DataArchiveController::class, 'keep']);
+    Route::get('/archives', [DataArchiveController::class, 'index']);
+    Route::post('/archives/{id}/restore', [DataArchiveController::class, 'restore'])->whereNumber('id');
+    Route::post('/archives/keep', [DataArchiveController::class, 'keep']);
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::get('/line/qr-code', [MessagingSettingsController::class, 'qrCode']);
     Route::post('/mypage', [MyPageController::class, 'update']);
@@ -318,7 +324,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/mypage/weekday-rules/{id}/exceptions/delete', [PersonalHolidayController::class, 'deleteWeekdayException'])->whereNumber('id');
     Route::get('/help', [HelpController::class, 'index']);
     Route::get('/about', [HelpController::class, 'about']);
-    Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {
+    Route::middleware(RequireAdmin::class)->group(function () {
         Route::get('/help/overview', [HelpController::class, 'overview']);
         Route::get('/help/guide', [HelpController::class, 'guide']);
         Route::get('/contact', [HelpController::class, 'contact']);
@@ -423,7 +429,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/settings/weekday-rules/{id}/exceptions/delete', [SettingsController::class, 'deleteWeekdayException'])->whereNumber('id');
 
         // 販売時は顧客の管理者が API キーを自分で設定する。スタンダード／ライトは不可。
-        Route::middleware(\App\Http\Middleware\RequireAdmin::class)->group(function () {
+        Route::middleware(RequireAdmin::class)->group(function () {
             Route::post('/settings/translation-keys', [TranslationApiKeyController::class, 'store']);
             Route::post('/settings/translation-keys/test', [TranslationApiKeyController::class, 'test']);
             Route::post('/settings/translation-keys/fetch-usage-all', [TranslationApiKeyController::class, 'fetchAllUsageFromDeepL']);
@@ -445,8 +451,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
             Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
             Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);
+            Route::post('/settings/api/google-routes', [GoogleRoutesSettingsController::class, 'update']);
+            Route::post('/settings/api/google-routes/test', [GoogleRoutesSettingsController::class, 'test']);
             Route::post('/settings/api/navitime', [NavitimeSettingsController::class, 'update']);
             Route::post('/settings/api/navitime/test', [NavitimeSettingsController::class, 'test']);
+            Route::post('/settings/api/ekispert', [EkispertSettingsController::class, 'update']);
+            Route::post('/settings/api/ekispert/test', [EkispertSettingsController::class, 'test']);
             Route::post('/settings/api/route-search', [RouteSearchSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar', [GoogleCalendarOauthSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar/test', [GoogleCalendarOauthSettingsController::class, 'test']);
@@ -469,10 +479,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/messaging/line/qr/delete', [MessagingSettingsController::class, 'deleteLineQr']);
 
             Route::post('/settings/messaging/messenger/channel', [MessagingSettingsController::class, 'saveChannel'])
-                ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+                ->middleware(RequireSuperAdmin::class)
                 ->defaults('provider', 'messenger');
             Route::post('/settings/messaging/messenger/channel/test', [MessagingSettingsController::class, 'testChannel'])
-                ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+                ->middleware(RequireSuperAdmin::class)
                 ->defaults('provider', 'messenger');
         });
 
@@ -485,12 +495,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->where('provider', 'line|messenger');
 
         Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive'])
-            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class);
+            ->middleware(RequireSuperAdmin::class);
         Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])
-            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+            ->middleware(RequireSuperAdmin::class)
             ->where('provider', 'stability|realesrgan|swinir');
         Route::post('/settings/enhance/{provider}/test', [EnhanceSettingsController::class, 'testProvider'])
-            ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+            ->middleware(RequireSuperAdmin::class)
             ->where('provider', 'stability|realesrgan|swinir');
     });
 
@@ -516,10 +526,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/mail-requests/{id}/provision', [AdminMailDomainRequestController::class, 'provision'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/suspend', [AdminMailDomainRequestController::class, 'suspend'])->whereNumber('id');
 
-        Route::get('/admin/storage-archive', [\App\Http\Controllers\Admin\StorageArchiveController::class, 'show']);
+        Route::get('/admin/storage-archive', [StorageArchiveController::class, 'show']);
     });
 
-    Route::middleware(\App\Http\Middleware\RequireSuperAdmin::class)->group(function () {
+    Route::middleware(RequireSuperAdmin::class)->group(function () {
         Route::get('/admin/sales/estimate', [AdminSalesEstimateController::class, 'show']);
         Route::get('/admin/tenants', [AdminTenantController::class, 'index']);
         Route::post('/admin/tenants', [AdminTenantController::class, 'store']);

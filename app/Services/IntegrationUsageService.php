@@ -145,6 +145,22 @@ class IntegrationUsageService
                         __('路線検索で経路・運賃・乗換を取得するときに使用します。未設定のときは内蔵エンジンで検索し、ここには計上されません。'),
                         __('アプリ側の回数上限なし。API 制限は NAVITIME の契約プランに依存します。'),
                     ),
+                    'google_routes' => $this->usageItem(
+                        __('Google Maps Routes（路線検索）'),
+                        $value('google_routes'),
+                        __('経路検索'),
+                        'https://developers.google.com/maps/documentation/routes',
+                        __('路線検索で Google の公共交通ルートを取得するときに使用します。未設定のときはここには計上されません。'),
+                        __('アプリ側の回数上限なし。API 制限は Google Cloud の課金設定に依存します。'),
+                    ),
+                    'ekispert' => $this->usageItem(
+                        __('駅すぱあと（路線検索）'),
+                        $value('ekispert'),
+                        __('経路検索'),
+                        'https://docs.ekispert.com/v1/',
+                        __('路線検索で駅すぱあとの経路・運賃・乗換を取得するときに使用します。未設定のときはここには計上されません。'),
+                        __('アプリ側の回数上限なし。API 制限は駅すぱあとの契約プランに依存します。'),
+                    ),
                     'google_maps' => $this->usageItem(
                         __('Google マップ'),
                         $value('google_maps'),

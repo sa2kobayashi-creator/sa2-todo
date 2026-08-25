@@ -3,7 +3,7 @@
 namespace App\Services\Transit\Contracts;
 
 /**
- * 経路検索の提供元。NAVITIME・駅すぱあと・内蔵 RAPTOR などをここで揃える。
+ * 経路検索の提供元。Google Maps Routes・NAVITIME・駅すぱあと・内蔵 RAPTOR などをここで揃える。
  *
  * search() は画面と共通の itinerary 形式で返す:
  * ['ok' => bool, 'engine' => string, 'itineraries' => [

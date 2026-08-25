@@ -88,7 +88,7 @@
             <ul>
               <li>カレンダーは API設定に OAuth アプリを保存したあと、各自がマイページから連携します。仕事 Todo は Google カレンダーへ予定を出せます（Meet 付き）。</li>
               <li>マップ／路線検索は API設定の Maps キーが必要です。</li>
-              <li>路線検索の経路探索は API設定の <strong>NAVITIME</strong> を登録すると時刻表ベースになります（RapidAPI などのマーケット契約か、ナビタイムとの直接契約）。未登録のときは福岡都心の内蔵ダイヤで検索します。</li>
+              <li>路線検索の経路探索は API設定の <strong>Google Maps Routes</strong>・<strong>NAVITIME</strong>・<strong>駅すぱあと</strong> を登録すると、選んだ API の時刻表で検索します。未登録のときは福岡都心の内蔵ダイヤで検索します。</li>
               <li>LINE／Messenger は <a href="/settings?section=integration">外部連携</a> でチャネルを保存し、各自がマイページでつなぎます。</li>
             </ul>
 

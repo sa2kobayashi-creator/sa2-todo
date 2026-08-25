@@ -62,15 +62,15 @@
 
 ```text
 /transit → TransitController → RouteSearchService → RouteProvider
+                                                     ├ GoogleRoutesRouteProvider（google）
                                                      ├ NavitimeRouteProvider（navitime）
+                                                     ├ EkispertRouteProvider（ekispert）
                                                      └ RaptorRouteProvider（raptor・契約不要）
 ```
 
-プロバイダは `App\Services\Transit\Contracts\RouteProvider`（`key` / `label` / `isReady` / `search`）を実装し、**画面共通の itinerary 形式**（`departureTime` `arrivalTime` `durationLabel` `transfers` `fareLabel` `legs[]`）で返す。駅すぱあとなどを足すときは、この変換クラスを1つ書いて `RouteSearchService` の `$providers` に並べるだけで、画面もフロントも変更しない。
+プロバイダは `App\Services\Transit\Contracts\RouteProvider`（`key` / `label` / `isReady` / `search`）を実装し、**画面共通の itinerary 形式**（`departureTime` `arrivalTime` `durationLabel` `transfers` `fareLabel` `legs[]`）で返す。新しい API を足すときは、この変換クラスを1つ書いて `RouteSearchService` の `$providers` に並べるだけで、画面もフロントも変更しない。
 
-使う API の決まり方は **設定 → API設定 → 経路検索に使う API ＞ `ROUTE_PROVIDER` ＞ `auto`**。`auto` と、選んだ API が失敗したときは、契約情報が入っている次のプロバイダへ回して結果を必ず返す（切り替わったときは `engineNote` に理由を入れる）。
-
-**Google は候補に入れない。** Google Maps Platform FAQ に "The Routes API supports all Google Transit partners, except the Indian Railway Catering and Tourism Corporation and those in Japan." とあり、日本国内は `travelMode: TRANSIT` で経路が返らない（`ZERO_RESULTS` ＋ `available_travel_modes` に TRANSIT なし）。画面の「Google Maps でルート」は外部リンクとして残す。
+使う API の決まり方は **設定 → API設定 → 経路検索に使う API ＞ `ROUTE_PROVIDER` ＞ `auto`**。`auto` と、選んだ API が失敗したときは、契約情報が入っている次のプロバイダへ回して結果を必ず返す（切り替わったときは `engineNote` に理由を入れる）。契約情報は同じ画面の **Google Maps Routes / NAVITIME / 駅すぱあと** で登録する。
 
 契約前の比較は `php artisan transit:compare 志賀島 博多駅 --at="2026-08-26 08:00" --legs` で、全プロバイダの出発・到着・所要・乗換・運賃を並べて確認する。
 
@@ -88,6 +88,14 @@
 本来の精度（バス時刻表を含む）を確かめるなら、ナビタイムジャパンが直接契約検討者向けに出している **90日間の無料お試し環境** を使う。`direct` モードにベース URL と認証ヘッダを入れれば、そのまま検証できる。
 
 地名 → 緯度経度は「NAVITIME の地点検索（契約時のみ）→ Google Maps ジオコーディング」の順に解決し、24 時間キャッシュする。呼び出し回数は `integration_usage_dailies` の `navitime` に計上する（設定 → 利用量）。
+
+## Google Maps Routes API（路線検索）
+
+**設定 → API設定 → Google Maps Routes API** で有効化し、キーを保存する（`media_storage_settings` の `google_routes`。キーは暗号化、テナント単位）。専用キーが空なら、同じ画面の Google マップキーを流用する。`POST /transit/search` は Routes API の `computeRoutes`（`travelMode: TRANSIT`）を呼び、結果を RAPTOR と同じ itinerary 形式に変換して返す（`engine` に `Google Maps Routes`）。
+
+## 駅すぱあと（路線検索）
+
+**設定 → API設定 → 駅すぱあと** でアクセスキーを保存する（`media_storage_settings` の `ekispert`。キーは暗号化、テナント単位）。`search/course/extreme` を呼び、結果を RAPTOR と同じ itinerary 形式に変換して返す（`engine` に `駅すぱあと`）。
 
 ## 個人プランとの関係
 

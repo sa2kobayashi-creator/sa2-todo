@@ -2,36 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesHolidays;
+use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Models\TranslationApiKey;
-use App\Support\FooterNav;
 use App\Services\AiLlmConfigService;
-use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\CalendarService;
+use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\DeeplUsageService;
+use App\Services\EkispertConfigService;
 use App\Services\EnhanceConfigService;
 use App\Services\GoogleCalendarConfigService;
 use App\Services\GoogleMapsConfigService;
-use App\Services\LineMessagingService;
-use App\Services\LiveKitConfigService;
-use App\Services\MessengerMessagingService;
-use App\Services\NavitimeConfigService;
-use App\Services\Transit\RouteSearchService;
+use App\Services\GoogleRoutesConfigService;
 use App\Services\HolidayService;
 use App\Services\IntegrationUsageService;
+use App\Services\LineMessagingService;
+use App\Services\LiveKitConfigService;
 use App\Services\MediaStorageConfigService;
+use App\Services\MessengerMessagingService;
+use App\Services\NavitimeConfigService;
 use App\Services\PhotoService;
+use App\Services\Transit\RouteSearchService;
 use App\Services\TravelpayoutsConfigService;
 use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
-use App\Http\Controllers\Concerns\ManagesHolidays;
-use App\Http\Controllers\Concerns\RedirectsWithFlash;
+use App\Support\FooterNav;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
 {
-    use RedirectsWithFlash;
     use ManagesHolidays;
+    use RedirectsWithFlash;
 
     public function __construct(
         private HolidayService $holidays,
@@ -43,7 +45,9 @@ class SettingsController extends Controller
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
         private GoogleMapsConfigService $googleMaps,
+        private GoogleRoutesConfigService $googleRoutes,
         private NavitimeConfigService $navitime,
+        private EkispertConfigService $ekispert,
         private RouteSearchService $routeSearch,
         private GoogleCalendarConfigService $googleCalendarOauth,
         private LineMessagingService $lineMessaging,
@@ -100,7 +104,9 @@ class SettingsController extends Controller
             'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
             'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
+            'googleRoutesSettings' => $section === 'enhance' ? $this->googleRoutes->formState() : null,
             'navitimeSettings' => $section === 'enhance' ? $this->navitime->formState() : null,
+            'ekispertSettings' => $section === 'enhance' ? $this->ekispert->formState() : null,
             'routeSearchSettings' => $section === 'enhance' ? $this->routeSearchFormState() : null,
             'googleCalendarOauthSettings' => $section === 'enhance' ? $this->googleCalendarOauth->formState() : null,
             'isSuperAdmin' => $isSuperAdmin,

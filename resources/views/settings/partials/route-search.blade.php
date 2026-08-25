@@ -4,8 +4,7 @@
 
 <div class="panel storage-settings" id="route-search-settings">
   <h2>{{ __('経路検索に使う API') }}</h2>
-  <p class="hint">{{ __('路線検索の「経路を検索」で呼び出す API を選びます。自動にすると、契約情報が入っているものを上から順に使い、失敗したら次に回します。') }}</p>
-  <p class="hint">{{ __('Google は日本の交通機関ルートが API の提供対象外のため、ここには出てきません（画面の「Google Maps でルート」は外部リンクとして使えます）。') }}</p>
+  <p class="hint">{{ __('路線検索の「経路を検索」で呼び出す API を選びます。自動にすると、契約情報が入っているものを上から順に使い、失敗したら次に回します。Google Maps Routes・NAVITIME・駅すぱあとは下の各欄で登録します。') }}</p>
   <form method="post" action="/settings/api/route-search" class="storage-provider-form">
     @csrf
     <label>
