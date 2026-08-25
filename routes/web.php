@@ -19,6 +19,7 @@ use App\Http\Controllers\GoogleCalendarOauthSettingsController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
 use App\Http\Controllers\GoogleMapsSettingsController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HelpController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LegalController;
@@ -35,7 +36,9 @@ use App\Http\Controllers\MailController;
 use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\MyPageController;
+use App\Http\Controllers\NavitimeSettingsController;
 use App\Http\Controllers\PersonalHolidayController;
+use App\Http\Controllers\RouteSearchSettingsController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -47,6 +50,7 @@ use App\Http\Controllers\TravelController;
 use App\Http\Controllers\TravelpayoutsSettingsController;
 use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\VideoController;
+use App\Http\Controllers\WorkersAiSettingsController;
 use App\Http\Controllers\YoutubeSettingsController;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
@@ -274,6 +278,15 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::delete('/translate/history/{id}', [TranslateController::class, 'destroyHistory'])->whereNumber('id');
     });
 
+    Route::middleware(EnsureFeature::class.':guide')->group(function () {
+        Route::get('/guide', [GuideController::class, 'index']);
+        Route::post('/guide/ask', [GuideController::class, 'ask'])->middleware('throttle:ai-guide');
+        Route::post('/guide/topics', [GuideController::class, 'storeTopic']);
+        Route::post('/guide/topics/{id}/update', [GuideController::class, 'updateTopic'])->whereNumber('id');
+        Route::post('/guide/topics/{id}/move', [GuideController::class, 'moveTopic'])->whereNumber('id');
+        Route::post('/guide/topics/{id}/delete', [GuideController::class, 'destroyTopic'])->whereNumber('id');
+    });
+
     // 招待の承諾・辞退はライト（グループ画面なし）でもダッシュボードから行う
     Route::post('/group-invitations/{id}/accept', [GroupController::class, 'acceptInvitation'])->whereNumber('id');
     Route::post('/group-invitations/{id}/decline', [GroupController::class, 'declineInvitation'])->whereNumber('id');
@@ -369,6 +382,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/transit', [TransitController::class, 'store']);
         Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
         Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
+        Route::post('/transit/ai-ask', [GuideController::class, 'askTransit'])->middleware('throttle:ai-guide');
     });
 
     Route::middleware(EnsureFeature::class.':travel')->group(function () {
@@ -387,6 +401,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/travel/promos/{id}/delete', [TravelController::class, 'destroyPromo'])->whereNumber('id');
         Route::post('/travel/alerts/{id}/read', [TravelController::class, 'markAlertRead'])->whereNumber('id');
         Route::post('/travel/alerts/read-all', [TravelController::class, 'markAllAlertsRead']);
+        Route::post('/travel/ai-ask', [GuideController::class, 'askTravel'])->middleware('throttle:ai-guide');
     });
 
     Route::middleware(EnsureFeature::class.':map')->group(function () {
@@ -423,11 +438,16 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
             Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
             Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
+            Route::post('/settings/ai/workers-ai', [WorkersAiSettingsController::class, 'update']);
+            Route::post('/settings/ai/workers-ai/test', [WorkersAiSettingsController::class, 'test']);
 
             Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
             Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
             Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
             Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);
+            Route::post('/settings/api/navitime', [NavitimeSettingsController::class, 'update']);
+            Route::post('/settings/api/navitime/test', [NavitimeSettingsController::class, 'test']);
+            Route::post('/settings/api/route-search', [RouteSearchSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar', [GoogleCalendarOauthSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar/test', [GoogleCalendarOauthSettingsController::class, 'test']);
             Route::post('/settings/api/livekit', [LiveKitSettingsController::class, 'update']);

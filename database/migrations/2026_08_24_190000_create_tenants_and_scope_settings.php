@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /** 失敗を握りつぶす箇所があるため、Postgres でトランザクションを巻き添えにしない。 */
+    public $withinTransaction = false;
+
     public function up(): void
     {
         $this->ensureTenantSchema();
@@ -143,20 +146,11 @@ return new class extends Migration
 
     private function dropProviderOnlyUnique(): void
     {
-        try {
-            Schema::table('media_storage_settings', function (Blueprint $table) {
-                $table->dropUnique(['provider']);
-            });
-
-            return;
-        } catch (\Throwable) {
-            // インデックス名が環境で違う場合は一覧から探す
-        }
-
         if (! Schema::hasTable('media_storage_settings')) {
             return;
         }
 
+        // インデックス名は環境で違うので、provider 単独の unique を一覧から探す
         foreach (Schema::getIndexes('media_storage_settings') as $index) {
             if (! ($index['unique'] ?? false)) {
                 continue;

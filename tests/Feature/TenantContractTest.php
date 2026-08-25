@@ -46,6 +46,7 @@ class TenantContractTest extends TestCase
         $this->assertSame(UserRole::Admin, $owner->roleEnum());
         $this->assertSame($tenant->id, $owner->tenant_id);
         $this->assertSame($owner->id, $tenant->owner_user_id);
+        $this->assertTrue($tenant->isOnTrial());
     }
 
     public function test_tenant_admin_sees_only_own_users_and_cannot_see_others(): void
@@ -214,6 +215,8 @@ class TenantContractTest extends TestCase
 
         $this->assertSame(5, $tenant->max_users);
         $this->assertSame(1, $tenant->userCount());
+        $this->assertNotNull($tenant->trial_ends_at);
+        $this->assertTrue($tenant->isOnTrial());
         $this->assertTrue($tenant->isOwner(User::query()->where('email', 'default-max@example.com')->first()));
     }
 
@@ -291,5 +294,15 @@ class TenantContractTest extends TestCase
 
         $this->actingAs($super)->post('/admin/users/'.$owner->id.'/delete')->assertRedirect('/admin/users');
         $this->assertNotNull(User::query()->find($owner->id));
+    }
+
+    public function test_super_admin_tenant_screen_shows_published_offer(): void
+    {
+        $super = $this->makeUser(UserRole::SuperAdmin, 'ops-offer@example.com');
+
+        $this->actingAs($super)->get('/admin/tenants')
+            ->assertOk()
+            ->assertSee(__('試用終了日'), false)
+            ->assertSee(number_format((int) config('commercial.tenant_monthly_yen', 3980)), false);
     }
 }

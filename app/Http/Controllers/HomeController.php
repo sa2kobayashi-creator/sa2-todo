@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\CommercialOffer;
 use App\Support\Registration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,12 @@ class HomeController extends Controller
         return view('home', [
             'appName' => config('app.name'),
             'registrationOpen' => Registration::isOpen(),
+            'tenantMonthlyYen' => CommercialOffer::tenantMonthlyYen(),
+            'tenantYearlyYen' => CommercialOffer::tenantYearlyYen(),
+            'tenantTrialDays' => CommercialOffer::tenantTrialDays(),
+            'tenantExtraUserYen' => CommercialOffer::extraUserYen(),
+            'includedUsers' => CommercialOffer::includedUsers(),
+            'yearlyMonthsCharged' => CommercialOffer::yearlyMonthsCharged(),
         ]);
     }
 }

@@ -21,17 +21,20 @@
 
 ## パッケージ（専用インスタンスと同じ中身）
 
-月額の円は未定（TOP には出さない）。中身だけ専用に揃える。
+公開料金（税別・`config/commercial.php`）。TOP に出す。
 
 | 項目 | テナント契約 | 専用インスタンス |
 |---|---|---|
+| 試用 | **最初の 30 日は月額なし** | 個別見積 |
+| 月額 | **¥3,980**（5名・メール各1込み） | ¥8,000〜（5名まで。メールはオプション） |
+| 年額 | 月額 × 11か月分 | 同左の割引 |
 | 管理者 | 契約代表 **1名**。追加は Standard / Light。2人目の Admin は作れない | 同じ |
 | ユーザー | 月 **5名まで**（代表を含む）。初期 `max_users` は `commercial.included_users` | 同じ |
 | `@sa2-plus.com` | 所属ユーザー **各1アドレス込み**（Light でも可。申請→運営が手作成） | **オプション**（¥300／月） |
 | 6人目以降 | 運営 SuperAdmin が `max_users` を上げる（目安 ¥1,000／人／月） | 同じ目安 |
 | サーバー | 共有 `sa2-plus.com`（DB 同居） | 別サーバー |
 
-専用の見積（初期 ¥50,000、月額 ¥8,000、メールオプション）は変えない。
+専用の見積（初期 ¥50,000、月額 ¥8,000、メールオプション）は変えない。詳細の製品方針は `docs/specs/product-direction.md`。
 
 ## できないこと（今もやらない）
 
@@ -41,7 +44,7 @@
 
 ## データ
 
-- `tenants` … 契約。`status`（active / suspended）、`max_users`、`allow_own_keys`、`owner_user_id`
+- `tenants` … 契約。`status`（active / suspended）、`max_users`、`allow_own_keys`、`owner_user_id`、`trial_ends_at`（試用終了日。空は本契約。切れても自動停止しない）
 - `users.tenant_id` … 所属。null は個人プランまたは運営スタッフ
 - `media_storage_settings.tenant_scope` … `COALESCE(tenant_id, 0)`。0 が運営キー
 - `translation_api_keys.tenant_scope` … DeepL キーも契約ごと

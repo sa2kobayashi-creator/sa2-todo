@@ -25,7 +25,7 @@
               <li>Create accounts with the right role (Admin / Standard / Light). Extra menus can be ticked per user.</li>
               <li>Under <a href="/settings?section=enhance">API Settings</a>, add Google Maps and Google Calendar OAuth (Client ID / Secret). Users then connect their own Google account on My Page.</li>
               <li>Under <a href="/settings?section=storage">Storage</a>, confirm R2 / B2 (and related) credentials if photos should upload. For personal sales, save capacity mode “Store originals on B2”. Thumbnails stay on R2; new originals go to B2.</li>
-              <li>Under <a href="/settings?section=ai">AI Settings</a>, add DeepL for translation and ChatGPT / Gemini for voice entry if you want those features. Usage fees are yours after you save keys.</li>
+              <li>Under <a href="/settings?section=ai">AI Settings</a>, add DeepL for translation, ChatGPT / Gemini for voice entry, and Cloudflare Workers AI for the life guide. Usage fees are yours after you save keys.</li>
             </ol>
 
             <h2>2. Users, groups, mail</h2>
@@ -55,6 +55,7 @@
               <li><strong>Notes</strong> — pin, archive, translate JA ⇔ EN when DeepL is configured.</li>
               <li><strong>Photos</strong> — albums, private or shared with groups. Uploads stop when a user’s free quota is full.</li>
               <li><strong>Messages</strong> — group and DM chat. Calls need LiveKit in Integrations.</li>
+              <li><strong>Life guide</strong> — everyday tips, recipes, and today’s calendar. Needs Workers AI under AI Settings.</li>
               <li>Phone: bottom bar. PC: header. Change which items appear under <a href="/settings?section=nav">Display menus</a>.</li>
             </ul>
 
@@ -73,7 +74,7 @@
               <li>権限（管理者／スタンダード／ライト）を選んでアカウントを作ります。ユーザーごとに追加メニューを付けられます。</li>
               <li><a href="/settings?section=enhance">初期設定 → API設定</a>で Google マップと Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
               <li><a href="/settings?section=storage">初期設定 → ストレージ</a>で写真用の R2 / B2 などを確認します。個人販売では容量モード「原本はB2に置く」を保存してください。サムネは R2、新規原本は B2 です。</li>
-              <li>翻訳や音声入力を使うなら <a href="/settings?section=ai">初期設定 → AI</a> に DeepL と ChatGPT / Gemini を入れます。キー保存後の利用料は管理者の責任です。</li>
+              <li>翻訳や音声入力、生活ガイドを使うなら <a href="/settings?section=ai">初期設定 → AI</a> に DeepL、ChatGPT / Gemini、Cloudflare Workers AI を入れます。キー保存後の利用料は管理者の責任です。</li>
             </ol>
 
             <h2>2. ユーザー・グループ・メール</h2>
@@ -87,6 +88,7 @@
             <ul>
               <li>カレンダーは API設定に OAuth アプリを保存したあと、各自がマイページから連携します。仕事 Todo は Google カレンダーへ予定を出せます（Meet 付き）。</li>
               <li>マップ／路線検索は API設定の Maps キーが必要です。</li>
+              <li>路線検索の経路探索は API設定の <strong>NAVITIME</strong> を登録すると時刻表ベースになります（RapidAPI などのマーケット契約か、ナビタイムとの直接契約）。未登録のときは福岡都心の内蔵ダイヤで検索します。</li>
               <li>LINE／Messenger は <a href="/settings?section=integration">外部連携</a> でチャネルを保存し、各自がマイページでつなぎます。</li>
             </ul>
 
@@ -103,6 +105,7 @@
               <li><strong>メモ</strong> … ピン留め・アーカイブ。DeepL があれば日本語⇔英語の翻訳。</li>
               <li><strong>Photos</strong> … アルバム。非公開、またはグループ共有。無料枠を超えると追加アップロードが止まります。</li>
               <li><strong>メッセージ</strong> … グループと DM。通話は外部連携の LiveKit が必要です。</li>
+              <li><strong>生活ガイド</strong> … 知恵・話し相手、料理、今日のカレンダー。AI 設定の Workers AI が必要です。</li>
               <li>スマホは画面下、PC は上部メニューです。自分の表示は <a href="/settings?section=nav">表示メニュー管理</a>、他人のメニューはユーザー／グループ管理です。</li>
             </ul>
 

@@ -28,16 +28,27 @@ class HomePageTest extends TestCase
             ->assertSee(__('管理者は契約代表1名だけ'), false)
             ->assertSee(__('月5ユーザーまで（代表を含む）'), false)
             ->assertSee(__('@sa2-plus.com メールは各1アドレス込み'), false)
-            ->assertSee(__('料金はお問い合わせ'), false)
+            ->assertSee(__('最初の:days日間は無料。年額 ¥:yearly（:monthsか月分）。', [
+                'days' => (int) config('commercial.tenant_trial_days', 30),
+                'yearly' => number_format((int) config('commercial.tenant_yearly_yen', 0) ?: ((int) config('commercial.tenant_monthly_yen', 3980) * (int) config('commercial.yearly_maintenance_months_charged', 11))),
+                'months' => (int) config('commercial.yearly_maintenance_months_charged', 11),
+            ]), false)
+            ->assertSee(__('¥:yen／月', ['yen' => number_format((int) config('commercial.tenant_monthly_yen', 3980))]), false)
+            ->assertDontSee(__('料金はお問い合わせ'), false)
             ->assertSee(__('¥50,000〜'), false)
             ->assertSee(__('¥8,000〜／月'), false)
             ->assertSee(__('¥980／月'), false)
             ->assertSee(__('よくある質問'), false)
             ->assertSee(__('運営がお客様専用のサーバーへ、同じアプリを設置します。sa2-plus.com の共有環境とは別です。'), false)
             ->assertSee(__('管理者権限・ストレージ鍵の設定はありません'), false)
-            ->assertSee(__('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。'), false)
+            ->assertSee(__('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税別）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', [
+                'days' => (int) config('commercial.tenant_trial_days', 30),
+                'yen' => number_format((int) config('commercial.tenant_monthly_yen', 3980)),
+            ]), false)
             ->assertSee('href="/terms"', false)
-            ->assertSee('href="/privacy"', false);
+            ->assertSee('href="/privacy"', false)
+            ->assertSee(__('Workers AI で、これからもっと便利に'), false)
+            ->assertSee(__('生活の知恵・話し相手'), false);
     }
 
     public function test_register_cta_appears_only_when_registration_is_open(): void

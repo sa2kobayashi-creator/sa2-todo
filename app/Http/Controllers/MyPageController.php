@@ -46,7 +46,7 @@ class MyPageController extends Controller
 
         $featureKeys = [
             'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'travel', 'map',
-            'music', 'video', 'mail', 'messages', 'groups', 'settings', 'admin',
+            'music', 'video', 'mail', 'messages', 'translate', 'guide', 'groups', 'settings', 'admin',
         ];
 
         $storage = $user->canAccess('photos')

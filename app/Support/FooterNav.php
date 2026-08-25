@@ -34,6 +34,7 @@ class FooterNav
             'music' => ['label' => '音楽', 'headerLabel' => '音楽', 'href' => '/music', 'icon' => '♪', 'feature' => 'music'],
             'video' => ['label' => '動画', 'headerLabel' => '動画', 'href' => '/video', 'icon' => '▶', 'feature' => 'video'],
             'translate' => ['label' => '翻訳', 'headerLabel' => '翻訳', 'href' => '/translate', 'icon' => '文A', 'feature' => 'translate'],
+            'guide' => ['label' => 'ガイド', 'headerLabel' => '生活ガイド', 'href' => '/guide', 'icon' => '💡', 'feature' => 'guide'],
             'transit' => ['label' => '路線', 'headerLabel' => '路線検索', 'href' => '/transit', 'icon' => '🚌', 'feature' => 'transit'],
             'travel' => ['label' => 'Travel', 'headerLabel' => 'Travel', 'href' => '/travel', 'icon' => '✈', 'feature' => 'travel'],
             'map' => ['label' => 'マップ', 'headerLabel' => 'マップ', 'href' => '/map', 'icon' => '🗺', 'feature' => 'map'],

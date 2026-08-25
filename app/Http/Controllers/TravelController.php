@@ -6,6 +6,7 @@ use App\Services\TravelFareQuoteService;
 use App\Services\TravelFareTableService;
 use App\Services\TravelPromoWatchService;
 use App\Services\TravelService;
+use App\Services\WorkersAiGuideService;
 use Illuminate\Http\Request;
 
 class TravelController extends Controller
@@ -17,6 +18,7 @@ class TravelController extends Controller
         private TravelPromoWatchService $promoWatch,
         private TravelFareQuoteService $fareQuote,
         private TravelFareTableService $fareTable,
+        private WorkersAiGuideService $guide,
     ) {}
 
     public function index(Request $request)
@@ -51,6 +53,8 @@ class TravelController extends Controller
                 ->map(fn (string $label) => __($label))
                 ->all(),
             'returnTo' => '/travel',
+            'aiTopic' => $this->guide->embeddedTopics()[WorkersAiGuideService::TOPIC_TRAVEL],
+            'aiReady' => $this->guide->isReady(),
             ...$this->flashFromQuery($request),
         ]);
     }

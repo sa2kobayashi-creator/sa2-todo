@@ -17,7 +17,7 @@
       <div class="panel">
         <p class="hint"><a href="/admin/tenants">{{ __('契約一覧に戻る') }}</a></p>
         <h2>{{ $tenant['name'] }}</h2>
-        <p class="hint">{{ __('管理者は代表1名です。追加ユーザーはスタンダードまたはライト。メールは各1アドレス込み。上限を超える人数は運営が変更します。') }}</p>
+        <p class="hint">{{ __('公開料金は最初の:days日無料、その後 ¥:yen／月（5名・メール各1込み）。管理者は代表1名です。追加ユーザーはスタンダードまたはライト。上限を超える人数は運営が変更します。', ['days' => $tenantTrialDays ?? 30, 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
         <form method="post" action="/admin/tenants/{{ $tenant['id'] }}" class="stack-form">
           @csrf
           <label>{{ __('契約名') }}
@@ -32,6 +32,10 @@
               <option value="suspended" @selected(old('status', $tenant['status']) === 'suspended')>{{ __('停止中') }}</option>
             </select>
           </label>
+          <label>{{ __('試用終了日') }}
+            <input type="date" name="trial_ends_at" value="{{ old('trial_ends_at', $tenant['trialEndsAt'] ?? '') }}" />
+          </label>
+          <p class="hint">{{ $tenant['trialStatusLabel'] ?? '' }} {{ __('空にすると試用なし（本契約）です。試用切れでも自動停止はしません。') }}</p>
           <label class="menu-feature-check">
             <input type="hidden" name="allow_own_keys" value="0" />
             <input type="checkbox" name="allow_own_keys" value="1" @checked(old('allow_own_keys', $tenant['allowOwnKeys'] ? '1' : '0') === '1') />

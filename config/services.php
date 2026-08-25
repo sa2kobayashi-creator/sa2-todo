@@ -99,6 +99,13 @@ return [
         'cache_ttl' => (int) env('TRANSLATION_CACHE_TTL', 86400),
     ],
 
+    'cloudflare_workers_ai' => [
+        'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
+        'api_token' => env('CLOUDFLARE_WORKERS_AI_TOKEN'),
+        'model' => env('CLOUDFLARE_WORKERS_AI_MODEL', '@cf/meta/llama-3.1-8b-instruct-fp8'),
+        'timeout' => (int) env('CLOUDFLARE_WORKERS_AI_TIMEOUT', 45),
+    ],
+
     'travelpayouts' => [
         'token' => env('TRAVELPAYOUTS_TOKEN'),
         'project_id' => env('TRAVELPAYOUTS_PROJECT_ID', env('TRAVELPAYOUTS_MARKER')),
@@ -107,6 +114,17 @@ return [
         'market_jpy' => env('TRAVELPAYOUTS_MARKET_JPY', 'jp'),
         'prefer_airline' => env('TRAVELPAYOUTS_PREFER_AIRLINE', '5J'),
         'direct_only' => filter_var(env('TRAVELPAYOUTS_DIRECT_ONLY', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    // NAVITIME API（路線検索）。通常は 設定 → API設定 で保存し、DB 未設定のときだけここが使われる。
+    'navitime' => [
+        'mode' => env('NAVITIME_MODE', 'rapidapi'),
+        'api_key' => env('NAVITIME_API_KEY'),
+        'route_host' => env('NAVITIME_ROUTE_HOST', 'navitime-route-totalnavi.p.rapidapi.com'),
+        'node_host' => env('NAVITIME_NODE_HOST', ''),
+        'base_url' => env('NAVITIME_BASE_URL', ''),
+        'auth_header' => env('NAVITIME_AUTH_HEADER', 'x-api-key'),
+        'timeout' => (int) env('NAVITIME_TIMEOUT', 20),
     ],
 
 ];

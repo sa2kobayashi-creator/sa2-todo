@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Services\MapService;
 use App\Services\Transit\Raptor\ItineraryScorer;
-use App\Services\Transit\Raptor\RaptorRouter;
-use App\Services\Transit\Raptor\TransitTimetable;
+use App\Services\Transit\RouteSearchService;
 use App\Services\TransitService;
+use App\Services\WorkersAiGuideService;
 use Illuminate\Http\Request;
 
 class TransitController extends Controller
@@ -16,6 +16,8 @@ class TransitController extends Controller
     public function __construct(
         private TransitService $transit,
         private MapService $maps,
+        private WorkersAiGuideService $guide,
+        private RouteSearchService $routes,
     ) {}
 
     public function index(Request $request)
@@ -58,52 +60,42 @@ class TransitController extends Controller
                 'hour' => __('時'),
                 'minute' => __('分'),
             ],
+            'routeEngineLabel' => $this->routes->activeProvider()?->label(),
+            'routeEngineIsExternal' => $this->routes->activeProvider()?->key() !== 'raptor',
+            'aiTopic' => $this->guide->embeddedTopics()[WorkersAiGuideService::TOPIC_TRANSIT],
+            'aiReady' => $this->guide->isReady(),
             ...$this->flashFromQuery($request),
         ]);
     }
 
     public function search(Request $request)
     {
-        $from = (string) $request->input('from', '');
-        $to = (string) $request->input('to', '');
-        $preference = (string) $request->input('preference', ItineraryScorer::PREF_FASTEST);
-        $departureSec = $this->parseDepartureSec($request);
-        $preferNishitetsu = $request->boolean('preferNishitetsuBus', true);
-
         try {
-            $router = new RaptorRouter(TransitTimetable::loadDefault());
-            $result = $router->search([
-                'from' => $from,
-                'to' => $to,
-                'departureSec' => $departureSec,
-                'preference' => $preference,
+            $result = $this->routes->search([
+                'from' => (string) $request->input('from', ''),
+                'to' => (string) $request->input('to', ''),
+                'departureAt' => (string) $request->input('departureAt', ''),
+                'timeType' => $request->input('timeType') === 'arrival' ? 'arrival' : 'departure',
+                'preference' => (string) $request->input('preference', ItineraryScorer::PREF_FASTEST),
+                'preferNishitetsuBus' => $request->boolean('preferNishitetsuBus', true),
                 'minTransferMin' => (int) $request->input('minTransferMin', 2),
                 'maxTransferWaitMin' => (int) $request->input('maxTransferWaitMin', 10),
-                'preferNishitetsuBus' => $preferNishitetsu,
+                'hour' => $request->input('hour'),
+                'minute' => $request->input('minute'),
                 'limit' => 5,
+                'engine' => (string) $request->input('engine', ''),
             ]);
         } catch (\Throwable $e) {
+            report($e);
+
             return response()->json([
                 'ok' => false,
-                'message' => '経路検索に失敗しました: '.$e->getMessage(),
+                'message' => __('経路検索に失敗しました: :message', ['message' => $e->getMessage()]),
                 'itineraries' => [],
             ], 500);
         }
 
         return response()->json($result, ! empty($result['ok']) ? 200 : 422);
-    }
-
-    private function parseDepartureSec(Request $request): int
-    {
-        $raw = (string) $request->input('departureAt', '');
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/', $raw, $m)) {
-            return ((int) $m[4]) * 3600 + ((int) $m[5]) * 60;
-        }
-
-        $hour = (int) $request->input('hour', date('G'));
-        $minute = (int) $request->input('minute', (int) date('i'));
-
-        return max(0, min(24 * 3600 - 60, $hour * 3600 + $minute * 60));
     }
 
     public function store(Request $request)

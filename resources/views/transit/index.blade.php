@@ -80,9 +80,13 @@
             </label>
           </div>
           <div class="transit-search-actions">
-            <button type="submit" class="button-link" id="transit-search-run">{{ __('RAPTORで検索') }}</button>
+            <button type="submit" class="button-link" id="transit-search-run">{{ __('経路を検索') }}</button>
           </div>
-          <p class="hint">{{ __('福岡都心の簡易ダイヤで RAPTOR 検索します（乗換2〜10分・待ち時間・乗換回数を評価）。外部の Yahoo! / Google も併用できます。') }}</p>
+          @if(!empty($routeEngineIsExternal))
+            <p class="hint">{{ __(':engine の時刻表で経路・運賃・乗換を検索します。取得できないときは内蔵エンジン（福岡都心の簡易ダイヤ）に切り替えます。外部の Yahoo! / Google も併用できます。', ['engine' => $routeEngineLabel]) }}</p>
+          @else
+            <p class="hint">{{ __('福岡都心の簡易ダイヤで RAPTOR 検索します（乗換2〜10分・待ち時間・乗換回数を評価）。外部の Yahoo! / Google も併用できます。') }}</p>
+          @endif
         </form>
 
         <div class="transit-search-results" id="transit-search-results" hidden>
@@ -103,6 +107,16 @@
           </p>
         @endif
       </section>
+
+      @include('partials.ai-assist', [
+        'aiId' => 'transit-ai',
+        'aiEndpoint' => '/transit/ai-ask',
+        'aiTitle' => $aiTopic['label'],
+        'aiHint' => $aiTopic['hint'],
+        'aiIcon' => $aiTopic['icon'],
+        'aiSamples' => $aiTopic['samples'],
+        'aiReady' => $aiReady,
+      ])
 
       <section class="panel transit-favorites-panel">
         <div class="transit-section-head">
@@ -233,10 +247,10 @@
           yahooRoute: @json(__('Yahoo!路線でルート')),
           nishitetsuNavi: @json(__('西鉄バスナビ')),
           needFrom: @json(__('出発（バス停・駅）を入力してください')),
-          searching: @json(__('RAPTOR で検索中…')),
+          searching: @json(__('経路を検索中…')),
           searchFailed: @json(__('検索に失敗しました。再読み込みして再度お試しください。')),
           timetableFor: @json(__(':place の時刻表・地図')),
-          enterDestinationHint: @json(__('到着地も入力すると RAPTOR で乗換経路を出せます。')),
+          enterDestinationHint: @json(__('到着地も入力すると乗換経路を出せます。')),
           busStopSuffix: @json(__(' バス停')),
           ferrySuffix: @json(__(' 渡船場')),
           stationSuffix: @json(__(' 駅')),

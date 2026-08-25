@@ -13,6 +13,7 @@ enum MenuFeature: string
     case Messages = 'messages';
     case Mail = 'mail';
     case Translate = 'translate';
+    case Guide = 'guide';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum MenuFeature: string
             self::Messages => 'メッセージ',
             self::Mail => 'メール',
             self::Translate => '翻訳',
+            self::Guide => '生活ガイド',
         };
     }
 

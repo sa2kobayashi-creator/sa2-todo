@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\CommercialOffer;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,7 @@ class TenantContractService
      *   notes?: ?string,
      *   max_users?: int,
      *   allow_own_keys?: bool,
+     *   trial_ends_at?: ?string,
      *   owner_email: string,
      *   owner_display_name: string,
      *   owner_password: string
@@ -45,8 +47,9 @@ class TenantContractService
         }
 
         $maxUsers = max(1, (int) ($input['max_users'] ?? Tenant::defaultMaxUsers()));
+        $trialEndsAt = $this->normalizeTrialEndsAt($input['trial_ends_at'] ?? false);
 
-        return DB::transaction(function () use ($input, $name, $email, $displayName, $password, $maxUsers) {
+        return DB::transaction(function () use ($input, $name, $email, $displayName, $password, $maxUsers, $trialEndsAt) {
             $tenant = Tenant::create([
                 'name' => mb_substr($name, 0, 120),
                 'slug' => $this->uniqueSlug($name),
@@ -54,6 +57,7 @@ class TenantContractService
                 'notes' => $this->nullableNote($input['notes'] ?? null),
                 'max_users' => $maxUsers,
                 'allow_own_keys' => (bool) ($input['allow_own_keys'] ?? true),
+                'trial_ends_at' => $trialEndsAt,
             ]);
 
             $owner = User::create([
@@ -77,7 +81,8 @@ class TenantContractService
      *   notes?: ?string,
      *   max_users?: int,
      *   allow_own_keys?: bool,
-     *   status?: string
+     *   status?: string,
+     *   trial_ends_at?: ?string
      * }  $input
      */
     public function update(Tenant $tenant, array $input): Tenant
@@ -108,6 +113,9 @@ class TenantContractService
                 throw new InvalidArgumentException(__('契約状態が不正です。'));
             }
             $tenant->status = $status;
+        }
+        if (array_key_exists('trial_ends_at', $input)) {
+            $tenant->trial_ends_at = $this->normalizeTrialEndsAt($input['trial_ends_at'], allowDefault: false);
         }
         $tenant->save();
 
@@ -162,5 +170,28 @@ class TenantContractService
         $text = trim((string) $notes);
 
         return $text === '' ? null : mb_substr($text, 0, 2000);
+    }
+
+    /**
+     * @param  mixed  $value  false は新規作成の既定（公開試用日数）。null／空は試用なし。
+     */
+    private function normalizeTrialEndsAt(mixed $value, bool $allowDefault = true): ?string
+    {
+        if ($value === false) {
+            return $allowDefault ? CommercialOffer::defaultTrialEndsAt() : null;
+        }
+        if ($value === null) {
+            return null;
+        }
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($text)->toDateString();
+        } catch (\Throwable) {
+            throw new InvalidArgumentException(__('試用終了日が不正です。'));
+        }
     }
 }

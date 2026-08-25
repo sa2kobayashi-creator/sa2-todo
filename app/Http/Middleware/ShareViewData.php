@@ -117,6 +117,7 @@ class ShareViewData
                 'canMessages' => $canMessages,
                 'messagesUnreadCount' => $messagesUnreadCount,
                 'canTranslate' => $user->canAccess('translate'),
+                'canGuide' => $user->canAccess('guide'),
                 'canGroups' => $user->canAccess('groups'),
                 'canSettings' => $user->canAccess('settings'),
                 'canAdminUsers' => $user->canAccess('admin'),

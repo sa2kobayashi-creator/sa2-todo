@@ -387,6 +387,7 @@
       @php
         $homeShortcuts = array_values(array_filter([
           ['href' => $links['notes'] ?? '/notes', 'label' => __('メモ')],
+          ! empty($canGuide) ? ['href' => $links['guide'] ?? '/guide', 'label' => __('生活ガイド')] : null,
           ! empty($canSettings) ? ['href' => $links['aiSettings'] ?? '/settings?section=ai', 'label' => __('AI設定')] : null,
           ! empty($canMap) ? ['href' => $links['map'] ?? '/map', 'label' => __('Map')] : null,
           ! empty($canTransit) ? ['href' => $links['transit'] ?? '/transit', 'label' => __('路線検索')] : null,

@@ -20,6 +20,7 @@ class Tenant extends Model
         'notes',
         'max_users',
         'allow_own_keys',
+        'trial_ends_at',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class Tenant extends Model
         return [
             'allow_own_keys' => 'boolean',
             'max_users' => 'integer',
+            'trial_ends_at' => 'date',
         ];
     }
 
@@ -65,6 +67,39 @@ class Tenant extends Model
         return max(1, (int) config('commercial.included_users', 5));
     }
 
+    public function isOnTrial(): bool
+    {
+        if ($this->trial_ends_at === null) {
+            return false;
+        }
+
+        return $this->trial_ends_at->copy()->endOfDay()->gte(now());
+    }
+
+    public function trialDaysLeft(): ?int
+    {
+        if ($this->trial_ends_at === null) {
+            return null;
+        }
+        if ($this->trial_ends_at->copy()->endOfDay()->lt(now())) {
+            return 0;
+        }
+
+        return (int) now()->startOfDay()->diffInDays($this->trial_ends_at->copy()->startOfDay());
+    }
+
+    public function trialStatusLabel(): string
+    {
+        if ($this->trial_ends_at === null) {
+            return __('本契約');
+        }
+        if ($this->isOnTrial()) {
+            return __('試用中（あと:days日）', ['days' => (int) $this->trialDaysLeft()]);
+        }
+
+        return __('試用終了（請求待ち）');
+    }
+
     public function hasUserCapacity(int $additional = 1): bool
     {
         $max = (int) $this->max_users;
@@ -90,6 +125,10 @@ class Tenant extends Model
             'notes' => $this->notes,
             'maxUsers' => (int) $this->max_users,
             'allowOwnKeys' => (bool) $this->allow_own_keys,
+            'trialEndsAt' => optional($this->trial_ends_at)?->format('Y-m-d'),
+            'trialDaysLeft' => $this->trialDaysLeft(),
+            'onTrial' => $this->isOnTrial(),
+            'trialStatusLabel' => $this->trialStatusLabel(),
             'userCount' => $this->relationLoaded('users')
                 ? $this->users->count()
                 : $this->userCount(),

@@ -20,10 +20,10 @@
     yahooRoute: 'Yahoo!路線でルート',
     nishitetsuNavi: '西鉄バスナビ',
     needFrom: '出発（バス停・駅）を入力してください',
-    searching: 'RAPTOR で検索中…',
+    searching: '経路を検索中…',
     searchFailed: '検索に失敗しました。再読み込みして再度お試しください。',
     timetableFor: ':place の時刻表・地図',
-    enterDestinationHint: '到着地も入力すると RAPTOR で乗換経路を出せます。',
+    enterDestinationHint: '到着地も入力すると乗換経路を出せます。',
     busStopSuffix: ' バス停',
     ferrySuffix: ' 渡船場',
     stationSuffix: ' 駅',
@@ -212,7 +212,10 @@
       itinerariesBox.innerHTML = '<p class="hint">' + escapeHtml(t.noMatchingRoute) + '</p>'
       return
     }
-    itinerariesBox.innerHTML = list.map(function (it, index) {
+    const note = data.engineNote
+      ? '<p class="hint transit-engine-note">' + escapeHtml(data.engineNote) + '</p>'
+      : ''
+    itinerariesBox.innerHTML = note + list.map(function (it, index) {
       const badge = it.usesNishitetsuBus
         ? '<span class="transit-itinerary-badge is-nishitetsu">' + escapeHtml(t.nishitetsuPreferred) + '</span>'
         : ''
@@ -265,12 +268,12 @@
     }
   }
 
-  async function runRaptorSearch(from, to) {
+  async function runRouteSearch(from, to) {
     const hour = hourSelect ? hourSelect.value : '08'
     const minute = minuteSelect ? minuteSelect.value : '00'
     const year = yearSelect ? yearSelect.value : String(new Date().getFullYear())
-    const month = monthSelect ? monthSelect.value : '01'
-    const day = daySelect ? daySelect.value : '01'
+    const month = monthSelect ? pad2(parseInt(monthSelect.value, 10)) : '01'
+    const day = daySelect ? pad2(parseInt(daySelect.value, 10)) : '01'
     const departureAt = year + '-' + month + '-' + day + 'T' + hour + ':' + minute
     const response = await fetch('/transit/search', {
       method: 'POST',
@@ -287,6 +290,7 @@
         minTransferMin: 2,
         maxTransferWaitMin: 10,
         departureAt: departureAt,
+        timeType: selectedTimeType() === '4' ? 'arrival' : 'departure',
         hour: parseInt(hour, 10),
         minute: parseInt(minute, 10),
       }),
@@ -310,9 +314,10 @@
     resultsBox.removeAttribute('hidden')
 
     if (fromRaw && toRaw) {
-      resultsTitle.textContent = from + ' → ' + to + '（RAPTOR）'
+      resultsTitle.textContent = from + ' → ' + to
       try {
-        const data = await runRaptorSearch(from, to)
+        const data = await runRouteSearch(from, to)
+        resultsTitle.textContent = from + ' → ' + to + '（' + (data.engine || 'RAPTOR') + '）'
         renderItineraries(data)
       } catch (err) {
         if (itinerariesBox) {

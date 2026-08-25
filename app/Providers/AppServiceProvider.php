@@ -67,6 +67,10 @@ class AppServiceProvider extends ServiceProvider
             ? Limit::none()
             : Limit::perMinute(10)->by((string) ($request->user()?->id ?: $request->ip())));
 
+        RateLimiter::for('ai-guide', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(10)->by((string) ($request->user()?->id ?: $request->ip())));
+
         RateLimiter::for('ai-enhance', fn (Request $request) => $unlimited
             ? Limit::none()
             : Limit::perMinute(5)->by((string) ($request->user()?->id ?: $request->ip())));

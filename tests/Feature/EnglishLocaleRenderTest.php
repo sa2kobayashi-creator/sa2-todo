@@ -44,6 +44,7 @@ class EnglishLocaleRenderTest extends TestCase
             '/video',
             '/travel',
             '/translate',
+            '/guide',
             '/music',
             '/admin/users',
             '/help',

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2563eb" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="description" content="{{ __('個人の招待利用、家族向けテナント契約、組織向け専用インスタンス。Todo、メモ、Photos、メッセージ、メール、マップをまとめます。') }}" />
+    <meta name="description" content="{{ __('写真と動画を安く安定して置き、カレンダーとメモをすぐ使える生活アプリ。家族向けテナント契約、英語表示、これから Workers AI。') }}" />
     <title>{{ $appName }} — {{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</title>
     @include('partials.app-css')
   </head>
@@ -40,7 +40,12 @@
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
             <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
-            <p class="lp-hero-lead">{{ __('まずは招待で無料利用できます。気に入ったら有料へ。家族で管理者とメールが必要ならテナント契約、サーバーを分けたいときは専用環境です。') }}</p>
+            <p class="lp-hero-lead">{{ __('写真と動画は、極力安価で安定した場所へ。カレンダーとメモはすぐに表示・登録でき、仕事用にも切り替えられます。英語表示もあります。') }}</p>
+            <ul class="lp-hero-points">
+              <li>{{ __('原本は Cloudflare R2 と Backblaze B2。容量比較ではなく、生活の場所としての安さと安定が売りです。') }}</li>
+              <li>{{ __('家族で管理者とメールが必要なら、期間つきのテナント契約。') }}</li>
+              <li>{{ __('これから Cloudflare Workers AI で、路線・生活案内・カレンダー・運賃・料理へ広げます。') }}</li>
+            </ul>
             <p class="lp-cta">
               <a href="/login" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('ログイン') }}</a>
               @if(!empty($registrationOpen))
@@ -142,8 +147,29 @@
 
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
         <h2 id="landing-plans-title">{{ __('ご利用料金（税別）') }}</h2>
-        <p class="lp-section-lead">{{ __('金額は初期案です。正式な契約で確定します。') }}</p>
+        <p class="lp-section-lead">{{ __('金額は税別です。テナント契約は最初から期間つきの優良プランとして公開しています。') }}</p>
         <div class="lp-plans">
+          <article class="lp-plan is-tenant is-featured">
+            <header class="lp-plan-head">
+              <p>{{ __('家族・小規模向け') }} <span class="lp-plan-badge">{{ __('おすすめ') }}</span></p>
+              <h3>{{ __('テナント契約') }}</h3>
+            </header>
+            <div class="lp-plan-body">
+              <p>{{ __('同じ sa2-plus.com 上で、契約ごとにユーザーと鍵を分けます。極力安価で安定した家族の場所です。') }}</p>
+              <p class="lp-plan-price">{{ __('¥:yen／月', ['yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
+              <p class="hint">{{ __('最初の:days日間は無料。年額 ¥:yearly（:monthsか月分）。', ['days' => (int) ($tenantTrialDays ?? 30), 'yearly' => number_format((int) ($tenantYearlyYen ?? 43780)), 'months' => (int) ($yearlyMonthsCharged ?? 11)]) }}</p>
+              <ul class="lp-plan-includes">
+                <li>{{ __('管理者は契約代表1名だけ') }}</li>
+                <li>{{ __('月5ユーザーまで（代表を含む）') }}</li>
+                <li>{{ __('@sa2-plus.com メールは各1アドレス込み') }}</li>
+                <li>{{ __('代表が R2／B2／AI／API キーを設定できる') }}</li>
+                <li>{{ __('追加ユーザー ¥:yen／人／月', ['yen' => number_format((int) ($tenantExtraUserYen ?? 1000))]) }}</li>
+                <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
+              </ul>
+              <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申し込む') }}</a>
+            </div>
+          </article>
+
           <article class="lp-plan is-dedicated">
             <header class="lp-plan-head">
               <p>{{ __('組織・管理者向け') }}</p>
@@ -164,26 +190,7 @@
                 <li><span>{{ __('メールボックス（1アドレス）') }}</span><strong>{{ __('¥300／月 または ¥3,000／年') }}</strong></li>
               </ul>
               <p class="hint">{{ __('専用は別サーバーです。共有 sa2-plus.com 上の管理者契約はテナント契約です。') }}</p>
-              <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('専用環境の相談') }}</a>
-            </div>
-          </article>
-
-          <article class="lp-plan is-tenant">
-            <header class="lp-plan-head">
-              <p>{{ __('家族・小規模向け') }}</p>
-              <h3>{{ __('テナント契約') }}</h3>
-            </header>
-            <div class="lp-plan-body">
-              <p>{{ __('同じ sa2-plus.com 上で、契約ごとにユーザーと鍵を分けます。月額は個別のご相談です。') }}</p>
-              <ul class="lp-plan-includes">
-                <li>{{ __('管理者は契約代表1名だけ') }}</li>
-                <li>{{ __('月5ユーザーまで（代表を含む）') }}</li>
-                <li>{{ __('@sa2-plus.com メールは各1アドレス込み') }}</li>
-                <li>{{ __('代表が R2／B2／AI／API キーを設定できる') }}</li>
-                <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
-              </ul>
-              <p class="lp-plan-price">{{ __('料金はお問い合わせ') }}</p>
-              <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約の相談') }}</a>
+              <a href="#contact" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('専用環境の相談') }}</a>
             </div>
           </article>
 
@@ -242,9 +249,36 @@
           <li>
             <span class="lp-flow-num">3</span>
             <h3>{{ __('家族ならテナント契約') }}</h3>
-            <p>{{ __('同じ共有サーバー上で、管理者1名・5ユーザー・メール各1アドレスの契約にできます。サーバーを分けたいときは専用インスタンスへ。') }}</p>
+            <p>{{ __('同じ共有サーバー上で、管理者1名・5ユーザー・メール各1アドレス。最初の:days日は無料、その後 ¥:yen／月です。サーバーを分けたいときは専用インスタンスへ。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
           </li>
         </ol>
+      </section>
+
+      <section class="lp-section" id="ai-roadmap" aria-labelledby="landing-ai-title">
+        <h2 id="landing-ai-title">{{ __('Workers AI で、これからもっと便利に') }}</h2>
+        <p class="lp-section-lead">{{ __('生活の知恵・話し相手と、料理レシピ、今日のカレンダー案内はもう使えます。路線検索は NAVITIME の経路検索に対応済みで、Travel の航空運賃連携は準備中です。') }}</p>
+        <ul class="lp-roadmap">
+          <li>
+            <strong>{{ __('生活の知恵・話し相手') }}</strong>
+            <span>{{ __('いま使える') }}</span>
+          </li>
+          <li>
+            <strong>{{ __('料理レシピ・調理方法') }}</strong>
+            <span>{{ __('いま使える') }}</span>
+          </li>
+          <li>
+            <strong>{{ __('カレンダーと一緒に考える') }}</strong>
+            <span>{{ __('いま使える') }}</span>
+          </li>
+          <li>
+            <strong>{{ __('精度の高い路線案内（NAVITIME）') }}</strong>
+            <span>{{ __('いま使える') }}</span>
+          </li>
+          <li>
+            <strong>{{ __('航空運賃（Travelpayouts）') }}</strong>
+            <span>{{ __('準備中') }}</span>
+          </li>
+        </ul>
       </section>
 
       <section class="lp-section lp-values" aria-labelledby="landing-values-title">
@@ -281,7 +315,7 @@
           </details>
           <details>
             <summary>{{ __('sa2-plus.com で管理者アカウントを発行してもらえますか？') }}</summary>
-            <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。') }}</p>
+            <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税別）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
           </details>
           <details>
             <summary>{{ __('招待コードがないと使えませんか？') }}</summary>
@@ -292,7 +326,7 @@
 
       <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
         <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
-        <p class="lp-section-lead">{{ __('テナント契約や専用環境のご相談、導入の見積は運営が対応します。まずは招待で触っていただき、そのうえでご連絡いただく形がスムーズです。') }}</p>
+        <p class="lp-section-lead">{{ __('公開料金どおり、最初の:days日は試用です。テナント契約の開始は運営が対応します。まずは招待で触っていただき、そのうえでご連絡ください。', ['days' => (int) ($tenantTrialDays ?? 30)]) }}</p>
         <p class="lp-cta">
           <a href="/login" class="lp-btn lp-btn-primary">{{ __('ログイン') }}</a>
           @if(!empty($registrationOpen))

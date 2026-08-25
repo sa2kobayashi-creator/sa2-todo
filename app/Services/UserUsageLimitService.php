@@ -21,6 +21,8 @@ class UserUsageLimitService
 
     public const FEATURE_ENHANCE = 'enhance';
 
+    public const FEATURE_WORKERS_AI = 'workers_ai';
+
     /** @return list<string> */
     public static function llmVoiceFeatures(): array
     {
@@ -41,8 +43,21 @@ class UserUsageLimitService
         return match ($feature) {
             self::FEATURE_TRANSLATE => max(0, (int) config('usage_limits.translate_chars_per_day', 50_000)),
             self::FEATURE_ENHANCE => max(0, (int) config('usage_limits.enhance_requests_per_day', 10)),
+            self::FEATURE_WORKERS_AI => max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20)),
             default => 0,
         };
+    }
+
+    /**
+     * 0 は上限なし。スーパー管理者は運営本人なので生活ガイドを制限しない。
+     */
+    public function limitForUser(?User $user, string $feature): int
+    {
+        if ($feature === self::FEATURE_WORKERS_AI && $user?->isSuperAdmin()) {
+            return 0;
+        }
+
+        return $this->limitFor($feature);
     }
 
     public function usedToday(User $user, string $feature): int
@@ -71,7 +86,7 @@ class UserUsageLimitService
 
     public function remaining(User $user, string $feature): int
     {
-        $limit = $this->limitFor($feature);
+        $limit = $this->limitForUser($user, $feature);
         if ($limit <= 0) {
             return PHP_INT_MAX;
         }
@@ -85,7 +100,7 @@ class UserUsageLimitService
     public function assertWithin(User $user, string $feature, int $amount = 1): void
     {
         $amount = max(0, $amount);
-        $limit = $this->limitFor($feature);
+        $limit = $this->limitForUser($user, $feature);
         if ($limit <= 0 || $amount === 0) {
             return;
         }
@@ -134,7 +149,7 @@ class UserUsageLimitService
                 ]);
             }
 
-            $limit = $this->limitFor($feature);
+            $limit = $this->limitForUser($user, $feature);
             if ($limit > 0) {
                 $poolUsed = $this->isLlmVoiceFeature($feature)
                     ? $this->usedTodayLlmVoice($user)
@@ -174,6 +189,10 @@ class UserUsageLimitService
                 'used' => number_format($used),
             ]),
             self::FEATURE_ENHANCE => __('本日の鮮明化利用上限（:limit回）に達しました。使用済み: :used', [
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_WORKERS_AI => __('本日の生活ガイド利用上限（:limit回）に達しました。使用済み: :used', [
                 'limit' => $limit,
                 'used' => $used,
             ]),

@@ -33,9 +33,9 @@
       @elseif(($section ?? '') === 'ai')
       <div class="panel" id="ai-settings">
         <h2>{{ __('AI設定') }}</h2>
-        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini、動画検索は YouTube Data API を使います。キーを保存すると、このアプリのユーザーが使えます。利用料は管理者の責任です。') }}</p>
+        <p class="hint">{{ __('翻訳は DeepL、入出金・Todo・メモの音声入力は ChatGPT / Gemini、生活ガイドは Cloudflare Workers AI、動画検索は YouTube Data API を使います。キーを保存すると、このアプリのユーザーが使えます。利用料は管理者の責任です。') }}</p>
 
-        @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; $yt = $youtubeSettings ?? []; @endphp
+        @php $llm = $llmSettings ?? []; $llmSettingsArr = $llm['settings'] ?? []; $yt = $youtubeSettings ?? []; $wai = $workersAiSettings ?? []; $waiSettingsArr = $wai['settings'] ?? []; @endphp
         <div class="storage-settings ai-llm-panel" id="ai-llm-settings">
           <h3 class="ai-settings-subtitle">{{ __('LLM（入出金音声入力）') }}</h3>
           <p class="hint">{{ __('Web Speech API で文字起こしした文言を、選択した LLM が JSON に変換します。ChatGPT と Gemini を設定し、使用する方を切り替えられます。') }}</p>
@@ -80,6 +80,45 @@
               <button type="submit" class="button-link">{{ __('保存') }}</button>
               <button type="button" class="secondary" id="ai-llm-test-btn">{{ __('接続テスト') }}</button>
               <span class="storage-test-live hint" id="ai-llm-test-live"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="storage-settings ai-llm-panel" id="workers-ai-settings">
+          <h3 class="ai-settings-subtitle">{{ __('Cloudflare Workers AI') }}</h3>
+          <p class="hint">{{ __('生活ガイド（知恵・話し相手・料理・カレンダー案内）に使います。Cloudflare ダッシュボードのアカウント ID と、Workers AI 権限の API トークンを登録してください。') }}</p>
+          @if(!empty($wai['last_test_message']))
+            <p class="hint storage-test-result {{ ($wai['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
+              {{ $wai['last_test_message'] }}
+              @if(!empty($wai['last_tested_at']))
+                <span class="inline-hint">({{ $wai['last_tested_at'] }})</span>
+              @endif
+            </p>
+          @endif
+          <form method="post" action="/settings/ai/workers-ai" class="storage-provider-form" id="workers-ai-form">
+            @csrf
+            <label class="storage-enable">
+              <input type="checkbox" name="enabled" value="1" @checked(!empty($wai['enabled'])) />
+              {{ __('有効にする') }}
+            </label>
+            <label>
+              {{ __('Cloudflare アカウント ID') }}
+              <input type="text" name="account_id" value="{{ $waiSettingsArr['account_id'] ?? '' }}" autocomplete="off" placeholder="0123456789abcdef0123456789abcdef" />
+            </label>
+            <label>
+              {{ __('Workers AI API トークン') }}
+              <input type="password" name="api_token" value="{{ $wai['api_token_masked'] ?? '' }}" autocomplete="off" />
+            </label>
+            <p class="hint">{{ __('トークンは Cloudflare の「マイプロフィール → API トークン → トークンを作成」で Workers AI テンプレートを選び、アカウントリソースに上のアカウントを指定して作成してください。権限が足りないトークンは「認証エラー」になります。') }}</p>
+            <label>
+              {{ __('モデル') }}
+              <input type="text" name="model" value="{{ $waiSettingsArr['model'] ?? '@cf/meta/llama-3.1-8b-instruct-fp8' }}" placeholder="@cf/meta/llama-3.1-8b-instruct-fp8" />
+            </label>
+            <p class="hint">{{ __('既定は安価な Llama 3.1 8B FP8 です。品質を上げるなら @cf/meta/llama-4-scout-17b-16e-instruct などに変更できます。') }}</p>
+            <div class="storage-form-actions">
+              <button type="submit" class="button-link">{{ __('保存') }}</button>
+              <button type="button" class="secondary" id="workers-ai-test-btn">{{ __('接続テスト') }}</button>
+              <span class="storage-test-live hint" id="workers-ai-test-live"></span>
             </div>
           </form>
         </div>
@@ -298,6 +337,8 @@
         @include('settings.partials.storage')
       @elseif(($section ?? '') === 'enhance')
         @include('settings.partials.google-maps')
+        @include('settings.partials.route-search')
+        @include('settings.partials.navitime')
         @include('settings.partials.google-calendar-oauth')
         @include('settings.partials.travelpayouts')
         @if(!empty($canSuperAdmin))
@@ -627,6 +668,35 @@
             }
           } finally {
             llmTestBtn.disabled = false;
+          }
+        });
+
+        const waiTestBtn = document.getElementById('workers-ai-test-btn');
+        const waiTestLive = document.getElementById('workers-ai-test-live');
+        waiTestBtn?.addEventListener('click', async () => {
+          waiTestBtn.disabled = true;
+          if (waiTestLive) waiTestLive.textContent = llmStrings.testing;
+          try {
+            const res = await fetch('/settings/ai/workers-ai/test', {
+              method: 'POST',
+              headers: {
+                'X-CSRF-TOKEN': csrf,
+                Accept: 'application/json',
+              },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (waiTestLive) {
+              waiTestLive.textContent = data.message || (data.ok ? llmStrings.success : llmStrings.failed);
+              waiTestLive.classList.toggle('is-ok', Boolean(data.ok));
+              waiTestLive.classList.toggle('is-fail', !data.ok);
+            }
+          } catch (_) {
+            if (waiTestLive) {
+              waiTestLive.textContent = llmStrings.networkError;
+              waiTestLive.classList.add('is-fail');
+            }
+          } finally {
+            waiTestBtn.disabled = false;
           }
         });
 

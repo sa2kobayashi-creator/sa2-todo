@@ -29,6 +29,9 @@ class MediaStorageSetting extends Model
     /** ChatGPT / Gemini（入出金音声入力など） */
     public const PROVIDER_LLM = 'llm';
 
+    /** Cloudflare Workers AI（生活ガイドなど） */
+    public const PROVIDER_WORKERS_AI = 'workers_ai';
+
     /** DeepL 使用量・料金表示の設定 */
     public const PROVIDER_DEEPL = 'deepl';
 
@@ -40,6 +43,12 @@ class MediaStorageSetting extends Model
 
     /** Google Maps JavaScript / Places（Map・Transit） */
     public const PROVIDER_GOOGLE_MAPS = 'google_maps';
+
+    /** NAVITIME API（路線検索の経路探索） */
+    public const PROVIDER_NAVITIME = 'navitime';
+
+    /** 経路検索に使う API の選択（navitime / raptor / auto） */
+    public const PROVIDER_ROUTE_SEARCH = 'route_search';
 
     /** Google Calendar OAuth（アプリの Client ID / Secret） */
     public const PROVIDER_GOOGLE_CALENDAR = 'google_calendar';

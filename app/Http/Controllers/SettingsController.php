@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TranslationApiKey;
 use App\Support\FooterNav;
 use App\Services\AiLlmConfigService;
+use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\CalendarService;
 use App\Services\DeeplUsageService;
 use App\Services\EnhanceConfigService;
@@ -13,6 +14,8 @@ use App\Services\GoogleMapsConfigService;
 use App\Services\LineMessagingService;
 use App\Services\LiveKitConfigService;
 use App\Services\MessengerMessagingService;
+use App\Services\NavitimeConfigService;
+use App\Services\Transit\RouteSearchService;
 use App\Services\HolidayService;
 use App\Services\IntegrationUsageService;
 use App\Services\MediaStorageConfigService;
@@ -34,11 +37,14 @@ class SettingsController extends Controller
         private HolidayService $holidays,
         private MediaStorageConfigService $mediaStorage,
         private AiLlmConfigService $aiLlm,
+        private CloudflareWorkersAiConfigService $workersAi,
         private DeeplUsageService $deeplUsage,
         private YoutubeVideoService $youtube,
         private EnhanceConfigService $enhance,
         private TravelpayoutsConfigService $travelpayouts,
         private GoogleMapsConfigService $googleMaps,
+        private NavitimeConfigService $navitime,
+        private RouteSearchService $routeSearch,
         private GoogleCalendarConfigService $googleCalendarOauth,
         private LineMessagingService $lineMessaging,
         private MessengerMessagingService $messengerMessaging,
@@ -85,6 +91,7 @@ class SettingsController extends Controller
                     ])->all()
                 : [],
             'llmSettings' => $section === 'ai' ? $this->aiLlm->formState() : null,
+            'workersAiSettings' => $section === 'ai' ? $this->workersAi->formState() : null,
             'youtubeSettings' => $section === 'ai' ? $this->youtube->formState() : null,
             'storageR2' => $section === 'storage' ? $this->safeStorageFormState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->safeStorageFormState('cloudinary') : null,
@@ -93,6 +100,8 @@ class SettingsController extends Controller
             'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
             'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
             'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
+            'navitimeSettings' => $section === 'enhance' ? $this->navitime->formState() : null,
+            'routeSearchSettings' => $section === 'enhance' ? $this->routeSearchFormState() : null,
             'googleCalendarOauthSettings' => $section === 'enhance' ? $this->googleCalendarOauth->formState() : null,
             'isSuperAdmin' => $isSuperAdmin,
             'isTenantAdmin' => (bool) $request->user()?->isTenantAdmin(),
@@ -117,6 +126,22 @@ class SettingsController extends Controller
             'currentUserModel' => $section === 'nav' ? $request->user() : null,
             ...$this->flashFromQuery($request),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function routeSearchFormState(): array
+    {
+        $ready = [];
+        foreach ($this->routeSearch->all() as $key => $provider) {
+            $ready[$key] = $provider->isReady();
+        }
+
+        return [
+            'options' => $this->routeSearch->options(),
+            'selected' => $this->routeSearch->selectedKey(),
+            'ready' => $ready,
+            'activeLabel' => $this->routeSearch->activeProvider()?->label(),
+        ];
     }
 
     public function updateFooterNav(Request $request)

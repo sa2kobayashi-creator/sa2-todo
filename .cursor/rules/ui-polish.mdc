@@ -1,0 +1,43 @@
+---
+description: 公開プロダクトとしての UI 品質基準（素の四角い箱を禁止）
+globs: resources/views/**/*.blade.php,public/app.css
+alwaysApply: false
+---
+
+# UI は「販売できる見た目」で作る
+
+このアプリは公開・販売する。ブラウザ既定のままの**素の四角い入力欄・ボタン・枠**を新規に置かない。
+
+## 必須
+
+| 要素 | 最低ライン |
+|---|---|
+| input / textarea / select | `border-radius: 10px` 以上、`padding: 10px 12px`、フォーカス時にリング（`box-shadow: 0 0 0 3px rgba(15,118,110,0.14)`） |
+| ボタン | 角丸 12px 以上。主ボタンはグラデーション（`linear-gradient(150deg,#0f766e,#0d9488)`）かブランド色 |
+| カード・パネル | 角丸 14px 以上。境界は `1px solid rgba(16,35,31,0.1)` 相当の淡い線 |
+| 一覧・チップ | 角丸 999px か 14px。hover で背景か `translateY(-1px)` の反応を付ける |
+
+ブランド色は teal `#0f766e` 系。文字色 `#10231f`、補助文字 `#64748b`。
+
+## やり方
+
+- 新しい画面は `.guide-*` / `.msg-*` / `.ai-assist` の既存スタイルを流用する。ゼロから素の form を書かない
+- 空状態は必ず作る（アイコン＋一言＋次の操作）。空の `<div>` を放置しない
+- 入力欄を並べるときは `display: grid; gap: 8px` のラベル付きにする
+
+```html
+<!-- ❌ BAD: 素の四角 -->
+<label>話題の名前<input type="text" name="label" /></label>
+<button type="submit" class="button-link">追加</button>
+
+<!-- ✅ GOOD: 角丸・フォーカスリング・ブランド色のボタン -->
+<label class="field">
+  <span>話題の名前</span>
+  <input type="text" name="label" class="field-input" />
+</label>
+<button type="submit" class="pill-btn">追加</button>
+```
+
+## 確認
+
+見た目を変えたら、対象ページを開いて崩れがないか確認してから完了報告する。CSS は `public/app.css` に直接足す（ビルド無し）。

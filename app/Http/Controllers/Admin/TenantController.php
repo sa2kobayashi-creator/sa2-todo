@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Services\TenantContractService;
+use App\Support\CommercialOffer;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 
@@ -26,8 +27,12 @@ class TenantController extends Controller
 
         return view('admin.tenants.index', array_merge($this->flashFromQuery($request), [
             'tenants' => $tenants,
-            'includedUsers' => Tenant::defaultMaxUsers(),
-            'extraUserYen' => (int) config('commercial.extra_user_yen_monthly', 1000),
+            'includedUsers' => CommercialOffer::includedUsers(),
+            'extraUserYen' => CommercialOffer::extraUserYen(),
+            'tenantMonthlyYen' => CommercialOffer::tenantMonthlyYen(),
+            'tenantYearlyYen' => CommercialOffer::tenantYearlyYen(),
+            'tenantTrialDays' => CommercialOffer::tenantTrialDays(),
+            'defaultTrialEndsAt' => CommercialOffer::defaultTrialEndsAt(),
         ]));
     }
 
@@ -38,6 +43,7 @@ class TenantController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             'max_users' => ['required', 'integer', 'min:1', 'max:200'],
             'allow_own_keys' => ['nullable', 'boolean'],
+            'trial_ends_at' => ['nullable', 'date'],
             'owner_email' => ['required', 'email', 'max:255'],
             'owner_display_name' => ['required', 'string', 'max:100'],
             'owner_password' => ['required', 'string', 'min:8'],
@@ -49,6 +55,7 @@ class TenantController extends Controller
                 'notes' => $data['notes'] ?? null,
                 'max_users' => (int) $data['max_users'],
                 'allow_own_keys' => $request->boolean('allow_own_keys', true),
+                'trial_ends_at' => $request->filled('trial_ends_at') ? $data['trial_ends_at'] : ($request->has('trial_ends_at') ? null : false),
                 'owner_email' => $data['owner_email'],
                 'owner_display_name' => $data['owner_display_name'],
                 'owner_password' => $data['owner_password'],
@@ -67,8 +74,10 @@ class TenantController extends Controller
         return view('admin.tenants.show', array_merge($this->flashFromQuery($request), [
             'tenant' => $tenant->toPublicArray(),
             'members' => $tenant->users->map->toPublicArray(),
-            'includedUsers' => Tenant::defaultMaxUsers(),
-            'extraUserYen' => (int) config('commercial.extra_user_yen_monthly', 1000),
+            'includedUsers' => CommercialOffer::includedUsers(),
+            'extraUserYen' => CommercialOffer::extraUserYen(),
+            'tenantMonthlyYen' => CommercialOffer::tenantMonthlyYen(),
+            'tenantTrialDays' => CommercialOffer::tenantTrialDays(),
         ]));
     }
 
@@ -81,6 +90,7 @@ class TenantController extends Controller
             'max_users' => ['required', 'integer', 'min:1', 'max:200'],
             'allow_own_keys' => ['nullable', 'boolean'],
             'status' => ['required', 'in:active,suspended'],
+            'trial_ends_at' => ['nullable', 'date'],
         ]);
 
         try {
@@ -90,6 +100,7 @@ class TenantController extends Controller
                 'max_users' => (int) $data['max_users'],
                 'allow_own_keys' => $request->boolean('allow_own_keys'),
                 'status' => $data['status'],
+                'trial_ends_at' => $data['trial_ends_at'] ?? null,
             ]);
         } catch (InvalidArgumentException $e) {
             return $this->redirectWithMessage("/admin/tenants/{$id}", $e->getMessage(), 'error');

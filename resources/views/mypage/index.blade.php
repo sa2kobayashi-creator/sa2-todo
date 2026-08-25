@@ -135,6 +135,8 @@
             'video' => '動画',
             'mail' => 'メール',
             'messages' => 'メッセージ',
+            'translate' => '翻訳',
+            'guide' => '生活ガイド',
             'groups' => 'グループ',
             'settings' => '設定',
             'admin' => 'ユーザー管理',

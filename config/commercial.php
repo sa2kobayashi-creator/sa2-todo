@@ -1,8 +1,8 @@
 <?php
 
 /**
- * 専用インスタンス（販路 A）の見積単価。
- * 正の説明文は docs/specs/commercial-dedicated-instance.md
+ * 専用インスタンス（販路 A）とテナント契約（共有上）の公開単価。
+ * 正の説明文は docs/specs/product-direction.md と commercial-tenants.md
  */
 return [
     'setup_fee_yen' => (int) env('COMMERCIAL_SETUP_FEE_YEN', 50000),
@@ -14,4 +14,9 @@ return [
     'mailbox_yen_yearly' => (int) env('MAIL_ADDON_PRICE_YEN_YEARLY', 3000),
     /** 年一括保守の割引か月数相当（12か月払いで1か月分オフ → 11） */
     'yearly_maintenance_months_charged' => (int) env('COMMERCIAL_YEARLY_MAINTENANCE_MONTHS', 11),
+    /** テナント契約の公開月額（5名・メール各1込み）。専用 ¥8,000 より安く出す */
+    'tenant_monthly_yen' => (int) env('COMMERCIAL_TENANT_MONTHLY_YEN', 3980),
+    /** 0 なら月額×yearly_maintenance_months_charged */
+    'tenant_yearly_yen' => (int) env('COMMERCIAL_TENANT_YEARLY_YEN', 0),
+    'tenant_trial_days' => (int) env('COMMERCIAL_TENANT_TRIAL_DAYS', 30),
 ];

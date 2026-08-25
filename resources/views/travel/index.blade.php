@@ -184,6 +184,16 @@
         </details>
       </section>
 
+      @include('partials.ai-assist', [
+        'aiId' => 'travel-ai',
+        'aiEndpoint' => '/travel/ai-ask',
+        'aiTitle' => $aiTopic['label'],
+        'aiHint' => $aiTopic['hint'],
+        'aiIcon' => $aiTopic['icon'],
+        'aiSamples' => $aiTopic['samples'],
+        'aiReady' => $aiReady,
+      ])
+
       <section class="panel travel-panel" id="travel-fare-table">
         <h2 class="travel-section-title">{{ __('安い日を探す（料金表）') }}</h2>
         <p class="hint">{{ __('期間を指定して Travelpayouts の月次キャッシュから運賃目安を一覧表示します。片道は出発日ごと、往復は行き×帰りの組み合わせ表です。') }}</p>

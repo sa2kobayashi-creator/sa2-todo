@@ -94,6 +94,7 @@ class DashboardHomeService
                 'messages' => '/messages',
                 'map' => '/map',
                 'transit' => '/transit',
+                'guide' => '/guide',
                 'aiSettings' => '/settings?section=ai',
                 'googleCalendarConnect' => '/mypage#google-calendar',
                 'googleCalendar' => $calendarLink,

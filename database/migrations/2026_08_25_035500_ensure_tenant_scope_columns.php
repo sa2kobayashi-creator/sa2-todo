@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** 失敗を握りつぶす箇所があるため、Postgres でトランザクションを巻き添えにしない。 */
+    public $withinTransaction = false;
+
     public function up(): void
     {
         if (! Schema::hasTable('tenants')) {
@@ -84,15 +87,6 @@ return new class extends Migration
 
     private function dropProviderOnlyUnique(): void
     {
-        try {
-            Schema::table('media_storage_settings', function (Blueprint $table) {
-                $table->dropUnique(['provider']);
-            });
-
-            return;
-        } catch (\Throwable) {
-        }
-
         if (! Schema::hasTable('media_storage_settings')) {
             return;
         }

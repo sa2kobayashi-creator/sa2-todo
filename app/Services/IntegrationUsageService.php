@@ -17,19 +17,27 @@ class IntegrationUsageService
         }
 
         $date = now()->toDateString();
-        DB::table('integration_usage_dailies')->upsert([
-            [
-                'provider' => $provider,
-                'metric' => $metric,
-                'usage_date' => $date,
-                'amount' => $amount,
-                'created_at' => now(),
+        // Postgres は ON CONFLICT 内の裸の列名を excluded と区別できないので必ず修飾する
+        $current = DB::getQueryGrammar()->wrap('integration_usage_dailies.amount');
+
+        try {
+            DB::table('integration_usage_dailies')->upsert([
+                [
+                    'provider' => $provider,
+                    'metric' => $metric,
+                    'usage_date' => $date,
+                    'amount' => $amount,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            ], ['provider', 'metric', 'usage_date'], [
+                'amount' => DB::raw($current.' + '.$amount),
                 'updated_at' => now(),
-            ],
-        ], ['provider', 'metric', 'usage_date'], [
-            'amount' => DB::raw('amount + '.$amount),
-            'updated_at' => now(),
-        ]);
+            ]);
+        } catch (\Throwable $e) {
+            // 集計の失敗で機能そのものを止めない
+            report($e);
+        }
     }
 
     /** @return array{groups: list<array{id: string, label: string, items: array<string, array{today: int, month: int, metric: string, external: string, label: string, description: string, freeTier: string}>}>} */
@@ -104,8 +112,22 @@ class IntegrationUsageService
                 'items' => $voiceItems,
             ],
             [
+                'id' => 'guide',
+                'label' => __('生活ガイド'),
+                'items' => [
+                    'workers_ai' => $this->usageItem(
+                        __('Workers AI（生活ガイド）'),
+                        $userFeature('workers_ai'),
+                        __('案内リクエスト'),
+                        'https://developers.cloudflare.com/workers-ai/',
+                        __('生活ガイドで知恵・レシピ・カレンダー案内を聞いた回数です。'),
+                        $this->workersAiFreeTier(),
+                    ),
+                ],
+            ],
+            [
                 'id' => 'translate_map',
-                'label' => __('翻訳・地図'),
+                'label' => __('翻訳・地図・路線'),
                 'items' => [
                     'deepl' => $this->usageItem(
                         __('DeepL 翻訳'),
@@ -114,6 +136,14 @@ class IntegrationUsageService
                         'https://www.deepl.com/pro-account/usage',
                         __('メモや翻訳画面で文章を翻訳するときに使用します。'),
                         $this->deeplFreeTier(),
+                    ),
+                    'navitime' => $this->usageItem(
+                        __('NAVITIME（路線検索）'),
+                        $value('navitime'),
+                        __('経路検索'),
+                        'https://api-sdk.navitime.co.jp/api/',
+                        __('路線検索で経路・運賃・乗換を取得するときに使用します。未設定のときは内蔵エンジンで検索し、ここには計上されません。'),
+                        __('アプリ側の回数上限なし。API 制限は NAVITIME の契約プランに依存します。'),
                     ),
                     'google_maps' => $this->usageItem(
                         __('Google マップ'),
@@ -297,6 +327,18 @@ class IntegrationUsageService
         $limit = max(0, (int) config('usage_limits.enhance_requests_per_day', 10));
 
         return __('アプリ上限 ユーザーあたり1日 :limit 回。Stability はクレジット前払い（無料枠なし）。', [
+            'limit' => number_format($limit),
+        ]);
+    }
+
+    private function workersAiFreeTier(): string
+    {
+        $limit = max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20));
+        if ($limit === 0) {
+            return __('アプリ上限なし。Workers AI はアカウントの Neurons／トークン従量。');
+        }
+
+        return __('アプリ上限 ユーザーあたり1日 :limit 回（スーパー管理者は無制限）。Workers AI はアカウントの Neurons／トークン従量。', [
             'limit' => number_format($limit),
         ]);
     }
