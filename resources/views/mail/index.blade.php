@@ -418,9 +418,11 @@
                 <strong id="mail-folder-title">{{ __('受信トレイ') }}</strong>
                 <div class="mail-list-tools" id="mail-list-tools">
                   <div class="mail-filter-row" id="mail-filter-row">
-                    <input type="search" id="mail-filter-from" class="mail-filter-input" placeholder="{{ __('差出人で絞り込み') }}" autocomplete="off" />
-                    <input type="search" id="mail-filter-subject" class="mail-filter-input" placeholder="{{ __('件名で絞り込み') }}" autocomplete="off" />
-                    <button type="button" class="mail-toolbar-btn" id="mail-filter-clear">{{ __('クリア') }}</button>
+                    <div class="mail-filter-field">
+                      <svg class="mail-filter-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      <input type="search" id="mail-filter-q" class="mail-filter-input" placeholder="{{ __('差出人・件名で絞り込み') }}" aria-label="{{ __('差出人・件名で絞り込み') }}" autocomplete="off" />
+                      <button type="button" class="mail-filter-clear" id="mail-filter-clear" title="{{ __('クリア') }}" aria-label="{{ __('クリア') }}" hidden>×</button>
+                    </div>
                   </div>
                   <div class="mail-list-toolbar-actions">
                     <button type="button" class="mail-toolbar-btn" id="mail-bg-btn" title="{{ __('背景') }}" aria-label="{{ __('背景') }}">{{ __('背景') }}</button>
@@ -714,8 +716,7 @@
         const bulkBar = document.getElementById('mail-bulk-bar');
         const bulkCount = document.getElementById('mail-bulk-count');
         const moveTarget = document.getElementById('mail-move-target');
-        const filterFrom = document.getElementById('mail-filter-from');
-        const filterSubject = document.getElementById('mail-filter-subject');
+        const filterInput = document.getElementById('mail-filter-q');
         const filterClear = document.getElementById('mail-filter-clear');
         const spamBtn = document.getElementById('mail-spam-btn');
         const notSpamBtn = document.getElementById('mail-not-spam-btn');
@@ -759,8 +760,7 @@
           uid: parseInt(shell.getAttribute('data-uid') || '0', 10) || 0,
           allMessages: [],
           selected: new Set(),
-          filterFrom: '',
-          filterSubject: '',
+          filterText: '',
           labels: labelsByAccount[accountId] || [],
           userFolders: userFoldersByAccount[accountId] || [],
           archivePath: null,
@@ -839,12 +839,12 @@
         }
 
         function filteredMessages() {
-          const fromQ = (state.filterFrom || '').trim().toLowerCase();
-          const subQ = (state.filterSubject || '').trim().toLowerCase();
+          // 空白区切りの語をすべて含むものを残す。語は差出人・件名のどちらに当たってもよい
+          const terms = (state.filterText || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+          if (!terms.length) return state.allMessages || [];
           return (state.allMessages || []).filter((row) => {
-            if (fromQ && !(String(row.from || '').toLowerCase().includes(fromQ))) return false;
-            if (subQ && !(String(row.subject || '').toLowerCase().includes(subQ))) return false;
-            return true;
+            const haystack = (String(row.from || '') + ' ' + String(row.subject || '')).toLowerCase();
+            return terms.every((term) => haystack.includes(term));
           });
         }
 
@@ -1373,26 +1373,25 @@
           });
         }
 
-        if (filterFrom) {
-          filterFrom.addEventListener('input', () => {
-            state.filterFrom = filterFrom.value || '';
-            renderMessages(filteredMessages());
-          });
+        function applyFilterText(value, { focus = false } = {}) {
+          state.filterText = value || '';
+          if (filterInput && filterInput.value !== state.filterText) filterInput.value = state.filterText;
+          if (filterClear) filterClear.hidden = state.filterText.trim() === '';
+          if (focus && filterInput) filterInput.focus();
+          renderMessages(filteredMessages());
         }
-        if (filterSubject) {
-          filterSubject.addEventListener('input', () => {
-            state.filterSubject = filterSubject.value || '';
-            renderMessages(filteredMessages());
+
+        if (filterInput) {
+          filterInput.addEventListener('input', () => applyFilterText(filterInput.value));
+          filterInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && filterInput.value !== '') {
+              e.preventDefault();
+              applyFilterText('');
+            }
           });
         }
         if (filterClear) {
-          filterClear.addEventListener('click', () => {
-            state.filterFrom = '';
-            state.filterSubject = '';
-            if (filterFrom) filterFrom.value = '';
-            if (filterSubject) filterSubject.value = '';
-            renderMessages(filteredMessages());
-          });
+          filterClear.addEventListener('click', () => applyFilterText('', { focus: true }));
         }
 
         if (bulkBar) {

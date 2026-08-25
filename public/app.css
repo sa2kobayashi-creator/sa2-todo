@@ -1534,10 +1534,14 @@ form.add .notify-at-time-option input[type="time"],
   font-size: 16px;
 }
 
-/* 公開品質の下敷き。素の四角い入力を作らない。詳細度は最低なので個別指定が優先される */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
-select,
-textarea {
+/* 公開品質の下敷き。素の四角い入力を作らない。
+   :where() で包んで詳細度を 0 にしてあるので、個別のクラス指定が必ず優先される。
+   :not() は中身の詳細度を持つため、外さないこと（外すとクラス6個分の強さになる） */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea
+) {
   padding: 10px 12px;
   border: 1px solid #d8dee9;
   border-radius: 10px;
@@ -1547,9 +1551,11 @@ textarea {
   font-size: 14px;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea
+):focus-visible {
   outline: none;
   border-color: #0f766e;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
@@ -21634,11 +21640,35 @@ body.dash-home-lightbox-open {
 .mail-list-toolbar .mail-toolbar-btn {
   flex: 0 0 auto; white-space: nowrap;
 }
-.mail-filter-input {
-  flex: 0 0 auto; width: 132px; min-width: 132px; padding: 5px 8px;
-  border: 1px solid #dbe7e3; border-radius: 8px; font-size: 12px;
-  background: rgba(255,255,255,0.9);
+.mail-filter-field {
+  position: relative; display: flex; align-items: center; flex: 0 0 auto;
 }
+.mail-filter-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: #94a3b8; pointer-events: none;
+}
+.mail-filter-input {
+  flex: 0 0 auto; width: 216px; min-width: 160px;
+  padding: 7px 30px 7px 31px;
+  border: 1px solid #dbe7e3; border-radius: 999px; font-size: 12px;
+  background: rgba(255,255,255,0.92); color: #10231f;
+  transition: width .18s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.mail-filter-input:focus {
+  outline: none; width: 260px;
+  border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15,118,110,0.14);
+}
+.mail-filter-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.mail-filter-clear {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0;
+  border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(15,118,110,0.1); color: #0f766e;
+  font-size: 13px; line-height: 1;
+}
+.mail-filter-clear:hover { background: rgba(15,118,110,0.18); }
+.mail-filter-clear[hidden] { display: none; }
 .mail-list-head {
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
   border-bottom: 1px solid #e8efec; background: rgba(248,250,252,0.9);
@@ -21994,7 +22024,11 @@ body.dash-home-lightbox-open {
     grid-template-columns: 1fr;
     gap: 8px;
   }
-  .mail-mobile-tools-panel .mail-filter-input {
+  .mail-mobile-tools-panel .mail-filter-field {
+    width: 100%;
+  }
+  .mail-mobile-tools-panel .mail-filter-input,
+  .mail-mobile-tools-panel .mail-filter-input:focus {
     max-width: none; width: 100%; min-width: 0;
   }
   .mail-mobile-tools-panel .mail-list-toolbar-actions {
