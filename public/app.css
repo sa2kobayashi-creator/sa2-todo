@@ -22988,10 +22988,10 @@ body.dash-home-lightbox-open {
 .guide-hero {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 22px 24px;
+  padding: 16px 24px;
   margin-bottom: 16px;
   border: 1px solid var(--guide-line);
   border-radius: 22px;
@@ -23027,10 +23027,10 @@ body.dash-home-lightbox-open {
 
 .guide-hero-lead {
   margin: 0;
-  max-width: 62ch;
+  max-width: none;
   color: #475569;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .guide-meter {

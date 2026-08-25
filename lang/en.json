@@ -3418,7 +3418,7 @@
     "応答を取得しました": "Got a response",
     "話題を選んでください。": "Choose a topic.",
     "本日の利用": "Used today",
-    "Workers AI が、生活の知恵・話し相手、料理、今日のカレンダーを案内します。話題は自分で追加できます。路線と渡航の相談は、路線検索と Travel の画面にあります。": "Workers AI helps with life tips, recipes, and today's calendar, and you can add your own topics. Route and travel questions live on the Transit and Travel screens.",
+    "Workers AI が、話題を案内します。また話題は自分で追加できます。": "Workers AI answers by topic, and you can add topics of your own.",
     "生活の知恵・話し相手と、料理レシピ、今日のカレンダー案内はもう使えます。路線検索と Travel の画面にも AI 相談を組み込み済みで、NAVITIME と Travelpayouts の連携は準備中です。": "Life tips, recipes, and today's calendar help are available now. The Transit and Travel screens also include an AI assistant, with NAVITIME and Travelpayouts integration coming next.",
     "自分で追加した話題です。": "A topic you added.",
     "話題の名前": "Topic name",

@@ -33,7 +33,7 @@
         <div class="guide-hero-copy">
           <p class="guide-kicker">Cloudflare Workers AI</p>
           <h1>{{ __('生活ガイド') }}</h1>
-          <p class="guide-hero-lead">{{ __('Workers AI が、生活の知恵・話し相手、料理、今日のカレンダーを案内します。話題は自分で追加できます。路線と渡航の相談は、路線検索と Travel の画面にあります。') }}</p>
+          <p class="guide-hero-lead">{{ __('Workers AI が、話題を案内します。また話題は自分で追加できます。') }}</p>
         </div>
         <div class="guide-meter" role="group" aria-label="{{ __('本日の利用') }}">
           <span class="guide-meter-label">{{ __('本日の利用') }}</span>
