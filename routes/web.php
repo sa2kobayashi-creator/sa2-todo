@@ -441,12 +441,19 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/storage/{provider}/test', [MediaStorageSettingsController::class, 'test'])
                 ->where('provider', 'r2|cloudinary|backblaze|pipeline');
 
-            Route::post('/settings/messaging/{provider}/channel', [MessagingSettingsController::class, 'saveChannel'])
-                ->where('provider', 'line|messenger');
-            Route::post('/settings/messaging/{provider}/channel/test', [MessagingSettingsController::class, 'testChannel'])
-                ->where('provider', 'line|messenger');
+            Route::post('/settings/messaging/line/channel', [MessagingSettingsController::class, 'saveChannel'])
+                ->defaults('provider', 'line');
+            Route::post('/settings/messaging/line/channel/test', [MessagingSettingsController::class, 'testChannel'])
+                ->defaults('provider', 'line');
             Route::post('/settings/messaging/line/disable', [MessagingSettingsController::class, 'disableLine']);
             Route::post('/settings/messaging/line/qr/delete', [MessagingSettingsController::class, 'deleteLineQr']);
+
+            Route::post('/settings/messaging/messenger/channel', [MessagingSettingsController::class, 'saveChannel'])
+                ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+                ->defaults('provider', 'messenger');
+            Route::post('/settings/messaging/messenger/channel/test', [MessagingSettingsController::class, 'testChannel'])
+                ->middleware(\App\Http\Middleware\RequireSuperAdmin::class)
+                ->defaults('provider', 'messenger');
         });
 
         // 以下は「自分の端末・アカウントを連携する」操作なので管理者でも使える

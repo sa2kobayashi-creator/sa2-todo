@@ -9,6 +9,7 @@ use App\Models\GroupMember;
 use App\Models\GroupMessage;
 use App\Models\Photo;
 use App\Models\User;
+use App\Services\WebPushService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -506,6 +507,59 @@ class GroupMessagesAndTranslateTest extends TestCase
             ->getJson('/messages/'.$group->id.'/poll?peer='.$bob->id.'&after=0')
             ->assertOk()
             ->assertJsonPath('callDeclined.byUserId', $bob->id);
+    }
+
+    public function test_direct_message_sends_web_push_to_the_peer_only(): void
+    {
+        $alice = $this->makeUser('alice-msg-push@example.com', 'Alice');
+        $bob = $this->makeUser('bob-msg-push@example.com', 'Bob');
+        $group = $this->makeApprovedGroup($alice, $bob);
+
+        $push = \Mockery::mock(WebPushService::class);
+        $push->shouldReceive('notify')
+            ->once()
+            ->withArgs(function (User $user, array $payload) use ($alice, $bob, $group) {
+                return (int) $user->id === (int) $bob->id
+                    && ($payload['title'] ?? '') === '新着メッセージ'
+                    && str_contains((string) ($payload['body'] ?? ''), 'hi bob')
+                    && ($payload['url'] ?? '') === '/messages/'.$group->id.'/dm/'.$alice->id;
+            });
+        $this->app->instance(WebPushService::class, $push);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, [
+                'body' => 'hi bob',
+                'peer_user_id' => $bob->id,
+            ])
+            ->assertOk();
+    }
+
+    public function test_group_message_sends_web_push_to_other_members(): void
+    {
+        $alice = $this->makeUser('alice-group-push@example.com', 'Alice');
+        $bob = $this->makeUser('bob-group-push@example.com', 'Bob');
+        $cara = $this->makeUser('cara-group-push@example.com', 'Cara');
+        $group = $this->makeApprovedGroup($alice, $bob, $cara);
+
+        $notified = [];
+        $push = \Mockery::mock(WebPushService::class);
+        $push->shouldReceive('notify')
+            ->twice()
+            ->withArgs(function (User $user, array $payload) use ($alice, $group, &$notified) {
+                $notified[] = (int) $user->id;
+
+                return (int) $user->id !== (int) $alice->id
+                    && ($payload['title'] ?? '') === '新着メッセージ'
+                    && str_contains((string) ($payload['body'] ?? ''), 'hello all')
+                    && ($payload['url'] ?? '') === '/messages/'.$group->id;
+            });
+        $this->app->instance(WebPushService::class, $push);
+
+        $this->actingAs($alice)
+            ->postJson('/messages/'.$group->id, ['body' => 'hello all'])
+            ->assertOk();
+
+        $this->assertEqualsCanonicalizing([(int) $bob->id, (int) $cara->id], $notified);
     }
 
     public function test_user_can_save_a_web_push_subscription(): void

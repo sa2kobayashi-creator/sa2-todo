@@ -15,7 +15,7 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
       @if(!empty($isTenantAdmin))
-        <div class="banner notice">{{ __('この画面のストレージ・AI・Maps などのキーは、あなたの契約だけに使われます。LINE 公式アカウントと Web Push は運営の共有設定です。') }}</div>
+        <div class="banner notice">{{ __('この画面のストレージ・AI・Maps などのキーは、あなたの契約だけに使われます。LINE 公式アカウント、Messenger、Web Push は運営の共有設定です。') }}</div>
       @endif
 
       @if(($section ?? 'holidays') === 'nav')
@@ -282,7 +282,9 @@
       </div>
       @elseif(($section ?? '') === 'integration')
       @include('settings.partials.line-messaging')
-      @include('settings.partials.facebook-messenger')
+      @if(!empty($canSuperAdmin))
+        @include('settings.partials.facebook-messenger')
+      @endif
       @include('settings.partials.livekit')
       @include('settings.partials.web-push')
       <div class="panel storage-settings" id="google-calendar">

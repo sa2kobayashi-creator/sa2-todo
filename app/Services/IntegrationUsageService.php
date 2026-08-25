@@ -179,7 +179,7 @@ class IntegrationUsageService
                         $value('web_push', 'deliveries'),
                         __('配信成功'),
                         '',
-                        __('通話着信などをブラウザ通知で配信した回数です。'),
+                        __('メッセージの新着と通話着信をブラウザ通知で配信した回数です。'),
                         __('通数の無料枠制限なし（ブラウザ通知 / VAPID）。'),
                     ),
                     'web_push_subscriptions' => $this->usageItem(

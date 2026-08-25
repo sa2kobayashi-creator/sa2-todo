@@ -4,7 +4,7 @@
 @endphp
 <div class="panel" id="notification-channels">
   <h2>{{ __('通知設定') }}</h2>
-  <p class="hint">{{ __('通話の着信を、アプリを閉じているときにも端末通知で受け取れます。VAPID サーバー設定は外部連携から行います。スタンダード／ライトは設定メニューがないため、マイページから端末を登録します。') }}</p>
+  <p class="hint">{{ __('新着メッセージと通話の着信を、アプリを閉じているときにも端末通知で受け取れます。VAPID サーバー設定は外部連携から行います。スタンダード／ライトは設定メニューがないため、マイページから端末を登録します。') }}</p>
 
   <dl class="photos-usage-result-dl" style="margin: 0 0 12px;">
     <div>
@@ -38,7 +38,7 @@
   </dl>
 
   <div class="storage-form-actions">
-    <button type="button" class="button-link secondary" id="push-subscribe-btn" @disabled(empty($pushConfigured))>{{ __('通話の着信通知を登録') }}</button>
+    <button type="button" class="button-link secondary" id="push-subscribe-btn" @disabled(empty($pushConfigured))>{{ __('この端末の通知を登録') }}</button>
     <span class="hint" id="push-status">
       {{ !empty($pushConfigured) ? __('この端末で通知を許可してください。') : __('通知サーバーが未設定です。') }}
     </span>

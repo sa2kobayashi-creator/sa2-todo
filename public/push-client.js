@@ -63,7 +63,7 @@
       const sub = await reg.pushManager.getSubscription()
       if (sub) {
         btn.textContent = '登録済み'
-        setStatus('この端末で通話の着信通知を受け取れます')
+        setStatus('この端末でメッセージと通話の通知を受け取れます')
       }
     } catch (_) {
       setStatus('プッシュ通知の準備に失敗しました')
@@ -117,7 +117,7 @@
       })
       if (!saveRes.ok) throw new Error('登録に失敗しました')
 
-      setStatus('この端末で通話の着信通知を登録しました')
+      setStatus('この端末でメッセージと通話の通知を登録しました')
       btn.textContent = '登録済み'
       btn.disabled = true
     } catch (err) {

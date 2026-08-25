@@ -26,9 +26,9 @@ class WebPushService
     }
 
     /**
-     * 失敗しても通話の発信自体は止めない。
+     * 失敗しても元の操作は止めない。
      *
-     * @param  array{title: string, body: string, url: string, tag: string}  $payload
+     * @param  array{title: string, body: string, url: string, tag: string, ttl?: int, urgency?: string}  $payload
      */
     public function notify(User $user, array $payload): void
     {
@@ -53,9 +53,20 @@ class WebPushService
                 ],
             ]);
 
-            $message = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $message = json_encode([
+                'title' => $payload['title'],
+                'body' => $payload['body'],
+                'url' => $payload['url'],
+                'tag' => $payload['tag'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($message === false) {
                 return;
+            }
+
+            $ttl = max(1, (int) ($payload['ttl'] ?? 90));
+            $urgency = (string) ($payload['urgency'] ?? 'high');
+            if (! in_array($urgency, ['very-low', 'low', 'normal', 'high'], true)) {
+                $urgency = 'high';
             }
 
             foreach ($subscriptions as $subscription) {
@@ -69,8 +80,8 @@ class WebPushService
                         ]),
                         $message,
                         [
-                            'TTL' => 90,
-                            'urgency' => 'high',
+                            'TTL' => $ttl,
+                            'urgency' => $urgency,
                             'topic' => substr($payload['tag'], 0, 32),
                         ],
                     );

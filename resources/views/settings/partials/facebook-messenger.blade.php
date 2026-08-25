@@ -17,6 +17,7 @@
 <div class="panel storage-settings" id="facebook-messenger">
   <h2>{{ __('Facebook Messenger 通知連携') }}</h2>
   <p class="hint">{{ __('Meta の Facebook アプリ／ページ情報を登録します。保存後、ページの Messenger に連携コードを送ると個人アカウントとつながります。') }}</p>
+  <p class="hint">{{ __('Messenger のチャネル設定は一時的に運営のみです。顧客管理者の画面には出しません。') }}</p>
 
   @if(!empty($mm['last_test_message']))
     <p class="hint storage-test-result {{ ($mm['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">

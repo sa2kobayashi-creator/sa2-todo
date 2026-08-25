@@ -25,7 +25,7 @@ class RoleAccessTest extends TestCase
 
     /**
      * 販売時は顧客の管理者が API キーを自分で設定する。
-     * 試作の鮮明化だけはスーパー管理者のまま。
+     * 試作の鮮明化と、取得できない Facebook Messenger チャネルはスーパー管理者のまま。
      */
     public function test_admin_can_change_infrastructure_api_keys(): void
     {
@@ -66,6 +66,11 @@ class RoleAccessTest extends TestCase
         $this->actingAs($admin)->post('/settings/api/livekit', [])->assertRedirect();
         $this->actingAs($admin)->post('/settings/api/web-push', [])->assertRedirect();
         $this->actingAs($admin)->post('/settings/messaging/line/channel', [])->assertRedirect();
+        $this->actingAs($admin)->post('/settings/messaging/messenger/channel', [])->assertForbidden();
+        $this->actingAs($admin)->get('/settings?section=integration')
+            ->assertOk()
+            ->assertSee('LINE連携設定', false)
+            ->assertDontSee('Facebook Messenger 通知連携', false);
         $this->actingAs($admin)->post('/settings/enhance/stability', ['enabled' => '1'])->assertForbidden();
         $this->actingAs($admin)->post('/settings/enhance/active', ['active_provider' => 'stability'])->assertForbidden();
     }

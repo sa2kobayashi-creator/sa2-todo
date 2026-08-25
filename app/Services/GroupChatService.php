@@ -25,7 +25,10 @@ class GroupChatService
     /** @var array<string, int> */
     private array $lastReadCache = [];
 
-    public function __construct(private GroupService $groups) {}
+    public function __construct(
+        private GroupService $groups,
+        private WebPushService $push,
+    ) {}
 
     public function maxAttachmentBytes(): int
     {
@@ -526,7 +529,7 @@ class GroupChatService
             }
         }
 
-        return DB::transaction(function () use ($userId, $groupId, $text, $files, $peerUserId, $reply) {
+        $payload = DB::transaction(function () use ($userId, $groupId, $text, $files, $peerUserId, $reply) {
             $message = GroupMessage::create([
                 'group_id' => $groupId,
                 'user_id' => $userId,
@@ -546,6 +549,77 @@ class GroupChatService
                 $userId
             );
         });
+
+        $this->notifyNewMessage($userId, $groupId, $peerUserId, $payload);
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    private function notifyNewMessage(int $senderId, int $groupId, ?int $peerUserId, array $message): void
+    {
+        try {
+            $recipientIds = $peerUserId !== null
+                ? [$peerUserId]
+                : collect($this->groups->listMembers($groupId))
+                    ->pluck('userId')
+                    ->map(fn ($id) => (int) $id)
+                    ->reject(fn (int $id) => $id === $senderId)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+            if ($recipientIds === []) {
+                return;
+            }
+
+            $senderName = trim((string) ($message['userName'] ?? ''));
+            if ($senderName === '') {
+                $senderName = __('不明');
+            }
+
+            $text = trim((string) ($message['body'] ?? ''));
+            if ($text !== '') {
+                $preview = mb_strlen($text) > 80 ? mb_substr($text, 0, 80).'…' : $text;
+            } elseif (! empty($message['attachments'])) {
+                $preview = __('添付ファイル');
+            } else {
+                $preview = __('新しいメッセージ');
+            }
+
+            $url = $peerUserId !== null
+                ? '/messages/'.$groupId.'/dm/'.$senderId
+                : '/messages/'.$groupId;
+            $tag = $peerUserId !== null
+                ? 'sa2-msg-'.$groupId.'-dm-'.$senderId
+                : 'sa2-msg-'.$groupId.'-ch';
+
+            $body = $peerUserId !== null
+                ? __(':name からメッセージ: :preview', ['name' => $senderName, 'preview' => $preview])
+                : __(':name（:group）: :preview', [
+                    'name' => $senderName,
+                    'group' => (string) (Group::query()->find($groupId)?->name ?: __('グループ')),
+                    'preview' => $preview,
+                ]);
+
+            $payload = [
+                'title' => __('新着メッセージ'),
+                'body' => $body,
+                'url' => $url,
+                'tag' => $tag,
+                'ttl' => 86400,
+                'urgency' => 'normal',
+            ];
+
+            User::query()
+                ->whereIn('id', $recipientIds)
+                ->get()
+                ->each(fn (User $user) => $this->push->notify($user, $payload));
+        } catch (\Throwable) {
+            // 通知失敗でメッセージ送信は止めない
+        }
     }
 
     /** @return array<string, mixed> */

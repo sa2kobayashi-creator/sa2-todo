@@ -28,6 +28,7 @@ class MessagingSettingsController extends Controller
     public function saveChannel(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
+        $this->assertCanManageChannel($provider);
         $path = $this->settingsPath($provider);
 
         if ($provider === MessagingConnection::PROVIDER_LINE) {
@@ -97,6 +98,7 @@ class MessagingSettingsController extends Controller
     public function testChannel(string $provider): JsonResponse
     {
         $provider = $this->normalizeProvider($provider);
+        $this->assertCanManageChannel($provider);
 
         if ($provider === MessagingConnection::PROVIDER_LINE) {
             $result = $this->lineConfig->testConnection();
@@ -176,6 +178,13 @@ class MessagingSettingsController extends Controller
             MessagingConnection::PROVIDER_MESSENGER => $this->messenger->isConfigured(),
             default => false,
         };
+    }
+
+    private function assertCanManageChannel(string $provider): void
+    {
+        if ($provider === MessagingConnection::PROVIDER_MESSENGER && ! auth()->user()?->isSuperAdmin()) {
+            abort(403, __('この設定は運営のみが変更できます。'));
+        }
     }
 
     private function settingsPath(string $provider): string

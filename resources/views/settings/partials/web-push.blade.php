@@ -9,7 +9,7 @@
 @endphp
 <div class="panel storage-settings" id="web-push">
   <h2>{{ __('Web Push 着信通知') }}</h2>
-  <p class="hint">{{ __('アプリを閉じているときでも通話着信を端末通知で届ける設定です。Firebase Console の Web Push 証明書（VAPID）を貼るか、下の「鍵を生成」で作成できます。Android TWA も同じ設定を使います。') }}</p>
+  <p class="hint">{{ __('アプリを閉じているときでも、新着メッセージと通話着信を端末通知で届ける設定です。Firebase Console の Web Push 証明書（VAPID）を貼るか、下の「鍵を生成」で作成できます。Android TWA も同じ設定を使います。') }}</p>
 
   @if(!empty($wp['last_test_message']))
     <p class="hint storage-test-result {{ ($wp['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
@@ -46,7 +46,7 @@
       <span class="storage-test-live hint" id="web-push-test-live"></span>
     </div>
   </form>
-  <p class="hint">{{ __('端末ごとの通知許可は、各ユーザーがマイページの「通話の着信通知を登録」から行います。管理者は下の通知設定からも登録できます。') }}</p>
+  <p class="hint">{{ __('端末ごとの通知許可は、各ユーザーがマイページの「この端末の通知を登録」から行います。管理者は下の通知設定からも登録できます。') }}</p>
   <div class="storage-form-actions">
     <a class="button-link secondary" href="/mypage#web-push-subscribe">{{ __('マイページで端末を登録') }}</a>
     <a class="button-link secondary" href="/settings?section=notifications">{{ __('通知設定を開く') }}</a>

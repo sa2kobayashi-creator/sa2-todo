@@ -2852,6 +2852,17 @@
     "発信すると相手のメッセージ画面に着信が表示されます。": "When you call, an incoming alert appears on the other person's Messages screen.",
     "着信": "Incoming",
     "通話の着信": "Incoming call",
+    "新着メッセージ": "New message",
+    "新しいメッセージ": "New message",
+    ":name からメッセージ: :preview": ":name sent a message: :preview",
+    ":name（:group）: :preview": ":name (:group): :preview",
+    "メッセージと通話の通知": "Message and call notifications",
+    "アプリを閉じているときでも、新着メッセージと通話の着信をこの端末の通知で受け取れます。使うブラウザ・端末ごとに登録してください。": "Receive new messages and incoming calls on this device even when the app is closed. Register each browser or device separately.",
+    "この端末の通知を登録": "Enable notifications on this device",
+    "新着メッセージと通話の着信を、アプリを閉じているときにも端末通知で受け取れます。VAPID サーバー設定は外部連携から行います。スタンダード／ライトは設定メニューがないため、マイページから端末を登録します。": "Receive new messages and incoming calls even when the app is closed. Configure the VAPID server under Integrations. Standard and Light users register a device from My Page because they have no Settings menu.",
+    "端末ごとの通知許可は、各ユーザーがマイページの「この端末の通知を登録」から行います。管理者は下の通知設定からも登録できます。": "Each user registers a device from My Page → Enable notifications on this device. Administrators can also register from Notification settings below.",
+    "アプリを閉じているときでも、新着メッセージと通話着信を端末通知で届ける設定です。Firebase Console の Web Push 証明書（VAPID）を貼るか、下の「鍵を生成」で作成できます。Android TWA も同じ設定を使います。": "Deliver new messages and incoming call notifications even when the app is closed. Paste Firebase Web Push (VAPID) keys or generate them below. Android TWA uses the same settings.",
+    "メッセージの新着と通話着信をブラウザ通知で配信した回数です。": "How many times new-message and incoming-call notifications were delivered in the browser.",
     "応答するとカメラとマイクが使われます。": "Answering will use your camera and microphone.",
     "拒否": "Decline",
     "応答": "Answer",
@@ -3358,7 +3369,8 @@
     "家族ならテナント契約": "Tenant contract for families",
     "同じ共有サーバー上で、管理者1名・5ユーザー・メール各1アドレスの契約にできます。サーバーを分けたいときは専用インスタンスへ。": "On the shared server you can have one admin, 5 users, and one mailbox each. Choose dedicated if you want a separate server.",
     "（個人）": "(Personal)",
-    "この画面のストレージ・AI・Maps などのキーは、あなたの契約だけに使われます。LINE 公式アカウントと Web Push は運営の共有設定です。": "Storage, AI, and Maps keys on this screen apply only to your contract. The LINE official account and Web Push stay on the operator’s shared settings.",
+    "この画面のストレージ・AI・Maps などのキーは、あなたの契約だけに使われます。LINE 公式アカウント、Messenger、Web Push は運営の共有設定です。": "Storage, AI, and Maps keys on this screen apply only to your contract. The LINE official account, Messenger, and Web Push stay on the operator’s shared settings.",
     "このアカウント": "This account",
-    "契約代表1名。ユーザー・休日・ストレージ／AI／API を設定できます。共有のテナント契約は自分の契約の中だけ（月5名まで・メール各1込み）。招待コード・LINE／Web Push は運営専用です。写真鮮明化は試作のため利用できません。": "One contract holder. You can configure users, holidays, and storage / AI / API keys. A shared tenant contract is limited to that contract (up to 5 people per month, one mailbox each). Invite codes, LINE, and Web Push are operator-only. Photo enhancement is a prototype and is not available."
+    "Messenger のチャネル設定は一時的に運営のみです。顧客管理者の画面には出しません。": "Messenger channel setup is temporarily operator-only and is hidden from customer admins.",
+    "契約代表1名。ユーザー・休日・ストレージ／AI／API を設定できます。共有のテナント契約は自分の契約の中だけ（月5名まで・メール各1込み）。招待コード・LINE／Messenger／Web Push は運営専用です。写真鮮明化は試作のため利用できません。": "One contract holder. You can configure users, holidays, and storage / AI / API keys. A shared tenant contract is limited to that contract (up to 5 people per month, one mailbox each). Invite codes, LINE, Messenger, and Web Push are operator-only. Photo enhancement is a prototype and is not available."
 }

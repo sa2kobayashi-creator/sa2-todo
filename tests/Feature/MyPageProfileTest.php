@@ -145,7 +145,7 @@ class MyPageProfileTest extends TestCase
             ->get('/mypage')
             ->assertOk()
             ->assertSee('id="web-push-subscribe"', false)
-            ->assertSee('通話の着信通知を登録', false)
+            ->assertSee('この端末の通知を登録', false)
             ->assertSee('通知サーバーが未設定です。管理者に Web Push の設定を依頼してください。', false)
             ->assertDontSee('push-client.js', false);
 

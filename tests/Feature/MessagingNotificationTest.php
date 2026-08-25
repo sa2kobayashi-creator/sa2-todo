@@ -254,6 +254,30 @@ class MessagingNotificationTest extends TestCase
             ->assertSee('設定手順', false);
     }
 
+    public function test_customer_admin_does_not_see_messenger_channel_settings(): void
+    {
+        $admin = User::create([
+            'email' => 'admin-no-messenger@example.com',
+            'display_name' => 'Admin',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Admin,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/settings?section=integration')
+            ->assertOk()
+            ->assertSee('LINE連携設定', false)
+            ->assertDontSee('Facebook Messenger 通知連携', false)
+            ->assertDontSee('Page Access Token', false);
+
+        $this->actingAs($admin)
+            ->post('/settings/messaging/messenger/channel', [
+                'enabled' => '1',
+                'page_access_token' => 'should-not-save',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_issued_link_code_shows_beside_the_button_not_at_the_top(): void
     {
         $this->configureLine();
