@@ -35,7 +35,14 @@
         <form class="transit-search-form" id="transit-search-form">
           <div class="transit-places">
             <label class="transit-field">
-              <span class="transit-field-label">{{ __('出発（バス停・駅）') }}</span>
+              <span class="transit-field-label-row">
+                <span class="transit-field-label">{{ __('出発（バス停・駅）') }}</span>
+                <button type="button" class="transit-place-mic" id="transit-from-mic" aria-pressed="false" title="{{ __('出発を音声で入力') }}" aria-label="{{ __('出発を音声で入力') }}">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                  </svg>
+                </button>
+              </span>
               <span class="transit-field-control">
                 <input type="text" id="transit-from" placeholder="{{ __('例: 天神') }}" autocomplete="off" />
                 <div class="pac-holder" id="transit-from-holder"></div>
@@ -45,13 +52,21 @@
               <span aria-hidden="true">⇄</span>
             </button>
             <label class="transit-field">
-              <span class="transit-field-label">{{ __('到着（任意）') }}</span>
+              <span class="transit-field-label-row">
+                <span class="transit-field-label">{{ __('到着（任意）') }}</span>
+                <button type="button" class="transit-place-mic" id="transit-to-mic" aria-pressed="false" title="{{ __('到着を音声で入力') }}" aria-label="{{ __('到着を音声で入力') }}">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                  </svg>
+                </button>
+              </span>
               <span class="transit-field-control">
                 <input type="text" id="transit-to" placeholder="{{ __('例: 博多') }}" autocomplete="off" />
                 <div class="pac-holder" id="transit-to-holder"></div>
               </span>
             </label>
           </div>
+          <p class="hint transit-voice-status" id="transit-voice-status" aria-live="polite"></p>
           <div class="transit-time-block">
             <p class="transit-time-label">{{ __('日時') }}</p>
             <div class="transit-datetime-selects" id="transit-datetime-selects">
@@ -339,6 +354,11 @@
           shareOpenChat: @json(__('チャットを開く')),
           groupAll: @json(__('グループ全体')),
           swapPlaces: @json(__('出発と到着を入れ替え')),
+          voiceListening: @json(__('聞いています…')),
+          voiceUnsupported: @json(__('このブラウザでは音声入力に対応していません。')),
+          voiceHttps: @json(__('音声入力は HTTPS（または localhost）でのみ利用できます。')),
+          voiceStartFailed: @json(__('音声認識を開始できませんでした。')),
+          voiceMicDenied: @json(__('マイクの使用が許可されていません。')),
         },
       };
     </script>

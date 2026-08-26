@@ -37,6 +37,19 @@
     @csrf
     <label class="visually-hidden" for="{{ $aiId }}-prompt">{{ __('質問') }}</label>
     <div class="guide-composer-box">
+      <button
+        type="button"
+        class="ai-assist-mic"
+        id="{{ $aiId }}-mic"
+        aria-pressed="false"
+        title="{{ __('音声入力') }}"
+        aria-label="{{ __('音声入力') }}"
+        @disabled(! $aiReady)
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </button>
       <textarea id="{{ $aiId }}-prompt" name="prompt" rows="1" maxlength="2000" required placeholder="{{ __('聞きたいことを書いてください') }}" @disabled(! $aiReady)></textarea>
       <button type="submit" class="guide-send" id="{{ $aiId }}-submit" @disabled(! $aiReady)>{{ __('聞く') }}</button>
     </div>
@@ -46,6 +59,9 @@
     </div>
   </form>
 </section>
+@once
+  <script src="{{ asset('speech-dictation.js') }}?v={{ @filemtime(public_path('speech-dictation.js')) ?: time() }}"></script>
+@endonce
 <script>
   (() => {
     const id = @json($aiId);
@@ -58,6 +74,11 @@
       guide: @json(__('ガイド')),
       thinking: @json(__('考えています...')),
       error: @json(__('通信エラーが発生しました')),
+      voiceListening: @json(__('聞いています…')),
+      voiceUnsupported: @json(__('このブラウザでは音声入力に対応していません。')),
+      voiceHttps: @json(__('音声入力は HTTPS（または localhost）でのみ利用できます。')),
+      voiceStartFailed: @json(__('音声認識を開始できませんでした。')),
+      voiceMicDenied: @json(__('マイクの使用が許可されていません。')),
     };
     const form = document.getElementById(id + '-form');
     const log = document.getElementById(id + '-log');
@@ -65,6 +86,7 @@
     const promptEl = document.getElementById(id + '-prompt');
     const statusEl = document.getElementById(id + '-status');
     const submitEl = document.getElementById(id + '-submit');
+    const micBtn = document.getElementById(id + '-mic');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const history = [];
     let busy = false;
@@ -260,5 +282,36 @@
         send();
       });
     });
+
+    if (micBtn && window.Sa2SpeechDictation) {
+      if (!ready) {
+        micBtn.disabled = true;
+        micBtn.setAttribute('aria-disabled', 'true');
+      }
+      window.Sa2SpeechDictation.bind(micBtn, {
+        replace: false,
+        continuous: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+        getValue: () => promptEl ? promptEl.value : '',
+        setValue: (text) => {
+          if (!promptEl) return;
+          promptEl.value = text;
+          autoGrow();
+        },
+        onListening: (on) => {
+          if (statusEl && (on || statusEl.textContent === strings.voiceListening)) {
+            statusEl.textContent = on ? strings.voiceListening : '';
+          }
+        },
+        onError: (text) => {
+          if (statusEl) statusEl.textContent = text;
+        },
+        messages: {
+          unsupported: strings.voiceUnsupported,
+          https: strings.voiceHttps,
+          startFailed: strings.voiceStartFailed,
+          micDenied: strings.voiceMicDenied,
+        },
+      });
+    }
   })();
 </script>

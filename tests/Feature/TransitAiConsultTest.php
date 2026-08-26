@@ -136,7 +136,9 @@ class TransitAiConsultTest extends TestCase
         $this->assertStringContainsString('transitAiResult', $html);
         $this->assertStringContainsString('showTransitResultsFallback', $html);
         $this->assertStringContainsString('transit-search-results', $html);
-        $this->assertStringNotContainsString('すべての登録路線', $html);
+        $this->assertStringContainsString('speech-dictation.js', $html);
+        $this->assertStringContainsString('transit-from-mic', $html);
+        $this->assertStringContainsString('transit-ai-mic', $html);
     }
 
     public function test_a_saved_route_name_fills_in_the_stations(): void

@@ -33,6 +33,11 @@
     shareOpenChat: 'チャットを開く',
     groupAll: 'グループ全体',
     swapPlaces: '出発と到着を入れ替え',
+    voiceListening: '聞いています…',
+    voiceUnsupported: 'このブラウザでは音声入力に対応していません。',
+    voiceHttps: '音声入力は HTTPS（または localhost）でのみ利用できます。',
+    voiceStartFailed: '音声認識を開始できませんでした。',
+    voiceMicDenied: 'マイクの使用が許可されていません。',
   }, config.strings || {})
 
   const modal = document.getElementById('transit-favorite-modal')
@@ -547,6 +552,30 @@
       swapPlacesBtn.classList.add('is-spin')
     })
   }
+
+  const voiceStatus = document.getElementById('transit-voice-status')
+  function bindPlaceMic(button, slot) {
+    if (!button || !window.Sa2SpeechDictation) return
+    window.Sa2SpeechDictation.bind(button, {
+      replace: true,
+      getValue: function () { return slot === 'to' ? currentToValue() : currentFromValue() },
+      setValue: function (text) { window.setTransitPlaceField(slot, text) },
+      onListening: function (on) {
+        if (voiceStatus) voiceStatus.textContent = on ? t.voiceListening : ''
+      },
+      onError: function (text) {
+        if (voiceStatus) voiceStatus.textContent = text
+      },
+      messages: {
+        unsupported: t.voiceUnsupported,
+        https: t.voiceHttps,
+        startFailed: t.voiceStartFailed,
+        micDenied: t.voiceMicDenied,
+      },
+    })
+  }
+  bindPlaceMic(document.getElementById('transit-from-mic'), 'from')
+  bindPlaceMic(document.getElementById('transit-to-mic'), 'to')
 
 
   const saveSearchBtn = document.getElementById('transit-save-search')

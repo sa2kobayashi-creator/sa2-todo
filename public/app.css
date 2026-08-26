@@ -10525,10 +10525,67 @@ body.transit-page .transit-section-head .transit-section-title {
   min-width: 0;
 }
 
+.transit-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .transit-field-label {
   font-size: 12.5px;
   font-weight: 700;
   color: #475569;
+}
+
+.transit-place-mic,
+.ai-assist-mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 999px;
+  background: #ecfdf8;
+  color: #0f766e;
+  cursor: pointer;
+}
+
+.transit-place-mic:hover,
+.transit-place-mic:focus-visible,
+.ai-assist-mic:hover,
+.ai-assist-mic:focus-visible {
+  background: #0f766e;
+  color: #f0fdfa;
+  outline: none;
+}
+
+.transit-place-mic.is-listening,
+.ai-assist-mic.is-listening {
+  background: #fce8e6;
+  border-color: #f6aea9;
+  color: #c5221f;
+  animation: transit-mic-pulse 1s ease infinite;
+}
+
+.transit-place-mic:disabled,
+.ai-assist-mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  animation: none;
+}
+
+@keyframes transit-mic-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.transit-voice-status:empty {
+  display: none;
 }
 
 .transit-field-control {
@@ -24052,9 +24109,10 @@ body.dash-home-lightbox-open {
   color: inherit;
 }
 
-.guide-composer-box textarea:focus {
-  outline: none;
-  box-shadow: none;
+.ai-assist-mic {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 3px;
 }
 
 .guide-send {

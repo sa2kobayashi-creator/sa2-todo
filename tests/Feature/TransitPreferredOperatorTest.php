@@ -51,7 +51,11 @@ class TransitPreferredOperatorTest extends TestCase
             ->assertDontSee(__('福岡は西鉄バスを優先'), false)
             ->assertDontSee('transit-prefer-nishitetsu', false)
             ->assertSee('transit-places-swap', false)
-            ->assertSee(__('出発と到着を入れ替え'), false);
+            ->assertSee(__('出発と到着を入れ替え'), false)
+            ->assertSee('transit-from-mic', false)
+            ->assertSee('transit-to-mic', false)
+            ->assertSee('transit-ai-mic', false)
+            ->assertSee('speech-dictation.js', false);
     }
 
     public function test_search_marks_itineraries_for_the_chosen_operator(): void
