@@ -119,7 +119,7 @@ class FinanceCsvServiceTest extends TestCase
         $csv = $this->service->export(['year' => 2026, 'month' => 7], FinanceCsvService::FORMAT_TRANSACTIONS);
 
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv);
-        $this->assertStringContainsString('日付,種別,口座,金額', $csv);
+        $this->assertStringContainsString('日付,種別,口座,カテゴリー,金額', $csv);
         $this->assertStringContainsString('2026-07-02', $csv);
         $this->assertStringContainsString('78823', $csv);
     }

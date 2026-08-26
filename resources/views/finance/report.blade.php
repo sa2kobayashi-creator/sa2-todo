@@ -77,6 +77,32 @@
           </div>
         </section>
 
+        @if($categoryBreakdown !== [])
+          <section class="finance-report-section">
+            <h2 class="finance-section-title">{{ __('支出カテゴリー別') }}</h2>
+            <div class="finance-report-table-wrap">
+              <table class="finance-report-table">
+                <thead>
+                  <tr>
+                    <th>{{ __('カテゴリー') }}</th>
+                    <th class="is-num">{{ __('件数') }}</th>
+                    <th class="is-num">{{ __('支出') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @foreach($categoryBreakdown as $row)
+                    <tr>
+                      <td>{{ $row['label'] }}</td>
+                      <td class="is-num">{{ $row['count'] }}</td>
+                      <td class="is-num is-expense">{{ $formatMoney($row['expense'], $row['currency']) }}</td>
+                    </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </div>
+          </section>
+        @endif
+
         @if($accountBreakdown !== [])
           <section class="finance-report-section">
             <h2 class="finance-section-title">{{ __('口座別集計') }}</h2>
@@ -119,6 +145,9 @@
                     <tr>
                       <th>{{ __('日付') }}</th>
                       <th>{{ __('口座') }}</th>
+                      @if($typeKey === 'expense')
+                        <th>{{ __('カテゴリー') }}</th>
+                      @endif
                       @if($typeKey === 'transfer')
                         <th>{{ __('振替先') }}</th>
                       @endif
@@ -131,6 +160,9 @@
                       <tr>
                         <td>{{ $transaction['transactionDate'] }}</td>
                         <td>{{ $transaction['accountName'] }}</td>
+                        @if($typeKey === 'expense')
+                          <td>{{ $transaction['categoryLabel'] ?: __('未分類') }}</td>
+                        @endif
                         @if($typeKey === 'transfer')
                           <td>{{ $transaction['toAccountName'] }}</td>
                         @endif

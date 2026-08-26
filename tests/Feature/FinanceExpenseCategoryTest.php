@@ -65,6 +65,45 @@ class FinanceExpenseCategoryTest extends TestCase
             ->assertDontSee('>'.e('スーパー').'<', false);
     }
 
+    public function test_expense_with_custom_category_appears_in_list_and_report(): void
+    {
+        $user = $this->makeUser('finance-cat-use@example.com');
+        $account = FinanceAccount::query()->create([
+            'user_id' => $user->id,
+            'slug' => 'jp_cash_cat_use',
+            'region' => 'jp',
+            'kind' => 'cash',
+            'name' => '現金',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $slug = $this->actingAs($user)
+            ->postJson('/finance/categories', ['label' => '家賃'])
+            ->assertOk()
+            ->json('category.slug');
+
+        $this->actingAs($user)->post('/finance', [
+            'type' => 'expense',
+            'transactionDate' => '2026-08-10',
+            'accountId' => $account->id,
+            'amount' => 80000,
+            'category' => $slug,
+            'returnTo' => '/finance?year=2026&month=08',
+        ])->assertRedirect();
+
+        $this->actingAs($user)->get('/finance?year=2026&month=08')
+            ->assertOk()
+            ->assertSee('カテゴリー', false)
+            ->assertSee('家賃', false);
+
+        $this->actingAs($user)->get('/finance/report?period=2026-08&tab=jp')
+            ->assertOk()
+            ->assertSee('支出カテゴリー別', false)
+            ->assertSee('家賃', false);
+    }
+
     public function test_used_legacy_category_appears_for_existing_transactions(): void
     {
         $user = $this->makeUser('finance-cat-legacy@example.com');

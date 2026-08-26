@@ -7749,6 +7749,12 @@ body.finance-page {
   color: #c5221f;
 }
 
+.finance-expense-category-btn.is-active {
+  background: #fce8e6;
+  border-color: #c5221f;
+  color: #c5221f;
+}
+
 .finance-expense-category-btn.is-manage {
   border-style: dashed;
   color: #1a73e8;
@@ -10223,10 +10229,14 @@ button.finance-transaction-memo-trigger:focus-visible {
   white-space: nowrap;
 }
 
+.finance-transaction-category-cell {
+  white-space: nowrap;
+}
+
 .finance-transaction-table .finance-category-badge {
-  margin-left: 4px;
-  padding: 0 5px;
-  font-size: 10px;
+  margin-left: 0;
+  padding: 2px 8px;
+  font-size: 12px;
   line-height: 1.4;
 }
 

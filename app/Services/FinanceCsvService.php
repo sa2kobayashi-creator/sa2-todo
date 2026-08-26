@@ -500,6 +500,9 @@ class FinanceCsvService
                 ? trim((string) ($row[$indexes['memo']] ?? ''))
                 : '';
             $memo = trim(self::IMPORT_MEMO_MARKER.($memoRaw !== '' ? ' '.$memoRaw : ''));
+            $categoryRaw = ($indexes['category'] !== null)
+                ? trim((string) ($row[$indexes['category']] ?? ''))
+                : '';
 
             if ($this->transactionExists($date, $type, $account->id, $amount, $memo)) {
                 $skipped++;
@@ -515,6 +518,7 @@ class FinanceCsvService
                 'amount' => $amount,
                 'currency' => $account->currency,
                 'memo' => $memo,
+                'category' => $this->finance->normalizeExpenseCategory($categoryRaw, $type),
             ]);
             $created++;
             $dates[] = $date;
@@ -548,12 +552,15 @@ class FinanceCsvService
             ->orderBy('id')
             ->get();
 
-        $lines = [['日付', '種別', '口座', '金額', '通貨', '振替先', '振替先金額', 'メモ']];
+        $lines = [['日付', '種別', '口座', 'カテゴリー', '金額', '通貨', '振替先', '振替先金額', 'メモ']];
         foreach ($transactions as $transaction) {
             $lines[] = [
                 $transaction->transaction_date->format('Y-m-d'),
                 FinanceService::TYPE_LABELS[$transaction->type] ?? $transaction->type,
                 $transaction->account?->name ?? '',
+                $transaction->type === 'expense'
+                    ? $this->finance->expenseCategoryDisplayLabel($transaction->category)
+                    : '',
                 (string) $transaction->amount,
                 $transaction->currency,
                 $transaction->toAccount?->name ?? '',
@@ -1135,6 +1142,7 @@ class FinanceCsvService
             'date' => ['date', '日付', 'transactiondate', 'transaction_date'],
             'type' => ['type', '種別', 'transactiontype'],
             'account' => ['account', '口座', 'accountname', 'account_name'],
+            'category' => ['category', 'カテゴリー', '支出カテゴリー'],
             'amount' => ['amount', '金額'],
             'memo' => ['memo', 'メモ', 'comment', '備考'],
         ];
@@ -1157,6 +1165,7 @@ class FinanceCsvService
         }
 
         $indexes['memo'] ??= null;
+        $indexes['category'] ??= null;
 
         return $indexes;
     }

@@ -265,11 +265,20 @@ class FinanceService
             return null;
         }
         $category = trim((string) $category);
-        if ($category === '' || ! array_key_exists($category, $this->expenseCategoryLabels())) {
+        if ($category === '') {
             return null;
         }
+        $labels = $this->expenseCategoryLabels();
+        if (array_key_exists($category, $labels)) {
+            return $category;
+        }
+        foreach ($labels as $slug => $label) {
+            if (mb_strtolower((string) $label) === mb_strtolower($category)) {
+                return $slug;
+            }
+        }
 
-        return $category;
+        return null;
     }
 
     /**
@@ -1036,6 +1045,7 @@ class FinanceService
             'groupedTransactions' => $groupedTransactions,
             'transactions' => $transactionRows,
             'accountBreakdown' => $this->buildAccountBreakdown($displayTransactions),
+            'categoryBreakdown' => $this->buildExpenseCategoryBreakdown($displayTransactions),
             'schedules' => $schedules,
             'accounts' => $accountsWithBalance,
             'balanceTotals' => $this->buildBalanceTotals($accountsWithBalance),
@@ -1083,6 +1093,55 @@ class FinanceService
 
             return $row;
         }, $rows));
+    }
+
+    /**
+     * @param Collection<int, FinanceTransaction> $transactions
+     * @return list<array{slug: string, label: string, currency: string, expense: float, count: int}>
+     */
+    private function buildExpenseCategoryBreakdown(Collection $transactions): array
+    {
+        $labels = $this->expenseCategoryDisplayLabels();
+        $rows = [];
+
+        foreach ($transactions as $transaction) {
+            if ($transaction->type !== 'expense') {
+                continue;
+            }
+
+            $slug = (string) ($transaction->category ?? '');
+            $currency = $transaction->account?->currency ?? $transaction->currency ?? 'JPY';
+            $key = $slug.'|'.$currency;
+            if (! isset($rows[$key])) {
+                $rows[$key] = [
+                    'slug' => $slug,
+                    'label' => $slug !== '' ? ($labels[$slug] ?? $slug) : __('未分類'),
+                    'currency' => $currency,
+                    'expense' => 0.0,
+                    'count' => 0,
+                ];
+            }
+            $rows[$key]['expense'] += (float) $transaction->amount;
+            $rows[$key]['count']++;
+        }
+
+        $out = array_values($rows);
+        usort($out, function (array $a, array $b) {
+            if ($a['slug'] === '' && $b['slug'] !== '') {
+                return 1;
+            }
+            if ($b['slug'] === '' && $a['slug'] !== '') {
+                return -1;
+            }
+
+            return $b['expense'] <=> $a['expense'];
+        });
+
+        return array_map(function (array $row) {
+            $row['expense'] = round($row['expense'], 2);
+
+            return $row;
+        }, $out);
     }
 
     /** @return list<array<string, mixed>> */

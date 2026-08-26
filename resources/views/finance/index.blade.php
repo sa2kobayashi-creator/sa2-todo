@@ -695,7 +695,7 @@
         <div class="finance-transactions-header">
           <div>
             <h2 class="finance-section-title">{{ __('取引一覧') }}</h2>
-        <p class="hint finance-transactions-hint">{{ __('年・月・日と口座で絞り込み。金額は入金/出金/振替、残高は総残高・全銀行・現金現在残高・クレカ支払い/残金です。') }}</p>
+        <p class="hint finance-transactions-hint">{{ __('年・月・日と口座で絞り込み。支出カテゴリーは一覧とレポートに表示されます。') }}</p>
           </div>
           <div class="finance-transactions-header-actions">
             <form class="finance-transaction-filter-form" method="get" action="/finance" id="finance-tx-filter-form">
@@ -790,6 +790,7 @@
                 <col data-col="check" style="width: 36px" />
                 <col data-col="date" style="width: 110px" />
                 <col data-col="account" style="width: 140px" />
+                <col data-col="category" style="width: 110px" />
                 <col data-col="income" style="width: 88px" />
                 <col data-col="expense" style="width: 88px" />
                 <col data-col="transfer" style="width: 88px" />
@@ -806,6 +807,7 @@
                   <th scope="col" class="is-check" data-col="check"><span class="visually-hidden">{{ __('選択') }}</span></th>
                   <th scope="col" data-col="date">{{ __('日付') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
                   <th scope="col" data-col="account">{{ __('口座') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
+                  <th scope="col" data-col="category">{{ __('カテゴリー') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
                   <th scope="col" class="is-col-left" data-col="income">{{ __('入金') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
                   <th scope="col" class="is-col-left" data-col="expense">{{ __('出金') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
                   <th scope="col" class="is-col-left" data-col="transfer">{{ __('振替') }}<span class="finance-col-resize" aria-hidden="true"></span></th>
@@ -852,6 +854,13 @@
                         {{ $transaction['accountName'] }} → {{ $transaction['toAccountName'] }}
                       @else
                         {{ $transaction['accountName'] }}
+                      @endif
+                    </td>
+                    <td class="finance-transaction-category-cell">
+                      @if(!empty($transaction['categoryLabel']))
+                        <span class="finance-category-badge">{{ $transaction['categoryLabel'] }}</span>
+                      @else
+                        <span class="finance-transaction-balance is-empty">—</span>
                       @endif
                     </td>
                     <td class="finance-transaction-amount-cell is-col-left">
@@ -1668,7 +1677,7 @@
           const table = document.getElementById('finance-tx-table')
           if (!table) return
 
-          const storageKey = 'finance-tx-col-widths-v1'
+          const storageKey = 'finance-tx-col-widths-v2'
           const minWidth = 48
           const cols = Array.from(table.querySelectorAll('colgroup col[data-col]'))
           const defaults = {}

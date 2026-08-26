@@ -94,6 +94,7 @@ class FinanceController extends Controller
             'groupedTransactions' => $reportData['groupedTransactions'],
             'transactions' => $reportData['transactions'],
             'accountBreakdown' => $reportData['accountBreakdown'],
+            'categoryBreakdown' => $reportData['categoryBreakdown'],
             'schedules' => $reportData['schedules'],
             'accounts' => $reportData['accounts'],
             'balanceTotals' => $reportData['balanceTotals'],
