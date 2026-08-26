@@ -102,7 +102,7 @@ class SettingsController extends Controller
             'storageBackblaze' => $section === 'storage' ? $this->safeStorageFormState('backblaze') : null,
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
             'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
-            'travelpayoutsSettings' => $section === 'enhance' ? $this->travelpayouts->formState() : null,
+            'travelpayoutsSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->travelpayouts->formState() : null,
             'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
             'googleRoutesSettings' => $section === 'enhance' ? $this->googleRoutes->formState() : null,
             'navitimeSettings' => $section === 'enhance' ? $this->navitime->formState() : null,

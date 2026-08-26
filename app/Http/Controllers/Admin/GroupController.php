@@ -78,7 +78,7 @@ class GroupController extends Controller
         $this->assertGroupVisible($request->user(), $id);
         $data = $request->validate([
             'menuFeatures' => ['nullable', 'array'],
-            'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
+            'menuFeatures.*' => ['string', Rule::in(MenuFeature::assignableValues())],
         ]);
 
         $this->groups->syncMenuFeatures($id, $data['menuFeatures'] ?? []);

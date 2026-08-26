@@ -39,7 +39,7 @@ class GuideChatTest extends TestCase
             ->assertSee(__('カレンダー'), false)
             ->assertSee(__('＋ 話題を追加'), false)
             ->assertDontSee(__('AI に路線を相談'), false)
-            ->assertDontSee(__('AI に渡航を相談'), false);
+            ->assertDontSee(__('AI に航空を相談'), false);
     }
 
     public function test_user_can_add_edit_and_delete_a_topic(): void
@@ -224,16 +224,21 @@ class GuideChatTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('ok', false);
 
-        // 路線検索 / Travel の画面からは使える
+        // 路線検索は画面埋め込みのまま。航空は運営者のみ。
         $this->actingAs($user)->get('/transit')->assertOk()->assertSee(__('AI に路線を相談'), false);
         $this->actingAs($user)
             ->postJson('/transit/ai-ask', ['prompt' => '天神から博多まで'])
             ->assertOk()
             ->assertJsonPath('ok', true);
 
-        // Travel は Standard では既定オフなので管理者で確認する
-        $this->actingAs($admin)->get('/travel')->assertOk()->assertSee(__('AI に渡航を相談'), false);
+        $this->actingAs($admin)->get('/travel')->assertForbidden();
         $this->actingAs($admin)
+            ->postJson('/travel/ai-ask', ['prompt' => 'いつ買うと安い？'])
+            ->assertForbidden();
+
+        $super = $this->makeUser(UserRole::SuperAdmin, 'guide-travel-super@example.com');
+        $this->actingAs($super)->get('/travel')->assertOk()->assertSee(__('AI に航空を相談'), false);
+        $this->actingAs($super)
             ->postJson('/travel/ai-ask', ['prompt' => 'いつ買うと安い？'])
             ->assertOk()
             ->assertJsonPath('ok', true);

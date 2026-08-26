@@ -173,14 +173,14 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/translate')->assertOk();
     }
 
-    public function test_standard_user_keeps_travel_when_menu_features_were_pinned(): void
+    public function test_standard_user_cannot_keep_travel_even_when_menu_features_were_pinned(): void
     {
         $user = $this->makeUser(UserRole::Standard, 'standard-travel-pin@example.com');
         $user->forceFill([
             'menu_features' => UserRole::legacyStandardMenuFeatures(),
         ])->save();
 
-        $this->actingAs($user)->get('/travel')->assertOk();
+        $this->actingAs($user)->get('/travel')->assertForbidden();
     }
 
     public function test_light_user_is_limited_to_core_features(): void

@@ -81,7 +81,7 @@ class Group extends Model
             'reviewedAt' => optional($this->reviewed_at)?->format('Y-m-d H:i'),
             'reviewNote' => $this->review_note,
             'memberCount' => (int) ($this->members_count ?? $this->members()->count()),
-            'menuFeatures' => array_values(array_intersect($menuFeatures, MenuFeature::values())),
+            'menuFeatures' => array_values(array_intersect($menuFeatures, MenuFeature::assignableValues())),
         ];
     }
 }

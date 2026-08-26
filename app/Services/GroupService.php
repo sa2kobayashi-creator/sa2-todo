@@ -86,7 +86,7 @@ class GroupService
     public function syncMenuFeatures(int $groupId, array $features): array
     {
         $group = Group::query()->findOrFail($groupId);
-        $allowed = array_values(array_intersect($features, MenuFeature::values()));
+        $allowed = array_values(array_intersect($features, MenuFeature::assignableValues()));
 
         DB::transaction(function () use ($group, $allowed) {
             GroupMenuFeature::query()->where('group_id', $group->id)->delete();

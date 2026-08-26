@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AirlineName;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -37,10 +38,10 @@ class TravelFareTableService
         string $departTo,
         ?string $returnFrom = null,
         ?string $returnTo = null,
-        string $origin = 'FUK',
-        string $destination = 'MNL',
-        string $airlineCode = '5J',
-        string $currency = 'PHP',
+        string $origin = '',
+        string $destination = '',
+        string $airlineCode = '',
+        string $currency = 'JPY',
     ): array {
         if ($this->travelpayouts->token() === '') {
             throw new \RuntimeException(
@@ -67,21 +68,30 @@ class TravelFareTableService
             $this->assertRangeDays($returnFromDate, $returnToDate, __('帰国期間'));
         }
 
-        $origin = strtoupper(trim($origin)) ?: 'FUK';
-        $destination = strtoupper(trim($destination)) ?: 'MNL';
-        $preferAirline = strtoupper(trim($airlineCode !== '' ? $airlineCode : $this->travelpayouts->preferAirline())) ?: '5J';
-        $currency = strtoupper($currency) === 'JPY' ? 'JPY' : 'PHP';
+        $origin = strtoupper(trim($origin));
+        $destination = strtoupper(trim($destination));
+        if ($origin === '' || $destination === '') {
+            throw new \InvalidArgumentException(__('出発空港と到着空港を入力してください。'));
+        }
+        $filterAirline = strtoupper(trim($airlineCode));
+        $currency = strtoupper($currency) === 'PHP' ? 'PHP' : 'JPY';
 
         $warnings = [];
         $notes = [
-            __('Travelpayouts の月次キャッシュから期間内の目安運賃を集計しています。'),
-            __('日によってデータがない日は「—」になります。予約前に公式で再確認してください。'),
+            __('Travelpayouts の月次キャッシュから期間内の目安運賃を集計しています。空席保証ではありません。'),
+            __('日によってデータがない日は「—」になります。予約前に公式または比較サイトで再確認してください。'),
+            __('航空会社を空欄にすると、同じ日でも複数社の目安を候補に出します。'),
         ];
 
         if ($mode === 'ow') {
-            $outbound = $this->legPricesByDate($origin, $destination, $departFrom, $departTo, $preferAirline, $warnings);
+            $options = $this->legOptionsByDate($origin, $destination, $departFrom, $departTo, $filterAirline, $warnings);
+            $outbound = $this->cheapestOptionPerDate($options, $currency);
             $rows = $this->buildOneWayRows($departFrom, $departTo, $outbound, $currency);
-            $cheapest = $this->pickCheapestRows($rows, $currency);
+            $cheapest = $this->decorateFlights(
+                $this->pickDiverseCandidates($this->flattenLegOptions($options), $currency),
+                $origin,
+                $destination
+            );
 
             if (! array_filter($rows, fn (array $row) => ! empty($row['hasData']))) {
                 $warnings[] = __('この期間の片道キャッシュは見つかりませんでした。表は表示していますが、金額が入っている日がありません。');
@@ -92,11 +102,13 @@ class TravelFareTableService
                 $warnings[] = __('データがない日は、近い日のキャッシュから補完して表示しています（近似）。');
             }
 
+            app(IntegrationUsageService::class)->increment('travelpayouts');
+
             return [
                 'mode' => 'ow',
                 'origin' => $origin,
                 'destination' => $destination,
-                'airlineCode' => $preferAirline,
+                'airlineCode' => $filterAirline,
                 'departFrom' => $departFrom,
                 'departTo' => $departTo,
                 'returnFrom' => null,
@@ -111,19 +123,21 @@ class TravelFareTableService
             ];
         }
 
-        $outbound = $this->legPricesByDate($origin, $destination, $departFrom, $departTo, $preferAirline, $warnings);
-        $inbound = $this->legPricesByDate($destination, $origin, $returnFromDate, $returnToDate, $preferAirline, $warnings);
-        $rtPairs = $this->roundTripCalendarPairs(
+        $outOptions = $this->legOptionsByDate($origin, $destination, $departFrom, $departTo, $filterAirline, $warnings);
+        $inOptions = $this->legOptionsByDate($destination, $origin, $returnFromDate, $returnToDate, $filterAirline, $warnings);
+        $outbound = $this->cheapestOptionPerDate($outOptions, $currency);
+        $inbound = $this->cheapestOptionPerDate($inOptions, $currency);
+        $rtOptions = $this->roundTripCalendarOptions(
             $origin,
             $destination,
             $departFrom,
             $departTo,
             $returnFromDate,
             $returnToDate,
-            $currency,
-            $preferAirline,
+            $filterAirline,
             $warnings
         );
+        $rtPairs = $this->cheapestRtPairByDates($rtOptions, $currency);
 
         $matrix = $this->buildRoundTripMatrix(
             $departFrom,
@@ -141,11 +155,18 @@ class TravelFareTableService
             $warnings[] = __('Travelpayouts の往復キャッシュは疎なため、特定の往復日だけ表示されることがあります。');
         }
 
+        $candidateSource = $this->flattenRtOptions($rtOptions);
+        if ($candidateSource === [] || count($this->uniqueAirlines($candidateSource)) < 2) {
+            $candidateSource = array_merge($candidateSource, $matrix['cells'] ?? []);
+        }
+
+        app(IntegrationUsageService::class)->increment('travelpayouts');
+
         return [
             'mode' => 'rt',
             'origin' => $origin,
             'destination' => $destination,
-            'airlineCode' => $preferAirline,
+            'airlineCode' => $filterAirline,
             'departFrom' => $departFrom,
             'departTo' => $departTo,
             'returnFrom' => $returnFromDate,
@@ -153,7 +174,11 @@ class TravelFareTableService
             'currency' => $currency,
             'rows' => [],
             'matrix' => $matrix,
-            'cheapest' => $matrix['cheapest'] ?? [],
+            'cheapest' => $this->decorateFlights(
+                $this->pickDiverseCandidates($candidateSource, $currency),
+                $origin,
+                $destination
+            ),
             'warnings' => array_values(array_unique($warnings)),
             'notes' => $notes,
             'fetchedAt' => now()->format('Y-m-d H:i'),
@@ -186,49 +211,45 @@ class TravelFareTableService
 
     /**
      * @param  list<string>  $warnings
-     * @return array<string, array{pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>
+     * @return array<string, array<string, array{pricePhp: int|null, priceJpy: int|null, source: string}>>
      */
-    private function legPricesByDate(
+    private function legOptionsByDate(
         string $origin,
         string $destination,
         string $from,
         string $to,
-        string $preferAirline,
+        string $filterAirline,
         array &$warnings
     ): array {
         $byDate = [];
+        foreach (['PHP', 'JPY'] as $currency) {
+            $this->absorbPriceRows(
+                $byDate,
+                $this->requestLatestPrices($origin, $destination, $currency),
+                $currency,
+                $from,
+                $to,
+                $filterAirline
+            );
+        }
         foreach ($this->monthsInRange($from, $to) as $month) {
             foreach (['PHP', 'JPY'] as $currency) {
-                // prices_for_dates（月指定）を優先。month-matrix は月ズレすることがある。
-                $rows = $this->requestPricesForDatesMonth($origin, $destination, $month, $currency, true);
-                if ($rows === []) {
-                    $rows = $this->requestMonthMatrixMonth($origin, $destination, $month, $currency, false);
-                }
-                foreach ($rows as $row) {
-                    $date = $row['departure_at'];
-                    if ($date < $from || $date > $to) {
-                        continue;
-                    }
-                    if (! isset($byDate[$date])) {
-                        $byDate[$date] = [
-                            'pricePhp' => null,
-                            'priceJpy' => null,
-                            'airline' => '',
-                            'source' => (string) ($row['source'] ?? 'prices_for_dates'),
-                        ];
-                    }
-                    $key = $currency === 'JPY' ? 'priceJpy' : 'pricePhp';
-                    $price = (int) $row['price'];
-                    $current = $byDate[$date][$key];
-                    $airline = strtoupper((string) ($row['airline'] ?? ''));
-                    if ($current === null || $this->isBetterPrice($current, $price, $byDate[$date]['airline'], $airline, $preferAirline)) {
-                        $byDate[$date][$key] = $price;
-                        if ($airline !== '') {
-                            $byDate[$date]['airline'] = $airline;
-                        }
-                        $byDate[$date]['source'] = (string) ($row['source'] ?? 'prices_for_dates');
-                    }
-                }
+                $this->absorbPriceRows(
+                    $byDate,
+                    $this->requestPricesForDatesMonth($origin, $destination, $month, $currency, true, $filterAirline),
+                    $currency,
+                    $from,
+                    $to,
+                    $filterAirline
+                );
+                $this->absorbPriceRows(
+                    $byDate,
+                    $this->requestMonthMatrixMonth($origin, $destination, $month, $currency, false),
+                    $currency,
+                    $from,
+                    $to,
+                    $filterAirline
+                );
             }
         }
 
@@ -244,21 +265,227 @@ class TravelFareTableService
         return $byDate;
     }
 
-    private function isBetterPrice(?int $current, int $candidate, string $currentAirline, string $candidateAirline, string $preferAirline): bool
+    /**
+     * @param  array<string, array<string, array{pricePhp: int|null, priceJpy: int|null, source: string}>>  $byDate
+     * @param  list<array{price: int, departure_at: string, airline?: string, source?: string}>  $rows
+     */
+    private function absorbPriceRows(
+        array &$byDate,
+        array $rows,
+        string $currency,
+        string $from,
+        string $to,
+        string $filterAirline
+    ): void {
+        $priceKey = $currency === 'JPY' ? 'priceJpy' : 'pricePhp';
+        foreach ($rows as $row) {
+            $date = substr((string) ($row['departure_at'] ?? ''), 0, 10);
+            if ($date === '' || $date < $from || $date > $to) {
+                continue;
+            }
+            $airline = $this->airlineFromRow($row);
+            if ($filterAirline !== '' && $airline !== '' && $airline !== $filterAirline) {
+                continue;
+            }
+            $slot = $airline !== '' ? $airline : '_';
+            if (! isset($byDate[$date][$slot])) {
+                $byDate[$date][$slot] = [
+                    'pricePhp' => null,
+                    'priceJpy' => null,
+                    'source' => (string) ($row['source'] ?? ''),
+                ];
+            }
+            $price = (int) ($row['price'] ?? 0);
+            if ($price <= 0) {
+                continue;
+            }
+            $current = $byDate[$date][$slot][$priceKey];
+            if ($current === null || $price < $current) {
+                $byDate[$date][$slot][$priceKey] = $price;
+                $byDate[$date][$slot]['source'] = (string) ($row['source'] ?? $byDate[$date][$slot]['source']);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, array<string, array{pricePhp: int|null, priceJpy: int|null, source: string}>>  $options
+     * @return array<string, array{pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>
+     */
+    private function cheapestOptionPerDate(array $options, string $currency): array
     {
-        if ($current === null) {
-            return true;
+        $priceKey = $currency === 'JPY' ? 'priceJpy' : 'pricePhp';
+        $byDate = [];
+        foreach ($options as $date => $airlines) {
+            if (! is_array($airlines)) {
+                continue;
+            }
+            $best = null;
+            $bestAirline = '';
+            $bestPrice = null;
+            foreach ($airlines as $airline => $leg) {
+                if (! is_array($leg)) {
+                    continue;
+                }
+                $price = $leg[$priceKey] ?? null;
+                if ($price === null) {
+                    $price = $leg['priceJpy'] ?? $leg['pricePhp'] ?? null;
+                }
+                if ($price === null) {
+                    continue;
+                }
+                if ($bestPrice === null || (int) $price < $bestPrice) {
+                    $best = $leg;
+                    $bestAirline = (string) $airline;
+                    $bestPrice = (int) $price;
+                }
+            }
+            if ($best !== null) {
+                $byDate[(string) $date] = [
+                    'pricePhp' => $best['pricePhp'] ?? null,
+                    'priceJpy' => $best['priceJpy'] ?? null,
+                    'airline' => $bestAirline === '_' ? '' : $bestAirline,
+                    'source' => (string) ($best['source'] ?? ''),
+                ];
+            }
         }
-        $currentPreferred = $currentAirline === $preferAirline;
-        $candidatePreferred = $candidateAirline === $preferAirline;
-        if ($candidatePreferred && ! $currentPreferred) {
-            return true;
-        }
-        if ($currentPreferred && ! $candidatePreferred) {
-            return false;
+        ksort($byDate);
+
+        return $byDate;
+    }
+
+    /**
+     * @param  array<string, array<string, array{pricePhp: int|null, priceJpy: int|null, source: string}>>  $options
+     * @return list<array<string, mixed>>
+     */
+    private function flattenLegOptions(array $options): array
+    {
+        $items = [];
+        foreach ($options as $date => $airlines) {
+            if (! is_array($airlines)) {
+                continue;
+            }
+            foreach ($airlines as $airline => $leg) {
+                if (! is_array($leg)) {
+                    continue;
+                }
+                $items[] = [
+                    'departOn' => (string) $date,
+                    'airline' => ((string) $airline) === '_' ? '' : strtoupper((string) $airline),
+                    'pricePhp' => $leg['pricePhp'] ?? null,
+                    'priceJpy' => $leg['priceJpy'] ?? null,
+                    'source' => $leg['source'] ?? '',
+                ];
+            }
         }
 
-        return $candidate < $current;
+        return $items;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function pickDiverseCandidates(array $items, string $currency, int $limit = 16, int $perAirline = 4): array
+    {
+        $priced = array_values(array_filter($items, function (array $row) use ($currency) {
+            $price = $currency === 'JPY' ? ($row['priceJpy'] ?? null) : ($row['pricePhp'] ?? null);
+
+            return $price !== null && (int) $price > 0 && empty($row['isFilled']);
+        }));
+        usort($priced, function (array $a, array $b) use ($currency) {
+            $pa = (int) ($currency === 'JPY' ? $a['priceJpy'] : $a['pricePhp']);
+            $pb = (int) ($currency === 'JPY' ? $b['priceJpy'] : $b['pricePhp']);
+            if ($pa === $pb) {
+                return strcmp((string) ($a['departOn'] ?? ''), (string) ($b['departOn'] ?? ''));
+            }
+
+            return $pa <=> $pb;
+        });
+
+        $picked = [];
+        $seen = [];
+        $counts = [];
+        $fingerprints = [];
+        $fingerprintOf = static function (array $row): string {
+            $airline = strtoupper(trim((string) ($row['airline'] ?? ''))) ?: '_';
+
+            return $airline.'|'.($row['departOn'] ?? '').'|'.($row['returnOn'] ?? '');
+        };
+
+        foreach ($priced as $row) {
+            $airline = strtoupper(trim((string) ($row['airline'] ?? ''))) ?: '_';
+            if (isset($seen[$airline])) {
+                continue;
+            }
+            $seen[$airline] = true;
+            $counts[$airline] = 1;
+            $picked[] = $row;
+            $fingerprints[$fingerprintOf($row)] = true;
+            if (count($picked) >= $limit) {
+                return $picked;
+            }
+        }
+
+        foreach ($priced as $row) {
+            $fp = $fingerprintOf($row);
+            if (isset($fingerprints[$fp])) {
+                continue;
+            }
+            $airline = strtoupper(trim((string) ($row['airline'] ?? ''))) ?: '_';
+            if (($counts[$airline] ?? 0) >= $perAirline) {
+                continue;
+            }
+            $counts[$airline] = ($counts[$airline] ?? 0) + 1;
+            $picked[] = $row;
+            $fingerprints[$fp] = true;
+            if (count($picked) >= $limit) {
+                break;
+            }
+        }
+
+        usort($picked, function (array $a, array $b) use ($currency) {
+            $pa = (int) ($currency === 'JPY' ? $a['priceJpy'] : $a['pricePhp']);
+            $pb = (int) ($currency === 'JPY' ? $b['priceJpy'] : $b['pricePhp']);
+            if ($pa === $pb) {
+                return strcmp((string) ($a['departOn'] ?? ''), (string) ($b['departOn'] ?? ''));
+            }
+
+            return $pa <=> $pb;
+        });
+
+        return $picked;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<string>
+     */
+    private function uniqueAirlines(array $items): array
+    {
+        $codes = [];
+        foreach ($items as $item) {
+            $code = strtoupper(trim((string) ($item['airline'] ?? '')));
+            if ($code !== '') {
+                $codes[$code] = true;
+            }
+        }
+
+        return array_keys($codes);
+    }
+
+    /** @param  array<string, mixed>  $row */
+    private function airlineFromRow(array $row): string
+    {
+        $code = strtoupper(trim((string) ($row['airline'] ?? '')));
+        if ($code !== '') {
+            return $code;
+        }
+        $airlines = $row['airlines'] ?? null;
+        if (is_array($airlines) && $airlines !== []) {
+            return strtoupper(trim((string) $airlines[0]));
+        }
+
+        return '';
     }
 
     /**
@@ -408,6 +635,9 @@ class TravelFareTableService
                     'rtPhp' => $rt['pricePhp'] ?? null,
                     'rtJpy' => $rt['priceJpy'] ?? null,
                     'source' => $rt ? 'calendar' : 'ow-sum',
+                    'airline' => strtoupper((string) (is_array($rt)
+                        ? ($rt['airline'] ?? '')
+                        : (is_array($out) ? ($out['airline'] ?? '') : ''))),
                     'hasData' => true,
                     'isCheapest' => false,
                 ];
@@ -435,27 +665,36 @@ class TravelFareTableService
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
+     * @param  list<array<string, mixed>>  $items
      * @return list<array<string, mixed>>
      */
-    private function pickCheapestRows(array $rows, string $currency, int $limit = 10): array
+    private function decorateFlights(array $items, string $origin, string $destination): array
     {
-        $priced = array_values(array_filter($rows, function (array $row) use ($currency) {
-            $price = $currency === 'JPY' ? $row['priceJpy'] : $row['pricePhp'];
+        $quote = app(TravelFareQuoteService::class);
 
-            return $price !== null;
-        }));
-        usort($priced, function (array $a, array $b) use ($currency) {
-            $pa = $currency === 'JPY' ? $a['priceJpy'] : $a['pricePhp'];
-            $pb = $currency === 'JPY' ? $b['priceJpy'] : $b['pricePhp'];
-            if ($pa === $pb) {
-                return strcmp((string) $a['departOn'], (string) $b['departOn']);
+        return array_map(function (array $item) use ($quote, $origin, $destination) {
+            $code = strtoupper(trim((string) ($item['airline'] ?? '')));
+            $item['airline'] = $code;
+            $item['airlineLabel'] = AirlineName::label($code);
+            $departOn = (string) ($item['departOn'] ?? '');
+            if ($departOn === '') {
+                return $item;
+            }
+            $returnOn = ! empty($item['returnOn']) ? (string) $item['returnOn'] : null;
+            try {
+                $item['searchUrl'] = $quote->searchUrl($origin, $destination, $departOn, $returnOn);
+                $links = $quote->confirmUrls($code, $origin, $destination, $departOn, $returnOn);
+                $official = collect($links)->first(fn (array $link) => ($link['badge'] ?? '') === __('公式'));
+                $item['officialUrl'] = is_array($official) ? (string) ($official['url'] ?? '') : '';
+                $item['officialLabel'] = is_array($official) ? (string) ($official['label'] ?? '') : '';
+            } catch (\Throwable) {
+                $item['searchUrl'] = $item['searchUrl'] ?? '';
+                $item['officialUrl'] = '';
+                $item['officialLabel'] = '';
             }
 
-            return $pa <=> $pb;
-        });
-
-        return array_slice($priced, 0, $limit);
+            return $item;
+        }, $items);
     }
 
     /**
@@ -484,17 +723,16 @@ class TravelFareTableService
 
     /**
      * @param  list<string>  $warnings
-     * @return array<string, array{pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>
+     * @return array<string, array{departOn: string, returnOn: string, pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>
      */
-    private function roundTripCalendarPairs(
+    private function roundTripCalendarOptions(
         string $origin,
         string $destination,
         string $departFrom,
         string $departTo,
         string $returnFrom,
         string $returnTo,
-        string $currency,
-        string $preferAirline,
+        string $filterAirline,
         array &$warnings
     ): array {
         $pairs = [];
@@ -517,24 +755,27 @@ class TravelFareTableService
                         continue;
                     }
 
-                    $key = $departOn.'|'.$returnOn;
+                    $airline = $this->airlineFromRow($row);
+                    if ($filterAirline !== '' && $airline !== '' && $airline !== $filterAirline) {
+                        continue;
+                    }
+                    $slot = $airline !== '' ? $airline : '_';
+                    $key = $departOn.'|'.$returnOn.'|'.$slot;
                     if (! isset($pairs[$key])) {
                         $pairs[$key] = [
+                            'departOn' => $departOn,
+                            'returnOn' => $returnOn,
                             'pricePhp' => null,
                             'priceJpy' => null,
-                            'airline' => '',
+                            'airline' => $slot === '_' ? '' : $slot,
                             'source' => 'calendar',
                         ];
                     }
                     $price = (int) $row['price'];
-                    $airline = strtoupper((string) ($row['airline'] ?? ''));
                     $priceKey = $curr === 'JPY' ? 'priceJpy' : 'pricePhp';
                     $current = $pairs[$key][$priceKey];
-                    if ($current === null || $this->isBetterPrice($current, $price, $pairs[$key]['airline'], $airline, $preferAirline)) {
+                    if ($current === null || $price < $current) {
                         $pairs[$key][$priceKey] = $price;
-                        if ($airline !== '') {
-                            $pairs[$key]['airline'] = $airline;
-                        }
                     }
                 }
             }
@@ -545,6 +786,58 @@ class TravelFareTableService
         }
 
         return $pairs;
+    }
+
+    /**
+     * @param  array<string, array{departOn: string, returnOn: string, pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>  $options
+     * @return array<string, array{pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>
+     */
+    private function cheapestRtPairByDates(array $options, string $currency): array
+    {
+        $priceKey = $currency === 'JPY' ? 'priceJpy' : 'pricePhp';
+        $pairs = [];
+        foreach ($options as $option) {
+            $dateKey = $option['departOn'].'|'.$option['returnOn'];
+            $price = $option[$priceKey] ?? null;
+            if ($price === null) {
+                $price = $option['priceJpy'] ?? $option['pricePhp'] ?? null;
+            }
+            if ($price === null) {
+                continue;
+            }
+            $current = $pairs[$dateKey][$priceKey] ?? null;
+            if ($current === null || (int) $price < (int) $current) {
+                $pairs[$dateKey] = [
+                    'pricePhp' => $option['pricePhp'] ?? null,
+                    'priceJpy' => $option['priceJpy'] ?? null,
+                    'airline' => (string) ($option['airline'] ?? ''),
+                    'source' => 'calendar',
+                ];
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param  array<string, array{departOn: string, returnOn: string, pricePhp: int|null, priceJpy: int|null, airline: string, source: string}>  $options
+     * @return list<array<string, mixed>>
+     */
+    private function flattenRtOptions(array $options): array
+    {
+        $items = [];
+        foreach ($options as $option) {
+            $items[] = [
+                'departOn' => $option['departOn'],
+                'returnOn' => $option['returnOn'],
+                'airline' => $option['airline'],
+                'pricePhp' => $option['pricePhp'],
+                'priceJpy' => $option['priceJpy'],
+                'source' => $option['source'] ?? 'calendar',
+            ];
+        }
+
+        return $items;
     }
 
     /** @return list<string> */
@@ -583,7 +876,8 @@ class TravelFareTableService
         string $destination,
         string $month,
         string $currency,
-        bool $oneWay
+        bool $oneWay,
+        string $filterAirline = ''
     ): array {
         $token = $this->travelpayouts->token();
         $base = $this->travelpayouts->baseUrl();
@@ -594,15 +888,12 @@ class TravelFareTableService
 
         try {
             $attempts = $this->travelpayouts->directOnly() ? [true, false] : [false];
-            $byDate = [];
+            $byKey = [];
 
             foreach ($attempts as $direct) {
-                $response = Http::timeout(25)
-                    ->withHeaders([
-                        'X-Access-Token' => $token,
-                        'Accept' => 'application/json',
-                    ])
-                    ->get($base.'/aviasales/v3/prices_for_dates', [
+                $gotAny = false;
+                for ($page = 1; $page <= 3; $page++) {
+                    $query = [
                         'origin' => $origin,
                         'destination' => $destination,
                         'departure_at' => $month,
@@ -613,53 +904,141 @@ class TravelFareTableService
                         'cy' => strtolower($currency),
                         'currency' => strtolower($currency),
                         'market' => $market,
-                        'limit' => 100,
-                        'page' => 1,
+                        'limit' => 300,
+                        'page' => $page,
                         'token' => $token,
-                    ]);
+                    ];
+                    if ($filterAirline !== '') {
+                        $query['airline'] = $filterAirline;
+                    }
 
-                if (! $response->successful()) {
-                    continue;
-                }
+                    $response = Http::timeout(25)
+                        ->withHeaders([
+                            'X-Access-Token' => $token,
+                            'Accept' => 'application/json',
+                        ])
+                        ->get($base.'/aviasales/v3/prices_for_dates', $query);
 
-                $json = $response->json();
-                if (! is_array($json) || empty($json['success'])) {
-                    continue;
-                }
-
-                $data = $json['data'] ?? [];
-                if (! is_array($data) || $data === []) {
-                    continue;
-                }
-
-                foreach ($data as $row) {
-                    if (! is_array($row) || ! isset($row['price']) || (int) $row['price'] <= 0) {
+                    if (! $response->successful()) {
                         continue;
                     }
-                    $dep = substr((string) ($row['departure_at'] ?? ''), 0, 10);
-                    if ($dep === '' || ! str_starts_with($dep, $month)) {
+
+                    $json = $response->json();
+                    if (! is_array($json) || empty($json['success'])) {
                         continue;
                     }
-                    $price = (int) $row['price'];
-                    $airline = strtoupper((string) ($row['airline'] ?? ''));
-                    if (! isset($byDate[$dep]) || $price < $byDate[$dep]['price']) {
-                        $byDate[$dep] = [
-                            'price' => $price,
-                            'departure_at' => $dep,
-                            'airline' => $airline,
-                            'source' => 'prices_for_dates',
-                        ];
+
+                    $data = $json['data'] ?? [];
+                    if (! is_array($data) || $data === []) {
+                        break;
+                    }
+
+                    $pageCount = 0;
+                    foreach ($data as $row) {
+                        if (! is_array($row) || ! isset($row['price']) || (int) $row['price'] <= 0) {
+                            continue;
+                        }
+                        $dep = substr((string) ($row['departure_at'] ?? ''), 0, 10);
+                        if ($dep === '' || ! str_starts_with($dep, $month)) {
+                            continue;
+                        }
+                        $price = (int) $row['price'];
+                        $airline = $this->airlineFromRow($row);
+                        $key = $dep.'|'.($airline !== '' ? $airline : '_');
+                        $gotAny = true;
+                        $pageCount++;
+                        if (! isset($byKey[$key]) || $price < $byKey[$key]['price']) {
+                            $byKey[$key] = [
+                                'price' => $price,
+                                'departure_at' => $dep,
+                                'airline' => $airline,
+                                'source' => 'prices_for_dates',
+                            ];
+                        }
+                    }
+
+                    $airlineCount = count($this->uniqueAirlines(array_values($byKey)));
+                    if ($pageCount < 300 || $filterAirline !== '' || $airlineCount >= 6) {
+                        break;
                     }
                 }
 
-                if ($byDate !== []) {
+                if ($gotAny && ($filterAirline !== '' || count($this->uniqueAirlines(array_values($byKey))) >= 2)) {
+                    break;
+                }
+                if ($gotAny && ! $this->travelpayouts->directOnly()) {
                     break;
                 }
             }
 
-            return array_values($byDate);
+            return array_values($byKey);
         } catch (\Throwable $e) {
             Log::warning('travel.fare_table_prices_for_dates_failed', ['message' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /**
+     * @return list<array{price: int, departure_at: string, airline: string, source: string}>
+     */
+    private function requestLatestPrices(string $origin, string $destination, string $currency): array
+    {
+        $token = $this->travelpayouts->token();
+        $base = $this->travelpayouts->baseUrl();
+        $currency = strtoupper($currency);
+
+        try {
+            $response = Http::timeout(25)
+                ->withHeaders([
+                    'X-Access-Token' => $token,
+                    'Accept' => 'application/json',
+                ])
+                ->get($base.'/v2/prices/latest', [
+                    'origin' => $origin,
+                    'destination' => $destination,
+                    'currency' => strtolower($currency),
+                    'period_type' => 'year',
+                    'page' => 1,
+                    'limit' => 100,
+                    'show_to_affiliates' => 'true',
+                    'sorting' => 'price',
+                    'token' => $token,
+                ]);
+
+            if (! $response->successful()) {
+                return [];
+            }
+
+            $data = $response->json('data') ?? [];
+            if (! is_array($data)) {
+                return [];
+            }
+
+            $rows = [];
+            foreach ($data as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $price = (int) ($row['value'] ?? $row['price'] ?? 0);
+                $dep = substr((string) ($row['depart_date'] ?? $row['departure_at'] ?? ''), 0, 10);
+                if ($price <= 0 || $dep === '') {
+                    continue;
+                }
+                if ($this->travelpayouts->directOnly() && isset($row['number_of_changes']) && (int) $row['number_of_changes'] > 0) {
+                    continue;
+                }
+                $rows[] = [
+                    'price' => $price,
+                    'departure_at' => $dep,
+                    'airline' => $this->airlineFromRow($row),
+                    'source' => 'latest',
+                ];
+            }
+
+            return $rows;
+        } catch (\Throwable $e) {
+            Log::warning('travel.fare_table_latest_failed', ['message' => $e->getMessage()]);
 
             return [];
         }
@@ -721,7 +1100,7 @@ class TravelFareTableService
                 $rows[] = [
                     'price' => $price,
                     'departure_at' => $dep,
-                    'airline' => (string) ($row['airline'] ?? ''),
+                    'airline' => $this->airlineFromRow($row),
                     'source' => 'month-matrix',
                 ];
             }
@@ -781,7 +1160,7 @@ class TravelFareTableService
                     'price' => (int) $row['price'],
                     'departure_at' => (string) ($row['departure_at'] ?? ''),
                     'return_at' => (string) ($row['return_at'] ?? ''),
-                    'airline' => (string) ($row['airline'] ?? ''),
+                    'airline' => $this->airlineFromRow($row),
                 ];
             }
 

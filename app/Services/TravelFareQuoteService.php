@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AirlineName;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -43,9 +44,9 @@ class TravelFareQuoteService
     public function quote(
         string $departOn,
         ?string $returnOn = null,
-        string $origin = 'FUK',
-        string $destination = 'MNL',
-        string $airlineCode = '5J',
+        string $origin = '',
+        string $destination = '',
+        string $airlineCode = '',
         string $bookedAs = 'rt'
     ): array {
         $token = $this->travelpayouts->token();
@@ -58,7 +59,7 @@ class TravelFareQuoteService
         $departOn = trim($departOn);
         $returnOn = $returnOn !== null ? trim($returnOn) : '';
         if ($departOn === '') {
-            throw new \InvalidArgumentException(__('出国日（日本発）は必須です。'));
+            throw new \InvalidArgumentException(__('出発日は必須です。'));
         }
         try {
             Carbon::parse($departOn);
@@ -69,14 +70,17 @@ class TravelFareQuoteService
             throw new \InvalidArgumentException(__('日付の形式が正しくありません。'));
         }
 
-        $origin = strtoupper(trim($origin)) ?: 'FUK';
-        $destination = strtoupper(trim($destination)) ?: 'MNL';
-        $preferAirline = strtoupper(trim($airlineCode !== '' ? $airlineCode : $this->travelpayouts->preferAirline())) ?: '5J';
+        $origin = strtoupper(trim($origin));
+        $destination = strtoupper(trim($destination));
+        if ($origin === '' || $destination === '') {
+            throw new \InvalidArgumentException(__('出発空港と到着空港を入力してください。'));
+        }
+        $preferAirline = strtoupper(trim($airlineCode !== '' ? $airlineCode : $this->travelpayouts->preferAirline()));
 
         $warnings = [];
         $notes = [
             __('Travelpayouts API のキャッシュ価格（税込目安）。座席・条件により変動します。'),
-            __('予約前に Cebu Pacific 公式で税込金額を再確認してください。'),
+            __('予約前に航空会社または比較サイトで税込金額を再確認してください。'),
         ];
 
         $owOutPhp = $this->fetchCheapest($origin, $destination, $departOn, null, 'PHP', $preferAirline, true, $warnings);
@@ -156,6 +160,7 @@ class TravelFareQuoteService
             'origin' => $origin,
             'destination' => $destination,
             'airlineCode' => $preferAirline,
+            'airlineLabel' => AirlineName::label($preferAirline),
             'departOn' => $departOn,
             'returnOn' => $returnOn !== '' ? $returnOn : null,
             'bookedAs' => $bookedAs,
@@ -172,6 +177,7 @@ class TravelFareQuoteService
             'compareJpy' => $compareJpy,
             'source' => 'Travelpayouts',
             'sourceUrl' => $sourceUrl,
+            'confirmUrls' => $this->confirmUrls($preferAirline, $origin, $destination, $departOn, $returnOn !== '' ? $returnOn : null),
             'fetchedAt' => now()->format('Y-m-d H:i'),
             'notes' => $notes,
             'warnings' => array_values(array_unique($warnings)),
@@ -194,6 +200,10 @@ class TravelFareQuoteService
         $rows = $this->collectFareRows($origin, $destination, $departOn, $returnOn, $currency, $oneWay, $warnings);
         if ($rows === []) {
             return null;
+        }
+
+        if ($preferAirline === '') {
+            return (int) min(array_map(fn (array $r) => (int) $r['price'], $rows));
         }
 
         $preferred = array_values(array_filter(
@@ -759,6 +769,54 @@ class TravelFareQuoteService
         }
 
         return $url;
+    }
+
+    /**
+     * @return list<array{url: string, label: string, badge: string}>
+     */
+    public function confirmUrls(
+        string $airlineCode,
+        string $origin,
+        string $destination,
+        string $departOn,
+        ?string $returnOn
+    ): array {
+        $items = [];
+        $official = $this->airlineHomepage($airlineCode);
+        if ($official !== null) {
+            $items[] = [
+                'url' => $official['url'],
+                'label' => $official['label'],
+                'badge' => __('公式'),
+            ];
+        }
+        $items[] = [
+            'url' => $this->searchUrl($origin, $destination, $departOn, $returnOn),
+            'label' => __('比較サイト（Aviasales）'),
+            'badge' => __('目安'),
+        ];
+
+        return $items;
+    }
+
+    /** @return array{url: string, label: string}|null */
+    private function airlineHomepage(string $airlineCode): ?array
+    {
+        return match (strtoupper(trim($airlineCode))) {
+            '5J' => ['url' => 'https://www.cebupacificair.com/en-JP', 'label' => 'Cebu Pacific'],
+            'PR' => ['url' => 'https://www.philippineairlines.com/', 'label' => 'Philippine Airlines'],
+            'NH', 'NQ' => ['url' => 'https://www.ana.co.jp/', 'label' => 'ANA'],
+            'JL' => ['url' => 'https://www.jal.co.jp/', 'label' => 'JAL'],
+            'GK' => ['url' => 'https://www.jetstar.com/jp/ja/home', 'label' => 'Jetstar'],
+            'MM' => ['url' => 'https://www.flypeach.com/', 'label' => 'Peach'],
+            'JW' => ['url' => 'https://www.vanilla-air.com/', 'label' => 'Vanilla Air'],
+            'BC' => ['url' => 'https://www.skymark.co.jp/', 'label' => 'Skymark'],
+            'TW' => ['url' => 'https://www.twayair.com/', 'label' => 'T\'way'],
+            'LJ' => ['url' => 'https://www.jinair.com/', 'label' => 'Jin Air'],
+            'VJ' => ['url' => 'https://www.vietjetair.com/', 'label' => 'Vietjet'],
+            'AK', 'D7' => ['url' => 'https://www.airasia.com/', 'label' => 'AirAsia'],
+            default => null,
+        };
     }
 
     /** @deprecated Google Flights リンク互換用 */

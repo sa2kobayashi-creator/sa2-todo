@@ -46,7 +46,7 @@ class TravelpayoutsConfigService
             return $fromDb;
         }
 
-        return strtoupper(trim((string) config('services.travelpayouts.prefer_airline', '5J'))) ?: '5J';
+        return strtoupper(trim((string) config('services.travelpayouts.prefer_airline', '')));
     }
 
     public function directOnly(): bool
@@ -114,10 +114,7 @@ class TravelpayoutsConfigService
             }
         }
 
-        $preferAirline = strtoupper(trim((string) ($input['prefer_airline'] ?? '')));
-        if ($preferAirline !== '') {
-            $settings['prefer_airline'] = $preferAirline;
-        }
+        $settings['prefer_airline'] = strtoupper(trim((string) ($input['prefer_airline'] ?? '')));
 
         $settings['direct_only'] = filter_var($input['direct_only'] ?? true, FILTER_VALIDATE_BOOLEAN);
 
@@ -181,16 +178,16 @@ class TravelpayoutsConfigService
                     'Accept' => 'application/json',
                 ])
                 ->get($this->baseUrl().'/aviasales/v3/prices_for_dates', [
-                    'origin' => 'FUK',
-                    'destination' => 'MNL',
+                    'origin' => 'HND',
+                    'destination' => 'FUK',
                     'departure_at' => $departOn,
                     'one_way' => 'true',
                     'direct' => $this->directOnly() ? 'true' : 'false',
                     'sorting' => 'price',
                     'unique' => 'false',
-                    'cy' => 'php',
-                    'currency' => 'php',
-                    'market' => $this->marketPhp(),
+                    'cy' => 'jpy',
+                    'currency' => 'jpy',
+                    'market' => $this->marketJpy(),
                     'limit' => 1,
                     'page' => 1,
                     'token' => $token,

@@ -113,6 +113,45 @@ class SuperAdminOnlyFeaturesTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_travel_is_super_admin_only(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-travel-ui@example.com');
+        $standard = $this->makeUser(UserRole::Standard, 'std-travel-ui@example.com');
+        $super = $this->makeUser(UserRole::SuperAdmin, 'super-travel-ui@example.com');
+
+        $this->actingAs($admin)->get('/travel')->assertForbidden();
+        $this->actingAs($standard)->get('/travel')->assertForbidden();
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee(__('航空へ'), false)
+            ->assertDontSee('href="/travel"', false);
+        $this->actingAs($admin)->get('/settings?section=enhance')
+            ->assertOk()
+            ->assertDontSee('Travelpayouts', false)
+            ->assertDontSee(__('Travelpayouts（航空運賃）'), false);
+        $this->actingAs($admin)->get('/settings?section=usage')
+            ->assertOk()
+            ->assertDontSee(__('Travelpayouts（航空運賃）'), false);
+        $this->actingAs($admin)->post('/settings/api/travelpayouts', [
+            'enabled' => '1',
+            'token' => 'secret',
+        ])->assertForbidden();
+
+        $this->actingAs($super)->get('/travel')->assertOk();
+        $this->actingAs($super)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('href="/travel"', false);
+        $this->actingAs($super)->get('/settings?section=enhance')
+            ->assertOk()
+            ->assertSee(__('Travelpayouts（航空運賃）'), false);
+        $this->actingAs($super)->get('/settings?section=usage')
+            ->assertOk()
+            ->assertSee(__('Travelpayouts（航空運賃）'), false);
+        $this->actingAs($super)->get('/mypage')
+            ->assertOk()
+            ->assertSee(__('航空'), false);
+    }
+
     public function test_translate_page_is_available_to_signed_in_users(): void
     {
         $standard = $this->makeUser(UserRole::Standard, 'std-translate@example.com');

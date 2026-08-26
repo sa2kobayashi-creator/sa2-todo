@@ -102,6 +102,7 @@ class TravelPromoWatchService
         $stats = ['users' => 0, 'created' => 0, 'updated' => 0, 'alerts' => 0, 'errors' => 0];
 
         TravelProfile::query()
+            ->where('promo_watch_enabled', true)
             ->orderBy('id')
             ->each(function (TravelProfile $profile) use (&$stats) {
                 $stats['users']++;

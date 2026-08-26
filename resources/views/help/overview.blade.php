@@ -20,13 +20,13 @@
         @if(($htmlLang ?? app()->getLocale()) === 'en')
           <section class="help-section">
             <h2>What this app is</h2>
-            <p>{{ config('app.name') }} brings everyday life and work into one place: a dashboard calendar, ToDos, notes, photos, messages, mail, expenses, maps, transit, translation, music, and videos. Each person signs in with their own account. Personal and Work modes switch what you see on the dashboard and ToDos.</p>
+            <p>{{ config('app.name') }} brings everyday life and work into one place: a dashboard calendar, ToDos, notes, photos, messages, mail, household budget, maps, transit, translation, music, and videos. Each person signs in with their own account. Personal and Work modes switch what you see on the dashboard and ToDos.</p>
 
             <h2>Who does what</h2>
             <ul>
               <li><strong>Operator</strong> — runs the server. Use Settings → Contact if something is broken at the infrastructure level.</li>
               <li><strong>Administrator (you)</strong> — owns this copy of the app: users, invite code, API keys, storage, and AI usage. Fees from DeepL, Google, and similar services are the admin’s responsibility after you save keys.</li>
-              <li><strong>Standard</strong> — everyday menus except Settings (Travel is off by default; you can grant it). Can create groups.</li>
+              <li><strong>Standard</strong> — everyday menus except Settings. Can create groups.</li>
               <li><strong>Light</strong> — Dashboard, ToDo, Notes, Photos, Messages, Translate, My Page. Cannot create groups unless you add menus.</li>
             </ul>
 
@@ -40,6 +40,7 @@
             <h2>What you do not need to run</h2>
             <ul>
               <li>Photo AI enhance is a preview for the operator only. It is not a customer feature.</li>
+              <li>Flight fares (Travelpayouts) are operator-only for now.</li>
               <li>Sales quotes are operator-only.</li>
             </ul>
 
@@ -50,13 +51,13 @@
         @else
           <section class="help-section">
             <h2>このアプリは何か</h2>
-            <p>{{ config('app.name') }} は、生活と仕事をひとまとめにするアプリです。ダッシュボードのカレンダー、Todo、メモ、写真、メッセージ、メール、入出金、マップ、路線、翻訳、音楽、動画を、各自のアカウントで使います。画面右上の「個人／仕事」で、ダッシュボードと Todo の見え方を切り替えられます。</p>
+            <p>{{ config('app.name') }} は、生活と仕事をひとまとめにするアプリです。ダッシュボードのカレンダー、Todo、メモ、写真、メッセージ、メール、家計簿、マップ、路線、翻訳、音楽、動画を、各自のアカウントで使います。画面右上の「個人／仕事」で、ダッシュボードと Todo の見え方を切り替えられます。</p>
 
             <h2>誰が何をするか</h2>
             <ul>
               <li><strong>運営者</strong> … サーバー側の運用です。インフラの不具合は 設定 → 問い合わせ から連絡してください。</li>
               <li><strong>管理者（あなた）</strong> … このアプリ一式の責任者です。ユーザー、招待コード、外部 API、ストレージ、AI の設定を自分で行います。キーを保存したあとの DeepL や Google などの利用料は、管理者の責任です。</li>
-              <li><strong>スタンダード</strong> … 設定以外の基本メニュー（Travel は既定オフ。必要なら付与できます）。グループの作成ができます。</li>
+              <li><strong>スタンダード</strong> … 設定以外の基本メニュー。グループの作成ができます。</li>
               <li><strong>ライト</strong> … ダッシュボード、Todo、メモ、Photos、メッセージ、翻訳、マイページが基本です。グループ作成はできません（メニューを足せば使えます）。</li>
             </ul>
 
@@ -70,6 +71,7 @@
             <h2>管理者が扱わないもの</h2>
             <ul>
               <li>写真の AI 鮮明化は運営側の試作機能です。顧客向け機能ではありません。</li>
+              <li>航空運賃（Travelpayouts）は当面、運営者のみです。</li>
               <li>見積画面は運営専用です。</li>
             </ul>
 

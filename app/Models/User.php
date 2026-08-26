@@ -175,6 +175,10 @@ class User extends Authenticatable
 
     public function canAccess(string $feature): bool
     {
+        if ($feature === MenuFeature::Travel->value) {
+            return $this->isSuperAdmin();
+        }
+
         if ($this->isAdmin()) {
             return $this->roleEnum()->canAccess($feature);
         }
@@ -190,11 +194,11 @@ class User extends Authenticatable
     public function baseMenuFeatures(): array
     {
         if ($this->isAdmin()) {
-            return MenuFeature::values();
+            return $this->isSuperAdmin() ? MenuFeature::values() : MenuFeature::assignableValues();
         }
 
         if (is_array($this->menu_features)) {
-            return array_values(array_intersect($this->menu_features, MenuFeature::values()));
+            return array_values(array_intersect($this->menu_features, MenuFeature::assignableValues()));
         }
 
         return MenuFeature::defaultsForRole($this->roleEnum());
@@ -212,7 +216,7 @@ class User extends Authenticatable
             ->join('groups', 'groups.id', '=', 'group_menu_features.group_id')
             ->where('group_members.user_id', $this->id)
             ->where('groups.status', GroupStatus::Approved->value)
-            ->whereIn('group_menu_features.feature', MenuFeature::values())
+            ->whereIn('group_menu_features.feature', MenuFeature::assignableValues())
             ->distinct()
             ->pluck('group_menu_features.feature')
             ->map(fn ($feature) => (string) $feature)
@@ -224,7 +228,7 @@ class User extends Authenticatable
     public function effectiveMenuFeatures(): array
     {
         if ($this->isAdmin()) {
-            return MenuFeature::values();
+            return $this->isSuperAdmin() ? MenuFeature::values() : MenuFeature::assignableValues();
         }
 
         // 管理画面で利用メニューを明示設定した場合（空配列＝追加メニューなし）はそれを優先。

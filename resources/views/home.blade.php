@@ -26,7 +26,7 @@
         </nav>
         <div class="lp-header-actions">
           @include('partials.auth-lang-switcher')
-          <a href="/login" class="lp-btn lp-btn-ghost">{{ __('ログイン') }}</a>
+          <a href="/login" class="lp-btn lp-btn-ghost lp-btn-chevron">{{ __('ログイン') }}</a>
           @if(!empty($registrationOpen))
             <a href="/register" class="lp-btn lp-btn-primary">{{ __('招待コードで登録') }}</a>
           @endif
@@ -40,20 +40,17 @@
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
             <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
-            <p class="lp-hero-lead">{{ __('写真と動画は、極力安価で安定した場所へ。カレンダーとメモはすぐに表示・登録でき、仕事用にも切り替えられます。英語表示もあります。') }}</p>
-            <ul class="lp-hero-points">
-              <li>{{ __('原本は Cloudflare R2 と Backblaze B2。容量比較ではなく、生活の場所としての安さと安定が売りです。') }}</li>
-              <li>{{ __('家族で管理者とメールが必要なら、期間つきのテナント契約。') }}</li>
-              <li>{{ __('これから Cloudflare Workers AI で、路線・生活案内・カレンダー・運賃・料理へ広げます。') }}</li>
-            </ul>
+            <p class="lp-hero-lead">{{ __('個人の招待利用と、家族・小組織向けの専用環境（管理者契約）があります。Todo、メモ、Photos、メッセージ、メール、マップ、路線をまとめて使えます。') }}</p>
             <p class="lp-cta">
-              <a href="/login" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('ログイン') }}</a>
+              <a href="/login" class="lp-btn lp-btn-primary lp-btn-lg lp-btn-chevron">{{ __('ログイン') }}</a>
               @if(!empty($registrationOpen))
                 <a href="/register" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('招待コードで登録') }}</a>
               @endif
             </p>
             <p class="lp-hero-note">
-              <span class="lp-info-dot" aria-hidden="true">i</span>
+              <span class="lp-info-shield" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M12 3.2 20 6.2v6.1c0 4.7-3.2 8.2-8 9.7-4.8-1.5-8-5-8-9.7V6.2z" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.6 12.1 2.2 2.2 4.6-4.8" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
               {{ __('このサービスは招待制です。招待コードがあると誰でも登録できます。') }}
             </p>
           </div>
@@ -61,36 +58,76 @@
           <div class="lp-devices" aria-hidden="true">
             <div class="lp-badge">{{ __('すべてがつながるオールインワンサービス') }}</div>
             <div class="lp-laptop">
-              <div class="lp-laptop-bar"><span></span><span></span><span></span></div>
-              <div class="lp-laptop-screen">
-                <div class="lp-mini-head">{{ $appName }}</div>
-                <div class="lp-mini-grid">
-                  <div class="lp-mini-card">
-                    <b>{{ __('今日の予定') }}</b>
-                    <span>{{ __('Todo') }} · {{ __('カレンダー') }}</span>
-                  </div>
-                  <div class="lp-mini-card">
-                    <b>{{ __('メッセージ') }}</b>
-                    <span>{{ __('グループ') }} · DM</span>
-                  </div>
-                  <div class="lp-mini-card">
-                    <b>{{ __('メモ') }}</b>
-                    <span>{{ __('ピン留め') }}</span>
-                  </div>
-                  <div class="lp-mini-card">
-                    <b>{{ __('Photos') }}</b>
-                    <span>{{ __('原本保管') }}</span>
+              <div class="lp-laptop-lid">
+                <div class="lp-laptop-bezel">
+                  <span class="lp-laptop-camera"></span>
+                  <div class="lp-laptop-screen">
+                    <aside class="lp-mini-side">
+                      <span class="is-on">📅</span>
+                      <span>✓</span>
+                      <span>📝</span>
+                      <span>🖼</span>
+                      <span>💬</span>
+                      <span>✉</span>
+                      <span>🗺</span>
+                    </aside>
+                    <div class="lp-mini-main">
+                      <div class="lp-mini-card is-todo">
+                        <b>{{ __('今日の予定') }}</b>
+                        <ul>
+                          <li><i></i>{{ __('提案書を作成') }}</li>
+                          <li><i class="is-on"></i>{{ __('チームミーティング 10:00') }}</li>
+                          <li><i></i>{{ __('買い物リストを確認') }}</li>
+                        </ul>
+                      </div>
+                      <div class="lp-mini-card is-photos">
+                        <b>{{ __('Photos') }}</b>
+                        <div class="lp-mini-photos">
+                          <span class="is-a"></span>
+                          <span class="is-b"></span>
+                          <span class="is-c"></span>
+                        </div>
+                      </div>
+                      <div class="lp-mini-card is-note">
+                        <b>{{ __('メモ') }}</b>
+                        <em>{{ __('アイデアメモ') }}</em>
+                        <span>{{ __('週末の予定と買い物を整理') }}</span>
+                      </div>
+                      <div class="lp-mini-card is-msg">
+                        <b>{{ __('メッセージ') }}</b>
+                        <ul class="lp-mini-chats">
+                          <li><i class="is-t">田</i><span>{{ __('田中さん') }}</span></li>
+                          <li><i class="is-s">佐</i><span>{{ __('佐藤さん') }}</span></li>
+                          <li><i class="is-y">山</i><span>{{ __('山本さん') }}</span></li>
+                        </ul>
+                      </div>
+                      <div class="lp-mini-card is-mail">
+                        <b>{{ __('メール') }}</b>
+                        <div class="lp-mini-mail">
+                          <span>{{ __('受信トレイ') }} (3)</span>
+                          <span>{{ __('重要') }} (1)</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+              <div class="lp-laptop-hinge"></div>
+              <div class="lp-laptop-base"></div>
             </div>
             <div class="lp-phone">
-              <div class="lp-phone-notch"></div>
+              <div class="lp-phone-island"></div>
               <div class="lp-phone-screen">
                 <b>{{ __('マップ') }} · {{ __('路線') }}</b>
-                <span class="lp-phone-route"></span>
-                <span class="lp-phone-route is-short"></span>
-                <span class="lp-phone-pin"></span>
+                <div class="lp-phone-map">
+                  <span class="lp-phone-path"></span>
+                  <span class="lp-phone-pin"></span>
+                </div>
+                <ul class="lp-phone-stops">
+                  <li><span>{{ __('渋谷') }}</span><strong>{{ __('15分') }}</strong></li>
+                  <li><span>{{ __('新宿') }}</span><strong>{{ __('22分') }}</strong></li>
+                  <li><span>{{ __('東京') }}</span><strong>{{ __('33分') }}</strong></li>
+                </ul>
               </div>
             </div>
           </div>
@@ -141,6 +178,20 @@
             </span>
             <strong>{{ __('マップ') }} · {{ __('路線') }}</strong>
             <span>{{ __('地図と乗り換え案内。') }}</span>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-media" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#db2777" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            </span>
+            <strong>{{ __('音楽再生') }} · {{ __('動画再生') }}</strong>
+            <span>{{ __('プレイリストで再生。動画は検索して視聴。') }}</span>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-life" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#d97706" stroke-width="2"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+            </span>
+            <strong>{{ __('生活ガイド(AI)') }} · {{ __('家計簿') }}</strong>
+            <span>{{ __('AI に生活のことを聞ける。収支は家計簿で記録。') }}</span>
           </li>
         </ul>
       </section>
@@ -256,7 +307,7 @@
 
       <section class="lp-section" id="ai-roadmap" aria-labelledby="landing-ai-title">
         <h2 id="landing-ai-title">{{ __('Workers AI で、これからもっと便利に') }}</h2>
-        <p class="lp-section-lead">{{ __('生活の知恵・話し相手と、料理レシピ、今日のカレンダー案内はもう使えます。路線検索は NAVITIME の経路検索に対応済みで、Travel の航空運賃連携は準備中です。') }}</p>
+        <p class="lp-section-lead">{{ __('生活の知恵・話し相手と、料理レシピ、今日のカレンダー案内はもう使えます。路線検索は NAVITIME の経路検索に対応済みです。') }}</p>
         <ul class="lp-roadmap">
           <li>
             <strong>{{ __('生活の知恵・話し相手') }}</strong>
@@ -273,10 +324,6 @@
           <li>
             <strong>{{ __('精度の高い路線案内（NAVITIME）') }}</strong>
             <span>{{ __('いま使える') }}</span>
-          </li>
-          <li>
-            <strong>{{ __('航空運賃（Travelpayouts）') }}</strong>
-            <span>{{ __('準備中') }}</span>
           </li>
         </ul>
       </section>

@@ -28,10 +28,11 @@ class MenuFeatureAccessTest extends TestCase
 
     public function test_user_custom_menu_features_override_role_defaults(): void
     {
-        $user = $this->makeUser(UserRole::Light, 'light-menus@example.com', ['finance', 'travel']);
+        $user = $this->makeUser(UserRole::Light, 'light-menus@example.com', ['finance', 'map']);
 
         $this->actingAs($user)->get('/finance')->assertOk();
-        $this->actingAs($user)->get('/travel')->assertOk();
+        $this->actingAs($user)->get('/map')->assertOk();
+        $this->actingAs($user)->get('/travel')->assertForbidden();
         $this->actingAs($user)->get('/music')->assertForbidden();
         $this->actingAs($user)->get('/settings')->assertForbidden();
     }
@@ -66,10 +67,10 @@ class MenuFeatureAccessTest extends TestCase
         ]);
 
         $this->actingAs($admin)->post("/admin/groups/{$group->id}/menus", [
-            'menuFeatures' => ['travel', 'map'],
+            'menuFeatures' => ['map'],
         ])->assertRedirect();
 
-        $this->actingAs($user)->get('/travel')->assertOk();
+        $this->actingAs($user)->get('/travel')->assertForbidden();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/finance')->assertForbidden();
     }
@@ -115,7 +116,7 @@ class MenuFeatureAccessTest extends TestCase
         $dashboard = $this->actingAs($user)->get('/dashboard')->assertOk();
         $dashboard->assertDontSee('href="/finance"', false);
         $dashboard->assertDontSee('href="/music"', false);
-        $dashboard->assertDontSee('入出金経費');
+        $dashboard->assertDontSee('家計簿');
     }
 
     public function test_super_admin_can_restrict_standard_user_menus_and_header(): void
@@ -129,7 +130,7 @@ class MenuFeatureAccessTest extends TestCase
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
-            ->assertSee('入出金経費', false)
+            ->assertSee('家計簿', false)
             ->assertSee('音楽', false);
 
         $this->actingAs($admin)->post("/admin/users/{$user->id}/update", [
@@ -157,7 +158,7 @@ class MenuFeatureAccessTest extends TestCase
         $dashboard->assertDontSee('href="/finance"', false);
         $dashboard->assertDontSee('href="/transit"', false);
         $dashboard->assertDontSee('href="/map"', false);
-        $dashboard->assertDontSee('入出金経費');
+        $dashboard->assertDontSee('家計簿');
         $dashboard->assertDontSee('路線検索');
     }
 }

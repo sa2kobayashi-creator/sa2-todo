@@ -342,8 +342,8 @@
         @include('settings.partials.navitime')
         @include('settings.partials.ekispert')
         @include('settings.partials.google-calendar-oauth')
-        @include('settings.partials.travelpayouts')
         @if(!empty($canSuperAdmin))
+          @include('settings.partials.travelpayouts')
           @include('settings.partials.enhance')
         @endif
       @elseif(($section ?? '') === 'notifications')

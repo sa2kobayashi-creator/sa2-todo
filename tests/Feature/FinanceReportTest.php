@@ -31,7 +31,7 @@ class FinanceReportTest extends TestCase
             ->get('/finance/report?period=2026-07&tab=jp');
 
         $response->assertOk();
-        $response->assertSee('入出金経費レポート');
+        $response->assertSee('家計簿レポート');
         $response->assertSee('2026年7月');
     }
 

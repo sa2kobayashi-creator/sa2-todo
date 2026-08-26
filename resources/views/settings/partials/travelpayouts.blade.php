@@ -4,7 +4,7 @@
 
 <div class="panel storage-settings" id="travelpayouts-api-settings">
   <h2>{{ __('Travelpayouts（航空運賃）') }}</h2>
-  <p class="hint">{{ __('Travel 機能の運賃目安取得に使います。Travelpayouts（Aviasales）の API トークンを登録してください。キャッシュ価格のため公式サイトと差が出ることがあります。') }}</p>
+  <p class="hint">{{ __('航空機能の運賃目安取得に使います。Travelpayouts（Aviasales）の API トークンを登録してください。キャッシュ価格のため公式サイトと差が出ることがあります。') }}</p>
   @if(!empty($tp['last_test_message']))
     <p class="hint storage-test-result {{ ($tp['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
       {{ $tp['last_test_message'] }}
@@ -29,7 +29,8 @@
     </label>
     <label>
       {{ __('優先航空会社コード') }}
-      <input type="text" name="prefer_airline" value="{{ $tp['prefer_airline'] ?? '5J' }}" placeholder="5J" maxlength="8" />
+      <input type="text" name="prefer_airline" value="{{ $tp['prefer_airline'] ?? '' }}" placeholder="{{ __('検索の絞り込みには使いません') }}" maxlength="8" />
+      <span class="hint">{{ __('フライト検索は空欄で全社の目安を出します。ここは接続テスト用の任意項目です。') }}</span>
     </label>
     <label class="storage-enable">
       <input type="checkbox" name="direct_only" value="1" @checked(!empty($tp['direct_only'])) />

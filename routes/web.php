@@ -392,14 +392,24 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/transit/share', [TransitController::class, 'share']);
     });
 
-    Route::middleware(EnsureFeature::class.':travel')->group(function () {
+    Route::middleware([
+        EnsureFeature::class.':travel',
+        RequireSuperAdmin::class,
+    ])->group(function () {
         Route::get('/travel', [TravelController::class, 'index']);
+        Route::get('/travel/airports/suggest', [TravelController::class, 'suggestAirports']);
         Route::post('/travel/profile', [TravelController::class, 'updateProfile']);
         Route::post('/travel/trips', [TravelController::class, 'storeTrip']);
         Route::post('/travel/trips/quote', [TravelController::class, 'quoteTrip']);
         Route::post('/travel/trips/draft/clear', [TravelController::class, 'clearTripDraft']);
         Route::post('/travel/fares/table', [TravelController::class, 'fareTable']);
         Route::post('/travel/fares/table/clear', [TravelController::class, 'clearFareTable']);
+        Route::post('/travel/fares/select', [TravelController::class, 'selectFare']);
+        Route::post('/travel/fares/select/clear', [TravelController::class, 'clearSelectedFares']);
+        Route::post('/travel/fares/select/{id}/delete', [TravelController::class, 'removeSelectedFare']);
+        Route::post('/travel/watches', [TravelController::class, 'storeWatch']);
+        Route::post('/travel/watches/{id}/delete', [TravelController::class, 'destroyWatch'])->whereNumber('id');
+        Route::post('/travel/watches/{id}/check', [TravelController::class, 'checkWatch'])->whereNumber('id');
         Route::post('/travel/trips/{id}/update', [TravelController::class, 'updateTrip'])->whereNumber('id');
         Route::post('/travel/trips/{id}/delete', [TravelController::class, 'destroyTrip'])->whereNumber('id');
         Route::post('/travel/promos', [TravelController::class, 'storePromo']);
@@ -448,8 +458,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/ai/workers-ai', [WorkersAiSettingsController::class, 'update']);
             Route::post('/settings/ai/workers-ai/test', [WorkersAiSettingsController::class, 'test']);
 
-            Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update']);
-            Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test']);
+            Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update'])
+                ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test'])
+                ->middleware(RequireSuperAdmin::class);
             Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
             Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);
             Route::post('/settings/api/google-routes', [GoogleRoutesSettingsController::class, 'update']);

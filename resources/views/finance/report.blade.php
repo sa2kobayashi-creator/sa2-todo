@@ -5,7 +5,7 @@
     @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
-    <title>{{ __('入出金経費レポート') }} - {{ config('app.name') }}</title>
+    <title>{{ __('家計簿レポート') }} - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}" />
   </head>
   <body class="finance-page finance-report-page">
@@ -41,7 +41,7 @@
 
       <article class="finance-report panel">
         <header class="finance-report-header">
-          <h1 class="finance-report-title">{{ __('入出金経費レポート') }}</h1>
+          <h1 class="finance-report-title">{{ __('家計簿レポート') }}</h1>
           <p class="finance-report-meta">
             <span>{{ $monthLabel }}</span>
             <span class="finance-report-meta-sep">·</span>

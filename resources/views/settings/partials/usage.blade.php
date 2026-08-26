@@ -16,7 +16,7 @@
       @php
         $usageItems = $group['items'] ?? [];
         if (empty($canSuperAdmin)) {
-          unset($usageItems['enhance'], $usageItems['facebook']);
+          unset($usageItems['enhance'], $usageItems['facebook'], $usageItems['travelpayouts']);
         }
       @endphp
       @if($usageItems === [])

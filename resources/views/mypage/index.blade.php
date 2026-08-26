@@ -122,25 +122,32 @@
       <div class="panel">
         <h2>{{ __('利用可能な機能') }}</h2>
         <ul class="feature-access-list">
-          @foreach([
-            'dashboard' => 'ダッシュボード',
-            'todos' => 'Todo',
-            'notes' => 'メモ',
-            'photos' => 'Photos',
-            'finance' => '入出金経費',
-            'transit' => '路線検索',
-            'travel' => 'Travel',
-            'map' => 'マップ',
-            'music' => '音楽',
-            'video' => '動画',
-            'mail' => 'メール',
-            'messages' => 'メッセージ',
-            'translate' => '翻訳',
-            'guide' => '生活ガイド',
-            'groups' => 'グループ',
-            'settings' => '設定',
-            'admin' => 'ユーザー管理',
-          ] as $key => $label)
+          @php
+            $featureLabels = [
+              'dashboard' => 'ダッシュボード',
+              'todos' => 'Todo',
+              'notes' => 'メモ',
+              'photos' => 'Photos',
+              'finance' => '家計簿',
+              'transit' => '路線検索',
+            ];
+            if (! empty($canSuperAdmin)) {
+              $featureLabels['travel'] = '航空';
+            }
+            $featureLabels += [
+              'map' => 'マップ',
+              'music' => '音楽',
+              'video' => '動画',
+              'mail' => 'メール',
+              'messages' => 'メッセージ',
+              'translate' => '翻訳',
+              'guide' => '生活ガイド',
+              'groups' => 'グループ',
+              'settings' => '設定',
+              'admin' => 'ユーザー管理',
+            ];
+          @endphp
+          @foreach($featureLabels as $key => $label)
             <li class="{{ in_array($key, $features, true) ? 'is-allowed' : 'is-denied' }}">
               <span>{{ __($label) }}</span>
               <strong>{{ in_array($key, $features, true) ? __('利用可') : __('利用不可') }}</strong>

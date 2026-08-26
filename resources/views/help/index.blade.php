@@ -41,7 +41,7 @@
               <li>Groups are join-by-invite. You cannot browse every user’s email.</li>
               <li>A @sa2-plus.com address is included in Standard. On Light it is a separate add-on. Connecting Gmail stays free. The operator creates the address and password by hand and sends you the password separately.</li>
               <li>LINE / Messenger reminders need an admin to save the channel, then you link on My Page.</li>
-              <li>Other menus (expenses, maps, transit, translate, music, videos, mail) appear when your account includes them.</li>
+              <li>Other menus (household budget, maps, transit, translate, music, videos, mail) appear when your account includes them.</li>
             </ul>
             <h2>Account</h2>
             <ul>
@@ -76,7 +76,7 @@
               <li>グループは招待／承諾で参加します。全ユーザーのメール一覧は出ません。</li>
               <li>@sa2-plus.com のメールアドレスはスタンダード契約に含まれます。ライトは個別契約です。Gmail などの外部接続はこれまでどおり無料です。アドレス作成とパスワード設定は運営者が手動で行い、パスワードは別途お知らせします。</li>
               <li>LINE／Messenger 通知は、管理者がチャネルを設定したあと、各自がマイページで連携します。</li>
-              <li>入出金、マップ、路線、翻訳、音楽、動画、メールなどは、アカウントにメニューがあるとき表示されます。</li>
+              <li>家計簿、マップ、路線、翻訳、音楽、動画、メールなどは、アカウントにメニューがあるとき表示されます。</li>
             </ul>
             <h2>アカウント</h2>
             <ul>

@@ -193,7 +193,7 @@ class IntegrationUsageService
                         $value('travelpayouts'),
                         __('運賃取得'),
                         'https://www.travelpayouts.com/',
-                        __('Travel の航空運賃見積もりを取得するときに使用します。'),
+                        __('航空の運賃表・見積もりを取得するときに使用します。'),
                         __('アプリ側の回数上限なし。API 制限は Travelpayouts の契約に依存します。'),
                     ),
                 ],

@@ -14,6 +14,7 @@ class TravelpayoutsSettingsController extends Controller
 
     public function update(Request $request)
     {
+        abort_unless($request->user()?->isSuperAdmin(), 403, __('この機能はスーパー管理者のみ利用できます。'));
         $this->travelpayouts->saveConfig(
             $request->boolean('enabled'),
             [
@@ -32,8 +33,9 @@ class TravelpayoutsSettingsController extends Controller
         );
     }
 
-    public function test(): JsonResponse
+    public function test(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->isSuperAdmin(), 403, __('この機能はスーパー管理者のみ利用できます。'));
         $result = $this->travelpayouts->testConnection();
         $this->travelpayouts->recordTestResult($result['ok'], $result['message']);
 

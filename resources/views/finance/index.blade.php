@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{{ __('入出金経費') }} - {{ config('app.name') }}</title>
+    <title>{{ __('家計簿') }} - {{ config('app.name') }}</title>
     @include('partials.app-css')
     <script src="{{ asset('voice-entry.js') }}" defer></script>
   </head>

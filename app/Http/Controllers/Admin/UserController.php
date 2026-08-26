@@ -112,7 +112,7 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
-            'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
+            'menuFeatures.*' => ['string', Rule::in(MenuFeature::assignableValues())],
         ]);
 
         $role = UserRole::from($data['role']);
@@ -170,7 +170,7 @@ class UserController extends Controller
             'displayName' => ['required', 'string', 'max:100'],
             'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
-            'menuFeatures.*' => ['string', Rule::in(MenuFeature::values())],
+            'menuFeatures.*' => ['string', Rule::in(MenuFeature::assignableValues())],
             'subscriptionStatus' => ['nullable', 'string', Rule::in(array_map(
                 fn (SubscriptionStatus $s) => $s->value,
                 SubscriptionStatus::assignable()
@@ -329,7 +329,7 @@ class UserController extends Controller
             return null;
         }
 
-        $selected = array_values(array_intersect($selected, MenuFeature::values()));
+        $selected = array_values(array_intersect($selected, MenuFeature::assignableValues()));
         $defaults = MenuFeature::defaultsForRole($role);
         $sortedSelected = $selected;
         $sortedDefaults = $defaults;

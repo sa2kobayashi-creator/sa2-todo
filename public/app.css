@@ -17745,13 +17745,21 @@ body.video-page .media-player-stage-spacer {
 .travel-form select,
 .travel-form textarea {
   width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 35, 31, 0.14);
+  border-radius: 10px;
   background: #fff;
-  color: #202124;
+  color: #10231f;
   font: inherit;
+}
+
+.travel-form input:focus,
+.travel-form select:focus,
+.travel-form textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  border-color: #0f766e;
 }
 
 .travel-form textarea {
@@ -17787,6 +17795,98 @@ body.video-page .media-player-stage-spacer {
   margin-top: 12px;
   display: flex;
   gap: 8px;
+}
+
+.travel-search-airports {
+  align-items: end;
+}
+
+.travel-search-swap-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.travel-places-swap {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(16, 35, 31, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(150deg, #0f766e, #0d9488);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.travel-places-swap:hover {
+  transform: translateY(-1px);
+}
+
+.travel-airport-control {
+  position: relative;
+  display: block;
+}
+
+.travel-airport-suggest {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid rgba(16, 35, 31, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(16, 35, 31, 0.12);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.travel-airport-suggest button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #10231f;
+}
+
+.travel-airport-suggest button:hover {
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.travel-watch-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.travel-watch-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid rgba(16, 35, 31, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.travel-watch-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.travel-watch-save {
+  margin-top: 12px;
 }
 
 .travel-trip-list {
@@ -17867,6 +17967,10 @@ body.video-page .media-player-stage-spacer {
   .travel-deadline-grid,
   .travel-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .travel-watch-item {
+    flex-direction: column;
   }
 }
 
@@ -18166,6 +18270,49 @@ body.video-page .media-player-stage-spacer {
 .travel-fare-cheapest li {
   margin: 4px 0;
   font-size: 13px;
+}
+
+.travel-fare-cheapest ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.travel-flight-candidate {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(16, 35, 31, 0.08);
+}
+
+.travel-flight-candidate:last-child {
+  border-bottom: 0;
+}
+
+.travel-candidate-select {
+  margin-left: auto;
+}
+
+.travel-flight-candidate strong {
+  display: block;
+}
+
+.travel-estimate-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-right: 4px;
+}
+
+.travel-matrix-airline {
+  display: block;
+  font-size: 10px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.travel-flight-meta {
+  margin-bottom: 8px;
 }
 
 .travel-fare-table tr.is-cheapest td {
@@ -22888,6 +23035,14 @@ body.dash-home-lightbox-open {
   padding: 10px 22px;
 }
 
+.lp-btn-chevron::after {
+  content: "›";
+  margin-left: 6px;
+  font-size: 1.15em;
+  font-weight: 500;
+  line-height: 0;
+}
+
 .lp-btn-on-dark {
   background: #fff;
   color: #1d4ed8;
@@ -22897,17 +23052,45 @@ body.dash-home-lightbox-open {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(900px 420px at 90% -10%, #dbeafe 0%, transparent 60%),
-    linear-gradient(180deg, #f8fbff 0%, #fff 70%);
+    radial-gradient(920px 480px at 88% -8%, #dbeafe 0%, transparent 62%),
+    radial-gradient(640px 280px at 18% 108%, #eff6ff 0%, transparent 70%),
+    linear-gradient(180deg, #f7fbff 0%, #fff 72%);
+}
+
+.lp-hero::before,
+.lp-hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.lp-hero::before {
+  width: 760px;
+  height: 420px;
+  right: -160px;
+  top: 40px;
+  background: radial-gradient(ellipse at center, rgba(191, 219, 254, 0.55), transparent 68%);
+  transform: rotate(-8deg);
+}
+
+.lp-hero::after {
+  width: 520px;
+  height: 220px;
+  left: 22%;
+  bottom: -90px;
+  background: radial-gradient(ellipse at center, rgba(219, 234, 254, 0.7), transparent 72%);
 }
 
 .lp-hero-inner {
-  max-width: 1120px;
+  position: relative;
+  z-index: 1;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 48px 20px 56px;
+  padding: 52px 20px 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
-  gap: 36px;
+  grid-template-columns: minmax(0, 1.02fr) minmax(320px, 1fr);
+  gap: 28px 40px;
   align-items: center;
 }
 
@@ -22927,6 +23110,7 @@ body.dash-home-lightbox-open {
   font-size: clamp(1.7rem, 4vw, 2.55rem);
   line-height: 1.35;
   letter-spacing: -0.02em;
+  color: #1e3a8a;
 }
 
 .lp-hero-lead {
@@ -22953,6 +23137,12 @@ body.dash-home-lightbox-open {
   color: #64748b;
 }
 
+.lp-info-shield {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .lp-info-dot {
   display: inline-flex;
   align-items: center;
@@ -22970,138 +23160,331 @@ body.dash-home-lightbox-open {
 
 .lp-devices {
   position: relative;
-  min-height: 280px;
+  min-height: 340px;
+  padding: 12px 8px 8px 42px;
 }
 
 .lp-badge {
   position: absolute;
-  top: -8px;
-  right: 8px;
-  z-index: 3;
-  width: 118px;
-  height: 118px;
+  top: -6px;
+  right: 4px;
+  z-index: 4;
+  width: 124px;
+  height: 124px;
   border-radius: 50%;
-  background: #2563eb;
+  background: linear-gradient(160deg, #60a5fa 0%, #2563eb 48%, #1e3a8a 100%);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 16px;
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.28);
+  padding: 18px;
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.32);
 }
 
 .lp-laptop {
   width: 100%;
-  max-width: 420px;
-  background: #1e293b;
-  border-radius: 14px 14px 8px 8px;
-  padding: 10px 10px 16px;
-  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
+  max-width: 520px;
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
 }
 
-.lp-laptop-bar {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 8px;
+.lp-laptop-lid {
+  background: linear-gradient(180deg, #e8eaee 0%, #c9ced6 100%);
+  border-radius: 18px 18px 10px 10px;
+  padding: 9px 9px 11px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 28px 56px rgba(15, 23, 42, 0.22);
 }
 
-.lp-laptop-bar span {
-  width: 8px;
-  height: 8px;
+.lp-laptop-bezel {
+  position: relative;
+  background: #1c1f26;
+  border-radius: 12px;
+  padding: 12px 7px 7px;
+}
+
+.lp-laptop-camera {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #94a3b8;
+  background: #0b1220;
+  box-shadow: 0 0 0 1.5px #3f4654, inset 0 0 0 1.5px #2563eb33;
+  transform: translateX(-50%);
 }
 
 .lp-laptop-screen {
-  background: #f8fafc;
+  background: linear-gradient(180deg, #eef4ff 0%, #f8fafc 100%);
+  border-radius: 4px;
+  min-height: 248px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 46px 1fr;
+}
+
+.lp-mini-side {
+  background: #dbeafe;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 6px;
+}
+
+.lp-mini-side span {
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
-  min-height: 210px;
-  padding: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
-.lp-mini-head {
-  font-size: 12px;
-  font-weight: 700;
-  color: #2563eb;
-  margin-bottom: 8px;
+.lp-mini-side span.is-on {
+  background: #2563eb;
+  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.28);
 }
 
-.lp-mini-grid {
+.lp-mini-main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 7px;
+  padding: 8px;
 }
 
 .lp-mini-card {
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid #e8eef7;
+  border-radius: 10px;
   padding: 8px;
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.lp-mini-card.is-mail {
+  grid-column: 1 / -1;
 }
 
 .lp-mini-card b {
-  font-size: 12px;
+  font-size: 11px;
+  color: #1e293b;
 }
 
-.lp-mini-card span {
-  font-size: 11px;
+.lp-mini-card.is-todo ul,
+.lp-mini-chats,
+.lp-phone-stops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-mini-card.is-todo li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.lp-mini-card.is-todo i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1.5px solid #93c5fd;
+  flex-shrink: 0;
+}
+
+.lp-mini-card.is-todo i.is-on {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.lp-mini-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.lp-mini-photos span {
+  display: block;
+  height: 38px;
+  border-radius: 6px;
+}
+
+.lp-mini-photos .is-a {
+  background: linear-gradient(160deg, #7dd3fc 0%, #2563eb 55%, #1e3a8a 100%);
+}
+
+.lp-mini-photos .is-b {
+  background: linear-gradient(160deg, #bbf7d0 0%, #22c55e 50%, #14532d 100%);
+}
+
+.lp-mini-photos .is-c {
+  background: linear-gradient(160deg, #fed7aa 0%, #f97316 48%, #9a3412 100%);
+}
+
+.lp-mini-card.is-note em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.lp-mini-card.is-note span {
+  font-size: 10px;
   color: #64748b;
+  line-height: 1.4;
+}
+
+.lp-mini-chats li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #475569;
+}
+
+.lp-mini-chats i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.lp-mini-chats .is-t { background: #2563eb; }
+.lp-mini-chats .is-s { background: #7c3aed; }
+.lp-mini-chats .is-y { background: #0d9488; }
+
+.lp-mini-mail {
+  display: flex;
+  gap: 8px;
+}
+
+.lp-mini-mail span {
+  font-size: 10px;
+  color: #475569;
+  background: #eff6ff;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.lp-laptop-hinge {
+  width: 72px;
+  height: 7px;
+  margin: -1px auto 0;
+  background: linear-gradient(180deg, #aeb4be, #8d939e);
+  border-radius: 0 0 4px 4px;
+}
+
+.lp-laptop-base {
+  height: 14px;
+  margin: 0 -22px;
+  background: linear-gradient(180deg, #dfe3ea 0%, #b8bec8 100%);
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 10px 0 #9aa1ad, 0 18px 28px rgba(15, 23, 42, 0.12);
 }
 
 .lp-phone {
   position: absolute;
-  right: 8px;
-  bottom: -18px;
-  width: 118px;
-  background: #0f172a;
-  border-radius: 18px;
+  left: 0;
+  bottom: 18px;
+  z-index: 3;
+  width: 128px;
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  border-radius: 26px;
   padding: 10px 8px 12px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.25);
+  box-shadow:
+    0 0 0 1px #334155,
+    0 18px 36px rgba(15, 23, 42, 0.32);
 }
 
-.lp-phone-notch {
-  width: 36px;
-  height: 5px;
+.lp-phone-island {
+  width: 42px;
+  height: 8px;
   border-radius: 999px;
-  background: #334155;
+  background: #020617;
   margin: 0 auto 8px;
 }
 
 .lp-phone-screen {
-  background: linear-gradient(180deg, #ecfdf5, #eff6ff);
-  border-radius: 10px;
-  min-height: 150px;
-  padding: 10px;
+  background: linear-gradient(180deg, #ecfeff, #eff6ff);
+  border-radius: 16px;
+  min-height: 176px;
+  padding: 8px;
   display: grid;
   align-content: start;
-  gap: 8px;
-  font-size: 11px;
+  gap: 7px;
+  font-size: 10px;
 }
 
-.lp-phone-route {
-  height: 8px;
+.lp-phone-screen b {
+  font-size: 10px;
+}
+
+.lp-phone-map {
+  position: relative;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.15), transparent),
+    linear-gradient(135deg, #bbf7d0 0%, #bfdbfe 48%, #ddd6fe 100%);
+}
+
+.lp-phone-path {
+  position: absolute;
+  left: 12px;
+  right: 18px;
+  top: 28px;
+  height: 4px;
   border-radius: 999px;
-  background: #93c5fd;
-}
-
-.lp-phone-route.is-short {
-  width: 60%;
-  background: #86efac;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  transform: rotate(-12deg);
 }
 
 .lp-phone-pin {
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  right: 18px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50% 50% 50% 0;
   background: #ef4444;
   transform: rotate(-45deg);
-  margin-top: 8px;
+}
+
+.lp-phone-stops li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: #334155;
+}
+
+.lp-phone-stops strong {
+  color: #2563eb;
+  font-variant-numeric: tabular-nums;
 }
 
 .lp-section {
@@ -23114,6 +23497,16 @@ body.dash-home-lightbox-open {
   margin: 0 0 10px;
   font-size: 1.45rem;
   text-align: center;
+}
+
+.lp-section > h2:not(.visually-hidden)::after {
+  content: "";
+  display: block;
+  width: 42px;
+  height: 3px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: #2563eb;
 }
 
 .lp-section-lead {
@@ -23162,6 +23555,8 @@ body.dash-home-lightbox-open {
 .lp-feature-icon.is-msg { background: #ede9fe; }
 .lp-feature-icon.is-mail { background: #ffe4e6; }
 .lp-feature-icon.is-map { background: #ccfbf1; }
+.lp-feature-icon.is-media { background: #fce7f3; }
+.lp-feature-icon.is-life { background: #fef3c7; }
 
 .lp-features strong {
   font-size: 15px;
@@ -23420,11 +23815,28 @@ body.dash-home-lightbox-open {
     grid-template-columns: 1fr;
   }
 
+  .lp-hero-copy h1 {
+    font-size: 1.7rem;
+  }
+
+  .lp-devices {
+    min-height: 0;
+    padding: 8px 0 0;
+  }
+
   .lp-badge {
     width: 96px;
     height: 96px;
     font-size: 11px;
     right: 0;
+  }
+
+  .lp-laptop {
+    max-width: 100%;
+  }
+
+  .lp-laptop-base {
+    margin: 0 -10px;
   }
 
   .lp-phone {

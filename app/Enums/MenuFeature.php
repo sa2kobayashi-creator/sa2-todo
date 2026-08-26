@@ -18,9 +18,9 @@ enum MenuFeature: string
     public function label(): string
     {
         return match ($this) {
-            self::Finance => '入出金経費',
+            self::Finance => '家計簿',
             self::Transit => '路線検索',
-            self::Travel => 'Travel',
+            self::Travel => '航空',
             self::Map => 'マップ',
             self::Music => '音楽',
             self::Video => '動画',
@@ -37,10 +37,25 @@ enum MenuFeature: string
         return array_map(fn (self $feature) => $feature->value, self::cases());
     }
 
+    public function operatorOnly(): bool
+    {
+        return $this === self::Travel;
+    }
+
+    /** ユーザー／グループへ付与できるメニュー（運営専用は除く） */
     /** @return list<self> */
     public static function assignable(): array
     {
-        return self::cases();
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $feature) => ! $feature->operatorOnly()
+        ));
+    }
+
+    /** @return list<string> */
+    public static function assignableValues(): array
+    {
+        return array_map(fn (self $feature) => $feature->value, self::assignable());
     }
 
     /** @return list<string> */

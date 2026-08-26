@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\TravelProfile;
 use App\Services\TravelPromoWatchService;
 use Illuminate\Console\Command;
 
@@ -9,12 +10,19 @@ class FetchTravelPromos extends Command
 {
     protected $signature = 'travel:fetch-promos {--user= : Limit to a single user id}';
 
-    protected $description = 'Fetch Cebu Pacific seat sales from public promo roundups into Travel promo ledger';
+    protected $description = 'Fetch Cebu Pacific seat sales for users who opted into promo watch';
 
     public function handle(TravelPromoWatchService $watch): int
     {
         $userId = $this->option('user');
         if ($userId !== null && $userId !== '') {
+            $profile = TravelProfile::query()->where('user_id', (int) $userId)->first();
+            if (! ($profile?->promo_watch_enabled ?? false)) {
+                $this->warn('user='.(int) $userId.' skipped (promo watch is off)');
+
+                return self::SUCCESS;
+            }
+
             $result = $watch->fetchAndSyncForUser((int) $userId);
             $this->info(sprintf(
                 'user=%d fetched=%d created=%d updated=%d alerts=%d',

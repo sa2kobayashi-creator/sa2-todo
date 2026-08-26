@@ -19,6 +19,7 @@ class HomePageTest extends TestCase
             ->assertOk()
             ->assertSee(config('app.name'), false)
             ->assertSee(__('予定・メモ・写真・メッセージを、ひとつの場所に。'), false)
+            ->assertSee(__('個人の招待利用と、家族・小組織向けの専用環境（管理者契約）があります。Todo、メモ、Photos、メッセージ、メール、マップ、路線をまとめて使えます。'), false)
             ->assertSee(__('ログイン'), false)
             ->assertSee(__('このサービスは招待制です。招待コードがあると誰でも登録できます。'), false)
             ->assertSee(__('ご利用の流れ'), false)
@@ -48,7 +49,14 @@ class HomePageTest extends TestCase
             ->assertSee('href="/terms"', false)
             ->assertSee('href="/privacy"', false)
             ->assertSee(__('Workers AI で、これからもっと便利に'), false)
-            ->assertSee(__('生活の知恵・話し相手'), false);
+            ->assertSee(__('音楽再生'), false)
+            ->assertSee(__('動画再生'), false)
+            ->assertSee(__('生活ガイド(AI)'), false)
+            ->assertSee(__('家計簿'), false)
+            ->assertSee(__('生活の知恵・話し相手'), false)
+            ->assertSee(__('いま使える'), false)
+            ->assertSee(__('生活の知恵・話し相手と、料理レシピ、今日のカレンダー案内はもう使えます。路線検索は NAVITIME の経路検索に対応済みです。'), false)
+            ->assertDontSee(__('航空運賃（Travelpayouts）'), false);
     }
 
     public function test_register_cta_appears_only_when_registration_is_open(): void

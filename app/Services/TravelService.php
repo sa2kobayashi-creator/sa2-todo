@@ -63,13 +63,15 @@ class TravelService
         return TravelProfile::query()->firstOrCreate(
             ['user_id' => $userId],
             [
-                'visa_type' => '13A',
+                'visa_type' => '',
                 'rp_duration_months' => 6,
                 'budget_max_jpy' => 60000,
-                'preferred_currency' => 'PHP',
-                'home_airport' => 'FUK',
-                'ph_airport' => 'MNL',
-                'airline_code' => '5J',
+                'preferred_currency' => 'JPY',
+                'home_airport' => '',
+                'ph_airport' => '',
+                'airline_code' => '',
+                'procedures_enabled' => false,
+                'promo_watch_enabled' => false,
             ]
         );
     }
@@ -92,6 +94,8 @@ class TravelService
             'alertsEnabled' => (bool) ($profile->alerts_enabled ?? true),
             'alertDaysRp' => (int) ($profile->alert_days_rp ?? 90),
             'alertDaysAr' => (int) ($profile->alert_days_ar ?? 60),
+            'proceduresEnabled' => (bool) ($profile->procedures_enabled ?? false),
+            'promoWatchEnabled' => (bool) ($profile->promo_watch_enabled ?? false),
         ];
     }
 
@@ -102,34 +106,21 @@ class TravelService
     {
         $profile = $this->getOrCreateProfile($userId);
 
-        $rpMonths = (int) ($payload['rpDurationMonths'] ?? $profile->rp_duration_months);
-        if (! in_array($rpMonths, [6, 12], true)) {
-            $rpMonths = 6;
-        }
-
         $currency = strtoupper(trim((string) ($payload['preferredCurrency'] ?? $profile->preferred_currency)));
         if (! in_array($currency, ['PHP', 'JPY'], true)) {
-            $currency = 'PHP';
+            $currency = 'JPY';
         }
 
-        $rpExpires = trim((string) ($payload['rpExpiresOn'] ?? ''));
-        $arYear = $payload['annualReportDoneYear'] ?? null;
-        $arYear = ($arYear === '' || $arYear === null) ? null : (int) $arYear;
-
         $profile->fill([
-            'visa_type' => trim((string) ($payload['visaType'] ?? $profile->visa_type)) ?: '13A',
-            'rp_expires_on' => $rpExpires !== '' ? $rpExpires : null,
-            'rp_duration_months' => $rpMonths,
-            'annual_report_done_year' => $arYear,
             'budget_max_jpy' => max(1, (int) ($payload['budgetMaxJpy'] ?? $profile->budget_max_jpy)),
             'preferred_currency' => $currency,
-            'home_airport' => strtoupper(trim((string) ($payload['homeAirport'] ?? $profile->home_airport))) ?: 'FUK',
-            'ph_airport' => strtoupper(trim((string) ($payload['phAirport'] ?? $profile->ph_airport))) ?: 'MNL',
-            'airline_code' => strtoupper(trim((string) ($payload['airlineCode'] ?? $profile->airline_code))) ?: '5J',
+            'home_airport' => strtoupper(trim((string) ($payload['homeAirport'] ?? $profile->home_airport))),
+            'ph_airport' => strtoupper(trim((string) ($payload['phAirport'] ?? $profile->ph_airport))),
+            'airline_code' => strtoupper(trim((string) ($payload['airlineCode'] ?? $profile->airline_code))),
             'notes' => trim((string) ($payload['notes'] ?? '')),
             'alerts_enabled' => (bool) ($payload['alertsEnabled'] ?? $profile->alerts_enabled ?? true),
-            'alert_days_rp' => max(1, (int) ($payload['alertDaysRp'] ?? $profile->alert_days_rp ?? 90)),
-            'alert_days_ar' => max(1, (int) ($payload['alertDaysAr'] ?? $profile->alert_days_ar ?? 60)),
+            'procedures_enabled' => false,
+            'promo_watch_enabled' => false,
         ]);
         $profile->save();
 
@@ -353,14 +344,13 @@ class TravelService
             ->first();
 
         $tips = [
-            __('FUK→MNL は可能ならフィリピン滞在中に PHP で先買いする。'),
-            __('毎回 RT と 片道×2（OW+OW）の税込を比較する。'),
-            __('支払い基本は PHP。円サイトと PHP サイトを両方見る。'),
+            __('運賃は目安です。予約前に航空会社または比較サイトで税込金額を確認してください。'),
+            __('片道と往復で税込を比較すると、安い組み合わせが見つかることがあります。'),
         ];
-        if ($next && ($next['label'] ?? '') === __('Annual Report') && ($next['daysLeft'] ?? 999) <= 90) {
+        if (($profile->procedures_enabled ?? false) && $next && ($next['label'] ?? '') === __('Annual Report') && ($next['daysLeft'] ?? 999) <= 90) {
             array_unshift($tips, __('次の必須渡航は Annual Report です。1月到着を優先してください。'));
-        } elseif ($next && ($next['daysLeft'] ?? 999) <= 90) {
-            array_unshift($tips, __('次の必須渡航は RP 期限です。切れ前に FUK→MNL を確保してください。'));
+        } elseif (($profile->procedures_enabled ?? false) && $next && ($next['daysLeft'] ?? 999) <= 90) {
+            array_unshift($tips, __('次の必須渡航は RP 期限です。切れ前に帰国便を確保してください。'));
         }
 
         return [
@@ -381,7 +371,7 @@ class TravelService
     {
         $depart = trim((string) ($payload['departOn'] ?? $existing?->depart_on?->format('Y-m-d') ?? ''));
         if ($depart === '') {
-            throw new \InvalidArgumentException(__('出国日（日本発）は必須です。'));
+            throw new \InvalidArgumentException(__('出発日は必須です。'));
         }
 
         $purpose = (string) ($payload['purpose'] ?? $existing?->purpose ?? 'other');
@@ -392,9 +382,9 @@ class TravelService
         if (! array_key_exists($status, self::STATUSES)) {
             $status = 'planned';
         }
-        $currency = strtoupper(trim((string) ($payload['preferCurrency'] ?? $existing?->prefer_currency ?? 'PHP')));
+        $currency = strtoupper(trim((string) ($payload['preferCurrency'] ?? $existing?->prefer_currency ?? 'JPY')));
         if (! in_array($currency, ['PHP', 'JPY'], true)) {
-            $currency = 'PHP';
+            $currency = 'JPY';
         }
         $bookedAs = $payload['bookedAs'] ?? $existing?->booked_as;
         $bookedAs = in_array($bookedAs, ['rt', 'ow_pair'], true) ? $bookedAs : null;
@@ -404,14 +394,20 @@ class TravelService
             $returnOn = $existing->return_on->format('Y-m-d');
         }
 
+        $origin = strtoupper(trim((string) ($payload['origin'] ?? $existing?->origin ?? '')));
+        $destination = strtoupper(trim((string) ($payload['destination'] ?? $existing?->destination ?? '')));
+        if ($origin === '' || $destination === '') {
+            throw new \InvalidArgumentException(__('出発空港と到着空港は必須です。'));
+        }
+
         return [
             'purpose' => $purpose,
             'label' => trim((string) ($payload['label'] ?? $existing?->label ?? '')) ?: null,
             'depart_on' => $depart,
             'return_on' => $returnOn !== '' ? $returnOn : null,
-            'origin' => strtoupper(trim((string) ($payload['origin'] ?? $existing?->origin ?? 'FUK'))) ?: 'FUK',
-            'destination' => strtoupper(trim((string) ($payload['destination'] ?? $existing?->destination ?? 'MNL'))) ?: 'MNL',
-            'airline_code' => strtoupper(trim((string) ($payload['airlineCode'] ?? $existing?->airline_code ?? '5J'))) ?: '5J',
+            'origin' => $origin,
+            'destination' => $destination,
+            'airline_code' => strtoupper(trim((string) ($payload['airlineCode'] ?? $existing?->airline_code ?? ''))),
             'status' => $status,
             'prefer_currency' => $currency,
             'booked_as' => $bookedAs,
@@ -621,64 +617,60 @@ class TravelService
     public function dashboardSummary(int $userId): array
     {
         $profile = $this->getOrCreateProfile($userId);
-        $deadlines = $this->deadlineSummary($profile);
-        $unread = TravelAlert::query()
+        $unreadFareAlerts = TravelAlert::query()
             ->where('user_id', $userId)
+            ->whereIn('type', ['fare_drop', 'watch'])
             ->whereNull('read_at')
-            ->count();
-        $unreadPromoAlerts = TravelAlert::query()
-            ->where('user_id', $userId)
-            ->where('type', 'promo')
-            ->whereNull('read_at')
-            ->count();
-        $activePromos = TravelPromo::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['watching', 'usable'])
             ->count();
 
-        // 未読のプロモアラートを優先、足りなければ直近のプロモアラートも表示
-        $promoAlerts = $this->listAlerts($userId, true, 5, 'promo');
-        if (count($promoAlerts) < 5) {
-            $seen = collect($promoAlerts)->pluck('id')->all();
-            $more = collect($this->listAlerts($userId, false, 8, 'promo'))
-                ->reject(fn (array $a) => in_array($a['id'], $seen, true))
-                ->take(5 - count($promoAlerts))
-                ->values()
-                ->all();
-            $promoAlerts = array_merge($promoAlerts, $more);
-        }
+        $fareAlerts = $this->listAlerts($userId, true, 5, 'fare_drop');
+        $watchAlerts = $this->listAlerts($userId, true, 5, 'watch');
+        $fareAlerts = array_slice(array_merge($fareAlerts, $watchAlerts), 0, 5);
 
         return [
-            'annualReport' => $deadlines['annualReport'],
-            'rp' => $deadlines['rp'],
-            'nextDeadline' => $deadlines['nextDeadline'],
-            'unreadAlerts' => $unread,
-            'unreadPromoAlerts' => $unreadPromoAlerts,
-            'activePromos' => $activePromos,
-            'promoAlerts' => $promoAlerts,
+            'nextTrip' => $this->nextTripSummary($userId),
+            'unreadAlerts' => $unreadFareAlerts,
+            'unreadFareAlerts' => $unreadFareAlerts,
+            'fareAlerts' => $fareAlerts,
             'budgetMaxJpy' => (int) $profile->budget_max_jpy,
             'alertsEnabled' => (bool) ($profile->alerts_enabled ?? true),
         ];
     }
 
+    /** @return array<string, mixed>|null */
+    public function nextTripSummary(int $userId): ?array
+    {
+        $trip = TravelTrip::query()
+            ->where('user_id', $userId)
+            ->whereIn('status', ['planned', 'booked'])
+            ->whereDate('depart_on', '>=', now()->toDateString())
+            ->orderBy('depart_on')
+            ->orderBy('id')
+            ->first();
+        if (! $trip) {
+            return null;
+        }
+
+        return [
+            'id' => $trip->id,
+            'label' => (string) ($trip->label ?: __(self::PURPOSES[$trip->purpose] ?? $trip->purpose)),
+            'origin' => (string) $trip->origin,
+            'destination' => (string) $trip->destination,
+            'airlineCode' => (string) ($trip->airline_code ?? ''),
+            'departOn' => $trip->depart_on?->format('Y-m-d'),
+            'returnOn' => $trip->return_on?->format('Y-m-d'),
+            'statusLabel' => __(self::STATUSES[$trip->status] ?? $trip->status),
+        ];
+    }
+
     /**
-     * 全ユーザーの期限・プロモ期限を走査して in-app アラートを生成。
+     * 値下がり監視は TravelFareWatchService。期限パックのアラートは作らない。
      *
      * @return array{users: int, created: int}
      */
     public function checkAlertsForAllUsers(): array
     {
-        $created = 0;
-        $users = 0;
-        TravelProfile::query()
-            ->where('alerts_enabled', true)
-            ->orderBy('id')
-            ->each(function (TravelProfile $profile) use (&$created, &$users) {
-                $users++;
-                $created += $this->checkAlertsForUser((int) $profile->user_id, $profile);
-            });
-
-        return ['users' => $users, 'created' => $created];
+        return ['users' => 0, 'created' => 0];
     }
 
     public function checkAlertsForUser(int $userId, ?TravelProfile $profile = null): int
@@ -688,85 +680,7 @@ class TravelService
             return 0;
         }
 
-        $created = 0;
-        $deadlines = $this->deadlineSummary($profile);
-        $rpDays = $profile->alert_days_rp ?? 90;
-        $arDays = $profile->alert_days_ar ?? 60;
-
-        $rp = $deadlines['rp'] ?? [];
-        if (($rp['daysLeft'] ?? null) !== null) {
-            $daysLeft = (int) $rp['daysLeft'];
-            $deadline = (string) ($rp['deadline'] ?? '');
-            if ($daysLeft < 0) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'rp_deadline',
-                    'danger',
-                    __('RP期限が超過しています'),
-                    __('RP期限 :date を :n 日過ぎています。至急フィリピンへ戻ってください。', [
-                        'date' => $deadline,
-                        'n' => abs($daysLeft),
-                    ]),
-                    'rp:overdue:'.$deadline
-                );
-            } elseif ($daysLeft <= 30) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'rp_deadline',
-                    'danger',
-                    __('RP期限まであと :n 日', ['n' => $daysLeft]),
-                    __('RP期限 :date。切れ前に FUK→MNL を確保してください。', ['date' => $deadline]),
-                    'rp:30:'.$deadline
-                );
-            } elseif ($daysLeft <= (int) $rpDays) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'rp_deadline',
-                    'warn',
-                    __('RP期限まであと :n 日', ['n' => $daysLeft]),
-                    __('RP期限 :date。渡航計画を確認してください。', ['date' => $deadline]),
-                    'rp:'.$rpDays.':'.$deadline
-                );
-            }
-        }
-
-        $ar = $deadlines['annualReport'] ?? [];
-        if (($ar['daysLeft'] ?? null) !== null && empty($ar['doneThisYear'])) {
-            $daysLeft = (int) $ar['daysLeft'];
-            $deadline = (string) ($ar['deadline'] ?? '');
-            if ($daysLeft < 0) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'ar_deadline',
-                    'danger',
-                    __('Annual Report 期限が超過しています'),
-                    __('期限 :date を過ぎています。現地手続きを確認してください。', ['date' => $deadline]),
-                    'ar:overdue:'.$deadline
-                );
-            } elseif ($daysLeft <= 30) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'ar_deadline',
-                    'danger',
-                    __('Annual Report まであと :n 日', ['n' => $daysLeft]),
-                    __('1/1〜2/28 の現地手続きが必要です。できれば1月到着を。'),
-                    'ar:30:'.$deadline
-                );
-            } elseif ($daysLeft <= (int) $arDays) {
-                $created += $this->upsertAlert(
-                    $userId,
-                    'ar_deadline',
-                    'warn',
-                    __('Annual Report まであと :n 日', ['n' => $daysLeft]),
-                    __('期限 :date。渡航計画を立ててください。', ['date' => $deadline]),
-                    'ar:'.$arDays.':'.$deadline
-                );
-            }
-        }
-
-        $created += $this->checkExpiringPromos($userId);
-
-        return $created;
+        return 0;
     }
 
     public function recordFareSnapshot(int $userId, TravelTrip $trip): void
@@ -907,7 +821,7 @@ class TravelService
     /**
      * @return int 新規作成なら 1、既存更新なら 0
      */
-    private function upsertAlert(
+    public function upsertAlert(
         int $userId,
         string $type,
         string $severity,

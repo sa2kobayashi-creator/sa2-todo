@@ -22,6 +22,8 @@ class TravelProfile extends Model
         'alerts_enabled',
         'alert_days_rp',
         'alert_days_ar',
+        'procedures_enabled',
+        'promo_watch_enabled',
     ];
 
     protected function casts(): array
@@ -34,6 +36,8 @@ class TravelProfile extends Model
             'alerts_enabled' => 'boolean',
             'alert_days_rp' => 'integer',
             'alert_days_ar' => 'integer',
+            'procedures_enabled' => 'boolean',
+            'promo_watch_enabled' => 'boolean',
         ];
     }
 

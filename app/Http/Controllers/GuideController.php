@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\UsageLimitExceededException;
 use App\Models\GuideTopic;
 use App\Services\TransitAiConsultService;
+use App\Services\TravelAiConsultService;
 use App\Services\UserUsageLimitService;
 use App\Services\WorkersAiGuideService;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class GuideController extends Controller
         private WorkersAiGuideService $guide,
         private UserUsageLimitService $usageLimits,
         private TransitAiConsultService $transitAi,
+        private TravelAiConsultService $travelAi,
     ) {}
 
     public function index(Request $request)
@@ -107,10 +109,59 @@ class GuideController extends Controller
         return response()->json($result, $result['ok'] ? 200 : 422);
     }
 
-    /** Travel の画面に埋め込んだ相談パネルから呼ぶ */
+    /** Travel の画面に埋め込んだ相談パネルから呼ぶ。料金表 API を挟んでから答える */
     public function askTravel(Request $request)
     {
-        return $this->askTopic($request, WorkersAiGuideService::TOPIC_TRAVEL, $this->guide->embeddedTopics());
+        $data = $request->validate([
+            'prompt' => ['required', 'string', 'max:2000'],
+            'messages' => ['nullable', 'array', 'max:12'],
+            'messages.*.role' => ['required_with:messages', 'in:user,assistant'],
+            'messages.*.content' => ['required_with:messages', 'string', 'max:2000'],
+            'origin' => ['nullable', 'string', 'max:40'],
+            'destination' => ['nullable', 'string', 'max:40'],
+            'tableMode' => ['nullable', 'in:ow,rt'],
+            'tableCurrency' => ['nullable', 'in:JPY,PHP'],
+            'airlineCode' => ['nullable', 'string', 'max:8'],
+            'departFrom' => ['nullable', 'string', 'max:16'],
+            'departTo' => ['nullable', 'string', 'max:16'],
+            'returnFrom' => ['nullable', 'string', 'max:16'],
+            'returnTo' => ['nullable', 'string', 'max:16'],
+            'lastSearch' => ['nullable', 'array'],
+        ]);
+
+        $user = $request->user();
+
+        try {
+            $this->usageLimits->assertWithin($user, UserUsageLimitService::FEATURE_WORKERS_AI, 1);
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'text' => '', 'message' => $e->getMessage()], 429);
+        }
+
+        try {
+            $result = $this->travelAi->ask(
+                $user,
+                (string) $data['prompt'],
+                is_array($data['messages'] ?? null) ? $data['messages'] : [],
+                $data
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'text' => '',
+                'message' => __('うまく答えられませんでした。少し時間をおいてもう一度お試しください。'),
+            ], 422);
+        }
+
+        if ($result['ok']) {
+            try {
+                $this->usageLimits->consume($user, UserUsageLimitService::FEATURE_WORKERS_AI, 1);
+            } catch (UsageLimitExceededException) {
+            }
+        }
+
+        return response()->json($result, $result['ok'] ? 200 : 422);
     }
 
     /** @param array<string, array<string, mixed>> $allowedTopics */
