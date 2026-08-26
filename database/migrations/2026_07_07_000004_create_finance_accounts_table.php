@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('finance_accounts', function (Blueprint $table) {
             $table->id();
             $table->string('slug', 64)->unique();
-            $table->string('region', 2);
+            $table->string('region', 8);
             $table->string('kind', 20);
             $table->string('name');
             $table->string('currency', 3);

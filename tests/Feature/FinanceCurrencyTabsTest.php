@@ -64,6 +64,15 @@ class FinanceCurrencyTabsTest extends TestCase
             ->assertOk()
             ->assertSee('USD の口座・取引を表示中', false)
             ->assertSee('id="finance-open-add-currency"', false);
+
+        $this->assertTrue(
+            FinanceAccount::query()
+                ->where('user_id', $user->id)
+                ->where('region', 'usd')
+                ->where('currency', 'USD')
+                ->where('kind', 'cash')
+                ->exists()
+        );
     }
 
     public function test_existing_philippines_accounts_show_the_tab_as_already_added(): void

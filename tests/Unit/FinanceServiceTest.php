@@ -1148,6 +1148,8 @@ class FinanceServiceTest extends TestCase
         $this->assertTrue($this->service->hasRegion('usd'));
         $this->assertSame('USD', $this->service->visibleTabLabels()['usd']);
         $this->assertSame('USD', $this->service->currencyForRegion('usd'));
+        $usd = collect($this->service->listAccounts('usd'));
+        $this->assertTrue($usd->contains(fn ($account) => $account['region'] === 'usd' && $account['currency'] === 'USD' && $account['kind'] === 'cash'));
     }
 
     public function test_remove_extra_currency_hides_tab_but_keeps_accounts(): void
