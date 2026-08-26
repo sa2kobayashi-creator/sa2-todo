@@ -1099,4 +1099,113 @@ class FinanceServiceTest extends TestCase
 
         $this->assertSame(1500.0, $opening);
     }
+
+    public function test_new_users_only_get_japan_default_accounts(): void
+    {
+        $this->service->ensureDefaultAccounts();
+
+        $regions = array_unique(array_column($this->service->listAccounts(), 'region'));
+        $this->assertSame(['jp'], array_values($regions));
+        $this->assertArrayNotHasKey('ph', $this->service->visibleTabLabels());
+        $this->assertArrayHasKey('ph', $this->service->addableCurrencies());
+    }
+
+    public function test_existing_philippines_accounts_appear_as_an_added_currency(): void
+    {
+        $this->makeAccount([
+            'slug' => 'ph_bank_bpi',
+            'region' => 'ph',
+            'kind' => 'bank',
+            'name' => 'BPI',
+            'currency' => 'PHP',
+            'sort_order' => 1,
+        ]);
+
+        $tabs = $this->service->visibleTabLabels();
+        $this->assertArrayHasKey('ph', $tabs);
+        $this->assertSame('PHP', $tabs['ph']);
+        $this->assertArrayNotHasKey('ph', $this->service->addableCurrencies());
+        $this->assertArrayHasKey('usd', $this->service->addableCurrencies());
+    }
+
+    public function test_add_extra_currency_seeds_a_generic_cash_account(): void
+    {
+        $this->service->ensureDefaultAccounts();
+        $this->service->addExtraCurrency('ph');
+
+        $this->assertTrue($this->service->hasRegion('ph'));
+        $this->assertArrayHasKey('ph', $this->service->visibleTabLabels());
+        $this->assertSame('ph', $this->service->normalizeTab('ph'));
+        $names = array_column($this->service->listAccounts('ph'), 'name');
+        $this->assertContains('現金', $names);
+        $this->assertNotContains('BPI', $names);
+    }
+
+    public function test_add_usd_currency_creates_usd_region(): void
+    {
+        $this->service->ensureDefaultAccounts();
+        $this->assertSame('usd', $this->service->addExtraCurrency('USD'));
+        $this->assertTrue($this->service->hasRegion('usd'));
+        $this->assertSame('USD', $this->service->visibleTabLabels()['usd']);
+        $this->assertSame('USD', $this->service->currencyForRegion('usd'));
+    }
+
+    public function test_remove_extra_currency_hides_tab_but_keeps_accounts(): void
+    {
+        $this->makeAccount([
+            'slug' => 'ph_bank_bpi',
+            'region' => 'ph',
+            'kind' => 'bank',
+            'name' => 'BPI',
+            'currency' => 'PHP',
+            'sort_order' => 1,
+        ]);
+
+        $this->assertArrayHasKey('ph', $this->service->visibleTabLabels());
+        $this->service->removeExtraCurrency('ph');
+        $this->assertArrayNotHasKey('ph', $this->service->visibleTabLabels());
+        $this->assertTrue($this->service->hasRegion('ph'));
+        $this->assertArrayHasKey('ph', $this->service->addableCurrencies());
+    }
+
+    public function test_new_users_do_not_get_builtin_expense_categories(): void
+    {
+        $this->assertSame([], $this->service->expenseCategoryLabels());
+    }
+
+    public function test_expense_categories_can_be_created_renamed_and_deleted(): void
+    {
+        $created = $this->service->createExpenseCategory('食費');
+        $this->assertSame('食費', $created['label']);
+        $this->assertArrayHasKey($created['slug'], $this->service->expenseCategoryLabels());
+
+        $updated = $this->service->updateExpenseCategory($created['slug'], 'スーパー');
+        $this->assertSame('スーパー', $updated['label']);
+
+        $this->assertTrue($this->service->deleteExpenseCategory($created['slug']));
+        $this->assertSame([], $this->service->expenseCategoryLabels());
+    }
+
+    public function test_used_legacy_expense_categories_are_materialized(): void
+    {
+        $account = $this->makeAccount([
+            'slug' => 'jp_bank_test_cat',
+            'region' => 'jp',
+            'kind' => 'bank',
+            'name' => 'テスト銀行',
+            'currency' => 'JPY',
+            'sort_order' => 1,
+        ]);
+        $this->makeTransaction([
+            'transaction_date' => '2026-08-01',
+            'type' => 'expense',
+            'account_id' => $account->id,
+            'amount' => 100,
+            'currency' => 'JPY',
+            'category' => 'medical',
+        ]);
+
+        $labels = $this->service->expenseCategoryLabels();
+        $this->assertSame('医療費', $labels['medical'] ?? null);
+    }
 }

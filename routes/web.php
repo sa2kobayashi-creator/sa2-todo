@@ -365,9 +365,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/finance', [FinanceController::class, 'store']);
         Route::post('/finance/voice/parse', [FinanceController::class, 'parseVoice'])->middleware('throttle:ai-voice');
         Route::post('/finance/categories', [FinanceController::class, 'storeExpenseCategory']);
+        Route::post('/finance/categories/{slug}/update', [FinanceController::class, 'updateExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
         Route::post('/finance/categories/{slug}/delete', [FinanceController::class, 'destroyExpenseCategory'])->where('slug', '[A-Za-z0-9_\-]+');
         Route::post('/finance/{id}/update', [FinanceController::class, 'update'])->whereNumber('id');
         Route::post('/finance/{id}/delete', [FinanceController::class, 'destroy'])->whereNumber('id');
+        Route::post('/finance/currencies', [FinanceController::class, 'storeCurrency']);
+        Route::post('/finance/currencies/{region}/delete', [FinanceController::class, 'destroyCurrency'])->where('region', '[A-Za-z]{2,8}');
         Route::post('/finance/accounts', [FinanceController::class, 'storeAccount']);
         Route::post('/finance/accounts/{id}/overview', [FinanceController::class, 'updateAccountOverview'])->whereNumber('id');
         Route::post('/finance/accounts/{id}/schedules', [FinanceController::class, 'storeAccountSchedule'])->whereNumber('id');

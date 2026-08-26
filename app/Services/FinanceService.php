@@ -6,6 +6,7 @@ use App\Models\FinanceAccount;
 use App\Models\FinanceAccountSchedule;
 use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceTransaction;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -14,14 +15,40 @@ class FinanceService
 {
     public const REGION_LABELS = [
         'jp' => '日本',
-        'ph' => 'フィリピン',
+        'ph' => 'PHP',
     ];
 
     public const TAB_LABELS = [
         'jp' => '日本',
-        'ph' => 'フィリピン',
+        'ph' => 'PHP',
         'transfer' => '送金',
         'all' => '全体',
+    ];
+
+    /**
+     * よく使う追加通貨。公開の既定タブには出さず、「通貨を追加」で有効化する。
+     * PHP は後方互換のため region キーを ph のままにする。
+     *
+     * @var array<string, array{label: string, currency: string}>
+     */
+    public const EXTRA_CURRENCIES = [
+        'ph' => ['label' => 'フィリピン・ペソ', 'currency' => 'PHP'],
+        'usd' => ['label' => '米ドル', 'currency' => 'USD'],
+        'eur' => ['label' => 'ユーロ', 'currency' => 'EUR'],
+        'gbp' => ['label' => '英ポンド', 'currency' => 'GBP'],
+        'krw' => ['label' => '韓国ウォン', 'currency' => 'KRW'],
+        'cny' => ['label' => '中国元', 'currency' => 'CNY'],
+        'twd' => ['label' => '台湾ドル', 'currency' => 'TWD'],
+        'sgd' => ['label' => 'シンガポールドル', 'currency' => 'SGD'],
+        'aud' => ['label' => 'オーストラリアドル', 'currency' => 'AUD'],
+        'cad' => ['label' => 'カナダドル', 'currency' => 'CAD'],
+        'thb' => ['label' => 'タイバーツ', 'currency' => 'THB'],
+        'vnd' => ['label' => 'ベトナムドン', 'currency' => 'VND'],
+        'idr' => ['label' => 'インドネシアルピア', 'currency' => 'IDR'],
+        'myr' => ['label' => 'マレーシアリンギット', 'currency' => 'MYR'],
+        'inr' => ['label' => 'インドルピー', 'currency' => 'INR'],
+        'chf' => ['label' => 'スイスフラン', 'currency' => 'CHF'],
+        'hkd' => ['label' => '香港ドル', 'currency' => 'HKD'],
     ];
 
     public const KIND_LABELS = [
@@ -37,7 +64,28 @@ class FinanceService
         'transfer' => '振替',
     ];
 
-    /** クイック選択用の支出カテゴリ */
+    /**
+     * 過去の取引表示用。公開の既定ボタンには使わない（ユーザーが追加・編集・削除する）。
+     *
+     * @var array<string, string>
+     */
+    public const LEGACY_EXPENSE_CATEGORY_LABELS = [
+        'medical' => '医療費',
+        'tobacco_alcohol' => 'たばこ/酒',
+        'transport' => '交通費',
+        'food' => '食費',
+        'shopping' => '買い物',
+        'tuition' => '学費',
+        'electricity' => '電気',
+        'living' => '生活費',
+        'internet' => 'インターネット',
+        'allowance' => 'お小遣い',
+        'card_payment' => 'カード支払い',
+        'loan_payment' => '借用支払い',
+        'fee' => '手数料',
+    ];
+
+    /** @deprecated 公開既定ではない。LEGACY_EXPENSE_CATEGORY_LABELS を使う */
     public const EXPENSE_CATEGORY_PRIMARY = [
         'medical' => '医療費',
         'tobacco_alcohol' => 'たばこ/酒',
@@ -46,7 +94,7 @@ class FinanceService
         'shopping' => '買い物',
     ];
 
-    /** 「その他」モーダル内の支出カテゴリ */
+    /** @deprecated 公開既定ではない。LEGACY_EXPENSE_CATEGORY_LABELS を使う */
     public const EXPENSE_CATEGORY_OTHER = [
         'tuition' => '学費',
         'electricity' => '電気',
@@ -135,12 +183,41 @@ class FinanceService
     /** @return array<string, string> */
     public static function builtInExpenseCategoryLabels(): array
     {
-        return self::EXPENSE_CATEGORY_PRIMARY + self::EXPENSE_CATEGORY_OTHER;
+        return self::LEGACY_EXPENSE_CATEGORY_LABELS;
+    }
+
+    public function ensureExpenseCategories(): void
+    {
+        $existing = $this->expenseCategoriesQuery()->pluck('slug')->all();
+        $used = $this->transactionsQuery()
+            ->where('type', 'expense')
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->distinct()
+            ->pluck('category')
+            ->all();
+
+        $sortOrder = (int) $this->expenseCategoriesQuery()->max('sort_order');
+        foreach (self::LEGACY_EXPENSE_CATEGORY_LABELS as $slug => $label) {
+            if (! in_array($slug, $used, true) || in_array($slug, $existing, true)) {
+                continue;
+            }
+            $sortOrder += 10;
+            $this->expenseCategoriesQuery()->create([
+                'user_id' => $this->requireUserId(),
+                'slug' => $slug,
+                'label' => $label,
+                'sort_order' => $sortOrder,
+            ]);
+            $existing[] = $slug;
+        }
     }
 
     /** @return array<string, string> slug => label */
     public function customExpenseCategoryLabels(): array
     {
+        $this->ensureExpenseCategories();
+
         return $this->expenseCategoriesQuery()
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -149,21 +226,37 @@ class FinanceService
             ->all();
     }
 
-    /** 「その他」モーダル用（組み込み + ユーザー追加） */
     /** @return array<string, string> */
     public function expenseCategoryOther(): array
     {
-        return collect(self::EXPENSE_CATEGORY_OTHER)
-            ->map(fn (string $label) => __($label))
-            ->all() + $this->customExpenseCategoryLabels();
+        return $this->customExpenseCategoryLabels();
     }
 
     /** @return array<string, string> */
     public function expenseCategoryLabels(): array
     {
-        return collect(self::EXPENSE_CATEGORY_PRIMARY)
-            ->map(fn (string $label) => __($label))
-            ->all() + $this->expenseCategoryOther();
+        return $this->customExpenseCategoryLabels();
+    }
+
+    /** @return array<string, string> */
+    public function expenseCategoryDisplayLabels(): array
+    {
+        $legacy = [];
+        foreach (self::LEGACY_EXPENSE_CATEGORY_LABELS as $slug => $label) {
+            $legacy[$slug] = __($label);
+        }
+
+        return array_merge($legacy, $this->customExpenseCategoryLabels());
+    }
+
+    public function expenseCategoryDisplayLabel(?string $slug): string
+    {
+        if ($slug === null || $slug === '') {
+            return '';
+        }
+        $labels = $this->expenseCategoryDisplayLabels();
+
+        return $labels[$slug] ?? $slug;
     }
 
     public function normalizeExpenseCategory(?string $category, string $type): ?string
@@ -213,11 +306,47 @@ class FinanceService
         ];
     }
 
+    /**
+     * @return array{slug: string, label: string}
+     */
+    public function updateExpenseCategory(string $slug, string $label): array
+    {
+        $slug = trim($slug);
+        $category = $this->expenseCategoriesQuery()->where('slug', $slug)->first();
+        if (! $category) {
+            throw new \InvalidArgumentException('カテゴリーが見つかりません');
+        }
+
+        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? '');
+        if ($label === '') {
+            throw new \InvalidArgumentException('カテゴリー名を入力してください');
+        }
+        if (mb_strlen($label) > 40) {
+            throw new \InvalidArgumentException('カテゴリー名は40文字以内にしてください');
+        }
+
+        $duplicate = $this->expenseCategoriesQuery()
+            ->where('id', '!=', $category->id)
+            ->get()
+            ->contains(fn (FinanceExpenseCategory $row) => mb_strtolower($row->label) === mb_strtolower($label));
+        if ($duplicate) {
+            throw new \InvalidArgumentException('同じ名前のカテゴリーが既にあります');
+        }
+
+        $category->label = $label;
+        $category->save();
+
+        return [
+            'slug' => $category->slug,
+            'label' => $category->label,
+        ];
+    }
+
     public function deleteExpenseCategory(string $slug): bool
     {
         $slug = trim($slug);
-        if ($slug === '' || array_key_exists($slug, self::builtInExpenseCategoryLabels())) {
-            throw new \InvalidArgumentException('このカテゴリーは削除できません');
+        if ($slug === '') {
+            throw new \InvalidArgumentException('カテゴリーが見つかりません');
         }
 
         $category = $this->expenseCategoriesQuery()->where('slug', $slug)->first();
@@ -277,13 +406,271 @@ class FinanceService
 
     public function ensureDefaultAccounts(): void
     {
-        $userId = $this->requireUserId();
-        if ($this->accountsQuery()->exists()) {
+        if (! $this->accountsQuery()->where('region', 'jp')->exists()) {
+            $this->seedDefaultAccountsForRegion('jp');
+        }
+    }
+
+    /** @return list<string> */
+    public function extraRegionKeys(): array
+    {
+        $saved = $this->extraRegionsPreference();
+        if ($saved !== null) {
+            $keys = [];
+            foreach ($saved as $region) {
+                if (! is_string($region) || $region === '') {
+                    continue;
+                }
+                $region = $this->normalizeRegion($region);
+                if (in_array($region, ['jp', 'all', 'transfer'], true)) {
+                    continue;
+                }
+                $keys[] = $region;
+            }
+
+            return array_values(array_unique(array_filter($keys, fn ($region) => $region !== 'jp')));
+        }
+
+        return $this->inferredExtraRegions();
+    }
+
+    /** @return list<string> */
+    private function inferredExtraRegions(): array
+    {
+        $present = $this->accountsQuery()->distinct()->pluck('region')->all();
+        $keys = [];
+        foreach ($present as $region) {
+            if (is_string($region) && $region !== '' && $region !== 'jp') {
+                $keys[] = $region;
+            }
+        }
+        sort($keys);
+
+        return array_values(array_unique($keys));
+    }
+
+    /** @return list<string>|null */
+    private function extraRegionsPreference(): ?array
+    {
+        $user = User::query()->find($this->requireUserId());
+        $value = $user?->finance_extra_regions;
+
+        return is_array($value) ? $value : null;
+    }
+
+    /** @param list<string> $regions */
+    private function saveExtraRegions(array $regions): void
+    {
+        $user = User::query()->find($this->requireUserId());
+        if (! $user) {
             return;
         }
 
+        $user->finance_extra_regions = array_values(array_unique($regions));
+        $user->save();
+    }
+
+    private function enableExtraRegion(string $region): void
+    {
+        $current = $this->extraRegionsPreference() ?? $this->inferredExtraRegions();
+        if (! in_array($region, $current, true)) {
+            $current[] = $region;
+        }
+        $this->saveExtraRegions($current);
+    }
+
+    public function hasRegion(string $region): bool
+    {
+        return $this->accountsQuery()->where('region', $region)->exists();
+    }
+
+    /** @return list<string> */
+    public function enabledRegions(): array
+    {
+        $regions = ['jp'];
+        foreach ($this->extraRegionKeys() as $region) {
+            $regions[] = $region;
+        }
+
+        return $regions;
+    }
+
+    public static function currencyCodeForRegion(string $region): string
+    {
+        $region = strtolower(trim($region));
+
+        return match ($region) {
+            'jp' => 'JPY',
+            'ph' => 'PHP',
+            default => strtoupper($region),
+        };
+    }
+
+    public static function regionKeyForCurrency(string $currency): string
+    {
+        $currency = strtoupper(trim($currency));
+
+        return match ($currency) {
+            'JPY' => 'jp',
+            'PHP' => 'ph',
+            default => strtolower($currency),
+        };
+    }
+
+    public static function regionDisplayLabel(string $region): string
+    {
+        if ($region === 'jp') {
+            return '日本';
+        }
+
+        if (isset(self::TAB_LABELS[$region])) {
+            return self::TAB_LABELS[$region];
+        }
+
+        $currency = self::currencyCodeForRegion($region);
+        $meta = self::EXTRA_CURRENCIES[$region] ?? null;
+        if ($meta) {
+            return $meta['currency'];
+        }
+
+        return $currency;
+    }
+
+    public static function regionPickerLabel(string $region): string
+    {
+        $meta = self::EXTRA_CURRENCIES[$region] ?? null;
+        if ($meta) {
+            return $meta['label'].'（'.$meta['currency'].'）';
+        }
+
+        $currency = self::currencyCodeForRegion($region);
+
+        return $currency;
+    }
+
+    /** @return array<string, string> */
+    public function visibleTabLabels(): array
+    {
+        $tabs = ['jp' => self::TAB_LABELS['jp']];
+        foreach ($this->extraRegionKeys() as $region) {
+            $tabs[$region] = self::regionDisplayLabel($region);
+        }
+        $tabs['transfer'] = self::TAB_LABELS['transfer'];
+        $tabs['all'] = self::TAB_LABELS['all'];
+
+        return $tabs;
+    }
+
+    /** @return array<string, array{label: string, currency: string}> */
+    public function addableCurrencies(): array
+    {
+        $enabled = $this->extraRegionKeys();
+        $out = [];
+        foreach (self::EXTRA_CURRENCIES as $region => $meta) {
+            if (! in_array($region, $enabled, true)) {
+                $out[$region] = $meta;
+            }
+        }
+
+        return $out;
+    }
+
+    public function addExtraCurrency(string $regionOrCurrency): string
+    {
+        $raw = trim($regionOrCurrency);
+        if ($raw === '') {
+            throw new \InvalidArgumentException('追加できない通貨です');
+        }
+
+        $upper = strtoupper($raw);
+        if (preg_match('/^[A-Z]{3}$/', $upper)) {
+            $currency = $upper;
+            if ($currency === 'JPY') {
+                throw new \InvalidArgumentException('日本円は最初から使えます');
+            }
+            $region = self::regionKeyForCurrency($currency);
+        } else {
+            $region = $this->normalizeRegion($raw);
+            if ($region === 'jp') {
+                throw new \InvalidArgumentException('追加できない通貨です');
+            }
+            $currency = self::currencyCodeForRegion($region);
+        }
+
+        if (! $this->hasRegion($region)) {
+            $this->seedStarterAccountForCurrency($region, $currency);
+        }
+        $this->enableExtraRegion($region);
+
+        return $region;
+    }
+
+    public function removeExtraCurrency(string $regionOrCurrency): string
+    {
+        $raw = trim($regionOrCurrency);
+        $upper = strtoupper($raw);
+        if (preg_match('/^[A-Z]{3}$/', $upper)) {
+            $region = self::regionKeyForCurrency($upper);
+        } else {
+            $region = $this->normalizeRegion($raw);
+        }
+        if ($region === 'jp') {
+            throw new \InvalidArgumentException('日本円は外せません');
+        }
+
+        $current = $this->extraRegionsPreference() ?? $this->inferredExtraRegions();
+        $this->saveExtraRegions(array_values(array_filter($current, fn ($key) => $key !== $region)));
+
+        return $region;
+    }
+
+    public function seedStarterAccountForCurrency(string $region, string $currency): void
+    {
+        $region = $this->normalizeRegion($region);
+        $currency = strtoupper($currency);
+        if ($region === 'jp' || ! preg_match('/^[A-Z]{3}$/', $currency)) {
+            throw new \InvalidArgumentException('追加できない通貨です');
+        }
+
+        $slug = $region.'_cash_main';
+        if ($this->accountsQuery()->where('slug', $slug)->exists()) {
+            return;
+        }
+
+        $maxOrder = (int) $this->accountsQuery()->max('sort_order');
+        $this->accountsQuery()->create([
+            'user_id' => $this->requireUserId(),
+            'slug' => $slug,
+            'region' => $region,
+            'kind' => 'cash',
+            'name' => '現金',
+            'currency' => $currency,
+            'sort_order' => $maxOrder + 10,
+            'initial_balance' => 0,
+            'is_active' => true,
+            'show_in_overview' => true,
+        ]);
+    }
+
+    public function seedDefaultAccountsForRegion(string $region): void
+    {
+        $userId = $this->requireUserId();
+        $rows = array_values(array_filter(
+            self::DEFAULT_ACCOUNTS,
+            fn (array $row) => $row['region'] === $region
+        ));
+        if ($rows === []) {
+            throw new \InvalidArgumentException('追加できない通貨です');
+        }
+
         $idBySlug = [];
-        foreach (self::DEFAULT_ACCOUNTS as $row) {
+        foreach ($rows as $row) {
+            $existing = $this->accountsQuery()->where('slug', $row['slug'])->first();
+            if ($existing) {
+                $idBySlug[$row['slug']] = $existing->id;
+                continue;
+            }
+
             $account = $this->accountsQuery()->create([
                 'user_id' => $userId,
                 'slug' => $row['slug'],
@@ -298,7 +685,7 @@ class FinanceService
             $idBySlug[$row['slug']] = $account->id;
         }
 
-        foreach (self::DEFAULT_ACCOUNTS as $row) {
+        foreach ($rows as $row) {
             if (empty($row['linked_slug'])) {
                 continue;
             }
@@ -324,7 +711,7 @@ class FinanceService
     {
         if ($tab === 'all') {
             $groups = [];
-            foreach (['jp', 'ph'] as $region) {
+            foreach ($this->enabledRegions() as $region) {
                 $regionAccounts = $this->filterAccountsForTab($accounts, $region);
                 $kinds = $this->groupAccountsByKind($regionAccounts);
                 if ($kinds === []) {
@@ -333,7 +720,7 @@ class FinanceService
 
                 $groups[] = [
                     'region' => $region,
-                    'regionLabel' => __(self::REGION_LABELS[$region] ?? $region),
+                    'regionLabel' => __(self::regionDisplayLabel($region)),
                     'kinds' => $kinds,
                 ];
             }
@@ -347,8 +734,8 @@ class FinanceService
         }
 
         return [[
-            'region' => in_array($tab, ['jp', 'ph'], true) ? $tab : null,
-            'regionLabel' => isset(self::REGION_LABELS[$tab]) ? __(self::REGION_LABELS[$tab]) : null,
+            'region' => $this->isRegionTab($tab) ? $tab : null,
+            'regionLabel' => $this->isRegionTab($tab) ? __(self::regionDisplayLabel($tab)) : null,
             'kinds' => $kinds,
         ]];
     }
@@ -357,7 +744,7 @@ class FinanceService
     public function groupAccountsByRegion(array $accounts): array
     {
         $groups = [];
-        foreach (['jp', 'ph'] as $region) {
+        foreach ($this->enabledRegions() as $region) {
             $items = array_values(array_filter($accounts, fn (array $account) => $account['region'] === $region));
             if ($items !== []) {
                 $groups[$region] = $items;
@@ -369,13 +756,26 @@ class FinanceService
 
     public function tabContextLabel(string $tab): string
     {
-        return match ($tab) {
-            'jp' => '日本の口座・取引を表示中',
-            'ph' => 'フィリピンの口座・取引を表示中',
-            'transfer' => '送金取引を表示中',
-            'all' => '日本・フィリピンのすべてを表示中',
-            default => '',
-        };
+        if ($tab === 'all') {
+            $names = [];
+            foreach ($this->enabledRegions() as $region) {
+                $names[] = self::regionDisplayLabel($region);
+            }
+
+            return implode('・', $names).'のすべてを表示中';
+        }
+
+        if ($tab === 'transfer') {
+            return '送金取引を表示中';
+        }
+
+        if ($tab === 'jp') {
+            return '日本の口座・取引を表示中';
+        }
+
+        $currency = $this->currencyForRegion($tab);
+
+        return __(':currency の口座・取引を表示中', ['currency' => $currency]);
     }
 
     /** @param list<array<string, mixed>> $accounts */
@@ -451,7 +851,9 @@ class FinanceService
 
     public function normalizeTab(?string $tab): string
     {
-        return in_array($tab, ['jp', 'ph', 'transfer', 'all'], true) ? $tab : 'jp';
+        $allowed = array_keys($this->visibleTabLabels());
+
+        return in_array($tab, $allowed, true) ? $tab : 'jp';
     }
 
     public function normalizeType(?string $type): string
@@ -464,14 +866,30 @@ class FinanceService
         return in_array($kind, ['bank', 'cash', 'credit_card', 'wallet'], true) ? $kind : 'bank';
     }
 
+    public function isRegionTab(string $tab): bool
+    {
+        return $tab !== 'all' && $tab !== 'transfer';
+    }
+
     public function normalizeRegion(?string $region): string
     {
-        return in_array($region, ['jp', 'ph'], true) ? $region : 'jp';
+        $region = strtolower(trim((string) $region));
+        if ($region === '' || $region === 'jp' || $region === 'jpy') {
+            return 'jp';
+        }
+        if ($region === 'php') {
+            return 'ph';
+        }
+        if ($region === 'ph' || preg_match('/^[a-z]{3}$/', $region)) {
+            return $region;
+        }
+
+        return 'jp';
     }
 
     public function currencyForRegion(string $region): string
     {
-        return $region === 'ph' ? 'PHP' : 'JPY';
+        return self::currencyCodeForRegion($region);
     }
 
     /** @param array{tab?: string, year?: int, month?: int, day?: ?int, accountId?: ?int} $filters */
@@ -621,6 +1039,9 @@ class FinanceService
             'schedules' => $schedules,
             'accounts' => $accountsWithBalance,
             'balanceTotals' => $this->buildBalanceTotals($accountsWithBalance),
+            'visibleTabs' => $this->visibleTabLabels(),
+            'addableCurrencies' => $this->addableCurrencies(),
+            'enabledRegions' => $this->enabledRegions(),
         ];
     }
 
@@ -668,8 +1089,8 @@ class FinanceService
     public function listAccounts(?string $region = null): array
     {
         $query = $this->accountsQuery()->where('is_active', true)->orderBy('sort_order');
-        if ($region !== null && in_array($region, ['jp', 'ph'], true)) {
-            $query->where('region', $region);
+        if ($region !== null && $region !== '') {
+            $query->where('region', $this->normalizeRegion($region));
         }
 
         return $query->get()->map(fn (FinanceAccount $account) => $this->accountToArray($account))->all();
@@ -684,7 +1105,7 @@ class FinanceService
             'id' => $account->id,
             'slug' => $account->slug,
             'region' => $account->region,
-            'regionLabel' => __(self::REGION_LABELS[$account->region] ?? $account->region),
+            'regionLabel' => __(self::regionDisplayLabel($account->region)),
             'kind' => $account->kind,
             'kindLabel' => __(self::KIND_LABELS[$account->kind] ?? $account->kind),
             'name' => $account->name,
@@ -1099,6 +1520,9 @@ class FinanceService
             'periodValue' => sprintf('%04d-%02d', $filters['year'], $filters['month']),
             'monthLabel' => __(':year年:month月', ['year' => $filters['year'], 'month' => $filters['month']]),
             'tabContextLabel' => $this->tabContextLabel($filters['tab']),
+            'visibleTabs' => $this->visibleTabLabels(),
+            'addableCurrencies' => $this->addableCurrencies(),
+            'enabledRegions' => $this->enabledRegions(),
         ];
     }
 
@@ -1151,10 +1575,7 @@ class FinanceService
     /** @return array{income: float, expense: float, transferOut: float, transferIn: float, net: float, currency: string} */
     public function buildMonthSummary(Collection $transactions, string $tab): array
     {
-        $currency = $tab === 'ph' ? 'PHP' : 'JPY';
-        if ($tab === 'all' || $tab === 'transfer') {
-            $currency = 'JPY';
-        }
+        $currency = $this->isRegionTab($tab) ? $this->currencyForRegion($tab) : 'JPY';
 
         $income = 0.0;
         $expense = 0.0;
@@ -1185,18 +1606,11 @@ class FinanceService
                     $expense += (float) $transaction->amount;
                 }
             } elseif ($transaction->type === 'transfer') {
-                if ($tab === 'ph') {
-                    if ($transaction->account?->region === 'ph') {
+                if ($this->isRegionTab($tab)) {
+                    if ($transaction->account?->region === $tab) {
                         $transferOut += (float) $transaction->amount;
                     }
-                    if ($transaction->toAccount?->region === 'ph') {
-                        $transferIn += (float) ($transaction->to_amount ?? $transaction->amount);
-                    }
-                } elseif ($tab === 'jp') {
-                    if ($transaction->account?->region === 'jp') {
-                        $transferOut += (float) $transaction->amount;
-                    }
-                    if ($transaction->toAccount?->region === 'jp') {
+                    if ($transaction->toAccount?->region === $tab) {
                         $transferIn += (float) ($transaction->to_amount ?? $transaction->amount);
                     }
                 } else {
@@ -1231,12 +1645,9 @@ class FinanceService
      */
     public function buildSummaryDetails(Collection $transactions, string $tab): array
     {
-        $currency = $tab === 'ph' ? 'PHP' : 'JPY';
-        if ($tab === 'all' || $tab === 'transfer') {
-            $currency = 'JPY';
-        }
+        $currency = $this->isRegionTab($tab) ? $this->currencyForRegion($tab) : 'JPY';
 
-        $labels = $this->expenseCategoryLabels();
+        $labels = $this->expenseCategoryDisplayLabels();
         $incomeItems = [];
         $expenseItems = [];
         $transferOutItems = [];
@@ -1293,24 +1704,13 @@ class FinanceService
                     $expenseCategories[$slug]['count']++;
                 }
             } elseif ($transaction->type === 'transfer') {
-                if ($tab === 'ph') {
-                    if ($transaction->account?->region === 'ph') {
+                if ($this->isRegionTab($tab)) {
+                    if ($transaction->account?->region === $tab) {
                         $amount = (float) $transaction->amount;
                         $transferOutTotal += $amount;
                         $transferOutItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferOut');
                     }
-                    if ($transaction->toAccount?->region === 'ph') {
-                        $amount = (float) ($transaction->to_amount ?? $transaction->amount);
-                        $transferInTotal += $amount;
-                        $transferInItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferIn');
-                    }
-                } elseif ($tab === 'jp') {
-                    if ($transaction->account?->region === 'jp') {
-                        $amount = (float) $transaction->amount;
-                        $transferOutTotal += $amount;
-                        $transferOutItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferOut');
-                    }
-                    if ($transaction->toAccount?->region === 'jp') {
+                    if ($transaction->toAccount?->region === $tab) {
                         $amount = (float) ($transaction->to_amount ?? $transaction->amount);
                         $transferInTotal += $amount;
                         $transferInItems[] = $this->summaryDetailItem($transaction, $amount, $labels, 'transferIn');
@@ -1651,7 +2051,7 @@ class FinanceService
         $today = $this->todayIso();
 
         $visibleAccountIds = [];
-        $region = in_array($tab, ['jp', 'ph'], true) ? $tab : null;
+        $region = $this->isRegionTab($tab) ? $tab : null;
         foreach ($accountRows !== [] ? $accountRows : $accounts->map(fn (FinanceAccount $a) => [
             'id' => $a->id,
             'region' => $a->region,
@@ -1982,7 +2382,7 @@ class FinanceService
             'typeLabel' => self::TYPE_LABELS[$transaction->type] ?? $transaction->type,
             'category' => $transaction->category,
             'categoryLabel' => $transaction->category
-                ? ($this->expenseCategoryLabels()[$transaction->category] ?? $transaction->category)
+                ? $this->expenseCategoryDisplayLabel($transaction->category)
                 : null,
             'accountId' => $transaction->account_id,
             'accountName' => $transaction->account?->name,

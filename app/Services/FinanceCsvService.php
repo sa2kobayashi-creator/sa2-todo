@@ -929,11 +929,14 @@ class FinanceCsvService
     private function normalizeImportRegion(mixed $value): string
     {
         $raw = mb_strtolower(trim((string) $value));
-        if (in_array($raw, ['jp', 'japan', '日本'], true)) {
+        if (in_array($raw, ['jp', 'japan', '日本', 'jpy'], true)) {
             return 'jp';
         }
-        if (in_array($raw, ['ph', 'philippines', 'フィリピン'], true)) {
+        if (in_array($raw, ['ph', 'php', 'philippines', 'フィリピン'], true)) {
             return 'ph';
+        }
+        if (preg_match('/^[a-z]{3}$/', $raw)) {
+            return $this->finance->normalizeRegion($raw);
         }
 
         return $this->finance->normalizeRegion($raw);

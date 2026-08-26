@@ -35,6 +35,7 @@ class User extends Authenticatable
         'pending_email_sent_at',
         'last_seen_at',
         'timezone',
+        'finance_extra_regions',
         'subscription_status',
         'trial_ends_at',
         'storage_overage_active',
@@ -66,6 +67,7 @@ class User extends Authenticatable
             'menu_features' => 'array',
             'footer_nav' => 'array',
             'header_nav' => 'array',
+            'finance_extra_regions' => 'array',
         ];
     }
 

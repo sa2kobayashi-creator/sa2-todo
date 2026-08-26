@@ -18,14 +18,45 @@
 
       <div class="finance-top-bar">
         <div class="finance-tabs" role="tablist" aria-label="{{ __('表示切替') }}">
-          @foreach(\App\Services\FinanceService::TAB_LABELS as $tabKey => $tabLabel)
+          @foreach($visibleTabs as $tabKey => $tabLabel)
+            @if(!in_array($tabKey, ['jp', 'transfer', 'all'], true))
+              <span class="finance-tab-cluster">
+                <a
+                  href="{{ $buildFinanceQuery(array_merge($filters, ['tab' => $tabKey]), ['account' => null]) }}"
+                  class="finance-tab @if($filters['tab'] === $tabKey) is-active @endif"
+                  role="tab"
+                  aria-selected="{{ $filters['tab'] === $tabKey ? 'true' : 'false' }}"
+                >{{ __($tabLabel) }}</a>
+                @php
+                  $tabRemoveConfirm = __(':currency タブを外しますか？ 口座と取引は残ります。', ['currency' => $tabLabel])
+                    ."\n".__('通貨を追加すれば、また表示できます。');
+                @endphp
+                <form
+                  method="post"
+                  action="/finance/currencies/{{ $tabKey }}/delete"
+                  class="finance-tab-remove-form"
+                  onsubmit="return confirm(@json($tabRemoveConfirm))"
+                >
+                  @csrf
+                  <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                  <button
+                    type="submit"
+                    class="finance-tab-remove"
+                    aria-label="{{ __(':currency を外す', ['currency' => $tabLabel]) }}"
+                    title="{{ __(':currency を外す', ['currency' => $tabLabel]) }}"
+                  >×</button>
+                </form>
+              </span>
+            @else
             <a
               href="{{ $buildFinanceQuery(array_merge($filters, ['tab' => $tabKey]), ['account' => null]) }}"
               class="finance-tab @if($filters['tab'] === $tabKey) is-active @endif"
               role="tab"
               aria-selected="{{ $filters['tab'] === $tabKey ? 'true' : 'false' }}"
             >{{ __($tabLabel) }}</a>
+            @endif
           @endforeach
+            <button type="button" class="finance-tab is-add" id="finance-open-add-currency">{{ __('通貨を追加') }}</button>
         </div>
 
         <form class="finance-period-form" method="get" action="/finance" id="finance-period-form">
@@ -117,19 +148,21 @@
 
             <div class="finance-expense-categories" id="finance-expense-categories" role="group" aria-label="{{ __('支出カテゴリー') }}">
               <input type="hidden" name="category" id="finance-quick-category" value="" />
-              @foreach($expenseCategoryPrimary as $slug => $label)
+              @forelse($expenseCategoryCustom as $slug => $label)
                 <button
                   type="button"
                   class="finance-expense-category-btn"
                   data-category="{{ $slug }}"
-                >{{ __($label) }}</button>
-              @endforeach
+                >{{ $label }}</button>
+              @empty
+                <span class="hint finance-expense-category-empty">{{ __('カテゴリーはまだありません') }}</span>
+              @endforelse
               <button
                 type="button"
-                class="finance-expense-category-btn is-other"
-                id="finance-expense-category-other"
-                data-category="__other__"
-              >{{ __('その他') }}</button>
+                class="finance-expense-category-btn is-manage"
+                id="finance-expense-category-manage"
+                data-category="__manage__"
+              >{{ __('カテゴリー管理') }}</button>
             </div>
           </div>
 
@@ -242,7 +275,7 @@
             @if($filters['tab'] === 'all')
               @foreach($overviewAccountsByRegion as $region => $regionAccounts)
                 <div class="finance-balance-overview-region" data-region="{{ $region }}">
-                  <span class="finance-balance-overview-region-label">{{ __(\App\Services\FinanceService::REGION_LABELS[$region] ?? $region) }}</span>
+                  <span class="finance-balance-overview-region-label">{{ __(\App\Services\FinanceService::regionDisplayLabel($region)) }}</span>
                   <div class="finance-balance-overview-region-cards">
                     @foreach($regionAccounts as $account)
                       @include('finance.partials.balance-overview-account-card', ['account' => $account, 'returnTo' => $returnTo, 'formatMoney' => $formatMoney])
@@ -302,8 +335,7 @@
             <strong class="finance-summary-value @if($summary['net'] >= 0) income @else expense @endif">{{ $formatMoney($summary['net'], $summary['currency']) }}</strong>
             <span class="finance-summary-action">{{ __('詳細を見る') }}</span>
           </button>
-          @if($filters['tab'] === 'transfer' || $filters['tab'] === 'all' || $filters['tab'] === 'jp' || $filters['tab'] === 'ph')
-            <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="transferOut">
+          <button type="button" class="finance-summary-item finance-summary-clickable" data-summary-detail="transferOut">
               <span class="finance-summary-label">{{ __('振替出') }}</span>
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferOut'], $summary['currency']) }}</strong>
               <span class="finance-summary-action">{{ __('詳細を見る') }}</span>
@@ -313,7 +345,6 @@
               <strong class="finance-summary-value">{{ $formatMoney($summary['transferIn'], $summary['currency']) }}</strong>
               <span class="finance-summary-action">{{ __('詳細を見る') }}</span>
             </button>
-          @endif
         </div>
       </section>
 
@@ -1095,24 +1126,32 @@
       <div class="modal-backdrop" data-close-expense-other-modal></div>
       <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="finance-expense-other-title">
         <div class="modal-header">
-          <h2 id="finance-expense-other-title">{{ __('その他の支出カテゴリー') }}</h2>
+          <h2 id="finance-expense-other-title">{{ __('支出カテゴリーの管理') }}</h2>
           <button type="button" class="modal-close" data-close-expense-other-modal aria-label="{{ __('閉じる') }}">×</button>
         </div>
+        <p class="hint finance-expense-manage-hint">{{ __('カテゴリーは自分で追加・名前変更・削除できます。') }}</p>
         <div class="finance-expense-other-grid" id="finance-expense-other-grid">
-          @foreach($expenseCategoryOther as $slug => $label)
-            <div class="finance-expense-other-item{{ isset($expenseCategoryCustom[$slug]) ? ' is-custom' : '' }}">
+          @forelse($expenseCategoryCustom as $slug => $label)
+            <div class="finance-expense-other-item is-custom" data-slug="{{ $slug }}">
               <button type="button" class="finance-expense-other-option" data-category="{{ $slug }}">{{ $label }}</button>
-              @if(isset($expenseCategoryCustom[$slug]))
-                <button
-                  type="button"
-                  class="finance-expense-other-delete"
-                  data-category="{{ $slug }}"
-                  aria-label="{{ $label }}{{ __('を削除') }}"
-                  title="{{ __('削除') }}"
-                >×</button>
-              @endif
+              <button
+                type="button"
+                class="finance-expense-other-rename"
+                data-category="{{ $slug }}"
+                aria-label="{{ $label }}{{ __('の名前を変更') }}"
+                title="{{ __('名前を変更') }}"
+              >✎</button>
+              <button
+                type="button"
+                class="finance-expense-other-delete"
+                data-category="{{ $slug }}"
+                aria-label="{{ $label }}{{ __('を削除') }}"
+                title="{{ __('削除') }}"
+              >×</button>
             </div>
-          @endforeach
+          @empty
+            <p class="hint finance-expense-manage-empty" id="finance-expense-manage-empty">{{ __('カテゴリーはまだありません') }}</p>
+          @endforelse
         </div>
         <form class="finance-expense-other-add" id="finance-expense-other-add-form">
           <label class="finance-expense-other-add-label">
@@ -1121,7 +1160,7 @@
               type="text"
               id="finance-expense-other-add-input"
               maxlength="40"
-              placeholder="{{ __('例：ガス、保険') }}"
+              placeholder="{{ __('例：家賃、保険') }}"
               autocomplete="off"
             />
           </label>
@@ -1178,10 +1217,10 @@
           </label>
 
           <label id="finance-account-region-wrap">
-            {{ __('地域') }}
+            {{ __('通貨') }}
             <select name="region" id="finance-account-region" required>
-              @foreach(\App\Services\FinanceService::REGION_LABELS as $regionKey => $regionLabel)
-                <option value="{{ $regionKey }}" @selected($filters['tab'] === $regionKey)>{{ __($regionLabel) }}</option>
+              @foreach($enabledRegions as $regionKey)
+                <option value="{{ $regionKey }}" @selected($filters['tab'] === $regionKey)>{{ __(\App\Services\FinanceService::regionDisplayLabel($regionKey)) }}</option>
               @endforeach
             </select>
           </label>
@@ -1232,6 +1271,51 @@
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <button type="submit" class="text-btn danger">{{ __('この口座を削除') }}</button>
         </form>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="finance-add-currency-modal" hidden>
+      <div class="modal-backdrop" data-close-finance-add-currency-modal></div>
+      <div class="modal-dialog finance-modal-dialog" role="dialog" aria-labelledby="finance-add-currency-modal-title">
+        <div class="modal-header">
+          <h2 id="finance-add-currency-modal-title">{{ __('通貨を追加') }}</h2>
+          <button type="button" class="modal-close" data-close-finance-add-currency-modal aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="modal-form finance-form">
+          <p class="hint">{{ __('日本円以外の口座を使うときに追加します。追加すると専用のタブが現れます。') }}</p>
+          @if(!empty($addableCurrencies))
+            <div class="finance-add-currency-grid">
+              @foreach($addableCurrencies as $regionKey => $currency)
+                <form method="post" action="/finance/currencies" class="finance-add-currency-form">
+                  @csrf
+                  <input type="hidden" name="region" value="{{ $regionKey }}" />
+                  <button type="submit" class="button-link">{{ __($currency['label']) }}（{{ $currency['currency'] }}）</button>
+                </form>
+              @endforeach
+            </div>
+          @endif
+          <form method="post" action="/finance/currencies" class="finance-add-currency-custom">
+            @csrf
+            <label>
+              {{ __('その他の通貨コード（3文字）') }}
+              <input
+                type="text"
+                name="currency"
+                maxlength="3"
+                minlength="3"
+                pattern="[A-Za-z]{3}"
+                placeholder="USD"
+                autocomplete="off"
+                required
+                style="text-transform: uppercase"
+              />
+            </label>
+            <button type="submit" class="button-link">{{ __('追加') }}</button>
+          </form>
+          <div class="finance-form-actions">
+            <button type="button" class="secondary" data-close-finance-add-currency-modal>{{ __('キャンセル') }}</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1351,8 +1435,8 @@
           const result = evaluateAmountExpression(raw)
           if (result === null) {
             input.classList.add('is-invalid-calc')
-            input.setCustomValidity(@json(__('計算式が正しくありません（例: 1000+340）')))
-            return false
+            input.setCustomValidity(@json(__('計算式が正しくありません（例: 1000+340）')));
+            return false;
           }
           input.classList.remove('is-invalid-calc')
           input.setCustomValidity('')
@@ -1391,8 +1475,8 @@
           const btn = document.createElement('button')
           btn.type = 'button'
           btn.className = 'finance-easy-amount-btn finance-easy-amount-btn--icon text-btn'
-          btn.setAttribute('aria-label', @json(__('金額を簡単入力')))
-          btn.setAttribute('title', @json(__('簡単入力')))
+          btn.setAttribute('aria-label', @json(__('金額を簡単入力')));
+          btn.setAttribute('title', @json(__('簡単入力')));
           btn.innerHTML = '<svg class="finance-easy-amount-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="6" rx="1.5"></rect><rect x="14" y="3" width="7" height="6" rx="1.5"></rect><rect x="3" y="11" width="7" height="6" rx="1.5"></rect><rect x="14" y="11" width="7" height="6" rx="1.5"></rect></svg>'
           return btn
         }
@@ -1463,9 +1547,9 @@
           function resolveEasyAmountTitle(input) {
             const label = input.closest('label')
             const labelText = label?.querySelector('.finance-quick-field-label, span')?.textContent?.trim()
-            if (labelText) return @json(__(':label 簡単入力')).replace(':label', labelText)
-            if (input.id === 'finance-quick-to-amount' || input.name === 'toAmount') return @json(__('振替先金額 簡単入力'))
-            return @json(__('金額 簡単入力'))
+            if (labelText) return @json(__(':label 簡単入力')).replace(':label', labelText);
+            if (input.id === 'finance-quick-to-amount' || input.name === 'toAmount') return @json(__('振替先金額 簡単入力'));
+            return @json(__('金額 簡単入力'));
           }
 
           function openEasyAmountModal(input) {
@@ -1538,12 +1622,11 @@
         const quickSubmitBtn = document.getElementById('finance-quick-submit')
         const expenseCategories = document.getElementById('finance-expense-categories')
         const quickCategoryInput = document.getElementById('finance-quick-category')
-        const expenseCategoryBtns = expenseCategories?.querySelectorAll('.finance-expense-category-btn') || []
         const expenseOtherModal = document.getElementById('finance-expense-other-modal')
-        const expenseOtherBtn = document.getElementById('finance-expense-category-other')
+        const expenseManageBtn = document.getElementById('finance-expense-category-manage')
         const categoryField = document.getElementById('finance-category-field')
         const categorySelect = document.getElementById('finance-category')
-        const expenseCategoryOtherKeys = @json(array_keys($expenseCategoryOther));
+        const expenseCategoryOtherKeys = @json(array_keys($expenseCategoryCustom));
         let expenseCategoryOtherKeyList = Array.isArray(expenseCategoryOtherKeys)
           ? expenseCategoryOtherKeys.slice()
           : Object.keys(expenseCategoryOtherKeys || {});
@@ -1558,7 +1641,7 @@
         const periodForm = document.getElementById('finance-period-form')
         const settingsToggle = document.getElementById('finance-toggle-settings')
         const settingsPanel = document.getElementById('finance-account-settings')
-        const typeRadios = form.querySelectorAll('input[name="type"]')
+        const typeRadios = form?.querySelectorAll('input[name="type"]') || []
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
 
         periodForm?.querySelector('input[type="month"]')?.addEventListener('change', () => periodForm.submit())
@@ -1812,8 +1895,7 @@
 
         const defaultTransactionAccountId = @json(
           $filters['accountId']
-            ?? ($filters['tab'] === 'jp' ? (collect($jpAccounts)->first()['id'] ?? null) : null)
-            ?? ($filters['tab'] === 'ph' ? (collect($phAccounts)->first()['id'] ?? null) : null)
+            ?? ($tabAccounts[0]['id'] ?? null)
         );
 
         function applyDefaultTransactionAccount() {
@@ -1839,33 +1921,13 @@
 
         function setQuickExpenseCategory(category) {
           if (quickCategoryInput) quickCategoryInput.value = category || ''
-          const isOther = Boolean(category && expenseCategoryOtherKeyList.includes(category))
-          expenseCategoryBtns.forEach((btn) => {
-            const btnCategory = btn.dataset.category
-            if (btnCategory === '__other__') {
-              btn.classList.toggle('is-active', isOther)
-              if (isOther) {
-                const option = expenseOtherModal?.querySelector(
-                  `.finance-expense-other-option[data-category="${CSS.escape(category)}"]`
-                )
-                const label = option?.textContent.trim() || @json(__('その他'));
-                btn.dataset.selectedLabel = label
-                btn.textContent = label
-              } else {
-                delete btn.dataset.selectedLabel
-                btn.textContent = @json(__('その他'));
-              }
-              return
-            }
-            btn.classList.toggle('is-active', btnCategory === category)
+          expenseCategories?.querySelectorAll('.finance-expense-category-btn[data-category]').forEach((btn) => {
+            if (btn.dataset.category === '__manage__') return
+            btn.classList.toggle('is-active', Boolean(category) && btn.dataset.category === category)
           })
         }
 
         function clearQuickExpenseCategory() {
-          if (expenseOtherBtn) {
-            delete expenseOtherBtn.dataset.selectedLabel
-            expenseOtherBtn.textContent = @json(__('その他'));
-          }
           setQuickExpenseCategory('')
         }
 
@@ -1884,51 +1946,93 @@
           expenseOtherModal?.setAttribute('hidden', '')
         }
 
+        function hideExpenseManageEmpty() {
+          document.getElementById('finance-expense-manage-empty')?.remove()
+          expenseCategories?.querySelector('.finance-expense-category-empty')?.remove()
+        }
+
+        function appendExpenseCategoryPill(slug, label) {
+          if (!expenseCategories || expenseCategories.querySelector(`.finance-expense-category-btn[data-category="${CSS.escape(slug)}"]`)) {
+            return
+          }
+          hideExpenseManageEmpty()
+          const pill = document.createElement('button')
+          pill.type = 'button'
+          pill.className = 'finance-expense-category-btn'
+          pill.dataset.category = slug
+          pill.textContent = label
+          expenseCategories.insertBefore(pill, expenseManageBtn)
+        }
+
         function appendExpenseCategoryOption(slug, label) {
+          hideExpenseManageEmpty()
           const grid = document.getElementById('finance-expense-other-grid')
           if (grid && !grid.querySelector(`.finance-expense-other-option[data-category="${CSS.escape(slug)}"]`)) {
             const item = document.createElement('div')
             item.className = 'finance-expense-other-item is-custom'
+            item.dataset.slug = slug
             const btn = document.createElement('button')
             btn.type = 'button'
             btn.className = 'finance-expense-other-option'
             btn.dataset.category = slug
             btn.textContent = label
+            const rename = document.createElement('button')
+            rename.type = 'button'
+            rename.className = 'finance-expense-other-rename'
+            rename.dataset.category = slug
+            rename.setAttribute('aria-label', @json(__(':nameの名前を変更')).replace(':name', label));
+            rename.title = @json(__('名前を変更'));
+            rename.textContent = '✎';
             const del = document.createElement('button')
             del.type = 'button'
             del.className = 'finance-expense-other-delete'
             del.dataset.category = slug
-            del.setAttribute('aria-label', @json(__(':nameを削除')).replace(':name', label))
-            del.title = @json(__('削除'))
-            del.textContent = '×'
+            del.setAttribute('aria-label', @json(__(':nameを削除')).replace(':name', label));
+            del.title = @json(__('削除'));
+            del.textContent = '×';
             item.appendChild(btn)
+            item.appendChild(rename)
             item.appendChild(del)
             grid.appendChild(item)
             bindExpenseOtherOption(btn)
+            bindExpenseOtherRename(rename)
             bindExpenseOtherDelete(del)
           }
-          if (categorySelect && !categorySelect.querySelector(`option[value="${CSS.escape(slug)}"]`)) {
-            const option = document.createElement('option')
-            option.value = slug
-            option.textContent = label
-            categorySelect.appendChild(option)
-          }
+          appendExpenseCategoryPill(slug, label)
+          document.querySelectorAll('select[name="category"]').forEach((select) => {
+            if (!select.querySelector(`option[value="${CSS.escape(slug)}"]`)) {
+              const option = document.createElement('option')
+              option.value = slug
+              option.textContent = label
+              select.appendChild(option)
+            }
+          })
           if (!expenseCategoryOtherKeyList.includes(slug)) {
             expenseCategoryOtherKeyList.push(slug)
           }
+        }
+
+        function renameExpenseCategoryOption(slug, label) {
+          expenseCategories?.querySelectorAll(`.finance-expense-category-btn[data-category="${CSS.escape(slug)}"]`).forEach((btn) => {
+            btn.textContent = label
+          })
+          document.querySelectorAll(`.finance-expense-other-option[data-category="${CSS.escape(slug)}"]`).forEach((btn) => {
+            btn.textContent = label
+          })
+          document.querySelectorAll(`select[name="category"] option[value="${CSS.escape(slug)}"]`).forEach((option) => {
+            option.textContent = label
+          })
         }
 
         function removeExpenseCategoryOption(slug) {
           document
             .querySelectorAll(`#finance-expense-other-grid .finance-expense-other-item .finance-expense-other-option[data-category="${CSS.escape(slug)}"]`)
             .forEach((btn) => btn.closest('.finance-expense-other-item')?.remove())
-          categorySelect?.querySelector(`option[value="${CSS.escape(slug)}"]`)?.remove()
+          expenseCategories?.querySelectorAll(`.finance-expense-category-btn[data-category="${CSS.escape(slug)}"]`).forEach((btn) => btn.remove())
+          document.querySelectorAll(`select[name="category"] option[value="${CSS.escape(slug)}"]`).forEach((option) => option.remove())
           expenseCategoryOtherKeyList = expenseCategoryOtherKeyList.filter((key) => key !== slug)
           if (quickCategoryInput?.value === slug) {
             clearQuickExpenseCategory()
-          }
-          if (categorySelect?.value === slug) {
-            categorySelect.value = ''
           }
         }
 
@@ -1938,6 +2042,46 @@
           btn.addEventListener('click', () => {
             setQuickExpenseCategory(btn.dataset.category)
             closeExpenseOtherModal()
+          })
+        }
+
+        function bindExpenseOtherRename(btn) {
+          if (!btn || btn.dataset.bound === '1') return
+          btn.dataset.bound = '1'
+          btn.addEventListener('click', async (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            const slug = btn.dataset.category
+            if (!slug) return
+            const current = btn.closest('.finance-expense-other-item')
+              ?.querySelector('.finance-expense-other-option')
+              ?.textContent
+              ?.trim() || slug
+            const next = window.prompt(@json(__('新しいカテゴリー名')), current);
+            if (next === null) return;
+            const label = String(next).trim()
+            if (!label || label === current) return
+            btn.disabled = true
+            try {
+              const response = await fetch(`/finance/categories/${encodeURIComponent(slug)}/update`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'X-CSRF-TOKEN': csrfToken || '',
+                },
+                body: JSON.stringify({ label }),
+              })
+              const data = await response.json().catch(() => ({}))
+              if (!response.ok || !data?.ok || !data?.category) {
+                throw new Error(data?.message || @json(__('カテゴリーの更新に失敗しました')));
+              }
+              renameExpenseCategoryOption(slug, data.category.label)
+            } catch (error) {
+              window.alert(error?.message || @json(__('カテゴリーの更新に失敗しました')));
+            } finally {
+              btn.disabled = false
+            }
           })
         }
 
@@ -1953,7 +2097,7 @@
               ?.querySelector('.finance-expense-other-option')
               ?.textContent
               ?.trim() || slug
-            if (!window.confirm(@json(__('「:name」を削除しますか？')).replace(':name', label))) return
+            if (!window.confirm(@json(__('「:name」を削除しますか？')).replace(':name', label))) return;
             btn.disabled = true
             try {
               const response = await fetch(`/finance/categories/${encodeURIComponent(slug)}/delete`, {
@@ -1966,11 +2110,11 @@
               })
               const data = await response.json().catch(() => ({}))
               if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || @json(__('カテゴリーの削除に失敗しました')))
+                throw new Error(data?.message || @json(__('カテゴリーの削除に失敗しました')));
               }
               removeExpenseCategoryOption(slug)
             } catch (error) {
-              window.alert(error?.message || @json(__('カテゴリーの削除に失敗しました')))
+              window.alert(error?.message || @json(__('カテゴリーの削除に失敗しました')));
               btn.disabled = false
             }
           })
@@ -1988,9 +2132,9 @@
             clearQuickExpenseCategory()
             closeExpenseOtherModal()
           }
-          if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || @json(__('登録'))
-          if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || @json(__('口座'))
-          if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? @json(__('振替元金額')) : @json(__('金額'))
+          if (quickSubmitBtn) quickSubmitBtn.textContent = quickSubmitLabels[type] || @json(__('登録'));
+          if (quickAccountLabel) quickAccountLabel.textContent = quickAccountLabels[type] || @json(__('口座'));
+          if (quickAmountLabel) quickAmountLabel.textContent = type === 'transfer' ? @json(__('振替元金額')) : @json(__('金額'));
           quickSubmitBtn?.classList.toggle('is-income', type === 'income')
           quickSubmitBtn?.classList.toggle('is-expense', type === 'expense')
           quickSubmitBtn?.classList.toggle('is-transfer', type === 'transfer')
@@ -2048,18 +2192,21 @@
         })
         quickAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
         quickToAccountSelect?.addEventListener('change', syncQuickCrossCurrency)
-        expenseCategoryBtns.forEach((btn) => {
-          btn.addEventListener('click', () => {
-            const category = btn.dataset.category
-            if (category === '__other__') {
-              openExpenseOtherModal()
-              return
-            }
-            setQuickExpenseCategory(category)
-          })
+        expenseCategories?.addEventListener('click', (event) => {
+          const btn = event.target.closest('.finance-expense-category-btn')
+          if (!btn || !expenseCategories.contains(btn)) return
+          const category = btn.dataset.category
+          if (category === '__manage__') {
+            openExpenseOtherModal()
+            return
+          }
+          if (category) setQuickExpenseCategory(category)
         })
         document.querySelectorAll('.finance-expense-other-option').forEach((btn) => {
           bindExpenseOtherOption(btn)
+        })
+        document.querySelectorAll('.finance-expense-other-rename').forEach((btn) => {
+          bindExpenseOtherRename(btn)
         })
         document.querySelectorAll('.finance-expense-other-delete').forEach((btn) => {
           bindExpenseOtherDelete(btn)
@@ -2098,7 +2245,7 @@
             })
             const data = await response.json().catch(() => ({}))
             if (!response.ok || !data?.ok || !data?.category) {
-              throw new Error(data?.message || @json(__('カテゴリーの追加に失敗しました')))
+              throw new Error(data?.message || @json(__('カテゴリーの追加に失敗しました')));
             }
             appendExpenseCategoryOption(data.category.slug, data.category.label)
             setQuickExpenseCategory(data.category.slug)
@@ -2106,7 +2253,7 @@
             closeExpenseOtherModal()
           } catch (error) {
             if (errorEl) {
-              errorEl.textContent = error?.message || @json(__('カテゴリーの追加に失敗しました'))
+              errorEl.textContent = error?.message || @json(__('カテゴリーの追加に失敗しました'));
               errorEl.hidden = false
             }
           } finally {
@@ -2379,7 +2526,7 @@
         function syncAccountInitialBalanceLabel() {
           const label = document.getElementById('finance-account-initial-balance-label')
           const isCreditCard = accountKindSelect?.value === 'credit_card'
-          if (label) label.textContent = isCreditCard ? @json(__('利用額（開始）')) : @json(__('開始残高'))
+          if (label) label.textContent = isCreditCard ? @json(__('利用額（開始）')) : @json(__('開始残高'));
         }
 
         function openAddAccountModal(options = {}) {
@@ -2399,11 +2546,12 @@
           if (accountRegionWrap) accountRegionWrap.hidden = false
           if (accountRegionSelect) {
             accountRegionSelect.disabled = false
-            @if($filters['tab'] === 'ph')
-              accountRegionSelect.value = 'ph'
-            @else
+            const currentTab = @json($filters['tab']);
+            if (currentTab && currentTab !== 'all' && currentTab !== 'transfer') {
+              accountRegionSelect.value = currentTab
+            } else {
               accountRegionSelect.value = 'jp'
-            @endif
+            }
           }
           accountKindSelect.value = options.kind || 'bank'
           if (accountLinkedBankSelect) accountLinkedBankSelect.value = ''
@@ -2452,6 +2600,17 @@
         })
         document.querySelectorAll('[data-close-finance-account-modal]').forEach((el) => {
           el.addEventListener('click', closeAccountModal)
+        })
+        const addCurrencyModal = document.getElementById('finance-add-currency-modal')
+        const openAddCurrencyBtn = document.getElementById('finance-open-add-currency')
+        const closeAddCurrencyModal = () => addCurrencyModal?.setAttribute('hidden', '')
+        openAddCurrencyBtn?.addEventListener('click', () => addCurrencyModal?.removeAttribute('hidden'))
+        document.querySelector('.finance-add-currency-custom')?.addEventListener('submit', (event) => {
+          const input = event.currentTarget.querySelector('input[name="currency"]')
+          if (input) input.value = String(input.value || '').trim().toUpperCase()
+        })
+        document.querySelectorAll('[data-close-finance-add-currency-modal]').forEach((el) => {
+          el.addEventListener('click', closeAddCurrencyModal)
         })
         document.querySelectorAll('.finance-edit-account-btn').forEach((btn) => {
           btn.addEventListener('click', () => {
@@ -2686,7 +2845,7 @@
 
         function openScheduleModal(account) {
           if (!account?.scheduleType) return
-          scheduleModalTitle.textContent = account.scheduleTypeLabel || @json(__('予定'))
+          scheduleModalTitle.textContent = account.scheduleTypeLabel || @json(__('予定'));
           scheduleAccountName.textContent = account.name || ''
           scheduleForm.action = `/finance/accounts/${account.id}/schedules`
           scheduleForm.querySelector('#finance-schedule-date').value = @json($defaultDate);
@@ -2753,7 +2912,7 @@
           function updateBulkUi() {
             const all = checks()
             const selected = all.filter((cb) => cb.checked)
-            if (countEl) countEl.textContent = @json(__(':count件選択')).replace(':count', String(selected.length))
+            if (countEl) countEl.textContent = @json(__(':count件選択')).replace(':count', String(selected.length));
             if (selectAll) {
               selectAll.checked = all.length > 0 && selected.length === all.length
               selectAll.indeterminate = selected.length > 0 && selected.length < all.length
@@ -2847,7 +3006,7 @@
           },
           onParsed(parsed, transcript) {
             document.getElementById('finance-voice-confirm-transcript').textContent =
-              @json(__('認識テキスト:')) + ' ' + transcript
+              @json(__('認識テキスト:')) + ' ' + transcript;
             const provider = parsed.provider === 'gemini' ? 'Gemini' : (parsed.provider === 'openai' ? 'ChatGPT' : '')
             const confidenceLabel = {
               high: @json(__('確信度: 高')),

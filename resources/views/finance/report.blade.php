@@ -14,7 +14,7 @@
       <div class="finance-report-toolbar no-print">
         <div class="finance-top-bar finance-report-top-bar">
           <div class="finance-tabs" role="tablist" aria-label="{{ __('レポート表示切替') }}">
-            @foreach(\App\Services\FinanceService::TAB_LABELS as $tabKey => $tabLabel)
+            @foreach($visibleTabs as $tabKey => $tabLabel)
               <a
                 href="{{ $buildFinanceReportQuery(array_merge($filters, ['tab' => $tabKey])) }}"
                 class="finance-tab @if($filters['tab'] === $tabKey) is-active @endif"

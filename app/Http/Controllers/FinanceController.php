@@ -43,6 +43,9 @@ class FinanceController extends Controller
             'periodValue' => $pageData['periodValue'],
             'monthLabel' => $pageData['monthLabel'],
             'tabContextLabel' => $pageData['tabContextLabel'],
+            'visibleTabs' => $pageData['visibleTabs'],
+            'addableCurrencies' => $pageData['addableCurrencies'],
+            'enabledRegions' => $pageData['enabledRegions'],
             'accounts' => $pageData['accounts'],
             'groupedAccounts' => $pageData['groupedAccounts'],
             'accountDisplayGroups' => $pageData['accountDisplayGroups'],
@@ -55,15 +58,15 @@ class FinanceController extends Controller
             'overviewAccounts' => $pageData['overviewAccounts'],
             'overviewAccountsByRegion' => $pageData['overviewAccountsByRegion'],
             'unpinnedAccounts' => $pageData['unpinnedAccounts'],
-            'jpAccounts' => array_values(array_filter($pageData['accounts'], fn ($a) => $a['region'] === 'jp')),
-            'phAccounts' => array_values(array_filter($pageData['accounts'], fn ($a) => $a['region'] === 'ph')),
+            'tabAccounts' => array_values(array_filter(
+                $pageData['accounts'],
+                fn ($a) => $a['region'] === $filters['tab']
+            )),
             'bankAccounts' => array_values(array_filter(
                 $pageData['accounts'],
                 fn ($a) => in_array($a['kind'], ['bank', 'wallet', 'cash'], true)
             )),
             'defaultDate' => $this->finance->todayIso(),
-            'expenseCategoryPrimary' => FinanceService::EXPENSE_CATEGORY_PRIMARY,
-            'expenseCategoryOther' => $this->finance->expenseCategoryOther(),
             'expenseCategoryCustom' => $this->finance->customExpenseCategoryLabels(),
             'expenseCategoryLabels' => $this->finance->expenseCategoryLabels(),
             'voiceAiReady' => $this->voiceParse->isReady(),
@@ -94,6 +97,8 @@ class FinanceController extends Controller
             'schedules' => $reportData['schedules'],
             'accounts' => $reportData['accounts'],
             'balanceTotals' => $reportData['balanceTotals'],
+            'visibleTabs' => $reportData['visibleTabs'],
+            'addableCurrencies' => $reportData['addableCurrencies'],
             'buildFinanceReportQuery' => fn (array $f) => $this->finance->buildFinanceReportQuery($f),
             'buildFinanceQuery' => fn (array $f, array $extra = []) => $this->finance->buildFinanceQuery($f, $extra),
             'buildFinanceExportQuery' => fn (array $f, string $format) => $this->finance->buildFinanceExportQuery($f, $format),
@@ -271,6 +276,23 @@ class FinanceController extends Controller
         return response()->json(['ok' => true, 'slug' => $slug]);
     }
 
+    public function updateExpenseCategory(Request $request, string $slug)
+    {
+        $this->actAsUser($request);
+        try {
+            $category = $this->finance->updateExpenseCategory($slug, (string) $request->input('label', ''));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            return response()->json(['ok' => false, 'message' => 'カテゴリーの更新に失敗しました'], 500);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'category' => $category,
+        ]);
+    }
+
     public function updateAccountBalance(Request $request, int $id)
     {
         $this->actAsUser($request);
@@ -316,6 +338,48 @@ class FinanceController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('引落口座を更新しました'));
+    }
+
+    public function storeCurrency(Request $request)
+    {
+        $this->actAsUser($request);
+
+        try {
+            $input = (string) ($request->input('currency') ?: $request->input('region'));
+            $region = $this->finance->addExtraCurrency($input);
+        } catch (\InvalidArgumentException $e) {
+            $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        $filters = $this->finance->parseFilters(['tab' => $region]);
+        $returnTo = $this->finance->buildFinanceQuery(array_merge($filters, [
+            'tab' => $region,
+            'accountId' => null,
+        ]));
+
+        return $this->redirectWithMessage($returnTo, __('通貨を追加しました'));
+    }
+
+    public function destroyCurrency(Request $request, string $region)
+    {
+        $this->actAsUser($request);
+        $returnTo = $this->safeReturnTo($request->input('returnTo'), '/finance');
+
+        try {
+            $this->finance->removeExtraCurrency($region);
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        $filters = $this->finance->parseFilters(['tab' => 'jp']);
+        $home = $this->finance->buildFinanceQuery(array_merge($filters, [
+            'tab' => 'jp',
+            'accountId' => null,
+        ]));
+
+        return $this->redirectWithMessage($home, __('通貨を外しました'));
     }
 
     public function storeAccount(Request $request)
