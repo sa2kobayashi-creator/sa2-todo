@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MapRoute;
+use App\Services\Transit\RouteSearchService;
 use App\Services\Transit\TransitItinerary;
 
 class MapService
@@ -33,6 +34,7 @@ class MapService
         private GoogleMapsConfigService $googleMaps,
         private GoogleRoutesConfigService $googleRoutes,
         private IntegrationUsageService $usage,
+        private RouteSearchService $routeSearch,
     ) {}
 
     public function routesReady(): bool
@@ -217,10 +219,6 @@ class MapService
             'routes' => [],
         ];
 
-        if (! $this->googleRoutes->isReady()) {
-            return [...$empty, 'fallback' => true];
-        }
-
         $originLabel = trim($originLabel);
         $destinationLabel = trim($destinationLabel);
         if ($originLabel === '' || $destinationLabel === '') {
@@ -228,18 +226,23 @@ class MapService
         }
 
         $mode = $this->normalizeTravelMode($travelMode);
+        if ($mode === 'transit') {
+            return $this->directionsFromTransitSearch($originLabel, $destinationLabel, $empty);
+        }
+
+        if (! $this->googleRoutes->isReady()) {
+            return [...$empty, 'fallback' => true];
+        }
+
         $googleMode = self::GOOGLE_TRAVEL_MODES[$mode];
         $body = [
             'origin' => $this->routePlace($originLabel, $originLat, $originLng),
             'destination' => $this->routePlace($destinationLabel, $destinationLat, $destinationLng),
             'travelMode' => $googleMode,
-            'computeAlternativeRoutes' => $googleMode !== 'TRANSIT',
+            'computeAlternativeRoutes' => true,
             'languageCode' => str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'ja',
             'regionCode' => 'JP',
         ];
-        if ($googleMode === 'TRANSIT') {
-            $body['departureTime'] = now()->timezone('Asia/Tokyo')->format('Y-m-d\TH:i:sP');
-        }
 
         $result = $this->googleRoutes->computeRoutes($body, self::DIRECTIONS_FIELD_MASK);
         if (! $result['ok']) {
@@ -290,6 +293,104 @@ class MapService
         }
 
         return ['address' => $label];
+    }
+
+    /**
+     * 日本の電車・バスは Routes API が返さないので、路線検索と同じエンジンを使う。
+     *
+     * @param  array<string, mixed>  $empty
+     * @return array<string, mixed>
+     */
+    private function directionsFromTransitSearch(string $from, string $to, array $empty): array
+    {
+        $result = $this->routeSearch->search([
+            'from' => $from,
+            'to' => $to,
+            'limit' => 5,
+        ]);
+        $itineraries = is_array($result['itineraries'] ?? null) ? $result['itineraries'] : [];
+        if (empty($result['ok']) || $itineraries === []) {
+            return [
+                ...$empty,
+                'message' => (string) ($result['message'] ?? __('条件に合う経路が見つかりませんでした。')),
+                'engineNote' => (string) ($result['engineNote'] ?? ''),
+            ];
+        }
+
+        $presented = [];
+        foreach ($itineraries as $itinerary) {
+            if (! is_array($itinerary)) {
+                continue;
+            }
+            $presented[] = $this->presentItinerary($itinerary);
+        }
+        if ($presented === []) {
+            return [...$empty, 'message' => __('条件に合う経路が見つかりませんでした。')];
+        }
+
+        $first = $presented[0];
+
+        return [
+            'ok' => true,
+            'fallback' => false,
+            'message' => '',
+            'engine' => (string) ($result['engine'] ?? ''),
+            'engineNote' => (string) ($result['engineNote'] ?? ''),
+            'summary' => $first['summary'],
+            'steps' => $first['steps'],
+            'polylines' => $first['polylines'],
+            'polyline' => $first['polyline'],
+            'routes' => $presented,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $itinerary
+     * @return array<string, mixed>
+     */
+    private function presentItinerary(array $itinerary): array
+    {
+        $steps = [];
+        foreach (TransitItinerary::asList($itinerary['legs'] ?? []) as $leg) {
+            if (! is_array($leg)) {
+                continue;
+            }
+            if (($leg['type'] ?? '') === 'walk') {
+                $minutes = max(1, (int) round(((int) ($leg['durationSec'] ?? 0)) / 60));
+                $steps[] = [
+                    'text' => __('徒歩').' '.$minutes.__('分'),
+                    'mode' => 'WALK',
+                ];
+                continue;
+            }
+            $line = trim((string) ($leg['routeName'] ?? $leg['label'] ?? ''));
+            $from = trim((string) ($leg['from'] ?? ''));
+            $to = trim((string) ($leg['to'] ?? ''));
+            $text = $line;
+            if ($from !== '' && $to !== '') {
+                $text = trim($line.' '.$from.' → '.$to);
+            }
+            $steps[] = [
+                'text' => $text !== '' ? $text : __('公共交通'),
+                'mode' => 'TRANSIT',
+            ];
+        }
+
+        $departure = trim((string) ($itinerary['departureTime'] ?? ''));
+        $arrival = trim((string) ($itinerary['arrivalTime'] ?? ''));
+
+        return [
+            'summary' => (string) ($itinerary['summary'] ?? ''),
+            'durationText' => (string) ($itinerary['durationLabel'] ?? ''),
+            'distanceText' => '',
+            'fareText' => (string) ($itinerary['fareLabel'] ?? ''),
+            'modeSummary' => (string) ($itinerary['summary'] ?? ''),
+            'departureTime' => $departure,
+            'arrivalTime' => $arrival,
+            'steps' => $steps,
+            'polylines' => [],
+            'polyline' => '',
+        ];
     }
 
     /**

@@ -44,61 +44,21 @@ class MapDirectionsTest extends TestCase
             ->assertSee('map-route-results', false);
     }
 
-    public function test_directions_uses_routes_api_for_transit(): void
+    public function test_directions_uses_transit_search_for_public_transit(): void
     {
-        app(GoogleRoutesConfigService::class)->save(true, ['api_key' => 'AIzaSyMapRoutesKey00000000000000']);
-        Http::fake([
-            'routes.googleapis.com/*' => Http::response([
-                'routes' => [[
-                    'duration' => '1500s',
-                    'distanceMeters' => 4200,
-                    'polyline' => ['encodedPolyline' => '_p~iF~ps|U_ulLnnqC_mqNvxq`@'],
-                    'legs' => [[
-                        'steps' => [
-                            [
-                                'travelMode' => 'WALK',
-                                'staticDuration' => '180s',
-                                'polyline' => ['encodedPolyline' => '_p~iF~ps|U'],
-                                'navigationInstruction' => ['instructions' => '天神まで歩く'],
-                            ],
-                            [
-                                'travelMode' => 'TRANSIT',
-                                'staticDuration' => '1320s',
-                                'polyline' => ['encodedPolyline' => '_ulLnnqC_mqNvxq`@'],
-                                'transitDetails' => [
-                                    'stopDetails' => [
-                                        'departureStop' => ['name' => '天神'],
-                                        'arrivalStop' => ['name' => '博多'],
-                                    ],
-                                    'transitLine' => ['nameShort' => '空港線'],
-                                ],
-                            ],
-                        ],
-                    ]],
-                ]],
-            ], 200),
-        ]);
-
-        $this->actingAs($this->user())
+        $response = $this->actingAs($this->user())
             ->postJson('/map/directions', [
                 'originLabel' => '天神',
                 'destinationLabel' => '博多',
                 'travelMode' => 'transit',
-            ])
+            ]);
+
+        $response
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('fallback', false)
-            ->assertJsonPath('routes.0.steps.1.text', '空港線 天神 → 博多')
-            ->assertJsonPath('routes.0.polylines.0.mode', 'WALK')
-            ->assertJsonPath('steps.1.text', '空港線 天神 → 博多');
-
-        Http::assertSent(function ($request) {
-            $mask = $request->header('X-Goog-FieldMask')[0] ?? '';
-
-            return str_contains($request->url(), 'computeRoutes')
-                && $request['travelMode'] === 'TRANSIT'
-                && str_contains($mask, 'encodedPolyline');
-        });
+            ->assertJsonPath('engine', 'RAPTOR');
+        $this->assertGreaterThan(0, count($response->json('routes') ?? []));
     }
 
     public function test_directions_falls_back_when_routes_is_not_configured(): void
@@ -107,7 +67,7 @@ class MapDirectionsTest extends TestCase
             ->postJson('/map/directions', [
                 'originLabel' => '天神',
                 'destinationLabel' => '博多',
-                'travelMode' => 'transit',
+                'travelMode' => 'driving',
             ])
             ->assertOk()
             ->assertJsonPath('ok', false)

@@ -37,7 +37,7 @@ class GoogleRoutesRouteService
             'origin' => $this->place($from),
             'destination' => $this->place($to),
             'travelMode' => 'TRANSIT',
-            'computeAlternativeRoutes' => true,
+            'computeAlternativeRoutes' => false,
             'languageCode' => 'ja',
             'regionCode' => 'JP',
             'transitPreferences' => [
@@ -53,9 +53,17 @@ class GoogleRoutesRouteService
             return ['ok' => false, 'message' => $result['message'], 'itineraries' => []];
         }
 
+        $routes = is_array($result['data']['routes'] ?? null) ? $result['data']['routes'] : [];
+        if ($routes === []) {
+            return [
+                'ok' => false,
+                'message' => GoogleRoutesConfigService::japanTransitUnsupportedMessage(),
+                'itineraries' => [],
+            ];
+        }
+
         $this->usage->increment('google_routes');
 
-        $routes = is_array($result['data']['routes'] ?? null) ? $result['data']['routes'] : [];
         $limit = max(1, min(10, (int) ($query['limit'] ?? 5)));
         $itineraries = [];
         foreach (array_slice($routes, 0, $limit) as $route) {
@@ -69,7 +77,11 @@ class GoogleRoutesRouteService
         }
 
         if ($itineraries === []) {
-            return ['ok' => false, 'message' => __('条件に合う経路が見つかりませんでした。'), 'itineraries' => []];
+            return [
+                'ok' => false,
+                'message' => GoogleRoutesConfigService::japanTransitUnsupportedMessage(),
+                'itineraries' => [],
+            ];
         }
 
         foreach ($itineraries as $i => &$itinerary) {

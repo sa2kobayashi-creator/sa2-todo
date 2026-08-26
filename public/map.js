@@ -186,7 +186,11 @@
       modes.textContent = route.modeSummary || ''
       const meta = document.createElement('p')
       meta.className = 'map-result-meta'
-      meta.textContent = [route.fareText, route.distanceText].filter(Boolean).join(' · ')
+      meta.textContent = [
+        route.departureTime && route.arrivalTime ? `${route.departureTime} → ${route.arrivalTime}` : '',
+        route.fareText,
+        route.distanceText,
+      ].filter(Boolean).join(' · ')
       card.appendChild(duration)
       if (modes.textContent) card.appendChild(modes)
       if (meta.textContent) card.appendChild(meta)
@@ -269,6 +273,12 @@
     selectedRouteIndex = 0
     lastGoogleDirections = null
     showResultsPanel()
+    const noteEl = document.getElementById('map-results-note')
+    if (noteEl) {
+      const note = String(result.engineNote || '')
+      noteEl.textContent = note
+      noteEl.hidden = note === ''
+    }
     renderRouteCards()
     selectPresentedRoute(0)
   }
@@ -375,20 +385,16 @@
     }
 
     try {
-      if (config.hasRoutesApi) {
-        const data = await fetchMapDirections()
-        if (data?.ok) {
-          drawRoutesResult(data)
-          return
-        }
-        if (data?.fallback) {
-          requestLegacyDirections()
-          return
-        }
-        showRouteError(data?.message || strings.routeFailed || '')
+      const data = await fetchMapDirections()
+      if (data?.ok) {
+        drawRoutesResult(data)
         return
       }
-      requestLegacyDirections()
+      if (data?.fallback) {
+        requestLegacyDirections()
+        return
+      }
+      showRouteError(data?.message || strings.routeFailed || '')
     } catch (_) {
       showRouteError(strings.routeFailed || '')
     } finally {

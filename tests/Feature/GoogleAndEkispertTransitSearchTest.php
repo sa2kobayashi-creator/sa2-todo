@@ -42,52 +42,26 @@ class GoogleAndEkispertTransitSearchTest extends TestCase
         ]);
     }
 
-    public function test_search_uses_google_routes_when_configured(): void
+    public function test_search_skips_google_routes_for_japan_transit(): void
     {
         app(GoogleRoutesConfigService::class)->save(true, ['api_key' => 'AIzaSyRoutesSearchKey0000000000']);
         Http::fake([
-            'routes.googleapis.com/*' => Http::response([
-                'routes' => [[
-                    'duration' => '1800s',
-                    'legs' => [[
-                        'steps' => [
-                            ['travelMode' => 'WALK', 'staticDuration' => '300s'],
-                            [
-                                'travelMode' => 'TRANSIT',
-                                'staticDuration' => '1500s',
-                                'transitDetails' => [
-                                    'stopDetails' => [
-                                        'departureStop' => ['name' => '天神'],
-                                        'arrivalStop' => ['name' => '博多'],
-                                        'departureTime' => '2026-08-26T08:10:00+09:00',
-                                        'arrivalTime' => '2026-08-26T08:30:00+09:00',
-                                    ],
-                                    'transitLine' => [
-                                        'name' => '地下鉄空港線',
-                                        'nameShort' => '空港線',
-                                        'vehicle' => ['type' => 'SUBWAY'],
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ]],
-                    'travelAdvisory' => ['transitFare' => ['currencyCode' => 'JPY', 'units' => '260']],
-                ]],
-            ], 200),
+            'routes.googleapis.com/*' => Http::response(['routes' => [['duration' => '1s']]], 200),
         ]);
 
-        $this->actingAs($this->user())->postJson('/transit/search', [
+        $response = $this->actingAs($this->user())->postJson('/transit/search', [
             'from' => '天神',
             'to' => '博多',
             'departureAt' => '2026-08-26T08:00',
-        ])
+            'engine' => 'google',
+        ]);
+
+        $response
             ->assertOk()
             ->assertJsonPath('ok', true)
-            ->assertJsonPath('engine', 'Google Maps Routes')
-            ->assertJsonPath('itineraries.0.departureTime', '08:10')
-            ->assertJsonPath('itineraries.0.arrivalTime', '08:30')
-            ->assertJsonPath('itineraries.0.fareLabel', '¥260')
-            ->assertJsonPath('itineraries.0.legs.1.routeName', '空港線');
+            ->assertJsonPath('engine', 'RAPTOR');
+        $this->assertStringContainsString('日本の交通機関ルート', (string) $response->json('engineNote'));
+        Http::assertNothingSent();
     }
 
     public function test_search_uses_ekispert_when_configured(): void
@@ -131,11 +105,29 @@ class GoogleAndEkispertTransitSearchTest extends TestCase
             ->assertJsonPath('itineraries.0.legs.0.routeName', '地下鉄空港線');
     }
 
-    public function test_google_failure_falls_back_to_the_builtin_engine(): void
+    public function test_google_selection_falls_back_without_calling_routes_api(): void
     {
         app(GoogleRoutesConfigService::class)->save(true, ['api_key' => 'AIzaSyRoutesFailKey000000000000']);
+        Http::fake();
+
+        $response = $this->actingAs($this->user())->postJson('/transit/search', [
+            'from' => '天神',
+            'to' => '博多',
+            'departureAt' => '2026-08-26T08:00',
+            'engine' => 'google',
+        ]);
+
+        $response->assertOk()->assertJsonPath('engine', 'RAPTOR');
+        $this->assertStringContainsString('Google Maps Routes', (string) $response->json('engineNote'));
+        $this->assertStringContainsString('日本の交通機関ルート', (string) $response->json('engineNote'));
+        Http::assertNothingSent();
+    }
+
+    public function test_auto_skips_google_routes_because_japan_transit_is_unsupported(): void
+    {
+        app(GoogleRoutesConfigService::class)->save(true, ['api_key' => 'AIzaSyRoutesAutoSkipKey000000000']);
         Http::fake([
-            'routes.googleapis.com/*' => Http::response(['error' => ['message' => 'quota']], 429),
+            'routes.googleapis.com/*' => Http::response(['routes' => [['duration' => '1s']]], 200),
         ]);
 
         $response = $this->actingAs($this->user())->postJson('/transit/search', [
@@ -145,6 +137,24 @@ class GoogleAndEkispertTransitSearchTest extends TestCase
         ]);
 
         $response->assertOk()->assertJsonPath('engine', 'RAPTOR');
-        $this->assertStringContainsString('Google Maps Routes', (string) $response->json('engineNote'));
+        $this->assertNull($response->json('engineNote'));
+        Http::assertNothingSent();
+    }
+
+    public function test_empty_google_routes_explains_japan_is_unsupported(): void
+    {
+        app(GoogleRoutesConfigService::class)->save(true, ['api_key' => 'AIzaSyRoutesEmptyJapanKey00000000']);
+        Http::fake();
+
+        $response = $this->actingAs($this->user())->postJson('/transit/search', [
+            'from' => '志賀島',
+            'to' => '天神四丁目',
+            'departureAt' => '2026-08-26T08:00',
+            'engine' => 'google',
+        ]);
+
+        $response->assertOk()->assertJsonPath('engine', 'RAPTOR');
+        $this->assertStringContainsString('日本の交通機関ルート', (string) $response->json('engineNote'));
+        Http::assertNothingSent();
     }
 }

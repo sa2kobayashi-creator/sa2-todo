@@ -33,7 +33,7 @@ class MapController extends Controller
                 'routeFailed' => __('ルートを取得できませんでした。'),
                 'loading' => __('経路を取得中...'),
                 'openInGoogleMaps' => __('Google Maps で開く'),
-                'directionsDenied' => __('公共交通のルート表示には Google Maps Routes API が必要です。設定 → API設定 で有効にしてください。'),
+                'directionsDenied' => __('Google のルート API がこのキーでは使えません。設定 → API設定を確認してください。'),
             ],
             ...$this->flashFromQuery($request),
         ]);

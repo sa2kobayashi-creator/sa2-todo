@@ -3,6 +3,7 @@
 namespace App\Services\Transit;
 
 use App\Models\MediaStorageSetting;
+use App\Services\GoogleRoutesConfigService;
 use App\Services\Transit\Contracts\RouteProvider;
 use App\Services\Transit\Providers\EkispertRouteProvider;
 use App\Services\Transit\Providers\GoogleRoutesRouteProvider;
@@ -15,7 +16,8 @@ use App\Services\Transit\Raptor\ItineraryScorer;
  *
  * 優先順は「設定画面の選択 ＞ ROUTE_PROVIDER ＞ auto」。auto と、選んだ API が
  * 落ちたときは、使える次のプロバイダへ自動で回して結果を必ず返す。
- * 並びは Google Maps Routes → NAVITIME → 駅すぱあと → 内蔵 RAPTOR。
+ * 並びは NAVITIME → 駅すぱあと → 内蔵 RAPTOR。
+ * Google Maps Routes は日本の電車・バスを返さないため、明示したときだけ使う。
  */
 class RouteSearchService
 {
@@ -126,20 +128,24 @@ class RouteSearchService
     public function search(array $query): array
     {
         $requested = $this->normalizeKey((string) ($query['engine'] ?? '')) ?: $this->selectedKey();
-        if ($requested !== self::AUTO) {
-            $chosen = $this->provider($requested);
-            if ($chosen !== null && $requested !== 'raptor' && ! $chosen->isReady()) {
-                return [
-                    'ok' => false,
-                    'engine' => $chosen->label(),
-                    'message' => __(':engine は未設定です。設定 → API設定 でキーを入れてから選んでください。', ['engine' => $chosen->label()]),
-                    'itineraries' => [],
-                ];
-            }
+        $chosen = $requested !== self::AUTO ? $this->provider($requested) : null;
+        if ($chosen !== null && $requested !== 'raptor' && ! $chosen->isReady()) {
+            return [
+                'ok' => false,
+                'engine' => $chosen->label(),
+                'message' => __(':engine は未設定です。設定 → API設定 でキーを入れてから選んでください。', ['engine' => $chosen->label()]),
+                'itineraries' => [],
+            ];
         }
         $chain = $this->chainFor($requested);
 
         $failed = null;
+        if ($requested === 'google') {
+            $failed = [
+                'label' => $chosen?->label() ?? 'Google Maps Routes',
+                'reason' => GoogleRoutesConfigService::japanTransitUnsupportedMessage(),
+            ];
+        }
         $lastResult = null;
 
         foreach ($chain as $provider) {
@@ -166,6 +172,14 @@ class RouteSearchService
                 'label' => $provider->label(),
                 'reason' => (string) ($result['message'] ?? ''),
             ];
+        }
+
+        if ($lastResult !== null && $failed !== null && empty($lastResult['engineNote'])) {
+            $lastResult['engineNote'] = __(':label で取得できなかったため :engine で検索しました（:reason）', [
+                'label' => $failed['label'],
+                'engine' => (string) ($lastResult['engine'] ?? ''),
+                'reason' => $failed['reason'],
+            ]);
         }
 
         return $lastResult ?? [
@@ -298,12 +312,17 @@ class RouteSearchService
     /** @return list<RouteProvider> */
     private function chainFor(string $key): array
     {
-        if ($key === self::AUTO || $this->provider($key) === null) {
-            return $this->providers;
+        $withoutGoogle = array_values(array_filter(
+            $this->providers,
+            fn (RouteProvider $p) => $p->key() !== 'google'
+        ));
+
+        if ($key === self::AUTO || $key === 'google' || $this->provider($key) === null) {
+            return $withoutGoogle;
         }
 
         $head = $this->provider($key);
-        $rest = array_values(array_filter($this->providers, fn (RouteProvider $p) => $p->key() !== $key));
+        $rest = array_values(array_filter($withoutGoogle, fn (RouteProvider $p) => $p->key() !== $key));
 
         return [$head, ...$rest];
     }

@@ -44,6 +44,11 @@ class GoogleRoutesConfigService
         return $row->enabled ? $this->googleMaps->apiKey() : '';
     }
 
+    public static function japanTransitUnsupportedMessage(): string
+    {
+        return __('Google は日本の交通機関ルートが API の提供対象外です。キーは有効でも電車・バスは返りません。路線検索は NAVITIME または駅すぱあと を設定するか、内蔵 RAPTOR（福岡都心）を使ってください。');
+    }
+
     public function usesMapsKeyFallback(): bool
     {
         $row = $this->row();
@@ -142,7 +147,7 @@ class GoogleRoutesConfigService
 
         $count = is_array($result['data']['routes'] ?? null) ? count($result['data']['routes']) : 0;
         if ($count === 0) {
-            return ['ok' => true, 'message' => __('Google Maps Routes API に接続できました（この区間では経路が返りませんでした）')];
+            return ['ok' => true, 'message' => self::japanTransitUnsupportedMessage()];
         }
 
         return ['ok' => true, 'message' => __('Google Maps Routes API に接続できました')];

@@ -60,6 +60,7 @@
 
           <section class="map-results-section" id="map-results-section" hidden>
             <h2 class="map-section-title">{{ __('ルート案内') }}</h2>
+            <p class="hint transit-engine-note" id="map-results-note" hidden></p>
             <div id="map-route-results" class="map-route-results"></div>
             <div id="map-directions-steps" class="map-directions-steps"></div>
           </section>

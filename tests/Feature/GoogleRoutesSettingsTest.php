@@ -44,7 +44,7 @@ class GoogleRoutesSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('Google Maps Routes API（路線検索の経路探索）', false)
             ->assertSee('google-routes-api-settings', false)
-            ->assertDontSee('Google は日本の交通機関ルートが API の提供対象外', false);
+            ->assertSee('Google は日本の交通機関ルートが API の提供対象外', false);
     }
 
     public function test_admin_can_save_google_routes_key(): void
@@ -88,7 +88,8 @@ class GoogleRoutesSettingsTest extends TestCase
         $this->actingAs($admin)
             ->postJson('/settings/api/google-routes/test')
             ->assertOk()
-            ->assertJsonPath('ok', true);
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('message', \App\Services\GoogleRoutesConfigService::japanTransitUnsupportedMessage());
 
         $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_ROUTES);
         $this->assertSame('ok', $row->last_test_status);
