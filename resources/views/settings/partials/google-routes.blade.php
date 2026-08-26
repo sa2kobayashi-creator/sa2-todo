@@ -7,6 +7,9 @@
   <p class="hint">{{ __('路線検索の「検索」で、Google の公共交通ルートを取得します。Google Cloud で Routes API を有効化したキーを入れてください。') }}
     <a href="https://developers.google.com/maps/documentation/routes" target="_blank" rel="noopener">{{ __('Routes API の案内') }}</a>
   </p>
+  <p class="hint">{{ __('出発地・到着地の地名を座標にするのは Geocoding API です。経路そのもの（Routes API）とは別で、上の Google マップのキーを使います。') }}
+    <a href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Geocoding API を有効化') }}</a>
+  </p>
   <p class="hint">{{ __('専用キーを空のまま有効にすると、上の Google マップのキーを流用します。') }}</p>
   @if(!empty($gr['uses_maps_key_fallback']))
     <p class="hint">{{ __('いまは Google マップの API キーを流用しています。専用キーを保存するとそちらが優先されます。') }}</p>

@@ -89,12 +89,11 @@ class GoogleMapsSettingsTest extends TestCase
         $this->assertTrue(app(GoogleMapsConfigService::class)->usesEnvFallback());
     }
 
-    public function test_connection_test_succeeds_with_geocode_ok(): void
+    public function test_connection_test_succeeds_with_places_ok(): void
     {
         Http::fake([
-            'maps.googleapis.com/maps/api/geocode/*' => Http::response([
-                'status' => 'OK',
-                'results' => [['formatted_address' => 'Fukuoka']],
+            'places.googleapis.com/*' => Http::response([
+                'suggestions' => [['placePrediction' => ['text' => ['text' => '博多駅']]]],
             ], 200),
         ]);
 
@@ -110,5 +109,29 @@ class GoogleMapsSettingsTest extends TestCase
 
         $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
         $this->assertSame('ok', $row->last_test_status);
+    }
+
+    public function test_connection_test_explains_when_places_api_is_disabled(): void
+    {
+        Http::fake([
+            'places.googleapis.com/*' => Http::response([
+                'error' => [
+                    'code' => 403,
+                    'message' => 'This API is not activated on your API project. You may need to enable this API in the Google Cloud Console.',
+                    'status' => 'PERMISSION_DENIED',
+                ],
+            ], 403),
+        ]);
+
+        $super = $this->makeUser(UserRole::SuperAdmin, 'super-maps-places-off@example.com');
+        app(GoogleMapsConfigService::class)->saveConfig(true, [
+            'api_key' => 'AIzaSyTestPlacesDisabledKey0000000',
+        ]);
+
+        $this->actingAs($super)
+            ->postJson('/settings/api/google-maps/test')
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false)
+            ->assertJsonPath('message', 'Places API (New) が未有効です。Google マップ用キーのプロジェクトで Places API (New) を有効にしてください。');
     }
 }

@@ -4,7 +4,19 @@
 
 <div class="panel storage-settings" id="google-maps-api-settings">
   <h2>{{ __('Google マップ（Map / Transit）') }}</h2>
-  <p class="hint">{{ __('Map と乗換案内の地図・場所検索に使います。Google Cloud で Maps JavaScript API と Places API を有効化し、HTTP リファラ制限と予算アラートを設定してください。キーはアプリ全体で1セットです。') }}</p>
+  <p class="hint">{{ __('Map と乗換案内の地図・場所の入力候補に使います。接続テストは Places API (New) でマップ用キーを確認します。Routes API の成功とは別です。キーはアプリ全体で1セットです。') }}</p>
+  <p class="hint">{{ __('マップ用キーを発行したプロジェクトで、次を有効にしてください。') }}
+    <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Maps JavaScript API') }}</a>
+    /
+    <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Places API') }}</a>
+    /
+    <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">{{ __('Places API (New)') }}</a>
+    /
+    <a href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Geocoding API') }}</a>
+    /
+    <a href="https://console.cloud.google.com/apis/library/directions-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Directions API') }}</a>
+  </p>
+  <p class="hint">{{ __('キーに「API の制限」がある場合は、上の API を許可リストに含めてください。アプリケーション制限は HTTP リファラ（サイトの URL）です。IP 制限は Routes 用キー向けです。予算アラートも設定してください。') }}</p>
   @if(!empty($gm['uses_env_fallback']))
     <p class="hint">{{ __('DB に未保存のため、いまは .env の GOOGLE_MAPS_API_KEY を使用しています。ここに保存すると管理画面の設定が優先されます。') }}</p>
   @endif

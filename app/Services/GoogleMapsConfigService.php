@@ -86,49 +86,67 @@ class GoogleMapsConfigService
             $response = Http::timeout(10)
                 ->acceptJson()
                 ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'X-Goog-Api-Key' => $key,
                     'Referer' => rtrim((string) config('app.url'), '/').'/',
                 ])
-                ->get('https://maps.googleapis.com/maps/api/geocode/json', [
-                    'address' => 'Fukuoka',
-                    'key' => $key,
+                ->post('https://places.googleapis.com/v1/places:autocomplete', [
+                    'input' => '博多駅',
+                    'includedRegionCodes' => ['jp'],
+                    'languageCode' => 'ja',
                 ]);
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => __('接続に失敗しました: :msg', ['msg' => mb_substr($e->getMessage(), 0, 160)])];
         }
 
         $json = $response->json();
-        $status = is_array($json) ? (string) ($json['status'] ?? '') : '';
-        $error = is_array($json) ? (string) ($json['error_message'] ?? '') : '';
+        $json = is_array($json) ? $json : [];
+        $error = $this->googleErrorMessage($json, $response->body());
+        $lower = mb_strtolower($error);
 
-        if (in_array($status, ['OK', 'ZERO_RESULTS'], true)) {
+        if ($response->successful()) {
             return ['ok' => true, 'message' => __('Google Maps API への接続に成功しました。')];
         }
 
-        if ($status === 'OVER_QUERY_LIMIT') {
-            return ['ok' => true, 'message' => __('キーは有効ですが、いまは利用上限に達しています。')];
+        if (str_contains($lower, 'not activated') || str_contains($lower, 'enable this api')) {
+            return [
+                'ok' => false,
+                'message' => __('Places API (New) が未有効です。Google マップ用キーのプロジェクトで Places API (New) を有効にしてください。'),
+            ];
         }
 
-        if ($status === 'REQUEST_DENIED') {
-            $lower = mb_strtolower($error);
-            if (
-                str_contains($lower, 'referer')
-                || str_contains($lower, 'referrer')
-                || str_contains($lower, 'browser')
-                || str_contains($lower, 'ip address')
-            ) {
-                return [
-                    'ok' => true,
-                    'message' => __('キーは受け付けられました。HTTP リファラ制限があるためサーバーからの完全な検証はできません。Map 画面で表示を確認してください。'),
-                ];
-            }
+        if (
+            str_contains($lower, 'referer')
+            || str_contains($lower, 'referrer')
+            || str_contains($lower, 'browser')
+            || str_contains($lower, 'ip address')
+        ) {
+            return [
+                'ok' => true,
+                'message' => __('キーは受け付けられました。HTTP リファラ制限があるためサーバーからの完全な検証はできません。Map 画面で表示を確認してください。'),
+            ];
         }
 
-        $detail = $error !== '' ? $error : ($status !== '' ? $status : $response->body());
+        $detail = $error !== '' ? $error : ('HTTP '.$response->status());
 
         return [
             'ok' => false,
-            'message' => __('Google Maps API エラー: :msg', ['msg' => mb_substr((string) $detail, 0, 200)]),
+            'message' => __('Google Maps API エラー: :msg', ['msg' => mb_substr($detail, 0, 200)]),
         ];
+    }
+
+    /** @param array<string, mixed> $json */
+    private function googleErrorMessage(array $json, string $fallback): string
+    {
+        $error = $json['error'] ?? null;
+        if (is_array($error) && isset($error['message']) && is_string($error['message'])) {
+            return $error['message'];
+        }
+        if (isset($json['error_message']) && is_string($json['error_message'])) {
+            return $json['error_message'];
+        }
+
+        return $fallback;
     }
 
     public function recordTestResult(bool $ok, string $message): void
