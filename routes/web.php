@@ -427,6 +427,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(EnsureFeature::class.':map')->group(function () {
         Route::get('/map', [MapController::class, 'index']);
         Route::post('/map', [MapController::class, 'store']);
+        Route::post('/map/directions', [MapController::class, 'directions']);
         Route::post('/map/{id}/update', [MapController::class, 'update'])->whereNumber('id');
         Route::post('/map/{id}/delete', [MapController::class, 'destroy'])->whereNumber('id');
     });

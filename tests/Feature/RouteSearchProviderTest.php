@@ -110,6 +110,21 @@ class RouteSearchProviderTest extends TestCase
         $this->actingAs($this->user())
             ->get('/transit')
             ->assertOk()
-            ->assertSee('NAVITIME の時刻表で経路', false);
+            ->assertSee('使う経路検索', false)
+            ->assertSee('transit-engine', false)
+            ->assertSee('NAVITIME', false);
+    }
+
+    public function test_search_explains_when_google_is_selected_but_not_configured(): void
+    {
+        $this->actingAs($this->user())
+            ->postJson('/transit/search', [
+                'from' => '志賀島',
+                'to' => '天神四丁目',
+                'engine' => 'google',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false)
+            ->assertJsonPath('engine', 'Google Maps Routes');
     }
 }

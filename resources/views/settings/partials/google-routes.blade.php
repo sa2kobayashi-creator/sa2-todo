@@ -4,7 +4,7 @@
 
 <div class="panel storage-settings" id="google-routes-api-settings">
   <h2>{{ __('Google Maps Routes API（路線検索の経路探索）') }}</h2>
-  <p class="hint">{{ __('路線検索の「検索」で、Google の公共交通ルートを取得します。Google Cloud で Routes API を有効化したキーを入れてください。') }}
+  <p class="hint">{{ __('Map の「ルート表示」と路線検索の「検索」で、Google の経路を取得します。Google Cloud で Routes API を有効化したキーを入れてください。') }}
     <a href="https://developers.google.com/maps/documentation/routes" target="_blank" rel="noopener">{{ __('Routes API の案内') }}</a>
   </p>
   <p class="hint">{{ __('出発地・到着地の地名を座標にするのは Geocoding API です。経路そのもの（Routes API）とは別で、上の Google マップのキーを使います。') }}

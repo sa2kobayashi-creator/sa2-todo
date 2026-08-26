@@ -51,6 +51,8 @@ class TransitController extends Controller
             ],
             'routeEngineLabel' => $this->routes->activeProvider()?->label(),
             'routeEngineIsExternal' => $this->routes->activeProvider()?->key() !== 'raptor',
+            'routeEngineChoices' => $this->routes->formChoices(),
+            'routeEngineSelected' => $this->routes->selectedKey(),
             'aiTopic' => $this->guide->embeddedTopics()[WorkersAiGuideService::TOPIC_TRANSIT],
             'aiReady' => $this->guide->isReady(),
             'shareTargets' => $this->share->targetsFor($userId),

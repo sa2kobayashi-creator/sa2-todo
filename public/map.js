@@ -1,5 +1,6 @@
 (function () {
   const config = window.MAP_PAGE_CONFIG || {}
+  const strings = config.strings || {}
   let map = null
   let directionsService = null
   let directionsRenderer = null
@@ -7,12 +8,18 @@
   let destinationAutocomplete = null
   let lastOrigin = null
   let lastDestination = null
+  let routeOverlays = []
 
   const originInput = document.getElementById('map-origin')
   const destinationInput = document.getElementById('map-destination')
   const travelModeSelect = document.getElementById('map-travel-mode')
-  const directionsPanel = document.getElementById('map-directions-panel')
+  const directionsPanel = document.getElementById('map-results-section')
+  const routeResultsBox = document.getElementById('map-route-results')
   const directionsSteps = document.getElementById('map-directions-steps')
+  const showRouteBtn = document.getElementById('map-show-route')
+  let presentedRoutes = []
+  let selectedRouteIndex = 0
+  let lastGoogleDirections = null
 
   function getTravelMode() {
     return travelModeSelect?.value || 'transit'
@@ -64,58 +71,331 @@
     return `https://www.google.com/maps/dir/?${params.toString()}`
   }
 
-  function renderSteps(result) {
-    if (!directionsSteps || !directionsPanel) return
-    const route = result?.routes?.[0]
-    if (!route) {
-      directionsPanel.hidden = true
-      return
+  function decodePolyline(encoded) {
+    const points = []
+    let index = 0
+    let lat = 0
+    let lng = 0
+    const text = String(encoded || '')
+    while (index < text.length) {
+      let b
+      let shift = 0
+      let result = 0
+      do {
+        b = text.charCodeAt(index++) - 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (b >= 0x20)
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1)
+      shift = 0
+      result = 0
+      do {
+        b = text.charCodeAt(index++) - 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (b >= 0x20)
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1)
+      points.push({ lat: lat / 1e5, lng: lng / 1e5 })
     }
-    const leg = route.legs[0]
-    directionsSteps.innerHTML = ''
-    const summary = document.createElement('p')
-    summary.className = 'map-directions-summary'
-    summary.textContent = `${leg.distance?.text || ''} / ${leg.duration?.text || ''}`
-    directionsSteps.appendChild(summary)
-    ;(leg.steps || []).forEach((step) => {
-      const item = document.createElement('div')
-      item.className = 'map-direction-step'
-      item.innerHTML = step.instructions
-      directionsSteps.appendChild(item)
-    })
-    directionsPanel.hidden = false
+    return points
   }
 
-  function requestRoute() {
+  function strokeForMode(mode) {
+    const m = String(mode || '').toUpperCase()
+    if (m === 'WALK' || m === 'WALKING') {
+      return { color: '#5f6368', dashed: true }
+    }
+    if (m === 'BICYCLE' || m === 'BICYCLING') {
+      return { color: '#188038', dashed: false }
+    }
+    return { color: '#1a73e8', dashed: false }
+  }
+
+  function clearRouteOverlays() {
+    routeOverlays.forEach((line) => line.setMap(null))
+    routeOverlays = []
+    try {
+      directionsRenderer?.setDirections({ routes: [] })
+    } catch (_) {}
+  }
+
+  function fitToPoints(points) {
+    if (!map || !points.length) return
+    if (points.length === 1) {
+      map.setCenter(points[0])
+      map.setZoom(15)
+      return
+    }
+    const bounds = new google.maps.LatLngBounds()
+    points.forEach((point) => bounds.extend(point))
+    map.fitBounds(bounds, 48)
+  }
+
+  function drawEncodedPolyline(encoded, mode) {
+    const points = decodePolyline(encoded)
+    if (!points.length || !map) return []
+    const stroke = strokeForMode(mode)
+    const line = new google.maps.Polyline({
+      path: points,
+      map,
+      strokeColor: stroke.color,
+      strokeOpacity: 0.95,
+      strokeWeight: stroke.dashed ? 4 : 5,
+      icons: stroke.dashed
+        ? [{
+            icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 },
+            offset: '0',
+            repeat: '12px',
+          }]
+        : undefined,
+    })
+    if (stroke.dashed) {
+      line.setOptions({ strokeOpacity: 0 })
+    }
+    routeOverlays.push(line)
+    return points
+  }
+
+  function renderCustomSteps(steps) {
+    if (!directionsSteps) return
+    directionsSteps.innerHTML = ''
+    ;(steps || []).forEach((step) => {
+      const item = document.createElement('div')
+      item.className = 'map-direction-step'
+      if (step.text) {
+        item.textContent = step.text
+      } else if (step.instructions) {
+        item.innerHTML = step.instructions
+      }
+      directionsSteps.appendChild(item)
+    })
+  }
+
+  function renderRouteCards() {
+    if (!routeResultsBox) return
+    routeResultsBox.innerHTML = ''
+    presentedRoutes.forEach((route, index) => {
+      const card = document.createElement('button')
+      card.type = 'button'
+      card.className = 'map-result-card' + (index === selectedRouteIndex ? ' is-selected' : '')
+      const duration = document.createElement('p')
+      duration.className = 'map-result-duration'
+      duration.textContent = route.durationText || route.summary || ''
+      const modes = document.createElement('p')
+      modes.className = 'map-result-modes'
+      modes.textContent = route.modeSummary || ''
+      const meta = document.createElement('p')
+      meta.className = 'map-result-meta'
+      meta.textContent = [route.fareText, route.distanceText].filter(Boolean).join(' · ')
+      card.appendChild(duration)
+      if (modes.textContent) card.appendChild(modes)
+      if (meta.textContent) card.appendChild(meta)
+      card.addEventListener('click', () => selectPresentedRoute(index))
+      routeResultsBox.appendChild(card)
+    })
+  }
+
+  function drawPresentedRoute(route) {
+    clearRouteOverlays()
+    const lines = Array.isArray(route?.polylines) ? route.polylines.filter((line) => line?.encoded) : []
+    let points = []
+    if (lines.length) {
+      lines.forEach((line) => {
+        points = points.concat(drawEncodedPolyline(line.encoded, line.mode))
+      })
+    } else if (route?.polyline) {
+      points = drawEncodedPolyline(route.polyline, getTravelMode())
+    }
+    fitToPoints(points)
+    renderCustomSteps(route?.steps || [])
+  }
+
+  function selectPresentedRoute(index) {
+    const route = presentedRoutes[index]
+    if (!route) return
+    selectedRouteIndex = index
+    renderRouteCards()
+    if (route.googleRoute && lastGoogleDirections && directionsRenderer) {
+      clearRouteOverlays()
+      directionsRenderer.setDirections(lastGoogleDirections)
+      directionsRenderer.setRouteIndex(index)
+      renderCustomSteps(route.steps)
+      return
+    }
+    lastGoogleDirections = null
+    drawPresentedRoute(route)
+  }
+
+  function showResultsPanel() {
+    if (directionsPanel) directionsPanel.hidden = false
+  }
+
+  function showRouteError(message) {
+    clearRouteOverlays()
+    presentedRoutes = []
+    if (routeResultsBox) routeResultsBox.innerHTML = ''
+    if (!directionsSteps || !directionsPanel) {
+      window.alert(message)
+      return
+    }
+    directionsSteps.innerHTML = ''
+    const text = document.createElement('p')
+    text.className = 'hint'
+    text.textContent = message
+    const link = document.createElement('a')
+    link.href = buildGoogleUrl(false)
+    link.target = '_blank'
+    link.rel = 'noopener'
+    link.textContent = strings.openInGoogleMaps || 'Google Maps'
+    directionsSteps.appendChild(text)
+    directionsSteps.appendChild(link)
+    showResultsPanel()
+  }
+
+  function drawRoutesResult(result) {
+    const list = Array.isArray(result.routes) && result.routes.length
+      ? result.routes
+      : [{
+          summary: result.summary || '',
+          durationText: result.summary || '',
+          distanceText: '',
+          fareText: '',
+          modeSummary: '',
+          steps: result.steps || [],
+          polylines: result.polylines || [],
+          polyline: result.polyline || '',
+        }]
+    presentedRoutes = list
+    selectedRouteIndex = 0
+    lastGoogleDirections = null
+    showResultsPanel()
+    renderRouteCards()
+    selectPresentedRoute(0)
+  }
+
+  function googleResultToPresented(result) {
+    return (result?.routes || []).map((route) => {
+      const leg = route.legs?.[0] || {}
+      const steps = (leg.steps || []).map((step) => ({
+        text: '',
+        instructions: step.instructions || '',
+        mode: step.travel_mode || '',
+      }))
+      return {
+        summary: `${leg.duration?.text || ''} / ${leg.distance?.text || ''}`.trim(),
+        durationText: leg.duration?.text || '',
+        distanceText: leg.distance?.text || '',
+        fareText: '',
+        modeSummary: (route.summary || '').replace(/,/g, ' → '),
+        steps,
+        polylines: [],
+        polyline: '',
+        googleRoute: route,
+      }
+    })
+  }
+
+  function renderGoogleSteps(result) {
+    presentedRoutes = googleResultToPresented(result)
+    selectedRouteIndex = 0
+    showResultsPanel()
+    renderRouteCards()
+    const route = presentedRoutes[0]
+    if (!route) {
+      if (directionsPanel) directionsPanel.hidden = true
+      return
+    }
+    renderCustomSteps(route.steps)
+  }
+
+  async function fetchMapDirections() {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
+    const res = await fetch('/map/directions', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        originLabel: lastOrigin.label,
+        originLat: lastOrigin.lat,
+        originLng: lastOrigin.lng,
+        destinationLabel: lastDestination.label,
+        destinationLat: lastDestination.lat,
+        destinationLng: lastDestination.lng,
+        travelMode: getTravelMode(),
+      }),
+    })
+    return res.json().catch(() => ({}))
+  }
+
+  function requestLegacyDirections() {
     if (!directionsService || !directionsRenderer) {
-      window.open(buildGoogleUrl(false), '_blank', 'noopener')
+      showRouteError(strings.routeFailed || '')
       return
     }
-
-    lastOrigin = readInputLocation(originInput, originAutocomplete)
-    lastDestination = readInputLocation(destinationInput, destinationAutocomplete)
-    syncSaveForm()
-
-    if (!lastOrigin.label || !lastDestination.label) {
-      alert('出発地と目的地を入力してください')
-      return
-    }
-
     const request = {
       origin: lastOrigin.lat != null ? { lat: lastOrigin.lat, lng: lastOrigin.lng } : lastOrigin.label,
       destination: lastDestination.lat != null ? { lat: lastDestination.lat, lng: lastDestination.lng } : lastDestination.label,
       travelMode: google.maps.TravelMode[getTravelMode().toUpperCase()] || google.maps.TravelMode.TRANSIT,
     }
-
     directionsService.route(request, (result, status) => {
       if (status === 'OK') {
+        lastGoogleDirections = result
+        clearRouteOverlays()
         directionsRenderer.setDirections(result)
-        renderSteps(result)
-      } else {
-        alert('ルートを取得できませんでした。Google Maps で開きます。')
-        window.open(buildGoogleUrl(false), '_blank', 'noopener')
+        renderGoogleSteps(result)
+        return
       }
+      if (status === 'REQUEST_DENIED') {
+        showRouteError(strings.directionsDenied || strings.routeFailed || status)
+        return
+      }
+      showRouteError((strings.routeFailed || '') + (status ? ` (${status})` : ''))
     })
+  }
+
+  async function requestRoute() {
+    lastOrigin = readInputLocation(originInput, originAutocomplete)
+    lastDestination = readInputLocation(destinationInput, destinationAutocomplete)
+    syncSaveForm()
+
+    if (!lastOrigin.label || !lastDestination.label) {
+      window.alert(strings.needPlaces || '')
+      return
+    }
+
+    if (showRouteBtn) {
+      showRouteBtn.disabled = true
+    }
+    if (directionsSteps && directionsPanel) {
+      directionsPanel.hidden = false
+      directionsSteps.textContent = strings.loading || ''
+    }
+
+    try {
+      if (config.hasRoutesApi) {
+        const data = await fetchMapDirections()
+        if (data?.ok) {
+          drawRoutesResult(data)
+          return
+        }
+        if (data?.fallback) {
+          requestLegacyDirections()
+          return
+        }
+        showRouteError(data?.message || strings.routeFailed || '')
+        return
+      }
+      requestLegacyDirections()
+    } catch (_) {
+      showRouteError(strings.routeFailed || '')
+    } finally {
+      if (showRouteBtn) {
+        showRouteBtn.disabled = false
+      }
+    }
   }
 
   function loadSavedRoute(route) {
@@ -176,7 +456,7 @@
     }
   }
 
-  document.getElementById('map-show-route')?.addEventListener('click', requestRoute)
+  showRouteBtn?.addEventListener('click', requestRoute)
   document.getElementById('map-start-nav')?.addEventListener('click', () => {
     lastOrigin = lastOrigin || readInputLocation(originInput, originAutocomplete)
     lastDestination = lastDestination || readInputLocation(destinationInput, destinationAutocomplete)

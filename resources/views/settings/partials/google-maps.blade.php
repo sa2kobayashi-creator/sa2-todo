@@ -13,9 +13,8 @@
     <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">{{ __('Places API (New)') }}</a>
     /
     <a href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Geocoding API') }}</a>
-    /
-    <a href="https://console.cloud.google.com/apis/library/directions-backend.googleapis.com" target="_blank" rel="noopener">{{ __('Directions API') }}</a>
   </p>
+  <p class="hint">{{ __('地図上のルート線は、下の Google Maps Routes API を使います。Directions API は不要です。') }}</p>
   <p class="hint">{{ __('キーに「API の制限」がある場合は、上の API を許可リストに含めてください。アプリケーション制限は HTTP リファラ（サイトの URL）です。IP 制限は Routes 用キー向けです。予算アラートも設定してください。') }}</p>
   @if(!empty($gm['uses_env_fallback']))
     <p class="hint">{{ __('DB に未保存のため、いまは .env の GOOGLE_MAPS_API_KEY を使用しています。ここに保存すると管理画面の設定が優先されます。') }}</p>

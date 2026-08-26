@@ -27,6 +27,14 @@ class MapController extends Controller
                 ->map(fn (string $label) => __($label))
                 ->all(),
             'returnTo' => '/map'.($selectedId > 0 ? '?route='.$selectedId : ''),
+            'hasGoogleRoutes' => $this->maps->routesReady(),
+            'mapStrings' => [
+                'needPlaces' => __('出発地と目的地を入力してください'),
+                'routeFailed' => __('ルートを取得できませんでした。'),
+                'loading' => __('経路を取得中...'),
+                'openInGoogleMaps' => __('Google Maps で開く'),
+                'directionsDenied' => __('公共交通のルート表示には Google Maps Routes API が必要です。設定 → API設定 で有効にしてください。'),
+            ],
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -87,5 +95,25 @@ class MapController extends Controller
         }
 
         return $this->redirectWithMessage('/map', __('ルートを削除しました'));
+    }
+
+    public function directions(Request $request)
+    {
+        $result = $this->maps->computeDirections(
+            (string) $request->input('originLabel', ''),
+            $request->input('originLat'),
+            $request->input('originLng'),
+            (string) $request->input('destinationLabel', ''),
+            $request->input('destinationLat'),
+            $request->input('destinationLng'),
+            $request->input('travelMode'),
+        );
+
+        $status = 200;
+        if (! ($result['ok'] ?? false) && empty($result['fallback'])) {
+            $status = 422;
+        }
+
+        return response()->json($result, $status);
     }
 }

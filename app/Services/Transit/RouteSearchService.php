@@ -62,6 +62,27 @@ class RouteSearchService
         return $options;
     }
 
+    /**
+     * @return list<array{key: string, label: string, ready: bool}>
+     */
+    public function formChoices(): array
+    {
+        $choices = [[
+            'key' => self::AUTO,
+            'label' => (string) $this->options()[self::AUTO],
+            'ready' => true,
+        ]];
+        foreach ($this->providers as $provider) {
+            $choices[] = [
+                'key' => $provider->key(),
+                'label' => $provider->label(),
+                'ready' => $provider->isReady(),
+            ];
+        }
+
+        return $choices;
+    }
+
     public function selectedKey(): string
     {
         $row = MediaStorageSetting::forUse(MediaStorageSetting::PROVIDER_ROUTE_SEARCH);
@@ -105,6 +126,17 @@ class RouteSearchService
     public function search(array $query): array
     {
         $requested = $this->normalizeKey((string) ($query['engine'] ?? '')) ?: $this->selectedKey();
+        if ($requested !== self::AUTO) {
+            $chosen = $this->provider($requested);
+            if ($chosen !== null && $requested !== 'raptor' && ! $chosen->isReady()) {
+                return [
+                    'ok' => false,
+                    'engine' => $chosen->label(),
+                    'message' => __(':engine は未設定です。設定 → API設定 でキーを入れてから選んでください。', ['engine' => $chosen->label()]),
+                    'itineraries' => [],
+                ];
+            }
+        }
         $chain = $this->chainFor($requested);
 
         $failed = null;

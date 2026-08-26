@@ -5,6 +5,7 @@
     @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('マップ') }} - {{ config('app.name') }}</title>
     @include('partials.app-css')
   </head>
@@ -55,6 +56,12 @@
                 <button type="button" class="button-link secondary" id="map-start-nav">{{ __('ナビ開始') }}</button>
               </div>
             </div>
+          </section>
+
+          <section class="map-results-section" id="map-results-section" hidden>
+            <h2 class="map-section-title">{{ __('ルート案内') }}</h2>
+            <div id="map-route-results" class="map-route-results"></div>
+            <div id="map-directions-steps" class="map-directions-steps"></div>
           </section>
 
           <section class="map-save-section">
@@ -115,10 +122,6 @@
               </div>
             @endunless
           </div>
-          <div id="map-directions-panel" class="map-directions-panel" hidden>
-            <h2 class="map-section-title">{{ __('ルート案内') }}</h2>
-            <div id="map-directions-steps"></div>
-          </div>
         </section>
       </div>
     </main>
@@ -130,11 +133,13 @@
         defaultCenter: @json($defaultCenter),
         selectedRoute: @json($selectedRoute),
         travelModeLabels: @json($travelModeLabels),
+        hasRoutesApi: @json(!empty($hasGoogleRoutes)),
+        strings: @json($mapStrings ?? []),
       }
     </script>
     @if($hasGoogleMapsApiKey)
       <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsApiKey }}&libraries=places&callback=initMapPage"></script>
     @endif
-    <script src="{{ asset('map.js') }}"></script>
+    <script src="{{ asset('map.js') }}?v={{ @filemtime(public_path('map.js')) ?: time() }}"></script>
   </body>
 </html>

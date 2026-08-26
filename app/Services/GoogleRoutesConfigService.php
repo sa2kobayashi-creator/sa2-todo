@@ -84,7 +84,7 @@ class GoogleRoutesConfigService
      * @param  array<string, mixed>  $body
      * @return array{ok: bool, data: array<string, mixed>, message: string, status: int}
      */
-    public function computeRoutes(array $body): array
+    public function computeRoutes(array $body, ?string $fieldMask = null): array
     {
         $key = $this->apiKey();
         if ($key === '') {
@@ -100,7 +100,7 @@ class GoogleRoutesConfigService
             $res = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'X-Goog-Api-Key' => $key,
-                'X-Goog-FieldMask' => self::FIELD_MASK,
+                'X-Goog-FieldMask' => $fieldMask ?: self::FIELD_MASK,
             ])
                 ->timeout($this->timeout())
                 ->acceptJson()

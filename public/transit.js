@@ -157,6 +157,8 @@
   const linksBox = document.getElementById('transit-search-links')
   const itinerariesBox = document.getElementById('transit-itineraries')
   const preferenceSelect = document.getElementById('transit-preference')
+  const engineSelect = document.getElementById('transit-engine')
+  const ENGINE_STORAGE_KEY = 'transit-search-engine'
   const preferredOperatorInput = document.getElementById('transit-preferred-operator')
   const operatorOpenBtn = document.getElementById('transit-operator-open')
   const operatorLabel = document.getElementById('transit-operator-label')
@@ -367,6 +369,25 @@
     applyPreferredOperator('')
   }
 
+  if (engineSelect) {
+    const storedEngine = (function () {
+      try {
+        return localStorage.getItem(ENGINE_STORAGE_KEY) || ''
+      } catch (_) {
+        return ''
+      }
+    })()
+    const wanted = storedEngine || config.selectedEngine || engineSelect.value
+    if (wanted && engineSelect.querySelector('option[value="' + wanted + '"]')) {
+      engineSelect.value = wanted
+    }
+    engineSelect.addEventListener('change', function () {
+      try {
+        localStorage.setItem(ENGINE_STORAGE_KEY, engineSelect.value)
+      } catch (_) {}
+    })
+  }
+
   operatorOpenBtn?.addEventListener('click', openOperatorModal)
   document.querySelectorAll('[data-close-transit-operator]').forEach(function (el) {
     el.addEventListener('click', closeOperatorModal)
@@ -470,6 +491,7 @@
         from: from,
         to: to,
         preference: preferenceSelect ? preferenceSelect.value : 'fastest',
+        engine: engineSelect ? engineSelect.value : '',
         preferredOperator: currentPreferredOperator(),
         preferNishitetsuBus: currentPreferredOperator() === 'nishitetsu_bus',
         minTransferMin: 2,

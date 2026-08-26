@@ -163,6 +163,9 @@ class GoogleRoutesRouteService
     private function stepToLeg(array $step, ?int $previousArrival): ?array
     {
         $seconds = TransitItinerary::secondsFromGoogle($step['staticDuration'] ?? null);
+        if ($seconds < 1) {
+            $seconds = TransitItinerary::secondsFromGoogle($step['duration'] ?? null);
+        }
         $mode = strtoupper((string) ($step['travelMode'] ?? ''));
 
         if ($mode === 'WALK' || $mode === 'WALKING') {
@@ -183,7 +186,10 @@ class GoogleRoutesRouteService
             $routeName = trim((string) ($line['name'] ?? ''));
         }
         if ($routeName === '') {
-            $routeName = '公共交通';
+            $routeName = match ($mode) {
+                'FERRY', 'BOAT' => 'フェリー',
+                default => '公共交通',
+            };
         }
 
         $fromTime = (string) ($stops['departureTime'] ?? '');

@@ -86,6 +86,19 @@
           </div>
           <div class="transit-preference-row">
             <label class="transit-field">
+              <span class="transit-field-label">{{ __('使う経路検索') }}</span>
+              <select id="transit-engine">
+                @foreach(($routeEngineChoices ?? []) as $choice)
+                  <option
+                    value="{{ $choice['key'] }}"
+                    @selected(($routeEngineSelected ?? 'auto') === $choice['key'])
+                  >
+                    {{ $choice['label'] }}@if(empty($choice['ready']) && ($choice['key'] ?? '') !== 'auto') {{ __('（未設定）') }}@endif
+                  </option>
+                @endforeach
+              </select>
+            </label>
+            <label class="transit-field">
               <span class="transit-field-label">{{ __('検索の好み') }}</span>
               <select id="transit-preference">
                 @foreach($preferenceLabels as $key => $label)
@@ -112,9 +125,9 @@
             <button type="submit" class="button-link transit-search-btn" id="transit-search-run">{{ __('経路を検索') }}</button>
           </div>
           @if(!empty($routeEngineIsExternal))
-            <p class="hint">{{ __(':engine の時刻表で経路・運賃・乗換を検索します。取得できないときは内蔵エンジン（福岡都心の簡易ダイヤ）に切り替えます。外部の Yahoo! / Google も併用できます。', ['engine' => $routeEngineLabel]) }}</p>
+            <p class="hint">{{ __('上の「使う経路検索」で API を切り替えられます。自動は Google Maps Routes → NAVITIME → 駅すぱあと → RAPTOR の順です。取れないときは次に回します。') }}</p>
           @else
-            <p class="hint">{{ __('福岡都心の簡易ダイヤで RAPTOR 検索します（乗換2〜10分・待ち時間・乗換回数を評価）。外部の Yahoo! / Google も併用できます。') }}</p>
+            <p class="hint">{{ __('上の「使う経路検索」で Google Maps Routes などに切り替えられます。未設定の API は選べません。いまは内蔵 RAPTOR（福岡都心の簡易ダイヤ）です。') }}</p>
           @endif
         </form>
 
@@ -319,6 +332,7 @@
         csrfToken: @json(csrf_token()),
         datetimeUnits: @json($datetimeUnitLabels),
         shareTargets: @json($shareTargets ?? []),
+        selectedEngine: @json($routeEngineSelected ?? 'auto'),
         noneOperator: @json(__('指定なし')),
         strings: {
           addFavorite: @json(__('よく使う路線を登録')),
