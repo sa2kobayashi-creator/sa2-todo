@@ -101,6 +101,86 @@
       return item;
     };
 
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    // transit.js が古いキャッシュのままでも、経路カードは出るようにする
+    const showTransitResultsFallback = (data) => {
+      const search = data && data.search;
+      const box = document.getElementById('transit-search-results');
+      const title = document.getElementById('transit-search-results-title');
+      const list = document.getElementById('transit-itineraries');
+      const links = document.getElementById('transit-search-links');
+      if (!search || !box || !list) return;
+      if (!data.searched && !(data.itineraries && data.itineraries.length)) return;
+      window.__transitLastAiSearch = search;
+      const t = (window.TRANSIT_CONFIG && window.TRANSIT_CONFIG.strings) || {};
+      const fromEl = document.getElementById('transit-from');
+      const toEl = document.getElementById('transit-to');
+      if (fromEl && search.from) fromEl.value = search.from;
+      if (toEl && search.to) toEl.value = search.to;
+      box.removeAttribute('hidden');
+      if (title) {
+        title.textContent = (search.from || '') + ' → ' + (search.to || '')
+          + (search.engine ? '（' + search.engine + '）' : '');
+      }
+      const items = data.itineraries || [];
+      if (!search.ok) {
+        list.innerHTML = '<p class="hint transit-raptor-error">' + escapeHtml(search.message || t.noRoute || '') + '</p>';
+        return;
+      }
+      if (items.length === 0) {
+        list.innerHTML = '<p class="hint">' + escapeHtml(search.message || t.noMatchingRoute || '') + '</p>';
+        return;
+      }
+      const note = search.engineNote
+        ? '<p class="hint transit-engine-note">' + escapeHtml(search.engineNote) + '</p>'
+        : '';
+      list.innerHTML = note + items.map((it, index) => {
+        const badge = it.usesNishitetsuBus
+          ? '<span class="transit-itinerary-badge is-nishitetsu">' + escapeHtml(t.nishitetsuPreferred || '西鉄バス優先') + '</span>'
+          : '';
+        const legs = (it.legs || []).map((leg) => {
+          if (leg.type === 'walk') {
+            const mins = Math.round((leg.durationSec || 0) / 60);
+            return '<li class="is-walk">' + escapeHtml(t.walk || '徒歩') + ' '
+              + escapeHtml(leg.from || '') + ' → ' + escapeHtml(leg.to || '')
+              + '（' + escapeHtml(String(mins)) + escapeHtml(t.min || '分') + '）</li>';
+          }
+          return '<li class="is-ride"><strong>' + escapeHtml(leg.routeName || '') + '</strong> '
+            + escapeHtml(leg.boardTime || '') + ' ' + escapeHtml(leg.from || '')
+            + ' → ' + escapeHtml(leg.alightTime || '') + ' ' + escapeHtml(leg.to || '')
+            + (leg.waitSec ? ' <span class="hint">' + escapeHtml(t.wait || '待ち')
+              + Math.round(leg.waitSec / 60) + escapeHtml(t.min || '分') + '</span>' : '')
+            + '</li>';
+        }).join('');
+        return '<article class="transit-itinerary-card">'
+          + '<div class="transit-itinerary-head"><strong>#' + (index + 1) + ' '
+          + escapeHtml(it.summary || '') + '</strong>' + badge + '</div>'
+          + '<div class="transit-itinerary-meta">'
+          + escapeHtml(it.departureTime || '') + ' → ' + escapeHtml(it.arrivalTime || '')
+          + ' · ' + escapeHtml(it.durationLabel || '')
+          + ' · ' + escapeHtml(t.waitPrefix || '待ち') + ' ' + escapeHtml(it.waitLabel || t.zeroMin || '0分')
+          + ' · ' + escapeHtml(t.transfers || '乗換') + ' ' + escapeHtml(String(it.transfers ?? 0)) + escapeHtml(t.times || '回')
+          + ' · ' + escapeHtml(it.fareLabel || '')
+          + '</div>'
+          + '<ol class="transit-itinerary-legs">' + legs + '</ol>'
+          + '</article>';
+      }).join('');
+      if (links && search.from && search.to) {
+        const from = encodeURIComponent(search.from);
+        const to = encodeURIComponent(search.to);
+        links.innerHTML = '<h4 class="transit-external-title">' + escapeHtml(t.externalTitle || '外部サービスでも確認') + '</h4>'
+          + '<a class="button-link secondary" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&travelmode=transit&origin='
+          + from + '&destination=' + to + '">' + escapeHtml(t.googleMapsRoute || 'Google Maps でルート') + '</a>'
+          + '<a class="button-link secondary" target="_blank" rel="noopener noreferrer" href="https://transit.yahoo.co.jp/search/result?from='
+          + from + '&to=' + to + '">' + escapeHtml(t.yahooRoute || 'Yahoo!路線でルート') + '</a>';
+      }
+    };
+
     const send = async () => {
       if (!ready || busy) return;
       const prompt = (promptEl?.value || '').trim();
@@ -138,6 +218,8 @@
         append('assistant', data.text || '');
         if (resultHook && typeof window[resultHook] === 'function') {
           window[resultHook](data);
+        } else if (resultHook) {
+          showTransitResultsFallback(data);
         }
       } catch (_) {
         typing.remove();

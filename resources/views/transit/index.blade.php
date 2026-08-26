@@ -262,7 +262,7 @@
         },
       };
     </script>
-    <script src="{{ asset('transit.js') }}?v=10"></script>
+    <script src="{{ asset('transit.js') }}?v={{ @filemtime(public_path('transit.js')) ?: time() }}"></script>
     @if($hasGoogleMapsApiKey)
       <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsApiKey }}&libraries=places&callback=initTransitAutocomplete"></script>
     @endif

@@ -125,6 +125,19 @@ class TransitAiConsultTest extends TestCase
         });
     }
 
+    public function test_transit_page_busts_transit_js_cache_and_can_render_ai_results_without_it(): void
+    {
+        $user = $this->user();
+
+        $html = $this->actingAs($user)->get('/transit')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('transit.js?v=10', $html);
+        $this->assertMatchesRegularExpression('/transit\.js\?v=\d{5,}/', $html);
+        $this->assertStringContainsString('transitAiResult', $html);
+        $this->assertStringContainsString('showTransitResultsFallback', $html);
+        $this->assertStringContainsString('transit-search-results', $html);
+    }
+
     public function test_a_saved_route_name_fills_in_the_stations(): void
     {
         $user = $this->user();
