@@ -4,9 +4,12 @@
     <meta charset="UTF-8" />
     @include('partials.brand-head')
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1a73e8" />
+    <meta name="theme-color" content="#0f766e" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{{ __('路線検索') }} - {{ config('app.name') }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
     @include('partials.app-css')
   </head>
   <body class="transit-page">
@@ -15,41 +18,42 @@
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      <div class="transit-top-bar">
-        <h1 class="transit-page-title">{{ __('路線検索') }}</h1>
-        <p class="hint">{{ __('福岡エリアの路線を中心に、よく使う経路を登録してすぐ検索できます。') }}</p>
-      </div>
-
-      <div class="transit-category-tabs" role="tablist" aria-label="{{ __('交通機関') }}">
-        @foreach($tabLabels as $key => $label)
-          <a
-            href="{{ $buildTransitQuery(['category' => $key]) }}"
-            class="transit-category-tab @if($filters['category'] === $key) is-active @endif"
-            role="tab"
-          >
-            <span class="transit-category-icon" aria-hidden="true">{{ $tabIcons[$key] }}</span>
-            {{ $label }}
-          </a>
-        @endforeach
-      </div>
+      <header class="transit-hero">
+        <div class="transit-hero-copy">
+          <p class="transit-kicker">{{ __('公共交通') }}</p>
+          <h1 class="transit-page-title">{{ __('路線検索') }}</h1>
+          <p class="transit-hero-lead">{{ __('出発と到着を入れると、電車・バスなどの経路を検索できます。よく使う経路は登録してすぐ呼び出せます。') }}</p>
+        </div>
+        <span class="transit-hero-mark" aria-hidden="true">🚇</span>
+      </header>
 
       <section class="panel transit-search-panel">
-        <h2 class="transit-section-title">{{ $tabLabels[$filters['category']] }} {{ __('を検索') }}</h2>
-        @if($isAll)
-          <p class="hint">{{ __('出発・到着を入力すると、電車・バス・渡船などを乗り継いだ最適ルートを検索します。') }}</p>
-        @endif
+        <header class="transit-panel-head">
+          <h2 class="transit-section-title">{{ __('経路を検索') }}</h2>
+          <p class="hint">{{ __('出発・到着を入力すると、電車・バスなどを乗り継いだルートを検索します。') }}</p>
+        </header>
         <form class="transit-search-form" id="transit-search-form">
-          <label>
-            {{ __('出発（バス停・駅）') }}
-            <input type="text" id="transit-from" placeholder="{{ __('例: 天神') }}" autocomplete="off" />
-            <div class="pac-holder" id="transit-from-holder"></div>
-          </label>
-          <label>
-            {{ __('到着（任意）') }}
-            <input type="text" id="transit-to" placeholder="{{ __('例: 博多') }}" autocomplete="off" />
-            <div class="pac-holder" id="transit-to-holder"></div>
-          </label>
+          <div class="transit-places">
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('出発（バス停・駅）') }}</span>
+              <span class="transit-field-control">
+                <input type="text" id="transit-from" placeholder="{{ __('例: 天神') }}" autocomplete="off" />
+                <div class="pac-holder" id="transit-from-holder"></div>
+              </span>
+            </label>
+            <button type="button" class="transit-places-swap" id="transit-places-swap" title="{{ __('出発と到着を入れ替え') }}" aria-label="{{ __('出発と到着を入れ替え') }}">
+              <span aria-hidden="true">⇄</span>
+            </button>
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('到着（任意）') }}</span>
+              <span class="transit-field-control">
+                <input type="text" id="transit-to" placeholder="{{ __('例: 博多') }}" autocomplete="off" />
+                <div class="pac-holder" id="transit-to-holder"></div>
+              </span>
+            </label>
+          </div>
           <div class="transit-time-block">
+            <p class="transit-time-label">{{ __('日時') }}</p>
             <div class="transit-datetime-selects" id="transit-datetime-selects">
               <select id="transit-year" aria-label="{{ $datetimeAriaLabels['year'] }}"></select>
               <select id="transit-month" aria-label="{{ $datetimeAriaLabels['month'] }}"></select>
@@ -66,21 +70,31 @@
             </div>
           </div>
           <div class="transit-preference-row">
-            <label>
-              {{ __('検索の好み') }}
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('検索の好み') }}</span>
               <select id="transit-preference">
                 @foreach($preferenceLabels as $key => $label)
                   <option value="{{ $key }}" @selected($key === 'fastest')>{{ $label }}</option>
                 @endforeach
               </select>
             </label>
-            <label class="inline-check transit-nishitetsu-prefer">
-              <input type="checkbox" id="transit-prefer-nishitetsu" checked />
-              {{ __('福岡は西鉄バスを優先') }}
-            </label>
+            <div class="transit-field transit-operator-field">
+              <span class="transit-field-label">{{ __('地域の優先') }}</span>
+              <button
+                type="button"
+                class="transit-operator-btn"
+                id="transit-operator-open"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                aria-controls="transit-operator-modal"
+              >
+                <span class="transit-operator-value" id="transit-operator-label">{{ __('指定なし') }}</span>
+              </button>
+              <input type="hidden" id="transit-preferred-operator" value="" />
+            </div>
           </div>
           <div class="transit-search-actions">
-            <button type="submit" class="button-link" id="transit-search-run">{{ __('経路を検索') }}</button>
+            <button type="submit" class="button-link transit-search-btn" id="transit-search-run">{{ __('経路を検索') }}</button>
           </div>
           @if(!empty($routeEngineIsExternal))
             <p class="hint">{{ __(':engine の時刻表で経路・運賃・乗換を検索します。取得できないときは内蔵エンジン（福岡都心の簡易ダイヤ）に切り替えます。外部の Yahoo! / Google も併用できます。', ['engine' => $routeEngineLabel]) }}</p>
@@ -95,17 +109,9 @@
           <div class="transit-search-links" id="transit-search-links"></div>
           <div class="transit-search-save">
             <button type="button" class="text-btn" id="transit-save-search">{{ __('＋ この経路をよく使う路線に登録') }}</button>
+            <button type="button" class="text-btn" id="transit-share-search">{{ __('グループやメンバーに共有') }}</button>
           </div>
         </div>
-
-        @if(!empty($externalSearch[$filters['category']]))
-          <p class="hint inline-hint">
-            {{ __('公式:') }}
-            <a href="{{ $externalSearch[$filters['category']]['url'] }}" target="_blank" rel="noopener noreferrer">
-              {{ $externalSearch[$filters['category']]['label'] }}
-            </a>
-          </p>
-        @endif
       </section>
 
       @include('partials.ai-assist', [
@@ -122,12 +128,16 @@
 
       <section class="panel transit-favorites-panel">
         <div class="transit-section-head">
-          <h2 class="transit-section-title">{{ __('よく使う路線') }}（{{ $tabLabels[$filters['category']] }}）</h2>
-          <button type="button" class="button-link" id="transit-open-add">{{ __('＋ 登録') }}</button>
+          <h2 class="transit-section-title">{{ __('よく使う路線') }}</h2>
+          <button type="button" class="button-link transit-add-btn" id="transit-open-add">{{ __('＋ 登録') }}</button>
         </div>
 
         @if(count($favorites) === 0)
-          <p class="hint">{{ __('登録された路線はありません。よく使う経路を追加してください。') }}</p>
+          <div class="transit-empty">
+            <span class="transit-empty-icon" aria-hidden="true">🚏</span>
+            <h3>{{ __('まだ登録がありません') }}</h3>
+            <p class="hint">{{ __('登録された路線はありません。よく使う経路を追加してください。') }}</p>
+          </div>
         @else
           <div class="transit-favorite-list">
             @foreach($favorites as $favorite)
@@ -159,22 +169,6 @@
           </div>
         @endif
       </section>
-
-      <section class="panel transit-all-panel">
-        <h2 class="transit-section-title">{{ __('すべての登録路線') }}</h2>
-        <div class="transit-all-grid">
-          @foreach($categoryLabels as $key => $label)
-            <div class="transit-all-group">
-              <h3 class="transit-all-group-title">{{ $categoryIcons[$key] }} {{ $label }}</h3>
-              @forelse($groupedFavorites[$key] ?? [] as $item)
-                <a href="{{ $buildTransitQuery(['category' => $key]) }}" class="transit-all-item">{{ $item['name'] }}</a>
-              @empty
-                <p class="hint">{{ __('未登録') }}</p>
-              @endforelse
-            </div>
-          @endforeach
-        </div>
-      </section>
     </main>
 
     <div class="modal modal-centered" id="transit-favorite-modal" hidden>
@@ -188,15 +182,8 @@
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
           <input type="hidden" name="favorite_id" id="transit-favorite-id" value="" />
+          <input type="hidden" name="category" id="transit-favorite-category" value="nishitetsu_bus" />
 
-          <label>
-            {{ __('交通機関') }}
-            <select name="category" id="transit-favorite-category">
-              @foreach($categoryLabels as $key => $label)
-                <option value="{{ $key }}" @selected($filters['category'] === $key)>{{ $label }}</option>
-              @endforeach
-            </select>
-          </label>
           <label>
             {{ __('名称') }}
             <input type="text" name="name" id="transit-favorite-name" placeholder="{{ __('例: 自宅→会社') }}" required />
@@ -225,11 +212,99 @@
       </div>
     </div>
 
+    <div class="modal modal-centered" id="transit-operator-modal" hidden>
+      <div class="modal-backdrop" data-close-transit-operator></div>
+      <div class="modal-dialog transit-modal-dialog" role="dialog" aria-labelledby="transit-operator-title">
+        <div class="modal-header">
+          <h2 id="transit-operator-title">{{ __('優先する交通機関') }}</h2>
+          <button type="button" class="modal-close" data-close-transit-operator aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        <div class="transit-operator-modal-body">
+          <p class="hint">{{ __('よく使う会社を選ぶと、その経路を上に出します。指定なしでも検索できます。') }}</p>
+          <label class="transit-field">
+            <span class="visually-hidden">{{ __('交通機関を検索') }}</span>
+            <input type="search" id="transit-operator-filter" placeholder="{{ __('例: 西鉄、東京メトロ、阪急') }}" autocomplete="off" />
+          </label>
+          <div class="transit-operator-list" id="transit-operator-list">
+            <button type="button" class="transit-operator-item is-none" data-operator-id="">
+              <strong>{{ __('指定なし') }}</strong>
+              <span>{{ __('どの会社も優先しない') }}</span>
+            </button>
+            @foreach($operatorGroups ?? [] as $region => $operators)
+              <h3 class="transit-operator-region" data-operator-region>{{ $region }}</h3>
+              @foreach($operators as $operator)
+                <button
+                  type="button"
+                  class="transit-operator-item"
+                  data-operator-id="{{ $operator['id'] }}"
+                  data-operator-name="{{ $operator['name'] }}"
+                  data-operator-search="{{ $operator['name'] }} {{ $region }} {{ $operator['area'] }} {{ implode(' ', $operator['keywords']) }}"
+                >
+                  <strong>{{ $operator['name'] }}</strong>
+                  <span>{{ $operator['area'] }}</span>
+                </button>
+              @endforeach
+            @endforeach
+          </div>
+          <p class="hint transit-operator-empty" id="transit-operator-empty" hidden>{{ __('該当する交通機関がありません') }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal modal-centered" id="transit-share-modal" hidden>
+      <div class="modal-backdrop" data-close-transit-share></div>
+      <div class="modal-dialog transit-modal-dialog" role="dialog" aria-labelledby="transit-share-title">
+        <div class="modal-header">
+          <h2 id="transit-share-title">{{ __('経路を共有') }}</h2>
+          <button type="button" class="modal-close" data-close-transit-share aria-label="{{ __('閉じる') }}">×</button>
+        </div>
+        @if(($shareTargets ?? []) === [])
+          <p class="hint transit-share-empty">{{ __('共有できるグループがありません。グループを作ってメンバーを招待すると、チャットに経路を送れます。') }}</p>
+          @if(!empty($canOpenGroups))
+            <p class="transit-form-actions">
+              <a class="button-link" href="/groups">{{ __('グループへ') }}</a>
+            </p>
+          @endif
+        @else
+          <form id="transit-share-form" class="modal-form transit-form">
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('グループ') }}</span>
+              <select id="transit-share-group" required>
+                @foreach($shareTargets as $group)
+                  <option value="{{ $group['id'] }}">{{ $group['name'] }}</option>
+                @endforeach
+              </select>
+            </label>
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('送り先') }}</span>
+              <select id="transit-share-peer">
+                <option value="">{{ __('グループ全体') }}</option>
+              </select>
+            </label>
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('どの経路') }}</span>
+              <select id="transit-share-itinerary"></select>
+            </label>
+            <label class="transit-field">
+              <span class="transit-field-label">{{ __('ひとこと（任意）') }}</span>
+              <input type="text" id="transit-share-note" maxlength="500" placeholder="{{ __('例: 明日の集合はこの便で') }}" />
+            </label>
+            <p class="hint" id="transit-share-status"></p>
+            <div class="transit-form-actions">
+              <button type="button" class="secondary" data-close-transit-share>{{ __('キャンセル') }}</button>
+              <button type="submit" class="button-link transit-search-btn" id="transit-share-submit">{{ __('チャットに送る') }}</button>
+            </div>
+          </form>
+        @endif
+      </div>
+    </div>
+
     <script>
       window.TRANSIT_CONFIG = {
-        category: @json($filters['category']),
         csrfToken: @json(csrf_token()),
         datetimeUnits: @json($datetimeUnitLabels),
+        shareTargets: @json($shareTargets ?? []),
+        noneOperator: @json(__('指定なし')),
         strings: {
           addFavorite: @json(__('よく使う路線を登録')),
           editFavorite: @json(__('路線を編集')),
@@ -237,7 +312,9 @@
           update: @json(__('更新')),
           noRoute: @json(__('経路が見つかりませんでした')),
           noMatchingRoute: @json(__('条件に合う経路がありません。地名を「天神」「博多」「姪浜」「福岡空港」などに変えて試してください。')),
-          nishitetsuPreferred: @json(__('西鉄バス優先')),
+          nishitetsuPreferred: @json(__('優先')),
+          operatorPreferred: @json(__('優先')),
+          pickOperator: @json(__('地域の優先')),
           walk: @json(__('徒歩')),
           min: @json(app()->getLocale() === 'en' ? 'min' : '分'),
           wait: @json(__('待ち')),
@@ -247,18 +324,21 @@
           externalTitle: @json(__('外部サービスでも確認')),
           googleMapsRoute: @json(__('Google Maps でルート')),
           yahooRoute: @json(__('Yahoo!路線でルート')),
-          nishitetsuNavi: @json(__('西鉄バスナビ')),
           needFrom: @json(__('出発（バス停・駅）を入力してください')),
           searching: @json(__('経路を検索中…')),
           searchFailed: @json(__('検索に失敗しました。再読み込みして再度お試しください。')),
           timetableFor: @json(__(':place の時刻表・地図')),
           enterDestinationHint: @json(__('到着地も入力すると乗換経路を出せます。')),
-          busStopSuffix: @json(__(' バス停')),
-          ferrySuffix: @json(__(' 渡船場')),
-          stationSuffix: @json(__(' 駅')),
           googleMapsOpen: @json(__('Google Maps で開く')),
           yahooTimetable: @json(__('Yahoo!路線で時刻表')),
           zeroMin: @json(__('0分')),
+          share: @json(__('共有')),
+          shareNeedResult: @json(__('先に経路を検索してください。')),
+          shareSent: @json(__('チャットに送りました')),
+          shareFailed: @json(__('共有に失敗しました')),
+          shareOpenChat: @json(__('チャットを開く')),
+          groupAll: @json(__('グループ全体')),
+          swapPlaces: @json(__('出発と到着を入れ替え')),
         },
       };
     </script>

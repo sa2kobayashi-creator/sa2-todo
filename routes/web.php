@@ -389,6 +389,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/transit/{id}/update', [TransitController::class, 'update'])->whereNumber('id');
         Route::post('/transit/{id}/delete', [TransitController::class, 'destroy'])->whereNumber('id');
         Route::post('/transit/ai-ask', [GuideController::class, 'askTransit'])->middleware('throttle:ai-guide');
+        Route::post('/transit/share', [TransitController::class, 'share']);
     });
 
     Route::middleware(EnsureFeature::class.':travel')->group(function () {

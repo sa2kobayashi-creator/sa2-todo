@@ -56,9 +56,8 @@ class RaptorRouter
         $maxRounds = max(1, min(6, (int) ($query['maxRounds'] ?? 4)));
         $limit = max(1, min(10, (int) ($query['limit'] ?? 5)));
         $preference = $this->scorer->normalizePreference($query['preference'] ?? null);
-        $preferNishitetsu = array_key_exists('preferNishitetsuBus', $query)
-            ? (bool) $query['preferNishitetsuBus']
-            : true;
+        $preferNishitetsu = ((string) ($query['preferredOperator'] ?? '')) === 'nishitetsu_bus'
+            || (array_key_exists('preferNishitetsuBus', $query) && (bool) $query['preferNishitetsuBus']);
 
         $raw = $this->runRaptor($fromId, $toId, $departureSec, $minTransfer, $maxTransferWait, $maxRounds);
         if ($preferNishitetsu) {
@@ -80,7 +79,7 @@ class RaptorRouter
         foreach ($raw as $it) {
             $unique[$it['signature']] = $it;
         }
-        $ranked = $this->scorer->rank(array_values($unique), $preference, $preferNishitetsu);
+        $ranked = $this->scorer->rank(array_values($unique), $preference, false);
         $ranked = array_slice($ranked, 0, $limit);
 
         $stops = $this->timetable->stops();

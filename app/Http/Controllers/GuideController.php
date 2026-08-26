@@ -62,12 +62,14 @@ class GuideController extends Controller
             'departureAt' => ['nullable', 'string', 'max:32'],
             'timeType' => ['nullable', 'in:departure,arrival'],
             'preference' => ['nullable', 'in:fastest,cheapest,fewest_transfers'],
+            'preferredOperator' => ['nullable', 'string', 'max:40'],
             'lastSearch' => ['nullable', 'array'],
             'lastSearch.from' => ['nullable', 'string', 'max:120'],
             'lastSearch.to' => ['nullable', 'string', 'max:120'],
             'lastSearch.departureAt' => ['nullable', 'string', 'max:32'],
             'lastSearch.timeType' => ['nullable', 'in:departure,arrival'],
             'lastSearch.preference' => ['nullable', 'in:fastest,cheapest,fewest_transfers'],
+            'lastSearch.preferredOperator' => ['nullable', 'string', 'max:40'],
         ]);
 
         $user = $request->user();

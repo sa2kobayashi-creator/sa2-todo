@@ -39,7 +39,9 @@ class RaptorRouteProvider implements RouteProvider
             'preference' => (string) ($query['preference'] ?? ItineraryScorer::PREF_FASTEST),
             'minTransferMin' => (int) ($query['minTransferMin'] ?? 2),
             'maxTransferWaitMin' => (int) ($query['maxTransferWaitMin'] ?? 10),
-            'preferNishitetsuBus' => (bool) ($query['preferNishitetsuBus'] ?? true),
+            'preferNishitetsuBus' => (string) ($query['preferredOperator'] ?? '') === 'nishitetsu_bus'
+                || (bool) ($query['preferNishitetsuBus'] ?? false),
+            'preferredOperator' => (string) ($query['preferredOperator'] ?? ''),
             'limit' => (int) ($query['limit'] ?? 5),
         ]);
     }

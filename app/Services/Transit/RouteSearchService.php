@@ -8,6 +8,7 @@ use App\Services\Transit\Providers\EkispertRouteProvider;
 use App\Services\Transit\Providers\GoogleRoutesRouteProvider;
 use App\Services\Transit\Providers\NavitimeRouteProvider;
 use App\Services\Transit\Providers\RaptorRouteProvider;
+use App\Services\Transit\Raptor\ItineraryScorer;
 
 /**
  * 路線検索の窓口。どの API を使うかをここだけで決める。
@@ -28,6 +29,8 @@ class RouteSearchService
         NavitimeRouteProvider $navitime,
         EkispertRouteProvider $ekispert,
         RaptorRouteProvider $raptor,
+        private TransitOperatorCatalog $operators,
+        private ItineraryScorer $scorer,
     ) {
         $this->providers = [$google, $navitime, $ekispert, $raptor];
     }
@@ -124,7 +127,7 @@ class RouteSearchService
                     ]);
                 }
 
-                return $result;
+                return $this->applyPreferredOperator($result, $query);
             }
 
             $failed ??= [
@@ -159,6 +162,25 @@ class RouteSearchService
         }
 
         $result['engine'] ??= $provider->label();
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    private function applyPreferredOperator(array $result, array $query): array
+    {
+        $operatorId = trim((string) ($query['preferredOperator'] ?? ''));
+        $result = $this->operators->markItineraries($result, $operatorId);
+        if ($operatorId === '' || ($result['itineraries'] ?? []) === []) {
+            return $result;
+        }
+
+        $preference = (string) ($query['preference'] ?? ItineraryScorer::PREF_FASTEST);
+        $result['itineraries'] = $this->scorer->rank($result['itineraries'], $preference, true);
 
         return $result;
     }

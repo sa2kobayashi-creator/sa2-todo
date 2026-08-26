@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Services\MapService;
 use App\Services\Transit\Raptor\ItineraryScorer;
 use App\Services\Transit\RouteSearchService;
+use App\Services\Transit\TransitOperatorCatalog;
 use App\Services\TransitService;
+use App\Services\TransitShareService;
 use App\Services\WorkersAiGuideService;
 use Illuminate\Http\Request;
 
@@ -18,38 +20,25 @@ class TransitController extends Controller
         private MapService $maps,
         private WorkersAiGuideService $guide,
         private RouteSearchService $routes,
+        private TransitShareService $share,
+        private TransitOperatorCatalog $operators,
     ) {}
 
     public function index(Request $request)
     {
         $userId = (int) $request->user()->id;
-        $filters = $this->transit->parseFilters($request->query());
-        $isAll = $filters['category'] === TransitService::ALL_CATEGORY;
-        $favorites = $this->transit->listFavorites($userId, $isAll ? null : $filters['category']);
-        $returnTo = $this->transit->buildTransitQuery($filters);
+        $favorites = $this->transit->listFavorites($userId);
 
         return view('transit.index', [
-            'filters' => $filters,
-            'isAll' => $isAll,
             'favorites' => $favorites,
-            'groupedFavorites' => $this->transit->groupFavoritesByCategory($userId),
-            'categoryLabels' => collect(TransitService::CATEGORY_LABELS)->map(fn (string $label) => __($label))->all(),
-            'categoryIcons' => TransitService::CATEGORY_ICONS,
-            'tabLabels' => collect(TransitService::TAB_LABELS)->map(fn (string $label) => __($label))->all(),
-            'tabIcons' => TransitService::TAB_ICONS,
-            'externalSearch' => collect(TransitService::EXTERNAL_SEARCH)->map(fn (array $item) => [
-                'label' => __($item['label']),
-                'url' => $item['url'],
-            ])->all(),
             'preferenceLabels' => [
                 ItineraryScorer::PREF_FASTEST => __('最速'),
                 ItineraryScorer::PREF_CHEAPEST => __('最安'),
                 ItineraryScorer::PREF_FEWEST_TRANSFERS => __('乗換少ない'),
             ],
-            'returnTo' => $returnTo,
+            'returnTo' => '/transit',
             'googleMapsApiKey' => $this->maps->getApiKey(),
             'hasGoogleMapsApiKey' => $this->maps->hasApiKey(),
-            'buildTransitQuery' => fn (array $f) => $this->transit->buildTransitQuery($f),
             'datetimeUnitLabels' => app()->getLocale() === 'en'
                 ? ['year' => '', 'month' => '', 'day' => '', 'hour' => '', 'minute' => '']
                 : ['year' => '年', 'month' => '月', 'day' => '日', 'hour' => '時', 'minute' => '分'],
@@ -64,6 +53,9 @@ class TransitController extends Controller
             'routeEngineIsExternal' => $this->routes->activeProvider()?->key() !== 'raptor',
             'aiTopic' => $this->guide->embeddedTopics()[WorkersAiGuideService::TOPIC_TRANSIT],
             'aiReady' => $this->guide->isReady(),
+            'shareTargets' => $this->share->targetsFor($userId),
+            'canOpenGroups' => $request->user()->canAccess('groups'),
+            'operatorGroups' => $this->operators->grouped(),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -77,7 +69,8 @@ class TransitController extends Controller
                 'departureAt' => (string) $request->input('departureAt', ''),
                 'timeType' => $request->input('timeType') === 'arrival' ? 'arrival' : 'departure',
                 'preference' => (string) $request->input('preference', ItineraryScorer::PREF_FASTEST),
-                'preferNishitetsuBus' => $request->boolean('preferNishitetsuBus', true),
+                'preferNishitetsuBus' => $request->boolean('preferNishitetsuBus', false),
+                'preferredOperator' => (string) $request->input('preferredOperator', ''),
                 'minTransferMin' => (int) $request->input('minTransferMin', 2),
                 'maxTransferWaitMin' => (int) $request->input('maxTransferWaitMin', 10),
                 'hour' => $request->input('hour'),
@@ -96,6 +89,50 @@ class TransitController extends Controller
         }
 
         return response()->json($result, ! empty($result['ok']) ? 200 : 422);
+    }
+
+    public function share(Request $request)
+    {
+        $data = $request->validate([
+            'groupId' => ['required', 'integer'],
+            'peerUserId' => ['nullable', 'integer'],
+            'from' => ['required', 'string', 'max:120'],
+            'to' => ['required', 'string', 'max:120'],
+            'note' => ['nullable', 'string', 'max:500'],
+            'itinerary' => ['required', 'array'],
+            'itinerary.summary' => ['nullable', 'string', 'max:200'],
+            'itinerary.departureTime' => ['nullable', 'string', 'max:32'],
+            'itinerary.arrivalTime' => ['nullable', 'string', 'max:32'],
+            'itinerary.durationLabel' => ['nullable', 'string', 'max:40'],
+            'itinerary.waitLabel' => ['nullable', 'string', 'max:40'],
+            'itinerary.fareLabel' => ['nullable', 'string', 'max:40'],
+            'itinerary.transfers' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'itinerary.legs' => ['nullable', 'array', 'max:12'],
+            'itinerary.legs.*.type' => ['nullable', 'string', 'max:20'],
+            'itinerary.legs.*.from' => ['nullable', 'string', 'max:120'],
+            'itinerary.legs.*.to' => ['nullable', 'string', 'max:120'],
+            'itinerary.legs.*.routeName' => ['nullable', 'string', 'max:120'],
+            'itinerary.legs.*.boardTime' => ['nullable', 'string', 'max:32'],
+            'itinerary.legs.*.alightTime' => ['nullable', 'string', 'max:32'],
+            'itinerary.legs.*.durationSec' => ['nullable', 'integer', 'min:0', 'max:86400'],
+        ]);
+
+        try {
+            $result = $this->share->share(
+                $request->user(),
+                (int) $data['groupId'],
+                isset($data['peerUserId']) ? (int) $data['peerUserId'] : null,
+                $data
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'href' => $result['href'],
+            'message' => __('経路をチャットに送りました'),
+        ]);
     }
 
     public function store(Request $request)

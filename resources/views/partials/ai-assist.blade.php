@@ -120,8 +120,18 @@
       const t = (window.TRANSIT_CONFIG && window.TRANSIT_CONFIG.strings) || {};
       const fromEl = document.getElementById('transit-from');
       const toEl = document.getElementById('transit-to');
-      if (fromEl && search.from) fromEl.value = search.from;
-      if (toEl && search.to) toEl.value = search.to;
+      if (typeof window.setTransitPlaceField === 'function') {
+        if (search.from) window.setTransitPlaceField('from', search.from);
+        if (search.to) window.setTransitPlaceField('to', search.to);
+      } else {
+        if (fromEl && search.from) fromEl.value = search.from;
+        if (toEl && search.to) toEl.value = search.to;
+      }
+      window.__transitLastResult = {
+        from: search.from || '',
+        to: search.to || '',
+        itineraries: data.itineraries || [],
+      };
       box.removeAttribute('hidden');
       if (title) {
         title.textContent = (search.from || '') + ' → ' + (search.to || '')
@@ -140,8 +150,8 @@
         ? '<p class="hint transit-engine-note">' + escapeHtml(search.engineNote) + '</p>'
         : '';
       list.innerHTML = note + items.map((it, index) => {
-        const badge = it.usesNishitetsuBus
-          ? '<span class="transit-itinerary-badge is-nishitetsu">' + escapeHtml(t.nishitetsuPreferred || '西鉄バス優先') + '</span>'
+        const badge = it.usesPreferredOperator
+          ? '<span class="transit-itinerary-badge is-preferred">' + escapeHtml((it.preferredOperatorName || '') + (t.operatorPreferred || t.nishitetsuPreferred || '優先')) + '</span>'
           : '';
         const legs = (it.legs || []).map((leg) => {
           if (leg.type === 'walk') {

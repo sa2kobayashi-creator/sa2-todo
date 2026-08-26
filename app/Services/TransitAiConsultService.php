@@ -44,7 +44,8 @@ class TransitAiConsultService
                 'departureAt' => $query['departureAt'],
                 'timeType' => $query['timeType'],
                 'preference' => $query['preference'],
-                'preferNishitetsuBus' => true,
+                'preferredOperator' => $query['preferredOperator'] ?? '',
+                'preferNishitetsuBus' => ($query['preferredOperator'] ?? '') === 'nishitetsu_bus',
                 'limit' => 5,
             ]);
         }
@@ -83,6 +84,8 @@ class TransitAiConsultService
                 'departureAt' => $query['departureAt'],
                 'timeType' => $query['timeType'],
                 'preference' => $query['preference'],
+                'preferredOperator' => $query['preferredOperator'] ?? '',
+                'preferredOperatorName' => (string) ($search['preferredOperatorName'] ?? ''),
                 'ok' => ! empty($search['ok']),
                 'engine' => (string) ($search['engine'] ?? ''),
                 'engineNote' => (string) ($search['engineNote'] ?? ''),
@@ -94,7 +97,7 @@ class TransitAiConsultService
     /**
      * @param  list<array{role?: mixed, content?: mixed}>  $history
      * @param  array<string, mixed>  $context
-     * @return array{from: string, to: string, departureAt: string, timeType: string, preference: string}
+     * @return array{from: string, to: string, departureAt: string, timeType: string, preference: string, preferredOperator: string}
      */
     public function resolveQuery(User $user, string $prompt, array $history, array $context): array
     {
@@ -106,6 +109,7 @@ class TransitAiConsultService
         $preference = $this->preference((string) ($context['preference'] ?? ''))
             ?: $this->preference((string) ($last['preference'] ?? ''))
             ?: ItineraryScorer::PREF_FASTEST;
+        $preferredOperator = trim((string) ($context['preferredOperator'] ?? $last['preferredOperator'] ?? ''));
         $timeType = ((string) ($context['timeType'] ?? $last['timeType'] ?? 'departure')) === 'arrival'
             ? 'arrival'
             : 'departure';
@@ -148,6 +152,7 @@ class TransitAiConsultService
             'departureAt' => $departureAt,
             'timeType' => $timeType,
             'preference' => $preference,
+            'preferredOperator' => $preferredOperator,
         ];
     }
 
