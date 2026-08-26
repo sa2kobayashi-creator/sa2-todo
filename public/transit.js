@@ -839,8 +839,8 @@
     if (search.from) window.setTransitPlaceField('from', search.from)
     if (search.to) window.setTransitPlaceField('to', search.to)
     if (preferenceSelect && search.preference) preferenceSelect.value = search.preference
-    if (Object.prototype.hasOwnProperty.call(search, 'preferredOperator')) {
-      applyPreferredOperator(search.preferredOperator || '', search.preferredOperatorName || '')
+    if (search.preferredOperator) {
+      applyPreferredOperator(search.preferredOperator, search.preferredOperatorName || '')
     }
     if (search.timeType === 'arrival') {
       const arrival = document.querySelector('input[name="transit-time-type"][value="4"]')

@@ -101,7 +101,46 @@ class TransitPreferredOperatorTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('ok', true);
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('itineraries.0.usesPreferredOperator', true);
         $this->assertNotEmpty($response->json('itineraries'));
+        $this->assertTrue(
+            collect($response->json('itineraries'))->contains(
+                fn (array $itinerary) => str_contains((string) ($itinerary['summary'] ?? ''), '西鉄バス')
+            )
+        );
+    }
+
+    public function test_hakata_to_meinohama_without_preference_includes_subway_and_bus(): void
+    {
+        $response = $this->actingAs($this->user())->postJson('/transit/search', [
+            'from' => '博多駅',
+            'to' => '姪浜',
+            'departureAt' => '2026-08-26T10:30',
+            'engine' => 'raptor',
+            'preferredOperator' => '',
+        ]);
+
+        $response->assertOk()->assertJsonPath('ok', true);
+        $summaries = collect($response->json('itineraries'))->pluck('summary')->implode(' ');
+        $this->assertStringContainsString('地下鉄', $summaries);
+        $this->assertStringContainsString('西鉄バス', $summaries);
+        $this->assertGreaterThanOrEqual(2, count($response->json('itineraries')));
+    }
+
+    public function test_hakata_to_meinohama_subway_preference_puts_subway_first(): void
+    {
+        $response = $this->actingAs($this->user())->postJson('/transit/search', [
+            'from' => '博多駅',
+            'to' => '姪浜',
+            'departureAt' => '2026-08-26T10:30',
+            'engine' => 'raptor',
+            'preferredOperator' => 'fukuoka_subway',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('itineraries.0.usesPreferredOperator', true);
+        $this->assertStringContainsString('地下鉄', (string) $response->json('itineraries.0.summary'));
     }
 }

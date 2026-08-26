@@ -42,7 +42,7 @@ class RaptorRouteProvider implements RouteProvider
             'preferNishitetsuBus' => (string) ($query['preferredOperator'] ?? '') === 'nishitetsu_bus'
                 || (bool) ($query['preferNishitetsuBus'] ?? false),
             'preferredOperator' => (string) ($query['preferredOperator'] ?? ''),
-            'limit' => (int) ($query['limit'] ?? 5),
+            'limit' => (int) ($query['limit'] ?? 8),
         ]);
     }
 

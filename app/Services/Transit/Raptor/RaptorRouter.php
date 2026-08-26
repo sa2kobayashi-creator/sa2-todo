@@ -54,24 +54,21 @@ class RaptorRouter
         $minTransfer = max(0, min(30, (int) ($query['minTransferMin'] ?? 2))) * 60;
         $maxTransferWait = max($minTransfer / 60, min(60, (int) ($query['maxTransferWaitMin'] ?? 10))) * 60;
         $maxRounds = max(1, min(6, (int) ($query['maxRounds'] ?? 4)));
-        $limit = max(1, min(10, (int) ($query['limit'] ?? 5)));
         $preference = $this->scorer->normalizePreference($query['preference'] ?? null);
-        $preferNishitetsu = ((string) ($query['preferredOperator'] ?? '')) === 'nishitetsu_bus'
-            || (array_key_exists('preferNishitetsuBus', $query) && (bool) $query['preferNishitetsuBus']);
+        $limit = max(1, min(10, (int) ($query['limit'] ?? 8)));
 
         $raw = $this->runRaptor($fromId, $toId, $departureSec, $minTransfer, $maxTransferWait, $maxRounds);
-        if ($preferNishitetsu) {
-            $busOnly = $this->runRaptor(
+        foreach ($this->networkAgencies() as $agency) {
+            foreach ($this->runRaptor(
                 $fromId,
                 $toId,
                 $departureSec,
                 $minTransfer,
                 $maxTransferWait,
                 $maxRounds,
-                ['nishitetsu_bus']
-            );
-            foreach ($busOnly as $it) {
-                $raw[] = $it;
+                [$agency]
+            ) as $itinerary) {
+                $raw[] = $itinerary;
             }
         }
         // 署名で重複除去
@@ -88,7 +85,6 @@ class RaptorRouter
             'ok' => true,
             'engine' => 'RAPTOR',
             'preference' => $preference,
-            'preferNishitetsuBus' => $preferNishitetsu,
             'minTransferMin' => (int) ($minTransfer / 60),
             'maxTransferWaitMin' => (int) ($maxTransferWait / 60),
             'fromStop' => $stops[$fromId] ?? ['id' => $fromId, 'name' => $fromName],
@@ -357,6 +353,20 @@ class RaptorRouter
         }
 
         return array_values($itineraries);
+    }
+
+    /** @return list<string> */
+    private function networkAgencies(): array
+    {
+        $agencies = [];
+        foreach ($this->timetable->routes() as $route) {
+            $agency = (string) ($route['agency'] ?? '');
+            if ($agency !== '') {
+                $agencies[$agency] = true;
+            }
+        }
+
+        return array_keys($agencies);
     }
 
     /**

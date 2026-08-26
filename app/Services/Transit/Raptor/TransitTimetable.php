@@ -14,15 +14,16 @@ class TransitTimetable
     public static function loadDefault(): self
     {
         $path = database_path('seed-data/transit/fukuoka_network.json');
-        if (! is_file($path)) {
-            $builder = new FukuokaNetworkBuilder;
-            $builder->write($path);
-        }
+        $builder = new FukuokaNetworkBuilder;
+        $built = $builder->build();
+        $version = (string) ($built['version'] ?? '');
 
-        $json = file_get_contents($path);
-        $data = json_decode((string) $json, true);
-        if (! is_array($data)) {
-            throw new \RuntimeException('路線ネットワークの読み込みに失敗しました');
+        $json = is_file($path) ? file_get_contents($path) : false;
+        $data = is_string($json) ? json_decode($json, true) : null;
+        if (! is_array($data) || (string) ($data['version'] ?? '') !== $version) {
+            $builder->write($path);
+
+            return new self($built);
         }
 
         return new self($data);

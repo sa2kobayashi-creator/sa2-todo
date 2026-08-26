@@ -46,7 +46,7 @@ class TransitAiConsultService
                 'preference' => $query['preference'],
                 'preferredOperator' => $query['preferredOperator'] ?? '',
                 'preferNishitetsuBus' => ($query['preferredOperator'] ?? '') === 'nishitetsu_bus',
-                'limit' => 5,
+                'limit' => 8,
             ]);
         }
 

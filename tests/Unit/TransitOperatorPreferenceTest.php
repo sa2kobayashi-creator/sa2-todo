@@ -8,28 +8,41 @@ use Tests\TestCase;
 
 class TransitOperatorPreferenceTest extends TestCase
 {
-    public function test_nishitetsu_bus_matches_west_rail_keyword_but_not_tokyo_metro(): void
+    public function test_nishitetsu_bus_matches_bus_but_not_rail_or_tokyo_metro(): void
     {
         $catalog = new TransitOperatorCatalog;
         $nishitetsu = $catalog->find('nishitetsu_bus');
         $metro = $catalog->find('tokyo_metro');
+        $subway = $catalog->find('fukuoka_subway');
 
         $this->assertNotNull($nishitetsu);
         $this->assertNotNull($metro);
+        $this->assertNotNull($subway);
 
         $westBus = [
             'summary' => '西鉄バス 天神 → 博多',
-            'legs' => [['routeName' => '西鉄バス 1番', 'agency' => 'nishitetsu_bus']],
+            'legs' => [['type' => 'ride', 'routeName' => '西鉄バス 1番', 'agency' => 'nishitetsu_bus']],
+        ];
+        $rail = [
+            'summary' => '西鉄天神大牟田線',
+            'legs' => [['type' => 'ride', 'routeName' => '西鉄天神大牟田線', 'agency' => 'nishitetsu_rail']],
         ];
         $tokyo = [
             'summary' => '東京メトロ東西線',
-            'legs' => [['routeName' => '東京メトロ東西線']],
+            'legs' => [['type' => 'ride', 'routeName' => '東京メトロ東西線']],
+        ];
+        $airportSubway = [
+            'summary' => '地下鉄空港線',
+            'legs' => [['type' => 'ride', 'routeName' => '地下鉄空港線', 'agency' => 'subway']],
         ];
 
         $this->assertTrue($catalog->itineraryMatches($westBus, $nishitetsu));
+        $this->assertFalse($catalog->itineraryMatches($rail, $nishitetsu));
         $this->assertFalse($catalog->itineraryMatches($tokyo, $nishitetsu));
         $this->assertTrue($catalog->itineraryMatches($tokyo, $metro));
         $this->assertFalse($catalog->itineraryMatches($westBus, $metro));
+        $this->assertTrue($catalog->itineraryMatches($airportSubway, $subway));
+        $this->assertFalse($catalog->itineraryMatches($westBus, $subway));
     }
 
     public function test_preferred_operator_is_ranked_above_a_slightly_faster_alternative(): void

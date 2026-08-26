@@ -63,11 +63,11 @@ class TransitOperatorCatalog
             ['id' => 'kotoden', 'name' => '高松琴平電気鉄道', 'region' => '四国', 'area' => '香川', 'keywords' => ['ことでん', '高松琴平']],
             ['id' => 'iyotetsu', 'name' => '伊予鉄道', 'region' => '四国', 'area' => '愛媛', 'keywords' => ['伊予鉄', '伊予鉄道']],
 
-            ['id' => 'jr_kyushu', 'name' => 'JR九州', 'region' => '九州', 'area' => '九州', 'keywords' => ['JR九州', '鹿児島本線', '福北ゆたか', '香椎線', '日豊']],
-            ['id' => 'nishitetsu_bus', 'name' => '西鉄バス', 'region' => '九州', 'area' => '福岡', 'keywords' => ['西鉄バス', '西鉄'], 'raptorAgency' => 'nishitetsu_bus'],
-            ['id' => 'nishitetsu_rail', 'name' => '西鉄電車', 'region' => '九州', 'area' => '福岡', 'keywords' => ['西鉄天神大牟田', '西鉄太宰府', '西鉄貝塚', '西鉄電車']],
-            ['id' => 'fukuoka_subway', 'name' => '福岡市地下鉄', 'region' => '九州', 'area' => '福岡', 'keywords' => ['福岡市地下鉄', '空港線', '箱崎線', '七隈線', '地下鉄']],
-            ['id' => 'fukuoka_ferry', 'name' => '福岡市営渡船', 'region' => '九州', 'area' => '福岡', 'keywords' => ['渡船', '市営渡船', '志賀島']],
+            ['id' => 'jr_kyushu', 'name' => 'JR九州', 'region' => '九州', 'area' => '九州', 'keywords' => ['JR九州', '鹿児島本線', '福北ゆたか', '香椎線', '日豊'], 'raptorAgency' => 'jr'],
+            ['id' => 'nishitetsu_bus', 'name' => '西鉄バス', 'region' => '九州', 'area' => '福岡', 'keywords' => ['西鉄バス'], 'raptorAgency' => 'nishitetsu_bus'],
+            ['id' => 'nishitetsu_rail', 'name' => '西鉄電車', 'region' => '九州', 'area' => '福岡', 'keywords' => ['西鉄天神大牟田', '西鉄太宰府', '西鉄貝塚', '西鉄電車'], 'raptorAgency' => 'nishitetsu_rail'],
+            ['id' => 'fukuoka_subway', 'name' => '福岡市地下鉄', 'region' => '九州', 'area' => '福岡', 'keywords' => ['福岡市地下鉄', '地下鉄空港線', '地下鉄箱崎線', '地下鉄七隈線', '地下鉄'], 'raptorAgency' => 'subway'],
+            ['id' => 'fukuoka_ferry', 'name' => '福岡市営渡船', 'region' => '九州', 'area' => '福岡', 'keywords' => ['渡船', '市営渡船', '志賀島'], 'raptorAgency' => 'ferry'],
             ['id' => 'kitakyushu_monorail', 'name' => '北九州モノレール', 'region' => '九州', 'area' => '北九州', 'keywords' => ['北九州モノレール']],
             ['id' => 'kumamoto_tram', 'name' => '熊本市電', 'region' => '九州', 'area' => '熊本', 'keywords' => ['熊本市電']],
             ['id' => 'nagasaki_tram', 'name' => '長崎電気軌道', 'region' => '九州', 'area' => '長崎', 'keywords' => ['長崎電気軌道', '長崎市電']],
@@ -98,25 +98,25 @@ class TransitOperatorCatalog
     /** @param  array<string, mixed>  $itinerary  @param  array<string, mixed>  $operator */
     public function itineraryMatches(array $itinerary, array $operator): bool
     {
-        $blob = (string) ($itinerary['summary'] ?? '');
-        foreach ($itinerary['legs'] ?? [] as $leg) {
-            if (! is_array($leg)) {
-                continue;
-            }
-            $blob .= (string) ($leg['routeName'] ?? '').(string) ($leg['label'] ?? '').(string) ($leg['agency'] ?? '');
-        }
-        foreach ($operator['keywords'] ?? [] as $keyword) {
-            $keyword = trim((string) $keyword);
-            if ($keyword !== '' && mb_stripos($blob, $keyword) !== false) {
-                return true;
-            }
-        }
         $agency = (string) ($operator['raptorAgency'] ?? '');
         if ($agency !== '') {
             foreach ($itinerary['legs'] ?? [] as $leg) {
                 if (is_array($leg) && ($leg['agency'] ?? '') === $agency) {
                     return true;
                 }
+            }
+        }
+        $blob = (string) ($itinerary['summary'] ?? '');
+        foreach ($itinerary['legs'] ?? [] as $leg) {
+            if (! is_array($leg)) {
+                continue;
+            }
+            $blob .= (string) ($leg['routeName'] ?? '').(string) ($leg['label'] ?? '');
+        }
+        foreach ($operator['keywords'] ?? [] as $keyword) {
+            $keyword = trim((string) $keyword);
+            if ($keyword !== '' && mb_stripos($blob, $keyword) !== false) {
+                return true;
             }
         }
 

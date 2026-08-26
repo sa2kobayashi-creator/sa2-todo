@@ -75,7 +75,7 @@ class TransitController extends Controller
                 'maxTransferWaitMin' => (int) $request->input('maxTransferWaitMin', 10),
                 'hour' => $request->input('hour'),
                 'minute' => $request->input('minute'),
-                'limit' => 5,
+                'limit' => 8,
                 'engine' => (string) $request->input('engine', ''),
             ]);
         } catch (\Throwable $e) {

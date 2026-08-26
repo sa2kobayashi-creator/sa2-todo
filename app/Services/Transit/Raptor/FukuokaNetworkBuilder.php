@@ -22,7 +22,13 @@ class FukuokaNetworkBuilder
     {
         $stops = $this->stops();
         $routes = $this->routes();
-        $sequences = $this->routeSequences();
+        $sequences = [];
+        foreach ($this->routeSequences() as $routeId => $stopIds) {
+            $sequences[$routeId] = $stopIds;
+            $returnId = $routeId.'_return';
+            $routes[$returnId] = array_merge($routes[$routeId], ['id' => $returnId]);
+            $sequences[$returnId] = array_reverse($stopIds);
+        }
         $departuresByStop = [];
         $tripEvents = [];
         $routesByStop = [];
@@ -52,8 +58,8 @@ class FukuokaNetworkBuilder
 
         return [
             'region' => 'fukuoka',
-            'version' => '2026-07-18c',
-            'note' => '福岡都心の簡易ダイヤ。西鉄バス路線を優先配置（志賀島線含む）。',
+            'version' => '2026-08-26a',
+            'note' => '福岡都心の簡易ダイヤ。往路・復路を別路線として載せ、地下鉄とバスの両方を出せるようにする。',
             'stops' => $stops,
             'routes' => $routes,
             'routeStopSequences' => $sequences,
@@ -257,7 +263,7 @@ class FukuokaNetworkBuilder
         return [
             'nn_bus_airport' => ['tenjin_bc', 'nakasu_kawabata', 'gion', 'hakata_bc', 'airport'],
             'nn_bus_tenjin_hakata' => ['tenjin_bc', 'nakasu_kawabata', 'gion', 'hakata_bc', 'hakata'],
-            'nn_bus_west' => ['tenjin_bc', 'akasakae', 'oori', 'nishijin', 'fujisaki', 'muromi', 'meinohama'],
+            'nn_bus_west' => ['hakata_bc', 'tenjin_bc', 'akasakae', 'oori', 'nishijin', 'fujisaki', 'muromi', 'meinohama'],
             'nn_bus_south' => ['tenjin_bc', 'yakuin', 'takamiya', 'ohashi'],
             // 志賀島〜博多・天神（西鉄バス）
             'nn_bus_shikanoshima' => [
@@ -315,21 +321,6 @@ class FukuokaNetworkBuilder
                 $t += $leg;
             }
             $tripEvents[$tripId] = $events;
-
-            // 復路
-            $tripIndex++;
-            $tripIdBack = $routeId.'_b'.$tripIndex;
-            $eventsBack = [];
-            $t = $dep0 + 120; // 2分ずらして復路
-            $rev = array_reverse($stopIds);
-            foreach ($rev as $seq => $stopId) {
-                $arr = $t;
-                $dep = $t;
-                $eventsBack[] = [$stopId, $arr, $dep, $seq];
-                $departuresByStop[$stopId][] = [$tripIdBack, $routeId, $dep, $arr, $seq];
-                $t += $leg;
-            }
-            $tripEvents[$tripIdBack] = $eventsBack;
         }
     }
 

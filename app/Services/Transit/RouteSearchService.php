@@ -175,14 +175,92 @@ class RouteSearchService
     {
         $operatorId = trim((string) ($query['preferredOperator'] ?? ''));
         $result = $this->operators->markItineraries($result, $operatorId);
-        if ($operatorId === '' || ($result['itineraries'] ?? []) === []) {
+        $itineraries = is_array($result['itineraries'] ?? null) ? $result['itineraries'] : [];
+        if ($itineraries === []) {
             return $result;
         }
 
         $preference = (string) ($query['preference'] ?? ItineraryScorer::PREF_FASTEST);
-        $result['itineraries'] = $this->scorer->rank($result['itineraries'], $preference, true);
+        $limit = max(1, min(10, (int) ($query['limit'] ?? 8)));
+        $ranked = $this->scorer->rank($itineraries, $preference, $operatorId !== '');
+        $result['itineraries'] = $operatorId !== ''
+            ? $this->pinPreferred($ranked, $limit)
+            : $this->diversifyByAgency($ranked, $limit);
 
         return $result;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $itineraries
+     * @return list<array<string, mixed>>
+     */
+    private function pinPreferred(array $itineraries, int $limit): array
+    {
+        $preferred = [];
+        $others = [];
+        foreach ($itineraries as $itinerary) {
+            if (! empty($itinerary['usesPreferredOperator'])) {
+                $preferred[] = $itinerary;
+            } else {
+                $others[] = $itinerary;
+            }
+        }
+
+        return array_slice(array_values(array_merge($preferred, $others)), 0, $limit);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $itineraries
+     * @return list<array<string, mixed>>
+     */
+    private function diversifyByAgency(array $itineraries, int $limit): array
+    {
+        $buckets = [];
+        foreach ($itineraries as $itinerary) {
+            $buckets[$this->rideAgency($itinerary)][] = $itinerary;
+        }
+
+        $mixed = [];
+        $index = 0;
+        while (count($mixed) < $limit) {
+            $added = false;
+            foreach ($buckets as $agency => $list) {
+                if (! isset($list[$index])) {
+                    continue;
+                }
+                $mixed[] = $list[$index];
+                $added = true;
+                if (count($mixed) >= $limit) {
+                    break;
+                }
+            }
+            if (! $added) {
+                break;
+            }
+            $index++;
+        }
+
+        return $mixed;
+    }
+
+    /** @param  array<string, mixed>  $itinerary */
+    private function rideAgency(array $itinerary): string
+    {
+        foreach ($itinerary['legs'] ?? [] as $leg) {
+            if (! is_array($leg) || ($leg['type'] ?? '') === 'walk') {
+                continue;
+            }
+            $agency = trim((string) ($leg['agency'] ?? ''));
+            if ($agency !== '') {
+                return $agency;
+            }
+            $name = trim((string) ($leg['routeName'] ?? ''));
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return 'other';
     }
 
     /** @return list<RouteProvider> */
