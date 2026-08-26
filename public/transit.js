@@ -485,4 +485,64 @@
   if (window.google && window.google.maps) {
     window.initTransitAutocomplete()
   }
+
+  function currentSearchQuery() {
+    const year = yearSelect ? yearSelect.value : String(new Date().getFullYear())
+    const month = monthSelect ? pad2(parseInt(monthSelect.value, 10)) : '01'
+    const day = daySelect ? pad2(parseInt(daySelect.value, 10)) : '01'
+    const hour = hourSelect ? hourSelect.value : '08'
+    const minute = minuteSelect ? minuteSelect.value : '00'
+    return {
+      from: fromInput ? fromInput.value.trim() : '',
+      to: toInput ? toInput.value.trim() : '',
+      departureAt: year + '-' + month + '-' + day + 'T' + hour + ':' + minute,
+      timeType: selectedTimeType() === '4' ? 'arrival' : 'departure',
+      preference: preferenceSelect ? preferenceSelect.value : 'fastest',
+      lastSearch: window.__transitLastAiSearch || null,
+    }
+  }
+
+  function applyAiSearch(data) {
+    const search = data && data.search
+    if (!search) return
+    window.__transitLastAiSearch = search
+    if (fromInput && search.from) fromInput.value = search.from
+    if (toInput && search.to) toInput.value = search.to
+    if (preferenceSelect && search.preference) preferenceSelect.value = search.preference
+    if (search.timeType === 'arrival') {
+      const arrival = document.querySelector('input[name="transit-time-type"][value="4"]')
+      if (arrival) arrival.checked = true
+    } else if (search.timeType === 'departure') {
+      const dep = document.querySelector('input[name="transit-time-type"][value="1"]')
+      if (dep) dep.checked = true
+    }
+    if (search.departureAt && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(search.departureAt)) {
+      const stamp = search.departureAt
+      if (yearSelect) yearSelect.value = stamp.slice(0, 4)
+      if (monthSelect) monthSelect.value = String(parseInt(stamp.slice(5, 7), 10))
+      if (daySelect) daySelect.value = String(parseInt(stamp.slice(8, 10), 10))
+      if (hourSelect) hourSelect.value = String(parseInt(stamp.slice(11, 13), 10))
+      if (minuteSelect) minuteSelect.value = stamp.slice(14, 16)
+    }
+    if (resultsBox && (data.searched || (data.itineraries && data.itineraries.length))) {
+      resultsBox.removeAttribute('hidden')
+      if (resultsTitle) {
+        resultsTitle.textContent = (search.from || '') + ' → ' + (search.to || '')
+          + (search.engine ? '（' + search.engine + '）' : '')
+      }
+      renderItineraries({
+        ok: !!search.ok,
+        message: search.message,
+        engine: search.engine,
+        engineNote: search.engineNote,
+        itineraries: data.itineraries || [],
+      })
+      if (search.from && search.to) {
+        appendExternalLinks(search.from, search.to, search.from, search.to)
+      }
+    }
+  }
+
+  window.transitAiContext = currentSearchQuery
+  window.transitAiResult = applyAiSearch
 })()

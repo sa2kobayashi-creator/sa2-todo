@@ -7,6 +7,7 @@ use App\Models\GuideTopic;
 use App\Models\TransitFavorite;
 use App\Models\TravelTrip;
 use App\Models\User;
+use Illuminate\Support\Collection;
 
 class WorkersAiGuideService
 {
@@ -103,12 +104,12 @@ class WorkersAiGuideService
                 'label' => __('AI に路線を相談'),
                 'ready' => true,
                 'custom' => false,
-                'hint' => __('登録済みのよく使う路線を見ながら、行き方や乗り換えのコツを案内します。'),
+                'hint' => __('相談すると経路検索 API で時刻・運賃・乗換を取り、その結果で答えます。続けて聞けば条件を変えて再検索します。'),
                 'icon' => '🚃',
                 'samples' => [
                     __('天神から博多駅までの行き方を教えて'),
+                    __('もっと安いルートは？'),
                     __('雨の日でも濡れにくい乗り換えは？'),
-                    __('よく使う路線の混雑を避ける時間帯は？'),
                 ],
             ],
             self::TOPIC_TRAVEL => [
@@ -152,7 +153,7 @@ class WorkersAiGuideService
         return $topics;
     }
 
-    /** @return \Illuminate\Support\Collection<int, GuideTopic> */
+    /** @return Collection<int, GuideTopic> */
     public function userTopicRows(User $user)
     {
         return GuideTopic::query()
@@ -249,8 +250,8 @@ class WorkersAiGuideService
         $extra = match ((string) $topic['id']) {
             self::TOPIC_RECIPE => ' Focus on home cooking: ingredients, steps, timing, and substitutions.',
             self::TOPIC_CALENDAR => ' Help the user plan the day using the calendar snapshot below. Suggest order, travel buffer, and what to register as a ToDo if something is missing.',
-            self::TOPIC_TRANSIT => ' Help with getting around by train, bus, subway, and ferry, mainly around Fukuoka. '
-                .'You cannot look up live timetables or fares, so give practical routing advice and tell the user to run the search on this page for exact times.',
+            self::TOPIC_TRANSIT => ' Help with getting around by train, bus, subway, and ferry. '
+                .'Use only timetable, fare, and transfer facts supplied with the prompt.',
             self::TOPIC_TRAVEL => ' Help with trip planning between Japan and the Philippines: when to buy, budget, documents, and what to prepare. '
                 .'You cannot look up live airfares, so give practical guidance and tell the user to check the fare table on this page for actual prices.',
             default => ' Help with everyday life tips, how to use this app, and friendly conversation.',

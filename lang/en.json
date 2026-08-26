@@ -3579,5 +3579,7 @@
     "アプリ側の回数上限なし。API 制限は Google Cloud の課金設定に依存します。": "No app-side request cap. API limits follow the Google Cloud billing setup.",
     "駅すぱあと（路線検索）": "Ekispert (transit)",
     "路線検索で駅すぱあとの経路・運賃・乗換を取得するときに使用します。未設定のときはここには計上されません。": "Used when Transit fetches routes, fares and transfers from Ekispert. Unused APIs are not counted here.",
-    "アプリ側の回数上限なし。API 制限は駅すぱあとの契約プランに依存します。": "No app-side request cap. API limits follow the Ekispert contract."
+    "アプリ側の回数上限なし。API 制限は駅すぱあとの契約プランに依存します。": "No app-side request cap. API limits follow the Ekispert contract.",
+    "相談すると経路検索 API で時刻・運賃・乗換を取り、その結果で答えます。続けて聞けば条件を変えて再検索します。": "Each question runs the route-search API for times, fares and transfers, then the answer is based on that result. Follow-up questions search again with the new conditions.",
+    "もっと安いルートは？": "Is there a cheaper route?"
 }

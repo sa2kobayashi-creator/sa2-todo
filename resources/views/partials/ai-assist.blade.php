@@ -2,6 +2,8 @@
   $aiId = $aiId ?? 'ai-assist';
   $aiSamples = $aiSamples ?? [];
   $aiReady = ! empty($aiReady);
+  $aiContextHook = $aiContextHook ?? '';
+  $aiResultHook = $aiResultHook ?? '';
 @endphp
 <section class="panel ai-assist" id="{{ $aiId }}">
   <header class="ai-assist-head">
@@ -49,6 +51,8 @@
     const id = @json($aiId);
     const endpoint = @json($aiEndpoint);
     const ready = @json($aiReady);
+    const contextHook = @json($aiContextHook);
+    const resultHook = @json($aiResultHook);
     const strings = {
       you: @json(__('あなた')),
       guide: @json(__('ガイド')),
@@ -108,6 +112,9 @@
       if (submitEl) submitEl.disabled = true;
       if (statusEl) statusEl.textContent = strings.thinking;
       const typing = appendTyping();
+      const extra = (contextHook && typeof window[contextHook] === 'function')
+        ? (window[contextHook]() || {})
+        : {};
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -117,7 +124,7 @@
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
           },
-          body: JSON.stringify({ prompt, messages: history }),
+          body: JSON.stringify({ prompt, messages: history, ...extra }),
         });
         const data = await res.json().catch(() => ({}));
         typing.remove();
@@ -129,6 +136,9 @@
         history.push({ role: 'assistant', content: data.text || '' });
         if (history.length > 12) history.splice(0, history.length - 12);
         append('assistant', data.text || '');
+        if (resultHook && typeof window[resultHook] === 'function') {
+          window[resultHook](data);
+        }
       } catch (_) {
         typing.remove();
         append('assistant', strings.error).classList.add('is-error');

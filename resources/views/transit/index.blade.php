@@ -116,6 +116,8 @@
         'aiIcon' => $aiTopic['icon'],
         'aiSamples' => $aiTopic['samples'],
         'aiReady' => $aiReady,
+        'aiContextHook' => 'transitAiContext',
+        'aiResultHook' => 'transitAiResult',
       ])
 
       <section class="panel transit-favorites-panel">
