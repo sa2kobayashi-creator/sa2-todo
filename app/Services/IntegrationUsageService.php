@@ -345,7 +345,7 @@ class IntegrationUsageService
     {
         $limit = max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30));
 
-        return __('ユーザーあたり1日 :limit 回（入出金・Todo・メモ合算）。API はトークン従量。', [
+        return __('プランごとに上限があります。目安はユーザーあたり1日 :limit 回。API はトークン従量。', [
             'limit' => number_format($limit),
         ]);
     }

@@ -8,6 +8,7 @@
 関連:
 
 - `docs/specs/commercial-storage.md` … ストレージ接続・クォータ・将来の Stripe
+- `docs/specs/commercial-usage-limits.md` … プラン別の利用上限と運営の制限管理
 - `docs/specs/commercial-public-readiness.md` … 公開・複数利用の実装ギャップ（登録・PII・レート制限など）
 
 ---

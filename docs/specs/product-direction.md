@@ -9,6 +9,7 @@
 - `docs/specs/commercial-public-readiness.md` … 公開ギャップ・販路
 - `docs/specs/commercial-dedicated-instance.md` … 専用インスタンス（別サーバー）
 - `docs/specs/commercial-storage.md` … ストレージはアプリ全体1セット＋ユーザー枠
+- `docs/specs/commercial-usage-limits.md` … Light / Standard / テナントの利用上限（設定 → 制限管理）
 
 単価の実行値は `config/commercial.php`（環境変数で上書き可）。
 
@@ -54,7 +55,7 @@
 
 生活ガイドに並ぶ話題は **既定3つ（生活の知恵・料理レシピ・カレンダー）＋ ユーザーが自分で追加した話題**（`guide_topics`、1人 12 個まで）。追加時に名前・絵文字・AI への指示を持たせ、指示はシステムプロンプトに足す。路線の相談は生活ガイドの一覧には出さず `/transit` に埋め込む。航空の AI は運営者の `/travel` のみ。路線の AI は **相談 → 経路検索 API → その結果で回答 → 再相談** と回し、時刻・乗換・運賃は API の itinerary だけを正とする。
 
-ユーザーあたり日次上限（`USER_WORKERS_AI_REQUESTS_PER_DAY`、既定 20。`0` で無制限）。**スーパー管理者は運営本人なので上限なし**、管理者以下に適用する。原価は Cloudflare Neurons／トークン従量。
+ユーザーあたり日次上限の既定は `USER_WORKERS_AI_REQUESTS_PER_DAY`（既定 20。`0` で無制限）。**スーパー管理者は運営本人なので上限なし**。プラン別の日次・月次、特別枠、テナントの契約プールは `docs/specs/commercial-usage-limits.md`（設定 → 制限管理）。原価は Cloudflare Neurons／トークン従量。
 
 ## 経路検索の切り替え（RouteSearchService）
 

@@ -22,6 +22,8 @@
         @include('settings.partials.nav')
       @elseif(($section ?? 'holidays') === 'usage')
         @include('settings.partials.usage')
+      @elseif(($section ?? '') === 'limits' && !empty($isSuperAdmin))
+        @include('settings.partials.limits')
       @else
       @include('settings.partials.setup-tabs')
       @if(($section ?? 'holidays') === 'holidays')

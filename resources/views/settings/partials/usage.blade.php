@@ -6,7 +6,36 @@
 <div class="panel" id="settings-usage">
   <h2>{{ __('使用量') }}</h2>
   <p class="hint">{{ __('外部連携のアプリ内利用回数と、ストレージの使用状況をまとめて確認できます。請求額・残高の詳細は各公式コンソールも参照してください。') }}</p>
+  @if(!empty($isSuperAdmin))
+    <p><a class="button-link secondary" href="/settings?section=limits">{{ __('制限を編集') }}</a></p>
+  @endif
 </div>
+
+@php $remaining = $usageRemaining ?? null; @endphp
+@if(!empty($remaining['meters']))
+  <section class="panel" id="plan-usage-remaining">
+    <h2>{{ __('このアカウントの枠') }}</h2>
+    <p class="hint">
+      {{ __('プラン') }}: {{ __(\App\Models\UsageLimitPolicy::accountPlanLabel((string) ($remaining['plan'] ?? ''))) }}
+      @if(!empty($remaining['pool']))
+        · {{ __('回数・文字数は契約メンバー合算です') }}
+      @endif
+    </p>
+    <div class="usage-overview-grid">
+      @foreach(['translate' => __('翻訳'), 'llm_voice' => __('音声AI'), 'workers_ai' => __('生活ガイド')] as $meter => $label)
+        @php $m = $remaining['meters'][$meter] ?? null; @endphp
+        @if(!$m)
+          @continue
+        @endif
+        <article class="usage-overview-card">
+          <strong>{{ $label }}</strong>
+          <span>{{ __('本日') }} {{ number_format((int) $m['used_today']) }}@if((int) $m['daily_limit'] > 0) / {{ number_format((int) $m['daily_limit']) }}@else / {{ __('上限なし') }}@endif</span>
+          <span>{{ __('今月') }} {{ number_format((int) $m['used_month']) }}@if((int) $m['monthly_limit'] > 0) / {{ number_format((int) $m['monthly_limit']) }}@else / {{ __('上限なし') }}@endif</span>
+        </article>
+      @endforeach
+    </div>
+  </section>
+@endif
 
 @php $official = $officialAiUsage ?? []; @endphp
 <section class="panel" id="official-ai-usage">

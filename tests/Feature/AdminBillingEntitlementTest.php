@@ -59,6 +59,79 @@ class AdminBillingEntitlementTest extends TestCase
         $this->assertTrue($target->mailbox_addon_active);
     }
 
+    public function test_super_admin_can_toggle_special_quota_on_user_edit(): void
+    {
+        $staff = $this->makeStaff();
+        $target = $this->makeTarget();
+
+        $this->actingAs($staff)
+            ->from("/admin/users/{$target->id}/edit")
+            ->post("/admin/users/{$target->id}/update", [
+                'email' => $target->email,
+                'displayName' => $target->display_name,
+                'role' => UserRole::Light->value,
+                'menuFeaturesConfigured' => '1',
+                'subscriptionStatus' => SubscriptionStatus::None->value,
+                'specialQuota' => '1',
+            ])
+            ->assertRedirect("/admin/users/{$target->id}");
+
+        $target->refresh();
+        $this->assertTrue($target->hasSpecialQuota());
+
+        $this->actingAs($staff)
+            ->get("/admin/users/{$target->id}")
+            ->assertOk()
+            ->assertSee(__('特別枠'), false)
+            ->assertSee(__('あり'), false);
+    }
+
+    public function test_user_edit_keeps_checkbox_and_label_in_the_same_row_markup(): void
+    {
+        $staff = $this->makeStaff();
+        $target = $this->makeTarget();
+
+        $this->actingAs($staff)
+            ->get("/admin/users/{$target->id}/edit")
+            ->assertOk()
+            ->assertSee('class="menu-feature-check"', false)
+            ->assertSee('name="specialQuota"', false)
+            ->assertSee('特別枠にする', false)
+            ->assertSee('ストレージ有料超過を許可', false)
+            ->assertSee('メールボックス有料オプション', false);
+
+        $css = (string) file_get_contents(public_path('app.css'));
+        $this->assertStringContainsString('.admin-user-form label.menu-feature-check', $css);
+        $this->assertStringContainsString('.stack-form label.menu-feature-check', $css);
+        $this->assertMatchesRegularExpression(
+            '/\.admin-user-form label\.menu-feature-check[\s\S]*?flex-direction:\s*row/',
+            $css
+        );
+    }
+
+    public function test_user_show_and_edit_use_header_action_buttons(): void
+    {
+        $staff = $this->makeStaff();
+        $target = $this->makeTarget();
+
+        $this->actingAs($staff)
+            ->get("/admin/users/{$target->id}")
+            ->assertOk()
+            ->assertSee('class="admin-page-actions"', false)
+            ->assertSee('class="button-link"', false)
+            ->assertSee('admin-back-link', false)
+            ->assertSee(__('編集'), false)
+            ->assertSee(__('一覧に戻る'), false);
+
+        $this->actingAs($staff)
+            ->get("/admin/users/{$target->id}/edit")
+            ->assertOk()
+            ->assertSee('class="admin-page-actions"', false)
+            ->assertSee('admin-back-link', false)
+            ->assertSee(__('詳細'), false)
+            ->assertSee(__('一覧に戻る'), false);
+    }
+
     public function test_user_detail_shows_billing_fields(): void
     {
         $staff = $this->makeStaff();

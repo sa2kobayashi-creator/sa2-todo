@@ -123,7 +123,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
         config(['usage_limits.llm_voice_requests_per_day' => 1]);
 
         // 音声入力はスーパー管理者向けの試作機能
-        $user = $this->makeUser('voice-limit@example.com', UserRole::SuperAdmin);
+        $user = $this->makeUser('voice-limit@example.com', UserRole::Standard);
         app(UserUsageLimitService::class)
             ->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_NOTE, 1);
 
@@ -137,7 +137,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
     {
         config(['usage_limits.llm_voice_requests_per_day' => 1]);
 
-        $user = $this->makeUser('voice-pool@example.com', UserRole::SuperAdmin);
+        $user = $this->makeUser('voice-pool@example.com', UserRole::Standard);
         app(UserUsageLimitService::class)
             ->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_NOTE, 1);
 
@@ -158,7 +158,7 @@ class StorageQuotaAndUsageLimitTest extends TestCase
             'is_active' => true,
         ]);
 
-        $user = $this->makeUser('translate-limit@example.com', UserRole::SuperAdmin);
+        $user = $this->makeUser('translate-limit@example.com', UserRole::Standard);
         app(UserUsageLimitService::class)
             ->consume($user, UserUsageLimitService::FEATURE_TRANSLATE, 5);
 

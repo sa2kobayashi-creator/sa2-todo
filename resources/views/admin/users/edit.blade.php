@@ -17,10 +17,10 @@
       <div class="panel">
         <div class="admin-user-card-head">
           <h2>{{ __('ユーザー編集') }}</h2>
-          <div class="admin-users-actions">
-            <a href="/admin/users/{{ $user['id'] }}" class="secondary mini-btn">{{ __('詳細') }}</a>
-            <a href="/admin/users" class="secondary mini-btn">{{ __('一覧に戻る') }}</a>
-          </div>
+          <nav class="admin-page-actions">
+            <a href="/admin/users/{{ $user['id'] }}" class="button-link secondary">{{ __('詳細') }}</a>
+            <a href="/admin/users" class="button-link secondary admin-back-link">{{ __('一覧に戻る') }}</a>
+          </nav>
         </div>
 
         <form method="post" action="/admin/users/{{ $user['id'] }}/update" class="admin-user-form" id="admin-user-edit-form">
@@ -59,6 +59,18 @@
               @endforeach
             </div>
           </fieldset>
+          @if(!empty($canAssignSpecialQuota) && !empty($user['canUseSpecialQuota']))
+            <fieldset class="menu-feature-fieldset">
+              <legend>{{ __('特別枠') }}</legend>
+              <p class="hint">{{ __('制限管理の「特別枠」テンプレートを使います。自己登録の招待コードとは別です。テナント所属には使えません。') }}</p>
+              <label class="menu-feature-check">
+                <input type="checkbox" name="specialQuota" value="1" @checked(old('specialQuota', !empty($user['specialQuota']))) />
+                <span>{{ __('特別枠にする') }}</span>
+              </label>
+            </fieldset>
+          @elseif(!empty($canAssignSpecialQuota) && empty($user['canUseSpecialQuota']))
+            <p class="hint">{{ __('テナント所属または運営者は特別枠を使いません。テナントは契約プール、運営者は上限なしです。') }}</p>
+          @endif
           <fieldset class="menu-feature-fieldset">
             <legend>{{ __('契約・課金') }}</legend>
             <p class="hint">{{ __('Stripe 導入前の手動運用です。請求書で入金を確認したらここで有効にしてください。権限（ロール）とは別に保存されます。') }}</p>

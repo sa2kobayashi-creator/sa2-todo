@@ -7,6 +7,9 @@
     <a href="/settings?section=nav" @class(['active' => $navActive === 'settings' && $navSection === 'nav'])>{{ __('表示メニュー管理') }}</a>
     <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSection) }}" @class(['active' => $navActive === 'settings' && \App\Support\SettingsNav::isSetupSection($navSection)])>{{ __('初期設定') }}</a>
     <a href="/settings?section=usage" @class(['active' => $navActive === 'settings' && $navSection === 'usage'])>{{ __('使用量') }}</a>
+    @if(!empty($canSuperAdmin))
+      <a href="/settings?section=limits" @class(['active' => $navActive === 'settings' && $navSection === 'limits'])>{{ __('制限管理') }}</a>
+    @endif
     <a href="/help" @class(['active' => $navActive === 'help'])>{{ __('ヘルプ') }}</a>
     <a href="/help/overview" @class(['active' => $navActive === 'help-overview'])>{{ __('このアプリの概要') }}</a>
     <a href="/help/guide" @class(['active' => $navActive === 'help-guide'])>{{ __('このアプリの使用方法') }}</a>

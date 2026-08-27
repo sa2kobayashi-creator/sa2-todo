@@ -74,6 +74,11 @@ class BillingEntitlementService
      */
     public function storageFreeQuotaBytes(User $user): int
     {
+        $saved = app(UsageLimitPolicyService::class)->storageQuotaBytes($user);
+        if ($saved !== null) {
+            return $saved;
+        }
+
         $base = max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
         $standard = max($base, (int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
 

@@ -113,6 +113,7 @@ class UserController extends Controller
             'role' => ['required', 'string', Rule::in($allowedRoles)],
             'menuFeatures' => ['nullable', 'array'],
             'menuFeatures.*' => ['string', Rule::in(MenuFeature::assignableValues())],
+            'specialQuota' => ['nullable', 'boolean'],
         ]);
 
         $role = UserRole::from($data['role']);
@@ -141,6 +142,7 @@ class UserController extends Controller
             'role' => $role,
             'menu_features' => $menuFeatures,
             'tenant_id' => $tenantId,
+            'special_quota' => $this->specialQuotaFromRequest($request, $actor, $role, null),
         ]);
 
         return $this->redirectWithMessage('/admin/users', __('ユーザーを追加しました。'));
@@ -178,6 +180,7 @@ class UserController extends Controller
             'trialEndsAt' => ['nullable', 'date'],
             'storageOverageActive' => ['nullable', 'boolean'],
             'mailboxAddonActive' => ['nullable', 'boolean'],
+            'specialQuota' => ['nullable', 'boolean'],
         ]);
 
         $newRole = UserRole::from($data['role']);
@@ -219,6 +222,10 @@ class UserController extends Controller
             if (is_array($user->header_nav)) {
                 $user->header_nav = FooterNav::normalizeHeaderKeys($user->header_nav, $user);
             }
+        }
+
+        if ($actor->isSuperAdmin()) {
+            $user->special_quota = $this->specialQuotaFromRequest($request, $actor, $newRole, $user);
         }
 
         $user->save();
@@ -288,6 +295,7 @@ class UserController extends Controller
             'menuFeaturesByRole' => collect(UserRole::assignable())
                 ->mapWithKeys(fn (UserRole $role) => [$role->value => MenuFeature::defaultsForRole($role)])
                 ->all(),
+            'canAssignSpecialQuota' => $actor->isSuperAdmin(),
         ];
     }
 
@@ -310,6 +318,7 @@ class UserController extends Controller
             'isSelf' => $user->id === $actor->id,
             'canManageTarget' => $this->guardTargetEditable($actor, $user) === null,
             'tenantName' => $user->tenant?->name,
+            'canUseSpecialQuota' => $user->tenant_id === null && ! $user->isSuperAdmin(),
             'menuFeatureLabels' => $user->isAdmin()
                 ? [$staffLabel]
                 : $menuLabels,
@@ -341,6 +350,18 @@ class UserController extends Controller
         }
 
         return $selected;
+    }
+
+    private function specialQuotaFromRequest(Request $request, User $actor, UserRole $role, ?User $target): bool
+    {
+        if (! $actor->isSuperAdmin() || $role === UserRole::SuperAdmin) {
+            return false;
+        }
+        if ($actor->tenant_id || $target?->tenant_id) {
+            return false;
+        }
+
+        return $request->boolean('specialQuota');
     }
 
     private function assertTenantAdminSeat(Tenant $tenant, UserRole $role, ?User $target): ?string

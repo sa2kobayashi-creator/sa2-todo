@@ -49,6 +49,9 @@
               <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
               <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSettingsSection ?? '') }}" class="{{ \App\Support\SettingsNav::isSetupSection($navSettingsSection ?? '') ? 'active' : '' }}" role="menuitem">{{ __('初期設定') }}</a>
               <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
+              @if(!empty($canSuperAdmin))
+                <a href="/settings?section=limits" class="{{ ($navSettingsSection ?? '') === 'limits' ? 'active' : '' }}" role="menuitem">{{ __('制限管理') }}</a>
+              @endif
               <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
               <a href="/help/overview" class="{{ ($active ?? '') === 'help-overview' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの概要') }}</a>
               <a href="/help/guide" class="{{ ($active ?? '') === 'help-guide' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの使用方法') }}</a>
@@ -218,6 +221,9 @@
                       <a href="/settings?section=nav" class="{{ ($navSettingsSection ?? '') === 'nav' ? 'active' : '' }}" role="menuitem">{{ __('表示メニュー管理') }}</a>
                       <a href="{{ \App\Support\SettingsNav::setupMenuHref($navSettingsSection ?? '') }}" class="{{ \App\Support\SettingsNav::isSetupSection($navSettingsSection ?? '') ? 'active' : '' }}" role="menuitem">{{ __('初期設定') }}</a>
                       <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
+                      @if(!empty($canSuperAdmin))
+                        <a href="/settings?section=limits" class="{{ ($navSettingsSection ?? '') === 'limits' ? 'active' : '' }}" role="menuitem">{{ __('制限管理') }}</a>
+                      @endif
                       <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
                       <a href="/help/overview" class="{{ ($active ?? '') === 'help-overview' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの概要') }}</a>
                       <a href="/help/guide" class="{{ ($active ?? '') === 'help-guide' ? 'active' : '' }}" role="menuitem">{{ __('このアプリの使用方法') }}</a>

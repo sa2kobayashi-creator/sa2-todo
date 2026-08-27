@@ -7,6 +7,7 @@
 
 - `docs/specs/commercial-public-readiness.md` … 販売方針の親メモ
 - `docs/specs/commercial-storage.md` … ストレージ接続
+- `docs/specs/commercial-usage-limits.md` … 運営キー利用時の契約プール上限
 - `docs/specs/commercial-dedicated-instance.md` … 別サーバーの専用インスタンス（販路 A）
 
 ## 売り物

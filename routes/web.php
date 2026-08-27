@@ -52,6 +52,7 @@ use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslateController;
 use App\Http\Controllers\TranslationApiKeyController;
 use App\Http\Controllers\TravelController;
+use App\Http\Controllers\UsageLimitSettingsController;
 use App\Http\Controllers\TravelpayoutsSettingsController;
 use App\Http\Controllers\VideoController;
 use App\Http\Controllers\WebPushSettingsController;
@@ -466,6 +467,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/ai/workers-ai/test', [WorkersAiSettingsController::class, 'test']);
             Route::post('/settings/ai/workers-ai/models', [WorkersAiSettingsController::class, 'models']);
             Route::post('/settings/ai/usage/refresh', [AiProviderUsageController::class, 'refresh']);
+            Route::post('/settings/limits', [UsageLimitSettingsController::class, 'update'])
+                ->middleware(RequireSuperAdmin::class);
 
             Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update'])
                 ->middleware(RequireSuperAdmin::class);

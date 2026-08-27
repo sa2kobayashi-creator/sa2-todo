@@ -40,6 +40,7 @@ class User extends Authenticatable
         'trial_ends_at',
         'storage_overage_active',
         'mailbox_addon_active',
+        'special_quota',
         'tenant_id',
     ];
 
@@ -64,6 +65,7 @@ class User extends Authenticatable
             'trial_ends_at' => 'datetime',
             'storage_overage_active' => 'boolean',
             'mailbox_addon_active' => 'boolean',
+            'special_quota' => 'boolean',
             'menu_features' => 'array',
             'footer_nav' => 'array',
             'header_nav' => 'array',
@@ -169,6 +171,12 @@ class User extends Authenticatable
         return $this->roleEnum() === UserRole::SuperAdmin;
     }
 
+    /** 運営がユーザー管理で付けた特別枠。自己登録の招待コードとは別。 */
+    public function hasSpecialQuota(): bool
+    {
+        return (bool) $this->special_quota && ! $this->isSuperAdmin() && $this->tenant_id === null;
+    }
+
     /** スーパー管理者または管理者（設定・ユーザー管理など） */
     public function isAdmin(): bool
     {
@@ -266,6 +274,7 @@ class User extends Authenticatable
             'trialEndsAt' => optional($this->trial_ends_at)?->format('Y-m-d'),
             'storageOverageActive' => (bool) $this->storage_overage_active,
             'mailboxAddonActive' => (bool) $this->mailbox_addon_active,
+            'specialQuota' => (bool) $this->special_quota,
             'tenantId' => $this->tenant_id,
             'tenantName' => $this->tenant?->name,
             'createdAt' => optional($this->created_at)?->format('Y-m-d H:i'),

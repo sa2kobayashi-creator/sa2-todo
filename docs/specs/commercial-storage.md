@@ -4,7 +4,10 @@
 記録日: 2026-07-28  
 前提: UI / 使いやすさの改善を優先し、販売準備として後から実装する。
 
-関連: 公開・複数利用の実装ギャップは `docs/specs/commercial-public-readiness.md`。
+関連:
+
+- `docs/specs/commercial-public-readiness.md` … 公開・複数利用の実装ギャップ
+- `docs/specs/commercial-usage-limits.md` … AI・翻訳のプラン別枠と運営の制限管理
 
 ## ゴール
 

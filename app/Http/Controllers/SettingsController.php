@@ -25,6 +25,8 @@ use App\Services\NavitimeConfigService;
 use App\Services\PhotoService;
 use App\Services\Transit\RouteSearchService;
 use App\Services\TravelpayoutsConfigService;
+use App\Services\UsageLimitPolicyService;
+use App\Services\UserUsageLimitService;
 use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
@@ -59,14 +61,19 @@ class SettingsController extends Controller
         private WebPushConfigService $webPushConfig,
         private IntegrationUsageService $integrationUsage,
         private PhotoService $photos,
+        private UsageLimitPolicyService $usageLimits,
+        private UserUsageLimitService $userUsageLimits,
     ) {}
 
     public function index(Request $request)
     {
         $year = (int) ($request->query('year') ?: date('Y'));
         $section = $this->parseSection($request->query('section'));
-        $messagingSection = in_array($section, ['integration', 'notifications'], true);
         $isSuperAdmin = (bool) $request->user()?->isSuperAdmin();
+        if ($section === 'limits' && ! $isSuperAdmin) {
+            $section = 'usage';
+        }
+        $messagingSection = in_array($section, ['integration', 'notifications'], true);
 
         return view('settings.index', [
             'section' => $section,
@@ -88,6 +95,13 @@ class SettingsController extends Controller
                 : null,
             'officialAiUsage' => $section === 'usage'
                 ? $this->aiProviderUsage->summaries()
+                : null,
+            'usageLimitForm' => $section === 'limits' ? $this->usageLimits->formState() : null,
+            'usageEstimatedYen' => in_array($section, ['limits', 'usage'], true)
+                ? $this->usageLimits->estimatedMonthlyYen()
+                : 0,
+            'usageRemaining' => in_array($section, ['limits', 'usage'], true) && $request->user()
+                ? $this->usageLimits->remainingSummary($request->user(), $this->userUsageLimits)
                 : null,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::queryForCurrentTenant()->orderBy('priority', 'desc')->orderBy('id')->get()
@@ -222,7 +236,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage', 'limits'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

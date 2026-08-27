@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\UsageLimitExceededException;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UserDailyUsage;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,8 @@ class UserUsageLimitService
 
     public const FEATURE_WORKERS_AI = 'workers_ai';
 
+    public function __construct(private UsageLimitPolicyService $policies) {}
+
     /** @return list<string> */
     public static function llmVoiceFeatures(): array
     {
@@ -36,52 +39,35 @@ class UserUsageLimitService
 
     public function limitFor(string $feature): int
     {
-        if ($this->isLlmVoiceFeature($feature)) {
-            return max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30));
-        }
-
-        return match ($feature) {
-            self::FEATURE_TRANSLATE => max(0, (int) config('usage_limits.translate_chars_per_day', 50_000)),
-            self::FEATURE_ENHANCE => max(0, (int) config('usage_limits.enhance_requests_per_day', 10)),
-            self::FEATURE_WORKERS_AI => max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20)),
-            default => 0,
-        };
+        return $this->policies->dailyLimit(null, $this->meterFor($feature));
     }
 
     /**
-     * 0 は上限なし。スーパー管理者は運営本人なので生活ガイドを制限しない。
+     * 0 は上限なし。スーパー管理者は運営本人なので制限しない。
      */
     public function limitForUser(?User $user, string $feature): int
     {
-        if ($feature === self::FEATURE_WORKERS_AI && $user?->isSuperAdmin()) {
-            return 0;
-        }
+        return $this->policies->dailyLimit($user, $this->meterFor($feature));
+    }
 
-        return $this->limitFor($feature);
+    public function monthlyLimitForUser(?User $user, string $feature): int
+    {
+        return $this->policies->monthlyLimit($user, $this->meterFor($feature));
     }
 
     public function usedToday(User $user, string $feature): int
     {
-        if ($this->isLlmVoiceFeature($feature)) {
-            return $this->usedTodayLlmVoice($user);
-        }
+        return $this->usedInRange($user, $feature, now()->toDateString(), now()->toDateString());
+    }
 
-        $row = UserDailyUsage::query()
-            ->where('user_id', $user->id)
-            ->whereDate('usage_date', now()->toDateString())
-            ->where('feature', $feature)
-            ->first();
-
-        return (int) ($row?->amount ?? 0);
+    public function usedThisMonth(User $user, string $feature): int
+    {
+        return $this->usedInRange($user, $feature, now()->startOfMonth()->toDateString(), now()->toDateString());
     }
 
     public function usedTodayLlmVoice(User $user): int
     {
-        return (int) UserDailyUsage::query()
-            ->where('user_id', $user->id)
-            ->whereDate('usage_date', now()->toDateString())
-            ->whereIn('feature', self::llmVoiceFeatures())
-            ->sum('amount');
+        return $this->usedToday($user, self::FEATURE_LLM_VOICE);
     }
 
     public function remaining(User $user, string $feature): int
@@ -100,21 +86,52 @@ class UserUsageLimitService
     public function assertWithin(User $user, string $feature, int $amount = 1): void
     {
         $amount = max(0, $amount);
-        $limit = $this->limitForUser($user, $feature);
-        if ($limit <= 0 || $amount === 0) {
+        if ($amount === 0 || $user->isSuperAdmin()) {
             return;
         }
 
-        $used = $this->isLlmVoiceFeature($feature)
-            ? $this->usedTodayLlmVoice($user)
-            : $this->usedToday($user, $feature);
-        if ($used + $amount > $limit) {
+        if ($this->policies->isHardStopped()) {
             throw new UsageLimitExceededException(
                 $feature,
-                $limit,
-                $used,
-                $this->messageFor($feature, $limit, $used)
+                0,
+                0,
+                __('運営が外部APIの利用を一時停止しています。')
             );
+        }
+
+        if ($this->policies->circuitBreakerTripped()) {
+            throw new UsageLimitExceededException(
+                $feature,
+                $this->policies->estimatedMonthlyYenCap(),
+                $this->policies->estimatedMonthlyYen(),
+                __('運営の今月の見積上限に達しました。')
+            );
+        }
+
+        $daily = $this->limitForUser($user, $feature);
+        if ($daily > 0) {
+            $used = $this->usedToday($user, $feature);
+            if ($used + $amount > $daily) {
+                throw new UsageLimitExceededException(
+                    $feature,
+                    $daily,
+                    $used,
+                    $this->messageFor($user, $feature, $daily, $used, 'day')
+                );
+            }
+        }
+
+        $monthly = $this->monthlyLimitForUser($user, $feature);
+        if ($monthly > 0) {
+            $usedMonth = $this->usedThisMonth($user, $feature);
+            if ($usedMonth + $amount > $monthly) {
+                throw new UsageLimitExceededException(
+                    $feature,
+                    $monthly,
+                    $usedMonth,
+                    $this->messageFor($user, $feature, $monthly, $usedMonth, 'month')
+                );
+            }
         }
     }
 
@@ -128,11 +145,15 @@ class UserUsageLimitService
             return;
         }
 
-        $this->assertWithin($user, $feature, $amount);
-
         $today = now()->toDateString();
 
         DB::transaction(function () use ($user, $feature, $amount, $today) {
+            if ($this->policies->usesTenantPool($user) && $user->tenant_id) {
+                Tenant::query()->whereKey($user->tenant_id)->lockForUpdate()->first();
+            }
+
+            $this->assertWithin($user, $feature, $amount);
+
             $row = UserDailyUsage::query()
                 ->where('user_id', $user->id)
                 ->whereDate('usage_date', $today)
@@ -149,24 +170,46 @@ class UserUsageLimitService
                 ]);
             }
 
-            $limit = $this->limitForUser($user, $feature);
-            if ($limit > 0) {
-                $poolUsed = $this->isLlmVoiceFeature($feature)
-                    ? $this->usedTodayLlmVoice($user)
-                    : (int) $row->amount;
-                if ($poolUsed + $amount > $limit) {
-                    throw new UsageLimitExceededException(
-                        $feature,
-                        $limit,
-                        $poolUsed,
-                        $this->messageFor($feature, $limit, $poolUsed)
-                    );
-                }
-            }
+            $this->assertWithin($user, $feature, $amount);
 
             $row->amount = (int) $row->amount + $amount;
             $row->save();
         });
+    }
+
+    private function usedInRange(User $user, string $feature, string $from, string $to): int
+    {
+        $ids = $this->policies->poolUserIds($user);
+        if ($ids === []) {
+            return 0;
+        }
+
+        $query = UserDailyUsage::query()
+            ->whereIn('user_id', $ids)
+            ->whereDate('usage_date', '>=', $from)
+            ->whereDate('usage_date', '<=', $to);
+
+        if ($this->isLlmVoiceFeature($feature)) {
+            $query->whereIn('feature', self::llmVoiceFeatures());
+        } else {
+            $query->where('feature', $feature);
+        }
+
+        return (int) $query->sum('amount');
+    }
+
+    private function meterFor(string $feature): string
+    {
+        if ($this->isLlmVoiceFeature($feature)) {
+            return UsageLimitPolicyService::FEATURE_LLM_VOICE;
+        }
+
+        return match ($feature) {
+            self::FEATURE_TRANSLATE => UsageLimitPolicyService::FEATURE_TRANSLATE,
+            self::FEATURE_ENHANCE => UsageLimitPolicyService::FEATURE_ENHANCE,
+            self::FEATURE_WORKERS_AI => UsageLimitPolicyService::FEATURE_WORKERS_AI,
+            default => $feature,
+        };
     }
 
     private function isLlmVoiceFeature(string $feature): bool
@@ -174,29 +217,40 @@ class UserUsageLimitService
         return in_array($feature, self::llmVoiceFeatures(), true);
     }
 
-    private function messageFor(string $feature, int $limit, int $used): string
+    private function messageFor(User $user, string $feature, int $limit, int $used, string $period): string
     {
+        $pool = $this->policies->usesTenantPool($user);
+        $when = $period === 'month' ? __('今月') : __('本日');
+        $scope = $pool ? __('この契約') : __('このプラン');
+
         if ($this->isLlmVoiceFeature($feature)) {
-            return __('本日の音声AI利用上限（:limit回）に達しました。使用済み: :used', [
+            return __(':whenの音声AI利用上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
                 'limit' => $limit,
                 'used' => $used,
             ]);
         }
 
         return match ($feature) {
-            self::FEATURE_TRANSLATE => __('本日の翻訳文字数上限（:limit文字）に達しました。使用済み: :used', [
+            self::FEATURE_TRANSLATE => __(':whenの翻訳文字数上限（:scope :limit文字）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
                 'limit' => number_format($limit),
                 'used' => number_format($used),
             ]),
-            self::FEATURE_ENHANCE => __('本日の鮮明化利用上限（:limit回）に達しました。使用済み: :used', [
+            self::FEATURE_ENHANCE => __(':whenの鮮明化利用上限（:limit回）に達しました。使用済み: :used', [
+                'when' => $when,
                 'limit' => $limit,
                 'used' => $used,
             ]),
-            self::FEATURE_WORKERS_AI => __('本日の生活ガイド利用上限（:limit回）に達しました。使用済み: :used', [
+            self::FEATURE_WORKERS_AI => __(':whenの生活ガイド利用上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
                 'limit' => $limit,
                 'used' => $used,
             ]),
-            default => __('本日の利用上限に達しました。'),
+            default => __('利用上限に達しました。プランの枠です。変更は運営へお問い合わせください。'),
         };
     }
 }

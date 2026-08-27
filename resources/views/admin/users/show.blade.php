@@ -17,12 +17,12 @@
       <div class="panel">
         <div class="admin-user-card-head">
           <h2>{{ __('ユーザー詳細') }}</h2>
-          <div class="admin-users-actions">
+          <nav class="admin-page-actions">
             @if(!empty($user['canManageTarget']))
-              <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
+              <a href="/admin/users/{{ $user['id'] }}/edit" class="button-link">{{ __('編集') }}</a>
             @endif
-            <a href="/admin/users" class="secondary mini-btn">{{ __('一覧に戻る') }}</a>
-          </div>
+            <a href="/admin/users" class="button-link secondary admin-back-link">{{ __('一覧に戻る') }}</a>
+          </nav>
         </div>
 
         <dl class="admin-user-detail">
@@ -58,6 +58,10 @@
           <div>
             <dt>{{ __('メールボックスオプション') }}</dt>
             <dd>{{ !empty($user['mailboxAddonActive']) ? __('有効') : __('なし') }}</dd>
+          </div>
+          <div>
+            <dt>{{ __('特別枠') }}</dt>
+            <dd>{{ !empty($user['specialQuota']) ? __('あり') : __('なし') }}</dd>
           </div>
           <div>
             <dt>{{ __('利用メニュー') }}</dt>

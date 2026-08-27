@@ -86,6 +86,13 @@
               @endforeach
             </select>
           </label>
+          @if(!empty($canAssignSpecialQuota))
+            <label class="menu-feature-check">
+              <input type="checkbox" name="specialQuota" value="1" @checked(old('specialQuota')) />
+              <span>{{ __('特別枠にする') }}</span>
+            </label>
+            <p class="hint">{{ __('制限管理の「特別枠」テンプレートを使います。自己登録の招待コードとは別です。テナント所属には使えません。') }}</p>
+          @endif
           <fieldset class="menu-feature-fieldset" id="create-menu-features">
             <legend>{{ __('利用メニュー') }}</legend>
             <p class="hint">{{ __('チェックを外したメニューはヘッダーに出ません。ダッシュボード・Todo・メモ・Photos は常に表示されます。ここでの設定はグループ付与より優先されます。') }}</p>
@@ -129,10 +136,13 @@
               <tbody>
                 @foreach($users as $user)
                   <tr>
-                    <td>
+                    <td class="admin-users-name-cell">
                       <strong>{{ $user['displayName'] }}</strong>
                       @if(!empty($user['isSelf']))
                         <span class="hint admin-users-self-tag">{{ __('（自分）') }}</span>
+                      @endif
+                      @if(!empty($user['specialQuota']))
+                        <span class="hint admin-users-self-tag">{{ __('特別枠') }}</span>
                       @endif
                     </td>
                     <td>{{ $user['email'] }}</td>
@@ -152,9 +162,9 @@
                       </div>
                     </td>
                     <td class="admin-users-actions">
-                      <a href="/admin/users/{{ $user['id'] }}" class="secondary mini-btn">{{ __('詳細') }}</a>
+                      <a href="/admin/users/{{ $user['id'] }}" class="mini-btn">{{ __('詳細') }}</a>
                       @if(!empty($user['canManageTarget']))
-                        <a href="/admin/users/{{ $user['id'] }}/edit" class="secondary mini-btn">{{ __('編集') }}</a>
+                        <a href="/admin/users/{{ $user['id'] }}/edit" class="mini-btn">{{ __('編集') }}</a>
                         @if(empty($user['isSelf']))
                           <form method="post" action="/admin/users/{{ $user['id'] }}/delete" class="inline-form" onsubmit='return confirm(@json(__('このユーザーを削除しますか？')))'>
                             @csrf
