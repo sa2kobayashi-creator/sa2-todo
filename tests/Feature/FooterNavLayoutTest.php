@@ -61,7 +61,10 @@ class FooterNavLayoutTest extends TestCase
 
         $css = file_get_contents(public_path('app.css'));
         $this->assertNotFalse($css);
-        $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(0, 1fr))', $css);
+        $this->assertStringContainsString('--mobile-nav-handle-height: 44px', $css);
+        $this->assertStringContainsString('.mobile-bottom-nav button.mobile-nav-done', $css);
+        $this->assertStringContainsString('min-height: 28px', $css);
+        $this->assertStringContainsString('width: 72px', $css);
         $this->assertStringContainsString('.transit-time-types', $css);
     }
 

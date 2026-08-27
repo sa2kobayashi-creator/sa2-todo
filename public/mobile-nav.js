@@ -17,6 +17,7 @@
   }
   const LONG_PRESS_MS = 420
   const MOVE_CANCEL_PX = 12
+  const SWIPE_EXPAND_PX = 16
 
   let expanded = false
   let reordering = false
@@ -26,6 +27,7 @@
   let pressStart = null
   let suppressClick = false
   let handleSwipe = null
+  let ignoreHandleClick = false
 
   function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -36,7 +38,7 @@
   }
 
   function setHandleHeight() {
-    const height = reordering ? '32px' : (expandable ? '14px' : '0px')
+    const height = reordering ? '48px' : (expandable ? '44px' : '0px')
     document.documentElement.style.setProperty('--mobile-nav-handle-height', height)
   }
 
@@ -142,6 +144,7 @@
     const point = event.touches ? event.touches[0] : event
     if (!item || !point) return
     suppressClick = true
+    handleSwipe = null
     setReordering(true)
     const rect = item.getBoundingClientRect()
     dragging = {
@@ -164,9 +167,20 @@
     } catch (_) {}
   }
 
+  function eventPoint(event) {
+    if (event.changedTouches && event.changedTouches[0]) return event.changedTouches[0]
+    if (event.touches && event.touches[0]) return event.touches[0]
+    return event
+  }
+
   function onPointerMove(event) {
-    const point = event.touches ? event.touches[0] : event
+    const point = eventPoint(event)
     if (!point) return
+
+    if (handleSwipe && !dragging && !reordering) {
+      const dy = point.clientY - handleSwipe.y
+      if (Math.abs(dy) > 8 && event.cancelable) event.preventDefault()
+    }
 
     if (pressStart && !dragging) {
       const dx = point.clientX - pressStart.x
@@ -190,7 +204,28 @@
     }
   }
 
-  function endDrag() {
+  function maybeFinishSwipe(event) {
+    if (!handleSwipe || reordering || dragging) {
+      handleSwipe = null
+      return
+    }
+    const point = eventPoint(event || {})
+    const y = point && point.clientY != null ? point.clientY : handleSwipe.y
+    const x = point && point.clientX != null ? point.clientX : handleSwipe.x
+    const dy = y - handleSwipe.y
+    const dx = x - handleSwipe.x
+    handleSwipe = null
+    if (Math.abs(dy) < SWIPE_EXPAND_PX || Math.abs(dy) <= Math.abs(dx)) return
+    setExpanded(dy < 0)
+    ignoreHandleClick = true
+    suppressClick = true
+    setTimeout(function () {
+      ignoreHandleClick = false
+    }, 80)
+  }
+
+  function endDrag(event) {
+    maybeFinishSwipe(event)
     clearPressTimer()
     pressStart = null
     const dirty = Boolean(dragging?.dirty)
@@ -247,26 +282,17 @@
 
   handle?.addEventListener('click', function () {
     if (reordering) return
+    if (ignoreHandleClick) {
+      ignoreHandleClick = false
+      return
+    }
     setExpanded(!expanded)
   })
 
-  handle?.addEventListener('touchstart', function (event) {
-    const touch = event.touches[0]
-    if (!touch) return
-    handleSwipe = { y: touch.clientY }
-  }, { passive: true })
-
-  handle?.addEventListener('touchend', function (event) {
-    if (!handleSwipe || reordering) {
-      handleSwipe = null
-      return
-    }
-    const touch = event.changedTouches[0]
-    if (touch) {
-      const dy = touch.clientY - handleSwipe.y
-      if (dy < -36) setExpanded(true)
-      else if (dy > 36) setExpanded(false)
-    }
-    handleSwipe = null
-  }, { passive: true })
+  nav.addEventListener('pointerdown', function (event) {
+    if (reordering || !expandable) return
+    if (event.button != null && event.button !== 0) return
+    if (event.target && event.target.closest && event.target.closest('.mobile-nav-done')) return
+    handleSwipe = { x: event.clientX, y: event.clientY }
+  })
 })()
