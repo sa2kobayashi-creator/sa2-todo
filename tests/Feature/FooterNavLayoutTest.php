@@ -47,18 +47,54 @@ class FooterNavLayoutTest extends TestCase
 
         $this->actingAs($user)->get('/settings?section=nav')
             ->assertOk()
-            ->assertSee('スマートフォン下部は1行5件、最大15件です', false);
+            ->assertSee('スマートフォン下部は1行5件、最大15件です', false)
+            ->assertSee('長押ししてドラッグすると並べ替えできます', false);
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
             ->assertSee('mobile-nav-grid', false)
             ->assertSee('data-expandable="1"', false)
             ->assertSee('data-expanded-rows="3"', false)
-            ->assertSee('mobile-nav-handle', false);
+            ->assertSee('mobile-nav-handle', false)
+            ->assertSee('data-nav-key=', false)
+            ->assertSee('mobile-nav.js', false);
 
         $css = file_get_contents(public_path('app.css'));
         $this->assertNotFalse($css);
         $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(0, 1fr))', $css);
         $this->assertStringContainsString('.transit-time-types', $css);
+    }
+
+    public function test_signed_in_user_can_reorder_footer_icons(): void
+    {
+        $user = User::create([
+            'email' => 'footer-nav-light@example.com',
+            'display_name' => 'Light Footer',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+        $current = FooterNav::normalizeFooterKeys(null, $user);
+        $this->assertNotEmpty($current);
+        $reordered = array_values(array_reverse($current));
+
+        $this->actingAs($user)
+            ->postJson('/mypage/footer-nav', ['footer_nav' => $reordered])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('footer_nav', $reordered);
+
+        $user->refresh();
+        $this->assertSame($reordered, $user->footer_nav);
+
+        $this->actingAs($user)
+            ->postJson('/mypage/footer-nav', ['footer_nav' => ['dashboard']])
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false);
+    }
+
+    public function test_guest_cannot_reorder_footer_icons(): void
+    {
+        $this->postJson('/mypage/footer-nav', ['footer_nav' => ['todos', 'dashboard']])
+            ->assertUnauthorized();
     }
 }

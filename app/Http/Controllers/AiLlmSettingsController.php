@@ -46,4 +46,16 @@ class AiLlmSettingsController extends Controller
 
         return response()->json($result, $result['ok'] ? 200 : 422);
     }
+
+    public function models(Request $request): JsonResponse
+    {
+        $provider = (string) $request->input('provider', '');
+        if (! in_array($provider, [AiLlmConfigService::PROVIDER_OPENAI, AiLlmConfigService::PROVIDER_GEMINI], true)) {
+            $provider = $this->llm->activeProvider();
+        }
+
+        $result = $this->llm->refreshModels($provider);
+
+        return response()->json($result, $result['ok'] ? 200 : 422);
+    }
 }

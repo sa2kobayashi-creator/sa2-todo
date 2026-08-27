@@ -8,6 +8,80 @@
   <p class="hint">{{ __('外部連携のアプリ内利用回数と、ストレージの使用状況をまとめて確認できます。請求額・残高の詳細は各公式コンソールも参照してください。') }}</p>
 </div>
 
+@php $official = $officialAiUsage ?? []; @endphp
+<section class="panel" id="official-ai-usage">
+  <div class="deepl-usage-panel-head">
+    <div>
+      <h2>{{ __('公式APIの使用量') }}</h2>
+      <p class="hint">{{ __('DeepL は文字数 API、ChatGPT は管理キーがあればトークン、Workers AI は Analytics 権限があればトークン／Neurons を取得します。Gemini の API キーでは使用量を取れません。') }}</p>
+    </div>
+    @if(!empty($isAdmin))
+      <form method="post" action="/settings/ai/usage/refresh" class="inline-form">
+        @csrf
+        <button type="submit" class="secondary">{{ __('公式使用量を更新') }}</button>
+      </form>
+    @endif
+  </div>
+  <div class="usage-overview-grid">
+    @foreach(['deepl', 'openai', 'gemini', 'workers_ai'] as $usageKey)
+      @php $card = $official[$usageKey] ?? null; @endphp
+      @if(!$card)
+        @continue
+      @endif
+      <article class="usage-overview-card{{ empty($card['ok']) ? ' is-off' : '' }}">
+        <strong>{{ $card['label'] ?? $usageKey }}</strong>
+        @if(!empty($card['message']))
+          <p class="usage-overview-desc">{{ $card['message'] }}</p>
+        @endif
+        @if(($card['id'] ?? '') === 'deepl')
+          @forelse(($card['keys'] ?? []) as $deeplKey)
+            <span>{{ $deeplKey['name'] }} · {{ !empty($deeplKey['is_paid']) ? __('有料') : __('無料') }}</span>
+            <b>
+              {{ number_format((int) ($deeplKey['character_count'] ?? 0)) }}
+              @if(($deeplKey['character_limit'] ?? null) !== null)
+                / {{ number_format((int) $deeplKey['character_limit']) }}
+              @endif
+              {{ __('文字') }}
+            </b>
+            @if(($deeplKey['usage_rate'] ?? null) !== null)
+              <span>{{ __('使用率') }} {{ number_format((float) $deeplKey['usage_rate'], 1) }}%</span>
+            @endif
+            @if(!empty($deeplKey['is_paid']) && ($deeplKey['estimated_cost'] ?? null) !== null)
+              <span>{{ __('推定合計') }}: €{{ number_format((float) $deeplKey['estimated_cost'], 2) }}</span>
+            @endif
+            <span>{{ __('取得:') }} {{ $deeplKey['fetched_at'] ?? __('未取得') }}</span>
+          @empty
+            <b>{{ __('未設定') }}</b>
+          @endforelse
+        @else
+          @if(!empty($card['ok']) && ($card['total_tokens'] ?? null) !== null)
+            <b>{{ __('公式（今月）') }}: {{ number_format((int) $card['total_tokens']) }} {{ __('トークン') }}</b>
+            <span>
+              {{ __('入力') }} {{ number_format((int) ($card['input_tokens'] ?? 0)) }}
+              / {{ __('出力') }} {{ number_format((int) ($card['output_tokens'] ?? 0)) }}
+            </span>
+            @if(($card['requests'] ?? null) !== null)
+              <span>{{ __('リクエスト') }}: {{ number_format((int) $card['requests']) }}</span>
+            @endif
+            @if(($card['neurons'] ?? null) !== null)
+              <span>Neurons: {{ number_format((int) $card['neurons']) }}</span>
+            @endif
+          @endif
+          @if(!empty($card['observed']) && (((int) ($card['observed']['today'] ?? 0)) > 0 || ((int) ($card['observed']['month'] ?? 0)) > 0))
+            <span>{{ __('アプリが観測したトークン') }}: {{ __('本日 :count / 今月 :month', ['count' => number_format((int) $card['observed']['today']), 'month' => number_format((int) $card['observed']['month'])]) }}</span>
+          @endif
+          @if(!empty($card['fetched_at']))
+            <span>{{ __('取得:') }} {{ $card['fetched_at'] }}</span>
+          @endif
+        @endif
+        @if(!empty($card['external']))
+          <a href="{{ $card['external'] }}" target="_blank" rel="noopener noreferrer">{{ __('公式コンソールを開く') }}</a>
+        @endif
+      </article>
+    @endforeach
+  </div>
+</section>
+
 @if(!empty($usageGroups))
   <section class="panel" id="integration-usage">
     <h2>{{ __('外部連携の使用量') }}</h2>

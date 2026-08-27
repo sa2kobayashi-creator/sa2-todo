@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\StorageArchiveController;
 use App\Http\Controllers\Admin\TenantController as AdminTenantController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AiLlmSettingsController;
+use App\Http\Controllers\AiProviderUsageController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\Auth\LoginController;
@@ -312,6 +313,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::get('/mypage', [MyPageController::class, 'show']);
     Route::get('/line/qr-code', [MessagingSettingsController::class, 'qrCode']);
     Route::post('/mypage', [MyPageController::class, 'update']);
+    Route::post('/mypage/footer-nav', [SettingsController::class, 'reorderFooterNav']);
     Route::get('/mypage/export', [MyPageController::class, 'export']);
     Route::post('/mypage/delete', [MyPageController::class, 'destroy']);
     Route::get('/mypage/holidays', [PersonalHolidayController::class, 'index']);
@@ -457,10 +459,13 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
             Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
             Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
+            Route::post('/settings/ai/llm/models', [AiLlmSettingsController::class, 'models']);
             Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
             Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
             Route::post('/settings/ai/workers-ai', [WorkersAiSettingsController::class, 'update']);
             Route::post('/settings/ai/workers-ai/test', [WorkersAiSettingsController::class, 'test']);
+            Route::post('/settings/ai/workers-ai/models', [WorkersAiSettingsController::class, 'models']);
+            Route::post('/settings/ai/usage/refresh', [AiProviderUsageController::class, 'refresh']);
 
             Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update'])
                 ->middleware(RequireSuperAdmin::class);

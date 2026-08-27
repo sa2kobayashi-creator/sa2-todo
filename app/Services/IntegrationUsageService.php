@@ -10,6 +10,29 @@ use Illuminate\Support\Facades\Schema;
 
 class IntegrationUsageService
 {
+    /** @return array{today: int, month: int} */
+    public function totals(string $provider, string $metric = 'requests'): array
+    {
+        $start = now()->startOfMonth()->toDateString();
+        $today = now()->toDateString();
+        if (! $this->tableReady()) {
+            return ['today' => 0, 'month' => 0];
+        }
+
+        $items = IntegrationUsageDaily::query()
+            ->where('provider', $provider)
+            ->where('metric', $metric)
+            ->where('usage_date', '>=', $start)
+            ->get();
+
+        return [
+            'today' => (int) $items
+                ->filter(fn (IntegrationUsageDaily $row) => $row->usage_date?->toDateString() === $today)
+                ->sum('amount'),
+            'month' => (int) $items->sum('amount'),
+        ];
+    }
+
     public function increment(string $provider, string $metric = 'requests', int $amount = 1): void
     {
         if ($amount < 1 || ! $this->tableReady()) {

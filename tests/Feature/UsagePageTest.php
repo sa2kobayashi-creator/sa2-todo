@@ -38,6 +38,8 @@ class UsagePageTest extends TestCase
             ->assertSee('月 1,000 参加者分', false)
             ->assertSee('Light', false)
             ->assertSee('Standard', false)
+            ->assertSee('公式APIの使用量', false)
+            ->assertSee('Gemini の API キーでは使用量を取得できません', false)
             ->assertDontSee('アプリ上限 ユーザーあたり1日 10 回。Stability', false);
     }
 

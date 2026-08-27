@@ -91,7 +91,7 @@ class DashboardAiUsageService
                 'warn' => $credits !== null && (float) $credits < 1,
                 'settings_url' => '/settings?section=enhance',
                 'llm_note' => $llmReady
-                    ? __('音声入力 LLM（:provider）は設定済み。トークン使用量の自動集計は未対応です。', ['provider' => $llmLabel])
+                    ? __('音声入力 LLM（:provider）は設定済み。公式トークンは設定 → 使用量で確認できます。', ['provider' => $llmLabel])
                     : null,
             ];
         }
@@ -112,7 +112,7 @@ class DashboardAiUsageService
             'warn' => false,
             'settings_url' => '/settings?section=enhance',
             'llm_note' => $llmReady
-                ? __('音声入力 LLM（:provider）は設定済み。トークン使用量の自動集計は未対応です。', ['provider' => $llmLabel])
+                ? __('音声入力 LLM（:provider）は設定済み。公式トークンは設定 → 使用量で確認できます。', ['provider' => $llmLabel])
                 : null,
         ];
     }

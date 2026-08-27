@@ -64,17 +64,41 @@
               {{ __('OpenAI APIキー') }}
               <input type="password" name="openai_api_key" value="{{ $llm['openai_api_key_masked'] ?? '' }}" placeholder="sk-..." autocomplete="off" />
             </label>
-            <label>
+            <label class="ai-model-field">
               {{ __('OpenAI モデル') }}
-              <input type="text" name="openai_model" value="{{ $llmSettingsArr['openai_model'] ?? 'gpt-4o-mini' }}" placeholder="gpt-4o-mini" />
+              <div class="ai-model-row">
+                <select name="openai_model" id="openai-model-select">
+                  @foreach(($llm['openai_model_options'] ?? [$llmSettingsArr['openai_model'] ?? 'gpt-4o-mini']) as $modelId)
+                    <option value="{{ $modelId }}" @selected($modelId === ($llmSettingsArr['openai_model'] ?? 'gpt-4o-mini'))>{{ $modelId }}</option>
+                  @endforeach
+                </select>
+                <button type="button" class="secondary ai-model-refresh" data-url="/settings/ai/llm/models" data-provider="openai" data-select="#openai-model-select" data-live="#openai-models-live">{{ __('最新取得') }}</button>
+              </div>
+              <span class="hint storage-test-live" id="openai-models-live">
+                @if(!empty($llm['openai_models_fetched_at']))
+                  {{ __('取得:') }} {{ $llm['openai_models_fetched_at'] }}
+                @endif
+              </span>
             </label>
             <label>
               {{ __('Gemini APIキー') }}
               <input type="password" name="gemini_api_key" value="{{ $llm['gemini_api_key_masked'] ?? '' }}" placeholder="AIza..." autocomplete="off" />
             </label>
-            <label>
+            <label class="ai-model-field">
               {{ __('Gemini モデル') }}
-              <input type="text" name="gemini_model" value="{{ $llmSettingsArr['gemini_model'] ?? 'gemini-2.0-flash' }}" placeholder="gemini-2.0-flash" />
+              <div class="ai-model-row">
+                <select name="gemini_model" id="gemini-model-select">
+                  @foreach(($llm['gemini_model_options'] ?? [$llmSettingsArr['gemini_model'] ?? 'gemini-2.0-flash']) as $modelId)
+                    <option value="{{ $modelId }}" @selected($modelId === ($llmSettingsArr['gemini_model'] ?? 'gemini-2.0-flash'))>{{ $modelId }}</option>
+                  @endforeach
+                </select>
+                <button type="button" class="secondary ai-model-refresh" data-url="/settings/ai/llm/models" data-provider="gemini" data-select="#gemini-model-select" data-live="#gemini-models-live">{{ __('最新取得') }}</button>
+              </div>
+              <span class="hint storage-test-live" id="gemini-models-live">
+                @if(!empty($llm['gemini_models_fetched_at']))
+                  {{ __('取得:') }} {{ $llm['gemini_models_fetched_at'] }}
+                @endif
+              </span>
             </label>
             <div class="storage-form-actions">
               <button type="submit" class="button-link">{{ __('保存') }}</button>
@@ -110,11 +134,23 @@
               <input type="password" name="api_token" value="{{ $wai['api_token_masked'] ?? '' }}" autocomplete="off" />
             </label>
             <p class="hint">{{ __('トークンは Cloudflare の「マイプロフィール → API トークン → トークンを作成」で Workers AI テンプレートを選び、アカウントリソースに上のアカウントを指定して作成してください。権限が足りないトークンは「認証エラー」になります。') }}</p>
-            <label>
+            <label class="ai-model-field">
               {{ __('モデル') }}
-              <input type="text" name="model" value="{{ $waiSettingsArr['model'] ?? '@cf/meta/llama-3.1-8b-instruct-fp8' }}" placeholder="@cf/meta/llama-3.1-8b-instruct-fp8" />
+              <div class="ai-model-row">
+                <select name="model" id="workers-ai-model-select">
+                  @foreach(($wai['model_options'] ?? [$waiSettingsArr['model'] ?? '@cf/meta/llama-3.1-8b-instruct-fp8']) as $modelId)
+                    <option value="{{ $modelId }}" @selected($modelId === ($waiSettingsArr['model'] ?? '@cf/meta/llama-3.1-8b-instruct-fp8'))>{{ $modelId }}</option>
+                  @endforeach
+                </select>
+                <button type="button" class="secondary ai-model-refresh" data-url="/settings/ai/workers-ai/models" data-select="#workers-ai-model-select" data-live="#workers-ai-models-live">{{ __('最新取得') }}</button>
+              </div>
+              <span class="hint storage-test-live" id="workers-ai-models-live">
+                @if(!empty($wai['models_fetched_at']))
+                  {{ __('取得:') }} {{ $wai['models_fetched_at'] }}
+                @endif
+              </span>
             </label>
-            <p class="hint">{{ __('既定は安価な Llama 3.1 8B FP8 です。品質を上げるなら @cf/meta/llama-4-scout-17b-16e-instruct などに変更できます。') }}</p>
+            <p class="hint">{{ __('一覧は Cloudflare の Text Generation モデルです。キー保存後に「最新取得」してください。品質を上げるなら Llama 4 Scout などを選べます。') }}</p>
             <div class="storage-form-actions">
               <button type="submit" class="button-link">{{ __('保存') }}</button>
               <button type="button" class="secondary" id="workers-ai-test-btn">{{ __('接続テスト') }}</button>
@@ -642,6 +678,60 @@
           failed: @json(__('失敗')),
           networkError: @json(__('通信エラーが発生しました')),
         };
+        const bindModelRefresh = (btn) => {
+          const select = document.querySelector(btn.dataset.select || '');
+          const live = document.querySelector(btn.dataset.live || '');
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            if (live) {
+              live.textContent = llmStrings.testing;
+              live.classList.remove('is-ok', 'is-fail');
+            }
+            try {
+              const res = await fetch(btn.dataset.url || '', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-TOKEN': csrf,
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                  provider: btn.dataset.provider || '',
+                }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (select && Array.isArray(data.models)) {
+                const current = select.value;
+                const ids = data.models.slice();
+                if (current && !ids.includes(current)) {
+                  ids.unshift(current);
+                }
+                select.innerHTML = '';
+                ids.forEach((id) => {
+                  const option = document.createElement('option');
+                  option.value = id;
+                  option.textContent = id;
+                  if (id === current) option.selected = true;
+                  select.appendChild(option);
+                });
+              }
+              if (live) {
+                const fetched = data.fetched_at ? ` (${data.fetched_at})` : '';
+                live.textContent = (data.message || '') + fetched;
+                live.classList.toggle('is-ok', Boolean(data.ok));
+                live.classList.toggle('is-fail', !data.ok);
+              }
+            } catch (_) {
+              if (live) {
+                live.textContent = llmStrings.networkError;
+                live.classList.add('is-fail');
+              }
+            } finally {
+              btn.disabled = false;
+            }
+          });
+        };
+        document.querySelectorAll('.ai-model-refresh').forEach((btn) => bindModelRefresh(btn));
         llmTestBtn?.addEventListener('click', async () => {
           llmTestBtn.disabled = true;
           if (llmTestLive) llmTestLive.textContent = llmStrings.testing;

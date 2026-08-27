@@ -11,19 +11,26 @@
   aria-label="{{ __('メインメニュー') }}"
   data-nav-count="{{ $navCount }}"
   data-expanded-rows="{{ $expandedRows }}"
+  data-reorder-url="{{ url('/mypage/footer-nav') }}"
+  data-label-open="{{ __('メニューを広げる') }}"
+  data-label-close="{{ __('メニューをしまう') }}"
+  data-label-done="{{ __('完了') }}"
   @if($canExpand) data-expandable="1" @endif
 >
-  @if($canExpand)
-    <button
-      type="button"
-      class="mobile-nav-handle"
-      aria-expanded="false"
-      aria-controls="mobile-nav-grid"
-      aria-label="{{ __('メニューを広げる') }}"
-    >
-      <span class="mobile-nav-handle-bar" aria-hidden="true"></span>
-    </button>
-  @endif
+  <div class="mobile-nav-chrome">
+    @if($canExpand)
+      <button
+        type="button"
+        class="mobile-nav-handle"
+        aria-expanded="false"
+        aria-controls="mobile-nav-grid"
+        aria-label="{{ __('メニューを広げる') }}"
+      >
+        <span class="mobile-nav-handle-bar" aria-hidden="true"></span>
+      </button>
+    @endif
+    <button type="button" class="mobile-nav-done" hidden>{{ __('完了') }}</button>
+  </div>
   <div class="mobile-nav-grid" id="mobile-nav-grid">
     @php $messagesUnreadCount = (int) ($messagesUnreadCount ?? 0); @endphp
     @forelse($footerItems as $item)
@@ -34,6 +41,7 @@
       <a
         href="{{ $item['href'] }}"
         class="mobile-nav-item {{ $itemActive ? 'active' : '' }}{{ $isMessagesNav && $messagesUnreadCount > 0 ? ' has-nav-badge' : '' }}"
+        data-nav-key="{{ $item['key'] ?? $item['activeKey'] ?? '' }}"
         @if($isMessagesNav && $messagesUnreadCount > 0)
           data-nav-unread="messages"
           aria-label="{{ $item['label'].' '.__('未読 :n', ['n' => $messagesUnreadCount]) }}"
@@ -46,92 +54,23 @@
         @endif
       </a>
     @empty
-      <a href="/dashboard" class="mobile-nav-item {{ $activeKey === 'dashboard' ? 'active' : '' }}">
+      <a href="/dashboard" class="mobile-nav-item {{ $activeKey === 'dashboard' ? 'active' : '' }}" data-nav-key="dashboard">
         <span class="mobile-nav-icon" aria-hidden="true">📅</span>
         <span class="mobile-nav-label">{{ __('ホーム') }}</span>
       </a>
-      <a href="/todos" class="mobile-nav-item {{ $activeKey === 'todos' ? 'active' : '' }}">
+      <a href="/todos" class="mobile-nav-item {{ $activeKey === 'todos' ? 'active' : '' }}" data-nav-key="todos">
         <span class="mobile-nav-icon" aria-hidden="true">✓</span>
         <span class="mobile-nav-label">{{ __('Todo') }}</span>
       </a>
-      <a href="/notes" class="mobile-nav-item {{ $activeKey === 'notes' ? 'active' : '' }}">
+      <a href="/notes" class="mobile-nav-item {{ $activeKey === 'notes' ? 'active' : '' }}" data-nav-key="notes">
         <span class="mobile-nav-icon" aria-hidden="true">📝</span>
         <span class="mobile-nav-label">{{ __('メモ') }}</span>
       </a>
-      <a href="/photos" class="mobile-nav-item {{ $activeKey === 'photos' ? 'active' : '' }}">
+      <a href="/photos" class="mobile-nav-item {{ $activeKey === 'photos' ? 'active' : '' }}" data-nav-key="photos">
         <span class="mobile-nav-icon" aria-hidden="true">🖼</span>
         <span class="mobile-nav-label">{{ __('Photos') }}</span>
       </a>
     @endforelse
   </div>
 </nav>
-<script>
-  (function () {
-    if (window.__sa2MobileNavInit) return
-    window.__sa2MobileNavInit = true
-    const nav = document.querySelector('.mobile-bottom-nav')
-    if (!nav) return
-    const expandable = nav.hasAttribute('data-expandable')
-    const handle = nav.querySelector('.mobile-nav-handle')
-    const expandedRows = Math.max(1, parseInt(nav.getAttribute('data-expanded-rows') || '1', 10) || 1)
-    const labels = {
-      open: @json(__('メニューを広げる')),
-      close: @json(__('メニューをしまう')),
-    }
-    let expanded = false
-    let startY = 0
-    let tracking = false
-    let swiped = false
-
-    function setExpanded(next) {
-      expanded = Boolean(next)
-      document.documentElement.style.setProperty('--mobile-nav-visible-rows', String(expanded ? expandedRows : 1))
-      nav.classList.toggle('is-expanded', expanded)
-      if (handle) {
-        handle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
-        handle.setAttribute('aria-label', expanded ? labels.close : labels.open)
-      }
-    }
-
-    document.documentElement.style.setProperty('--mobile-nav-handle-height', expandable ? '14px' : '0px')
-    setExpanded(false)
-
-    if (!expandable) return
-
-    handle?.addEventListener('click', function () {
-      setExpanded(!expanded)
-    })
-
-    nav.addEventListener('touchstart', function (event) {
-      const touch = event.touches[0]
-      if (!touch) return
-      startY = touch.clientY
-      tracking = true
-      swiped = false
-    }, { passive: true })
-
-    nav.addEventListener('touchmove', function (event) {
-      if (!tracking) return
-      const touch = event.touches[0]
-      if (!touch) return
-      if (Math.abs(touch.clientY - startY) > 12) swiped = true
-    }, { passive: true })
-
-    nav.addEventListener('touchend', function (event) {
-      if (!tracking) return
-      tracking = false
-      const touch = event.changedTouches[0]
-      if (!touch) return
-      const dy = touch.clientY - startY
-      if (dy < -36) setExpanded(true)
-      else if (dy > 36) setExpanded(false)
-    }, { passive: true })
-
-    nav.addEventListener('click', function (event) {
-      if (!swiped) return
-      event.preventDefault()
-      event.stopPropagation()
-      swiped = false
-    }, true)
-  })()
-</script>
+<script src="{{ asset('mobile-nav.js') }}?v={{ @filemtime(public_path('mobile-nav.js')) ?: time() }}"></script>

@@ -127,6 +127,23 @@ class FooterNav
     }
 
     /**
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     */
+    public static function sameKeySet(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+        $a = $left;
+        $b = $right;
+        sort($a);
+        sort($b);
+
+        return $a === $b;
+    }
+
+    /**
      * Web ヘッダー用。null / 空のときは利用可能メニューをすべて表示（従来互換）。
      *
      * @return list<string>

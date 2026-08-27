@@ -47,4 +47,11 @@ class WorkersAiSettingsController extends Controller
 
         return response()->json($result, $result['ok'] ? 200 : 422);
     }
+
+    public function models(): JsonResponse
+    {
+        $result = $this->workersAi->refreshModels();
+
+        return response()->json($result, $result['ok'] ? 200 : 422);
+    }
 }

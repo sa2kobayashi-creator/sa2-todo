@@ -75,7 +75,9 @@ class LlmJsonClient
             ]));
         }
 
-        $content = (string) data_get($res->json(), 'choices.0.message.content', '');
+        $payload = $res->json();
+        $this->recordTokens('openai', is_array($payload) ? $payload : []);
+        $content = (string) data_get($payload, 'choices.0.message.content', '');
         if (trim($content) === '') {
             throw new \RuntimeException(__('ChatGPT から空の応答が返りました。'));
         }
@@ -112,7 +114,9 @@ class LlmJsonClient
             ]));
         }
 
-        $parts = data_get($res->json(), 'candidates.0.content.parts', []);
+        $payload = $res->json();
+        $this->recordTokens('gemini', is_array($payload) ? $payload : []);
+        $parts = data_get($payload, 'candidates.0.content.parts', []);
         $text = '';
         if (is_array($parts)) {
             foreach ($parts as $part) {
@@ -148,6 +152,22 @@ class LlmJsonClient
         }
 
         return $decoded;
+    }
+
+    /** @param  array<string, mixed>  $payload */
+    private function recordTokens(string $provider, array $payload): void
+    {
+        $tokens = (int) data_get($payload, 'usage.total_tokens', 0);
+        if ($tokens < 1) {
+            $tokens = (int) data_get($payload, 'usage.prompt_tokens', 0)
+                + (int) data_get($payload, 'usage.completion_tokens', 0);
+        }
+        if ($tokens < 1) {
+            $tokens = (int) data_get($payload, 'usageMetadata.totalTokenCount', 0);
+        }
+        if ($tokens > 0) {
+            app(IntegrationUsageService::class)->increment($provider, 'tokens', $tokens);
+        }
     }
 
     public function normalizeConfidence(mixed $value): string

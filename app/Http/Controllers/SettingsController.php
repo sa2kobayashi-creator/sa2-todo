@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ManagesHolidays;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Models\TranslationApiKey;
 use App\Services\AiLlmConfigService;
+use App\Services\AiProviderUsageService;
 use App\Services\CalendarService;
 use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\DeeplUsageService;
@@ -39,6 +40,7 @@ class SettingsController extends Controller
         private HolidayService $holidays,
         private MediaStorageConfigService $mediaStorage,
         private AiLlmConfigService $aiLlm,
+        private AiProviderUsageService $aiProviderUsage,
         private CloudflareWorkersAiConfigService $workersAi,
         private DeeplUsageService $deeplUsage,
         private YoutubeVideoService $youtube,
@@ -83,6 +85,9 @@ class SettingsController extends Controller
                 : null,
             'storageStats' => $section === 'usage'
                 ? $this->photos->storageStats((int) $request->user()->id, $isSuperAdmin)
+                : null,
+            'officialAiUsage' => $section === 'usage'
+                ? $this->aiProviderUsage->summaries()
                 : null,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::queryForCurrentTenant()->orderBy('priority', 'desc')->orderBy('id')->get()
@@ -177,6 +182,33 @@ class SettingsController extends Controller
         $user->save();
 
         return $this->redirectWithMessage($returnTo, __('表示メニューを保存しました'));
+    }
+
+    public function reorderFooterNav(Request $request)
+    {
+        $user = $request->user();
+        $keys = $request->input('footer_nav', []);
+        if (! is_array($keys)) {
+            $keys = [];
+        }
+
+        $current = FooterNav::normalizeFooterKeys($user->footer_nav, $user);
+        $incoming = FooterNav::normalizeFooterKeys($keys, $user);
+        if (! FooterNav::sameKeySet($current, $incoming)) {
+            return response()->json([
+                'ok' => false,
+                'message' => __('メニューの並びだけを変更できます。'),
+                'footer_nav' => $current,
+            ], 422);
+        }
+
+        $user->footer_nav = $incoming;
+        $user->save();
+
+        return response()->json([
+            'ok' => true,
+            'footer_nav' => $incoming,
+        ]);
     }
 
     protected function holidayReturnPath(Request $request, int $year): string
