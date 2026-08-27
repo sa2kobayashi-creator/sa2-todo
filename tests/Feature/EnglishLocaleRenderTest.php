@@ -42,7 +42,6 @@ class EnglishLocaleRenderTest extends TestCase
             '/settings?section=enhance',
             '/groups',
             '/video',
-            '/travel',
             '/translate',
             '/guide',
             '/music',

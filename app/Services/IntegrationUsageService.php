@@ -176,14 +176,6 @@ class IntegrationUsageService
                         __('路線検索で Google の公共交通ルートを取得するときに使用します。未設定のときはここには計上されません。'),
                         __('アプリ側の回数上限なし。API 制限は Google Cloud の課金設定に依存します。'),
                     ),
-                    'ekispert' => $this->usageItem(
-                        __('駅すぱあと（路線検索）'),
-                        $value('ekispert'),
-                        __('経路検索'),
-                        'https://docs.ekispert.com/v1/',
-                        __('路線検索で駅すぱあとの経路・運賃・乗換を取得するときに使用します。未設定のときはここには計上されません。'),
-                        __('アプリ側の回数上限なし。API 制限は駅すぱあとの契約プランに依存します。'),
-                    ),
                     'google_maps' => $this->usageItem(
                         __('Google マップ'),
                         $value('google_maps'),
@@ -198,7 +190,7 @@ class IntegrationUsageService
             ],
             [
                 'id' => 'media_travel',
-                'label' => __('動画・旅行'),
+                'label' => __('動画'),
                 'items' => [
                     'youtube' => $this->usageItem(
                         __('YouTube検索（Data API）'),
@@ -210,14 +202,6 @@ class IntegrationUsageService
                             'units' => number_format(10_000),
                             'searches' => number_format(100),
                         ]),
-                    ),
-                    'travelpayouts' => $this->usageItem(
-                        __('Travelpayouts（航空運賃）'),
-                        $value('travelpayouts'),
-                        __('運賃取得'),
-                        'https://www.travelpayouts.com/',
-                        __('航空の運賃表・見積もりを取得するときに使用します。'),
-                        __('アプリ側の回数上限なし。API 制限は Travelpayouts の契約に依存します。'),
                     ),
                 ],
             ],
@@ -292,26 +276,6 @@ class IntegrationUsageService
             ],
         ];
 
-        if ($includeEnhance) {
-            array_splice($groups, 1, 0, [[
-                'id' => 'image',
-                'label' => __('画像処理'),
-                'items' => [
-                    'enhance' => $this->usageItem(
-                        __('Photos AI鮮明化'),
-                        [
-                            'today' => (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', $today)->sum('amount'),
-                            'month' => (int) UserDailyUsage::query()->where('feature', 'enhance')->where('usage_date', '>=', $start)->sum('amount'),
-                        ],
-                        __('鮮明化リクエスト'),
-                        'https://platform.stability.ai/',
-                        __('Photos の画像を AI で鮮明化した回数です。利用中のエンジン（Stability AI など）とクレジット残高は下の「ストレージ使用状況」を参照してください。'),
-                        $this->enhanceFreeTier(),
-                    ),
-                ],
-            ]]);
-        }
-
         return ['groups' => $groups];
     }
 
@@ -358,15 +322,6 @@ class IntegrationUsageService
         return __('アプリ上限 ユーザーあたり1日 :daily 文字。DeepL Free は月 :monthly 文字。', [
             'daily' => number_format($daily),
             'monthly' => number_format($monthly),
-        ]);
-    }
-
-    private function enhanceFreeTier(): string
-    {
-        $limit = max(0, (int) config('usage_limits.enhance_requests_per_day', 10));
-
-        return __('アプリ上限 ユーザーあたり1日 :limit 回。Stability はクレジット前払い（無料枠なし）。', [
-            'limit' => number_format($limit),
         ]);
     }
 

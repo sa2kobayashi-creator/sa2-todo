@@ -22,11 +22,7 @@ class MediaStorageConfigService
             MediaStorageSetting::PROVIDER_R2,
             MediaStorageSetting::PROVIDER_CLOUDINARY,
             MediaStorageSetting::PROVIDER_BACKBLAZE,
-            MediaStorageSetting::PROVIDER_STABILITY,
-            MediaStorageSetting::PROVIDER_REALESRGAN,
-            MediaStorageSetting::PROVIDER_SWINIR,
             MediaStorageSetting::PROVIDER_PIPELINE,
-            MediaStorageSetting::PROVIDER_ENHANCE,
         ];
     }
 
@@ -196,7 +192,6 @@ class MediaStorageConfigService
                 MediaStorageSetting::PROVIDER_R2 => $this->testR2($row),
                 MediaStorageSetting::PROVIDER_CLOUDINARY => $this->testCloudinary($row),
                 MediaStorageSetting::PROVIDER_BACKBLAZE => $this->testBackblaze($row),
-                MediaStorageSetting::PROVIDER_STABILITY => app(StabilityAiService::class)->testConnection(),
                 MediaStorageSetting::PROVIDER_PIPELINE => ['ok' => true, 'message' => __('パイプライン設定を保存済みです')],
                 default => ['ok' => false, 'message' => __('未知のプロバイダです')],
             };
@@ -248,26 +243,6 @@ class MediaStorageConfigService
     {
         // 編集専用: Cloudinary 接続ができていれば Media Editor を使える
         return $this->cloudinaryEnabled();
-    }
-
-    public function stabilityEnabled(): bool
-    {
-        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_STABILITY);
-    }
-
-    public function realesrganEnabled(): bool
-    {
-        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_REALESRGAN);
-    }
-
-    public function swinirEnabled(): bool
-    {
-        return app(EnhanceConfigService::class)->isReady(EnhanceConfigService::PROVIDER_SWINIR);
-    }
-
-    public function enhanceReady(): bool
-    {
-        return app(EnhanceConfigService::class)->isReady();
     }
 
     public function pipelineArchivesToBackblaze(): bool

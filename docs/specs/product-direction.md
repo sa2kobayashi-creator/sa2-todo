@@ -50,10 +50,10 @@
 | 1 | Workers AI ＋ **NAVITIME API** で精度の高い路線案内 | **実装済み** … 路線検索が NAVITIME の経路検索を使う（未設定・失敗時は内蔵 RAPTOR）。同じ画面に AI 相談も組み込み済み |
 | 2 | 生活の知恵・ガイド・話し相手 | **実装済み** … メニュー「生活ガイド」 |
 | 3 | Workers AI ＋ カレンダー | **第一版** … 今日の予定／Todo を添えて案内 |
-| 4 | Workers AI ＋ **Travelpayouts** で航空運賃 | **運営者のみ（試作）** … `/travel` と Travelpayouts 設定は SuperAdmin だけ。管理者・Standard にはメニューも付与もしない |
+| 4 | Workers AI ＋ Travelpayouts で航空運賃 | **削除** … `/travel` と Travelpayouts 設定は公開しない |
 | 5 | 料理レシピ・調理方法 | **実装済み** … 生活ガイドの話題切替 |
 
-生活ガイドに並ぶ話題は **既定3つ（生活の知恵・料理レシピ・カレンダー）＋ ユーザーが自分で追加した話題**（`guide_topics`、1人 12 個まで）。追加時に名前・絵文字・AI への指示を持たせ、指示はシステムプロンプトに足す。路線の相談は生活ガイドの一覧には出さず `/transit` に埋め込む。航空の AI は運営者の `/travel` のみ。路線の AI は **相談 → 経路検索 API → その結果で回答 → 再相談** と回し、時刻・乗換・運賃は API の itinerary だけを正とする。
+生活ガイドに並ぶ話題は **既定3つ（生活の知恵・料理レシピ・カレンダー）＋ ユーザーが自分で追加した話題**（`guide_topics`、1人 12 個まで）。追加時に名前・絵文字・AI への指示を持たせ、指示はシステムプロンプトに足す。路線の相談は生活ガイドの一覧には出さず `/transit` に埋め込む。路線の AI は **相談 → 経路検索 API → その結果で回答 → 再相談** と回し、時刻・乗換・運賃は API の itinerary だけを正とする。
 
 ユーザーあたり日次上限の既定は `USER_WORKERS_AI_REQUESTS_PER_DAY`（既定 20。`0` で無制限）。**スーパー管理者は運営本人なので上限なし**。プラン別の日次・月次、特別枠、テナントの契約プールは `docs/specs/commercial-usage-limits.md`（設定 → 制限管理）。原価は Cloudflare Neurons／トークン従量。
 
@@ -65,13 +65,12 @@
 /transit → TransitController → RouteSearchService → RouteProvider
                                                      ├ GoogleRoutesRouteProvider（google）
                                                      ├ NavitimeRouteProvider（navitime）
-                                                     ├ EkispertRouteProvider（ekispert）
                                                      └ RaptorRouteProvider（raptor・契約不要）
 ```
 
 プロバイダは `App\Services\Transit\Contracts\RouteProvider`（`key` / `label` / `isReady` / `search`）を実装し、**画面共通の itinerary 形式**（`departureTime` `arrivalTime` `durationLabel` `transfers` `fareLabel` `legs[]`）で返す。新しい API を足すときは、この変換クラスを1つ書いて `RouteSearchService` の `$providers` に並べるだけで、画面もフロントも変更しない。
 
-使う API の決まり方は **設定 → API設定 → 経路検索に使う API ＞ `ROUTE_PROVIDER` ＞ `auto`**。`auto` と、選んだ API が失敗したときは、契約情報が入っている次のプロバイダへ回して結果を必ず返す（切り替わったときは `engineNote` に理由を入れる）。契約情報は同じ画面の **Google Maps Routes / NAVITIME / 駅すぱあと** で登録する。
+使う API の決まり方は **設定 → API設定 → 経路検索に使う API ＞ `ROUTE_PROVIDER` ＞ `auto`**。`auto` と、選んだ API が失敗したときは、契約情報が入っている次のプロバイダへ回して結果を必ず返す（切り替わったときは `engineNote` に理由を入れる）。契約情報は同じ画面の **Google Maps Routes / NAVITIME** で登録する。
 
 契約前の比較は `php artisan transit:compare 志賀島 博多駅 --at="2026-08-26 08:00" --legs` で、全プロバイダの出発・到着・所要・乗換・運賃を並べて確認する。
 
@@ -93,10 +92,6 @@
 ## Google Maps Routes API（路線検索）
 
 **設定 → API設定 → Google Maps Routes API** で有効化し、キーを保存する（`media_storage_settings` の `google_routes`。キーは暗号化、テナント単位）。専用キーが空なら、同じ画面の Google マップキーを流用する。`POST /transit/search` は Routes API の `computeRoutes`（`travelMode: TRANSIT`）を呼び、結果を RAPTOR と同じ itinerary 形式に変換して返す（`engine` に `Google Maps Routes`）。
-
-## 駅すぱあと（路線検索）
-
-**設定 → API設定 → 駅すぱあと** でアクセスキーを保存する（`media_storage_settings` の `ekispert`。キーは暗号化、テナント単位）。`search/course/extreme` を呼び、結果を RAPTOR と同じ itinerary 形式に変換して返す（`engine` に `駅すぱあと`）。
 
 ## 個人プランとの関係
 

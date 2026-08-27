@@ -186,7 +186,7 @@ class User extends Authenticatable
     public function canAccess(string $feature): bool
     {
         if ($feature === MenuFeature::Travel->value) {
-            return $this->isSuperAdmin();
+            return false;
         }
 
         if ($this->isAdmin()) {

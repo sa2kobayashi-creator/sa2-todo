@@ -39,8 +39,6 @@
 
             <h2>What you do not need to run</h2>
             <ul>
-              <li>Photo AI enhance is a preview for the operator only. It is not a customer feature.</li>
-              <li>Flight fares (Travelpayouts) are operator-only for now.</li>
               <li>Sales quotes are operator-only.</li>
             </ul>
 
@@ -70,8 +68,6 @@
 
             <h2>管理者が扱わないもの</h2>
             <ul>
-              <li>写真の AI 鮮明化は運営側の試作機能です。顧客向け機能ではありません。</li>
-              <li>航空運賃（Travelpayouts）は当面、運営者のみです。</li>
               <li>見積画面は運営専用です。</li>
             </ul>
 

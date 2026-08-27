@@ -106,7 +106,7 @@
 
         <ul class="sales-estimate-bullets hint">
           <li>{{ __('含まれるもの: 専用環境、Admin 1名＋利用者、バックアップ方針の説明、合意したアップデート') }}</li>
-          <li>{{ __('含まれないもの: Travel／鮮明化／DeepL・LLM の使い放題、大規模データ移行、24時間電話サポート') }}</li>
+          <li>{{ __('含まれないもの: DeepL・LLM の使い放題、大規模データ移行、24時間電話サポート') }}</li>
           <li>{{ __('お客様クラウド利用時の保管料（例: Cloudflare R2）はお客様負担です') }}</li>
           <li>{{ $estimate['taxNote'] }}</li>
         </ul>

@@ -23,7 +23,7 @@ enum UserRole: string
     {
         return match ($this) {
             self::SuperAdmin => 'このアプリの運営を行っております。お問い合わせは、お問い合わせメニューから行って下さい。',
-            self::Admin => '契約代表1名。ユーザー・休日・ストレージ／AI／API を設定できます。共有のテナント契約は自分の契約の中だけ（月5名まで・メール各1込み）。招待コード・LINE／Messenger／Web Push は運営専用です。写真鮮明化は試作のため利用できません。',
+            self::Admin => '契約代表1名。ユーザー・休日・ストレージ／AI／API を設定できます。共有のテナント契約は自分の契約の中だけ（月5名まで・メール各1込み）。招待コード・LINE／Messenger／Web Push は運営専用です。',
             self::Standard => '設定以外の基本メニュー（翻訳あり）。グループの作成もできます。追加メニューはユーザー／グループ設定で調整できます。',
             self::Light => 'ダッシュボード、Todo、メモ、Photos、メッセージ、翻訳、マイページが基本。グループの作成はできません。追加メニューはユーザー／グループ設定で付与できます。',
         };
@@ -65,7 +65,6 @@ enum UserRole: string
                 'photos',
                 'finance',
                 'transit',
-                'travel',
                 'map',
                 'music',
                 'video',
@@ -104,7 +103,7 @@ enum UserRole: string
                 'photos',
                 'finance',
                 'transit',
-                // travel は運営者（SuperAdmin）専用。Standard / Admin には出さない
+                // travel は廃止。保存済み menu_features 互換のため enum には残す
                 'map',
                 'music',
                 'video',

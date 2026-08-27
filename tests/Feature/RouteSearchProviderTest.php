@@ -29,7 +29,6 @@ class RouteSearchProviderTest extends TestCase
             'services.navitime.node_host' => '',
             'services.google_maps.api_key' => '',
             'services.google_routes.api_key' => '',
-            'services.ekispert.api_key' => '',
         ]);
     }
 
@@ -53,10 +52,9 @@ class RouteSearchProviderTest extends TestCase
     {
         $service = app(RouteSearchService::class);
 
-        $this->assertSame(['google', 'navitime', 'ekispert', 'raptor'], array_keys($service->all()));
+        $this->assertSame(['google', 'navitime', 'raptor'], array_keys($service->all()));
         $this->assertFalse($service->all()['google']->isReady());
         $this->assertFalse($service->all()['navitime']->isReady());
-        $this->assertFalse($service->all()['ekispert']->isReady());
         $this->assertTrue($service->all()['raptor']->isReady());
         $this->assertSame('RAPTOR', $service->activeProvider()?->label());
     }
@@ -68,6 +66,12 @@ class RouteSearchProviderTest extends TestCase
 
         config(['transit.provider' => 'unknown-engine']);
         $this->assertSame('auto', app(RouteSearchService::class)->selectedKey(), '知らないキーは auto に倒す');
+    }
+
+    public function test_removed_ekispert_choice_falls_back_to_auto(): void
+    {
+        app(RouteSearchService::class)->saveSelectedKey('ekispert');
+        $this->assertSame('auto', app(RouteSearchService::class)->selectedKey());
     }
 
     public function test_saved_choice_wins_over_the_env_default(): void

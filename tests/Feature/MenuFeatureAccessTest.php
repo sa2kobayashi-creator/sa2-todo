@@ -32,7 +32,7 @@ class MenuFeatureAccessTest extends TestCase
 
         $this->actingAs($user)->get('/finance')->assertOk();
         $this->actingAs($user)->get('/map')->assertOk();
-        $this->actingAs($user)->get('/travel')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertNotFound();
         $this->actingAs($user)->get('/music')->assertForbidden();
         $this->actingAs($user)->get('/settings')->assertForbidden();
     }
@@ -70,7 +70,7 @@ class MenuFeatureAccessTest extends TestCase
             'menuFeatures' => ['map'],
         ])->assertRedirect();
 
-        $this->actingAs($user)->get('/travel')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertNotFound();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/finance')->assertForbidden();
     }

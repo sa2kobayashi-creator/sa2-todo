@@ -4,7 +4,7 @@
 
 <div class="panel storage-settings" id="route-search-settings">
   <h2>{{ __('経路検索に使う API') }}</h2>
-  <p class="hint">{{ __('既定の API です。路線検索画面の「使う経路検索」でも検索のたびに切り替えられます。自動は NAVITIME → 駅すぱあと → RAPTOR です。Google Maps Routes は日本の電車・バスを返さないため自動では使いません。') }}</p>
+  <p class="hint">{{ __('既定の API です。路線検索画面の「使う経路検索」でも検索のたびに切り替えられます。自動は NAVITIME → RAPTOR です。Google Maps Routes は日本の電車・バスを返さないため自動では使いません。') }}</p>
   <form method="post" action="/settings/api/route-search" class="storage-provider-form">
     @csrf
     <label>

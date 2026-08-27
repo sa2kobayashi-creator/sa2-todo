@@ -109,10 +109,6 @@
         {{ __('見積：翻訳 1000文字（円）') }}
         <input type="number" name="platform[yen_per_translate_1000]" min="0" value="{{ (int) ($platform['yen_per_translate_1000'] ?? 2) }}" />
       </label>
-      <label>
-        {{ __('見積：鮮明化 1回（円）') }}
-        <input type="number" name="platform[yen_per_enhance]" min="0" value="{{ (int) ($platform['yen_per_enhance'] ?? 20) }}" />
-      </label>
     </div>
     <button type="submit">{{ __('制限を保存') }}</button>
   </form>

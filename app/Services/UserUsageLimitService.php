@@ -20,8 +20,6 @@ class UserUsageLimitService
 
     public const FEATURE_LLM_VOICE_NOTE = 'llm_voice_note';
 
-    public const FEATURE_ENHANCE = 'enhance';
-
     public const FEATURE_WORKERS_AI = 'workers_ai';
 
     public function __construct(private UsageLimitPolicyService $policies) {}
@@ -206,7 +204,6 @@ class UserUsageLimitService
 
         return match ($feature) {
             self::FEATURE_TRANSLATE => UsageLimitPolicyService::FEATURE_TRANSLATE,
-            self::FEATURE_ENHANCE => UsageLimitPolicyService::FEATURE_ENHANCE,
             self::FEATURE_WORKERS_AI => UsageLimitPolicyService::FEATURE_WORKERS_AI,
             default => $feature,
         };
@@ -238,11 +235,6 @@ class UserUsageLimitService
                 'scope' => $scope,
                 'limit' => number_format($limit),
                 'used' => number_format($used),
-            ]),
-            self::FEATURE_ENHANCE => __(':whenの鮮明化利用上限（:limit回）に達しました。使用済み: :used', [
-                'when' => $when,
-                'limit' => $limit,
-                'used' => $used,
             ]),
             self::FEATURE_WORKERS_AI => __(':whenの生活ガイド利用上限（:scope :limit回）に達しました。使用済み: :used', [
                 'when' => $when,

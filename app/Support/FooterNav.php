@@ -42,7 +42,6 @@ class FooterNav
             'translate' => ['label' => '翻訳', 'headerLabel' => '翻訳', 'href' => '/translate', 'icon' => '文A', 'feature' => 'translate'],
             'guide' => ['label' => 'ガイド', 'headerLabel' => '生活ガイド', 'href' => '/guide', 'icon' => '💡', 'feature' => 'guide'],
             'transit' => ['label' => '路線', 'headerLabel' => '路線検索', 'href' => '/transit', 'icon' => '🚌', 'feature' => 'transit'],
-            'travel' => ['label' => '航空', 'headerLabel' => '航空運賃', 'href' => '/travel', 'icon' => '✈', 'feature' => 'travel'],
             'map' => ['label' => 'マップ', 'headerLabel' => 'マップ', 'href' => '/map', 'icon' => '🗺', 'feature' => 'map'],
         ];
     }

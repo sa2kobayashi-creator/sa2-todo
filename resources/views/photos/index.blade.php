@@ -415,9 +415,6 @@
             @if(!empty($storageStats['cloudinaryEditor']))
               · {{ __('編集') }} = Cloudinary（{{ __('一時のみ・常設保管なし') }}）
             @endif
-            @if(!empty($canSuperAdmin) && !empty($storageStats['enhanceReady']))
-              · {{ __('AI鮮明化') }} = {{ $storageStats['enhanceProviderLabel'] ?? 'Stability AI' }}
-            @endif
             @if(!empty($storageStats['archiveEnabled']))
               · {{ __('長期保存') }} = Backblaze B2
               （{{ __('内訳目安') }} {{ $storageStats['primaryLabel'] }} {{ $storageStats['formattedQuota'] }} + B2 {{ $storageStats['formattedB2Quota'] }}）
@@ -1131,24 +1128,6 @@
               @if(!empty($cloudinaryEditorReady))
                 <button type="button" class="photos-secondary-btn" id="photos-cloudinary-edit-btn" hidden>{{ __('Cloudinaryで編集') }}</button>
               @endif
-              @if(!empty($stabilityEnhanceReady))
-                <button
-                  type="button"
-                  class="photos-secondary-btn"
-                  id="photos-stability-enhance-btn"
-                  hidden
-                  data-label-idle="{{ __('AIで鮮明化') }}"
-                  data-label-busy="{{ __('鮮明化中…') }}"
-                >{{ __('AIで鮮明化') }}</button>
-                <button
-                  type="button"
-                  class="photos-secondary-btn photos-danger-btn"
-                  id="photos-stability-enhance-cancel-btn"
-                  hidden
-                  data-label-idle="{{ __('鮮明化を中止') }}"
-                  data-label-busy="{{ __('中止中…') }}"
-                >{{ __('鮮明化を中止') }}</button>
-              @endif
               <form method="post" action="" id="photos-edit-image-form" enctype="multipart/form-data" hidden>
                 @csrf
                 <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
@@ -1330,11 +1309,6 @@
                       <div>
                         <dt>{{ __('使用率') }}</dt>
                         <dd>{{ $provider['percent'] }}%</dd>
-                      </div>
-                    @elseif(in_array(($provider['id'] ?? ''), ['stability', 'realesrgan', 'swinir'], true))
-                      <div>
-                        <dt>{{ __('鮮明化件数') }}</dt>
-                        <dd>{{ $provider['countLabel'] ?? __('鮮明化 :count 件', ['count' => $provider['count']]) }}</dd>
                       </div>
                     @endif
                     <div>
@@ -3982,7 +3956,6 @@
           const takenAtInput = document.getElementById('photos-taken-at-input')
           const editOpenBtn = document.getElementById('photos-lb-edit-open')
           const cloudinaryEditBtn = document.getElementById('photos-cloudinary-edit-btn')
-          const stabilityEnhanceBtn = document.getElementById('photos-stability-enhance-btn')
           const canEdit = !!photo.canEdit
           if (editForm) {
             editForm.action = `/photos/${photo.id}/edit-image`
@@ -3997,15 +3970,6 @@
           if (cloudinaryEditBtn) {
             cloudinaryEditBtn.hidden = !canEdit || isVideo
             cloudinaryEditBtn.dataset.photoId = String(photo.id)
-          }
-          if (stabilityEnhanceBtn) {
-            stabilityEnhanceBtn.hidden = !canEdit || isVideo
-            stabilityEnhanceBtn.dataset.photoId = String(photo.id)
-          }
-          const stabilityEnhanceCancelBtn = document.getElementById('photos-stability-enhance-cancel-btn')
-          if (stabilityEnhanceCancelBtn && !window.__photosEnhanceInFlight) {
-            stabilityEnhanceCancelBtn.hidden = true
-            stabilityEnhanceCancelBtn.disabled = true
           }
           if (trimForm) {
             // 動画のみ：写真では動画トリムを出さない
@@ -7073,107 +7037,6 @@
         }
         @endif
 
-        @if(!empty($stabilityEnhanceReady))
-        try {
-          ;(function setupStabilityEnhance() {
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
-            const btn = document.getElementById('photos-stability-enhance-btn')
-            const cancelBtn = document.getElementById('photos-stability-enhance-cancel-btn')
-            if (!btn) return
-
-            let enhanceAbort = null
-            window.__photosEnhanceInFlight = false
-
-            const label = (el, key) => (el && el.dataset[key]) ? el.dataset[key] : ''
-
-            const setEnhancing = (on, photoId) => {
-              window.__photosEnhanceInFlight = !!on
-              btn.disabled = !!on
-              if (on) {
-                btn.textContent = label(btn, 'labelBusy') || btn.textContent
-              } else {
-                btn.textContent = label(btn, 'labelIdle') || btn.textContent
-              }
-              if (cancelBtn) {
-                cancelBtn.hidden = !on
-                cancelBtn.disabled = !on
-                cancelBtn.dataset.photoId = on ? String(photoId || 0) : ''
-                cancelBtn.textContent = label(cancelBtn, 'labelIdle') || cancelBtn.textContent
-              }
-            }
-
-            cancelBtn?.addEventListener('click', () => {
-              if (!window.__photosEnhanceInFlight) return
-              const photoId = Number(cancelBtn.dataset.photoId || btn.dataset.photoId || 0)
-              cancelBtn.disabled = true
-              cancelBtn.textContent = label(cancelBtn, 'labelBusy') || cancelBtn.textContent
-              try { enhanceAbort?.abort() } catch (_) {}
-              if (photoId) {
-                fetch('/photos/' + photoId + '/stability-enhance/cancel', {
-                  method: 'POST',
-                  headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                  },
-                  body: '{}',
-                }).catch(() => null)
-              }
-            })
-
-            btn.addEventListener('click', async () => {
-              const photoId = Number(btn.dataset.photoId || 0)
-              if (!photoId || window.__photosEnhanceInFlight) return
-              if (!window.confirm(@json(__('この写真を AI で鮮明化して R2 に保存しますか？（元画像は残ります）')))) {
-                return
-              }
-              enhanceAbort = new AbortController()
-              setEnhancing(true, photoId)
-              try {
-                const res = await fetch('/photos/' + photoId + '/stability-enhance', {
-                  method: 'POST',
-                  headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                  },
-                  body: '{}',
-                  signal: enhanceAbort.signal,
-                })
-                const data = await res.json().catch(() => ({}))
-                if (data.cancelled || res.status === 499) {
-                  window.alert(data.message || @json(__('鮮明化を中止しました。')));
-                  return
-                }
-                if (!res.ok || data.ok === false) {
-                  throw new Error(data.message || @json(__('AI鮮明化に失敗しました。')));
-                }
-                window.alert(data.message || @json(__('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。')));
-                const newId = data.photo && data.photo.id
-                if (newId) {
-                  const url = new URL(window.location.href)
-                  url.searchParams.set('photo', String(newId))
-                  url.searchParams.set('zoom', String(data.zoom || 2))
-                  window.location.href = url.toString()
-                } else {
-                  window.location.reload()
-                }
-              } catch (e) {
-                if (e && e.name === 'AbortError') {
-                  window.alert(@json(__('鮮明化を中止しました。')))
-                } else {
-                  window.alert((e && e.message) || @json(__('AI鮮明化に失敗しました。')))
-                }
-              } finally {
-                enhanceAbort = null
-                setEnhancing(false, 0)
-              }
-            })
-          })()
-        } catch (err) {
-          console.warn('Stability enhance setup skipped', err)
-        }
-        @endif
       })()
     </script>
     @include('partials.accordion-state')

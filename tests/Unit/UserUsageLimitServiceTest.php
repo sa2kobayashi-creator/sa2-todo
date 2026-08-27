@@ -21,7 +21,6 @@ class UserUsageLimitServiceTest extends TestCase
         config([
             'usage_limits.translate_chars_per_day' => 10,
             'usage_limits.llm_voice_requests_per_day' => 2,
-            'usage_limits.enhance_requests_per_day' => 1,
         ]);
 
         $user = User::create([
@@ -40,11 +39,11 @@ class UserUsageLimitServiceTest extends TestCase
         $svc->consume($user, UserUsageLimitService::FEATURE_TRANSLATE, 1);
     }
 
-    public function test_voice_and_enhance_counters_are_separate(): void
+    public function test_voice_and_guide_counters_are_separate(): void
     {
         config([
             'usage_limits.llm_voice_requests_per_day' => 1,
-            'usage_limits.enhance_requests_per_day' => 1,
+            'usage_limits.workers_ai_requests_per_day' => 1,
         ]);
 
         $user = User::create([
@@ -56,7 +55,7 @@ class UserUsageLimitServiceTest extends TestCase
 
         $svc = app(UserUsageLimitService::class);
         $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_FINANCE, 1);
-        $svc->consume($user, UserUsageLimitService::FEATURE_ENHANCE, 1);
+        $svc->consume($user, UserUsageLimitService::FEATURE_WORKERS_AI, 1);
 
         $this->expectException(UsageLimitExceededException::class);
         $svc->consume($user, UserUsageLimitService::FEATURE_LLM_VOICE_TODO, 1);

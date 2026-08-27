@@ -45,7 +45,7 @@ class MyPageController extends Controller
         $user = $request->user();
 
         $featureKeys = [
-            'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'travel', 'map',
+            'dashboard', 'todos', 'notes', 'photos', 'finance', 'transit', 'map',
             'music', 'video', 'mail', 'messages', 'translate', 'guide', 'groups', 'settings', 'admin',
         ];
 

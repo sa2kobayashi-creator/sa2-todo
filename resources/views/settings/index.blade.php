@@ -378,12 +378,7 @@
         @include('settings.partials.route-search')
         @include('settings.partials.google-routes')
         @include('settings.partials.navitime')
-        @include('settings.partials.ekispert')
         @include('settings.partials.google-calendar-oauth')
-        @if(!empty($canSuperAdmin))
-          @include('settings.partials.travelpayouts')
-          @include('settings.partials.enhance')
-        @endif
       @elseif(($section ?? '') === 'notifications')
       @include('settings.partials.notifications')
       @endif

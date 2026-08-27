@@ -62,7 +62,6 @@ class PhotoService
         private FfmpegService $ffmpeg,
         private CloudinaryMediaService $cloudinary,
         private MediaStorageConfigService $mediaConfig,
-        private StabilityAiService $stability,
         private BillingEntitlementService $billing,
     ) {}
 
@@ -273,13 +272,10 @@ class PhotoService
 
     public function storageStats(int $userId, ?bool $includeEnhance = null): array
     {
-        $includeEnhance ??= auth()->user()?->isSuperAdmin() === true;
-        $suffix = $includeEnhance ? 'sa' : 'std';
-
         return Cache::remember(
-            'photos:storage_stats:'.$userId.':'.$suffix,
+            'photos:storage_stats:'.$userId,
             now()->addSeconds(45),
-            fn () => $this->computeStorageStats($userId, $includeEnhance)
+            fn () => $this->computeStorageStats($userId)
         );
     }
 
@@ -292,7 +288,7 @@ class PhotoService
         unset($this->usedBytesApproxCache[$userId]);
     }
 
-    public function computeStorageStats(int $userId, bool $includeEnhance = false): array
+    public function computeStorageStats(int $userId): array
     {
         $thumbExtra = (int) Photo::query()
             ->where('user_id', $userId)
@@ -335,11 +331,6 @@ class PhotoService
         $archiveEnabled = $this->mediaConfig->pipelineArchivesToBackblaze();
         $cloudinaryEditor = $this->mediaConfig->cloudinaryEditorEnabled();
         $cloudinaryEnabled = $this->mediaConfig->cloudinaryEnabled();
-        $stabilityEnabled = $this->mediaConfig->stabilityEnabled();
-        $enhance = app(EnhanceConfigService::class);
-        $activeEnhanceLabel = $enhance->providerLabel($enhance->activeProvider());
-        $showEnhance = $includeEnhance;
-        $enhanceReady = $showEnhance && $enhance->isReady();
 
         // 製品無料枠は契約状態により 50GB / 200GB（R2+B2 合算相当）
         $combinedQuota = $this->userFreeQuotaBytes($userId);
@@ -392,19 +383,6 @@ class PhotoService
             ->count();
         $cloudinaryFreeCredits = max(1, (int) config('photos.cloudinary_free_credits', 25));
 
-        $stabilityEnhanceCount = 0;
-        $stabilityCredits = null;
-        if ($showEnhance) {
-            $stabilityEnhanceCount = (int) Photo::query()
-                ->where('user_id', $userId)
-                ->where(function ($q) {
-                    $q->where('edit_label', 'AI鮮明化')
-                        ->orWhere('edit_label', 'AI enhanced');
-                })
-                ->count();
-            $stabilityCredits = $stabilityEnabled ? $this->stability->creditBalance() : null;
-        }
-
         $primaryLabel = match ($disk) {
             'r2' => 'Cloudflare R2',
             'public' => __('サーバーローカル'),
@@ -414,7 +392,6 @@ class PhotoService
             ? __('パイプライン').'（'.$primaryLabel
                 .($archiveEnabled ? ' + Backblaze B2' : '')
                 .($cloudinaryEditor ? ' + Cloudinary'.__('編集') : '')
-                .($enhanceReady ? ' + '.$activeEnhanceLabel : '')
                 .'）'
             : $primaryLabel;
 
@@ -469,54 +446,6 @@ class PhotoService
             ],
         ];
 
-        if ($showEnhance) {
-            $providers[] = [
-                'id' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN => 'realesrgan',
-                    EnhanceConfigService::PROVIDER_SWINIR => 'swinir',
-                    default => 'stability',
-                },
-                'name' => $activeEnhanceLabel,
-                'role' => __('AI鮮明化'),
-                'enabled' => $enhanceReady,
-                'usedLabel' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN => __('ローカル GPU・無料'),
-                    EnhanceConfigService::PROVIDER_SWINIR => __('GPU VPS・無料（自前）'),
-                    default => ($stabilityCredits !== null
-                        ? __('残高 :credits クレジット', ['credits' => rtrim(rtrim(number_format($stabilityCredits, 4, '.', ''), '0'), '.')])
-                        : ($stabilityEnabled ? __('残高を取得できませんでした') : __('—'))),
-                },
-                'quotaLabel' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN => __('無料（自前 GPU）').' · '.__('アプリ 1日:limit回', ['limit' => max(0, (int) config('usage_limits.enhance_requests_per_day', 10))]),
-                    EnhanceConfigService::PROVIDER_SWINIR => __('無料（自前 GPU VPS）').' · '.__('アプリ 1日:limit回', ['limit' => max(0, (int) config('usage_limits.enhance_requests_per_day', 10))]),
-                    default => __('従量課金（クレジット）').' · '.__('アプリ 1日:limit回', ['limit' => max(0, (int) config('usage_limits.enhance_requests_per_day', 10))]),
-                },
-                'count' => $stabilityEnhanceCount,
-                'percent' => 0,
-                'overFreeTier' => false,
-                'overagePriceLabel' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN,
-                    EnhanceConfigService::PROVIDER_SWINIR => __('電気代・VPS代のみ'),
-                    default => __('リクエストごとにクレジット消費'),
-                },
-                'estimatedBillLabel' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN,
-                    EnhanceConfigService::PROVIDER_SWINIR => '$0'.__('/月').' + VPS',
-                    default => __('従量（クレジット）'),
-                },
-                'billingNote' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN => __('Real-ESRGAN（ncnn-vulkan）をローカル GPU で実行。結果は Cloudflare R2 へ保存します。'),
-                    EnhanceConfigService::PROVIDER_SWINIR => __('SwinIR を GPU VPS 上で実行。結果は Cloudflare R2 へ保存します。'),
-                    default => __('写真の AI 鮮明化（Upscale）に使用。残高は platform.stability.ai のダッシュボードでも確認できます。'),
-                },
-                'meter' => match ($enhance->activeProvider()) {
-                    EnhanceConfigService::PROVIDER_REALESRGAN,
-                    EnhanceConfigService::PROVIDER_SWINIR => 'local',
-                    default => 'credits',
-                },
-                'countLabel' => __('鮮明化 :count 件', ['count' => $stabilityEnhanceCount]),
-            ];
-        }
 
         // 「次の保存先」は超過時優先モード専用（R2/B2 無料枠を使い切った後の行き先）
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
@@ -584,10 +513,6 @@ class PhotoService
             'pipelineEnabled' => $pipelineEnabled,
             'archiveEnabled' => $archiveEnabled,
             'cloudinaryEditor' => $cloudinaryEditor,
-            'stabilityEnabled' => $showEnhance && $stabilityEnabled,
-            'enhanceReady' => $enhanceReady,
-            'enhanceProviderLabel' => $showEnhance ? $activeEnhanceLabel : null,
-            'stabilityEnhanceCount' => $stabilityEnhanceCount,
             'primaryLabel' => $primaryLabel,
             'providers' => $providers,
         ];
@@ -3754,217 +3679,6 @@ class PhotoService
         }
 
         return $this->photoToArray($photo->fresh() ?? $photo, $userId);
-    }
-
-    /**
-     * 鮮明化設定の使用エンジンでアップスケールし、結果を R2（現行 photos.disk）へ新規保存する。元画像は残す。
-     *
-     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
-     */
-    public function enhancePhoto(int $userId, int $photoId): array
-    {
-        $enhance = app(EnhanceConfigService::class);
-        if (! $enhance->isReady()) {
-            throw new \InvalidArgumentException(__(':name が利用できません。鮮明化設定を確認してください。', [
-                'name' => $enhance->providerLabel($enhance->activeProvider()),
-            ]));
-        }
-
-        $cancel = app(EnhanceCancelService::class);
-        $cancel->begin($userId, $photoId);
-
-        try {
-            return match ($enhance->activeProvider()) {
-                EnhanceConfigService::PROVIDER_REALESRGAN => $this->enhanceWithRealEsrgan($userId, $photoId),
-                EnhanceConfigService::PROVIDER_SWINIR => $this->enhanceWithSwinIr($userId, $photoId),
-                default => $this->enhanceWithStability($userId, $photoId),
-            };
-        } finally {
-            $cancel->clear($userId, $photoId);
-        }
-    }
-
-    public function cancelEnhance(int $userId, int $photoId): void
-    {
-        app(EnhanceCancelService::class)->requestCancel($userId, $photoId);
-
-        try {
-            app(SwinIrService::class)->requestRemoteCancel();
-        } catch (\Throwable) {
-            // ワーカー未起動時は無視（ローカル Abort とキャッシュで十分）
-        }
-    }
-
-    /**
-     * Stability AI で鮮明化し、結果を R2（現行 photos.disk）へ新規保存する。元画像は残す。
-     *
-     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
-     */
-    public function enhanceWithStability(int $userId, int $photoId): array
-    {
-        if (! $this->mediaConfig->stabilityEnabled()) {
-            throw new \InvalidArgumentException(__('Stability AI が有効ではありません。鮮明化設定を確認してください。'));
-        }
-
-        $source = Photo::query()->where('user_id', $userId)->find($photoId);
-        if (! $source) {
-            throw new \InvalidArgumentException(__('写真が見つかりません'));
-        }
-        if ($this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
-            throw new \InvalidArgumentException(__('動画は AI 鮮明化の対象外です。'));
-        }
-
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(600);
-        }
-
-        $sourceWidth = $source->width ? (int) $source->width : null;
-        $sourceHeight = $source->height ? (int) $source->height : null;
-
-        $file = $this->readPhotoFile($source);
-        $enhanced = $this->stability->enhanceImage(
-            $file['contents'],
-            $file['name'],
-            $file['mime']
-        );
-
-        return $this->persistEnhancedPhoto(
-            $userId,
-            $photoId,
-            $enhanced,
-            'stability-enhance',
-            $sourceWidth,
-            $sourceHeight
-        );
-    }
-
-    /**
-     * Real-ESRGAN（ローカル GPU）で鮮明化し、結果を R2 へ新規保存する。元画像は残す。
-     *
-     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
-     */
-    public function enhanceWithRealEsrgan(int $userId, int $photoId): array
-    {
-        if (! $this->mediaConfig->realesrganEnabled()) {
-            throw new \InvalidArgumentException(__('Real-ESRGAN が有効ではありません。鮮明化設定を確認してください。'));
-        }
-
-        $source = Photo::query()->where('user_id', $userId)->find($photoId);
-        if (! $source) {
-            throw new \InvalidArgumentException(__('写真が見つかりません'));
-        }
-        if ($this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
-            throw new \InvalidArgumentException(__('動画は AI 鮮明化の対象外です。'));
-        }
-
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(900);
-        }
-
-        $sourceWidth = $source->width ? (int) $source->width : null;
-        $sourceHeight = $source->height ? (int) $source->height : null;
-
-        $file = $this->readPhotoFile($source);
-        $enhanced = app(RealEsrganService::class)->enhanceImage(
-            $file['contents'],
-            $file['name'],
-            $file['mime']
-        );
-
-        return $this->persistEnhancedPhoto(
-            $userId,
-            $photoId,
-            $enhanced,
-            'realesrgan-enhance',
-            $sourceWidth,
-            $sourceHeight
-        );
-    }
-
-    /**
-     * SwinIR（GPU VPS）で鮮明化し、結果を R2 へ新規保存する。元画像は残す。
-     *
-     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
-     */
-    public function enhanceWithSwinIr(int $userId, int $photoId): array
-    {
-        if (! $this->mediaConfig->swinirEnabled()) {
-            throw new \InvalidArgumentException(__('SwinIR が有効ではありません。鮮明化設定を確認してください。'));
-        }
-
-        $source = Photo::query()->where('user_id', $userId)->find($photoId);
-        if (! $source) {
-            throw new \InvalidArgumentException(__('写真が見つかりません'));
-        }
-        if ($this->isVideoMime((string) $source->mime, pathinfo((string) $source->path, PATHINFO_EXTENSION))) {
-            throw new \InvalidArgumentException(__('動画は AI 鮮明化の対象外です。'));
-        }
-
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(900);
-        }
-
-        $sourceWidth = $source->width ? (int) $source->width : null;
-        $sourceHeight = $source->height ? (int) $source->height : null;
-
-        $file = $this->readPhotoFile($source);
-        $enhanced = app(SwinIrService::class)->enhanceImage(
-            $file['contents'],
-            $file['name'],
-            $file['mime']
-        );
-
-        return $this->persistEnhancedPhoto(
-            $userId,
-            $photoId,
-            $enhanced,
-            'swinir-enhance',
-            $sourceWidth,
-            $sourceHeight
-        );
-    }
-
-    /**
-     * @param  array{binary: string, mime: string, extension: string, width?: ?int, height?: ?int}  $enhanced
-     * @return array{photo: array<string, mixed>, sourceWidth: ?int, sourceHeight: ?int, resultWidth: ?int, resultHeight: ?int}
-     */
-    private function persistEnhancedPhoto(
-        int $userId,
-        int $photoId,
-        array $enhanced,
-        string $filenamePrefix,
-        ?int $sourceWidth,
-        ?int $sourceHeight
-    ): array {
-        app(EnhanceCancelService::class)->throwIfCancelled($userId, $photoId);
-
-        $tmp = tempnam(sys_get_temp_dir(), 'enh_out_');
-        if ($tmp === false) {
-            throw new \RuntimeException(__('一時ファイルを作成できません。'));
-        }
-
-        try {
-            file_put_contents($tmp, $enhanced['binary']);
-            $uploaded = new UploadedFile(
-                $tmp,
-                $filenamePrefix.'.'.$enhanced['extension'],
-                $enhanced['mime'],
-                null,
-                true
-            );
-
-            $photo = $this->saveEditedImage($userId, $photoId, $uploaded, __('AI鮮明化'));
-
-            return [
-                'photo' => $photo,
-                'sourceWidth' => $sourceWidth,
-                'sourceHeight' => $sourceHeight,
-                'resultWidth' => isset($photo['width']) ? (int) $photo['width'] : ($enhanced['width'] ?? null),
-                'resultHeight' => isset($photo['height']) ? (int) $photo['height'] : ($enhanced['height'] ?? null),
-            ];
-        } finally {
-            @unlink($tmp);
-        }
     }
 
     public function saveEditedImageFromUrl(int $userId, int $photoId, string $imageUrl, ?string $label = null): array

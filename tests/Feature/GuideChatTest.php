@@ -224,23 +224,22 @@ class GuideChatTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('ok', false);
 
-        // 路線検索は画面埋め込みのまま。航空は運営者のみ。
+        // 路線検索は画面埋め込みのまま。航空機能は削除済み。
         $this->actingAs($user)->get('/transit')->assertOk()->assertSee(__('AI に路線を相談'), false);
         $this->actingAs($user)
             ->postJson('/transit/ai-ask', ['prompt' => '天神から博多まで'])
             ->assertOk()
             ->assertJsonPath('ok', true);
 
-        $this->actingAs($admin)->get('/travel')->assertForbidden();
+        $this->actingAs($admin)->get('/travel')->assertNotFound();
         $this->actingAs($admin)
             ->postJson('/travel/ai-ask', ['prompt' => 'いつ買うと安い？'])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $super = $this->makeUser(UserRole::SuperAdmin, 'guide-travel-super@example.com');
-        $this->actingAs($super)->get('/travel')->assertOk()->assertSee(__('AI に航空を相談'), false);
+        $this->actingAs($super)->get('/travel')->assertNotFound();
         $this->actingAs($super)
             ->postJson('/travel/ai-ask', ['prompt' => 'いつ買うと安い？'])
-            ->assertOk()
-            ->assertJsonPath('ok', true);
+            ->assertNotFound();
     }
 }

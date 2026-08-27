@@ -46,7 +46,7 @@ class GoogleRoutesConfigService
 
     public static function japanTransitUnsupportedMessage(): string
     {
-        return __('Google は日本の交通機関ルートが API の提供対象外です。キーは有効でも電車・バスは返りません。路線検索は NAVITIME または駅すぱあと を設定するか、内蔵 RAPTOR（福岡都心）を使ってください。');
+        return __('Google は日本の交通機関ルートが API の提供対象外です。キーは有効でも電車・バスは返りません。路線検索は NAVITIME を設定するか、内蔵 RAPTOR（福岡都心）を使ってください。');
     }
 
     public function usesMapsKeyFallback(): bool

@@ -2,21 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Photo;
 use App\Models\TranslationApiKey;
-use Illuminate\Support\Facades\Cache;
 
 class DashboardAiUsageService
 {
     public function __construct(
         private DeeplUsageService $deepl,
-        private StabilityAiService $stability,
-        private EnhanceConfigService $enhance,
-        private AiLlmConfigService $llm,
     ) {}
 
     /**
-     * ダッシュボード用の AI / AI翻訳 使用サマリー。
+     * ダッシュボード用の AI翻訳 使用サマリー。
      *
      * @return array{
      *   ai: array<string, mixed>,
@@ -26,94 +21,8 @@ class DashboardAiUsageService
     public function summary(int $userId, bool $includeEnhance = false): array
     {
         return [
-            'ai' => $includeEnhance ? $this->aiEnhanceSummary($userId) : [],
+            'ai' => [],
             'translation' => $this->deeplSummary(),
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    private function aiEnhanceSummary(int $userId): array
-    {
-        $provider = $this->enhance->activeProvider();
-        $label = $this->enhance->providerLabel($provider);
-        $ready = $this->enhance->isReady($provider);
-        $enhanceCount = (int) Photo::query()
-            ->where('user_id', $userId)
-            ->where(function ($q) {
-                $q->where('edit_label', 'AI鮮明化')
-                    ->orWhere('edit_label', 'AI enhanced');
-            })
-            ->count();
-
-        $llmReady = $this->llm->isReady();
-        $llmLabel = match ($this->llm->activeProvider()) {
-            AiLlmConfigService::PROVIDER_GEMINI => 'Gemini',
-            default => 'ChatGPT',
-        };
-
-        if ($provider === EnhanceConfigService::PROVIDER_STABILITY) {
-            $credits = null;
-            if ($ready) {
-                $cached = Cache::get('dashboard_stability_credits_v');
-                if (is_array($cached) && array_key_exists('credits', $cached)) {
-                    $credits = $cached['credits'];
-                } else {
-                    $credits = $this->stability->creditBalance();
-                    Cache::put('dashboard_stability_credits_v', ['credits' => $credits], now()->addMinutes(10));
-                }
-                if ($credits !== null) {
-                    $credits = (float) $credits;
-                }
-            }
-
-            $creditsLabel = $credits !== null
-                ? rtrim(rtrim(number_format((float) $credits, 4, '.', ''), '0'), '.')
-                : null;
-
-            return [
-                'enabled' => $ready,
-                'title' => __('AI鮮明化'),
-                'provider_label' => $label,
-                'meter' => 'credits',
-                'status_label' => $ready
-                    ? ($creditsLabel !== null
-                        ? __('残高 :credits クレジット', ['credits' => $creditsLabel])
-                        : __('残高を取得できませんでした'))
-                    : __('未設定'),
-                'remaining_label' => $creditsLabel !== null
-                    ? __('無料枠というより前払い残高です。あと :credits クレジットまで利用できます。', ['credits' => $creditsLabel])
-                    : ($ready
-                        ? __('クレジット残高を確認できませんでした。設定の接続テストを試してください。')
-                        : __('設定 → 鮮明化設定で Stability AI を有効にしてください。')),
-                'usage_label' => __('鮮明化 :count 件', ['count' => $enhanceCount]),
-                'cost_label' => __('従量（クレジット消費）'),
-                'percent' => null,
-                'warn' => $credits !== null && (float) $credits < 1,
-                'settings_url' => '/settings?section=enhance',
-                'llm_note' => $llmReady
-                    ? __('音声入力 LLM（:provider）は設定済み。公式トークンは設定 → 使用量で確認できます。', ['provider' => $llmLabel])
-                    : null,
-            ];
-        }
-
-        // Real-ESRGAN / SwinIR（現状は一時停止の可能性あり）
-        return [
-            'enabled' => $ready,
-            'title' => __('AI鮮明化'),
-            'provider_label' => $label,
-            'meter' => 'local',
-            'status_label' => $ready ? __('自前実行・従量課金なし') : __('未設定または一時停止中'),
-            'remaining_label' => $ready
-                ? __('API クレジットの無料枠制限はありません（電気代・VPS代のみ）。')
-                : __('設定 → 鮮明化設定を確認してください。'),
-            'usage_label' => __('鮮明化 :count 件', ['count' => $enhanceCount]),
-            'cost_label' => '$0'.__('/月').' + VPS/電気',
-            'percent' => null,
-            'warn' => false,
-            'settings_url' => '/settings?section=enhance',
-            'llm_note' => $llmReady
-                ? __('音声入力 LLM（:provider）は設定済み。公式トークンは設定 → 使用量で確認できます。', ['provider' => $llmLabel])
-                : null,
         ];
     }
 

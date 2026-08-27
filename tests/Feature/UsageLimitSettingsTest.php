@@ -78,7 +78,6 @@ class UsageLimitSettingsTest extends TestCase
                 'yen_per_llm_voice' => 5,
                 'yen_per_workers_ai' => 3,
                 'yen_per_translate_1000' => 2,
-                'yen_per_enhance' => 20,
             ],
         ])->assertRedirect('/settings?section=limits');
 

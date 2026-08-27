@@ -22,7 +22,7 @@ class SuperAdminOnlyFeaturesTest extends TestCase
         ]);
     }
 
-    public function test_enhance_ui_is_hidden_from_admin(): void
+    public function test_removed_enhance_ui_is_gone_for_admin_and_super_admin(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-enhance-ui@example.com');
         $super = $this->makeUser(UserRole::SuperAdmin, 'super-enhance-ui@example.com');
@@ -31,7 +31,7 @@ class SuperAdminOnlyFeaturesTest extends TestCase
             ->assertOk()
             ->assertSee('API設定', false)
             ->assertDontSee('鮮明化設定', false)
-            ->assertDontSee('AI鮮明化はスーパー管理者のみが利用・設定できます', false);
+            ->assertDontSee('写真鮮明化', false);
 
         $this->actingAs($admin)->get('/settings?section=storage')
             ->assertOk()
@@ -48,7 +48,9 @@ class SuperAdminOnlyFeaturesTest extends TestCase
             ->assertOk()
             ->assertSee('Google マップ（Map / Transit）', false)
             ->assertSee('Google カレンダー（OAuth アプリ）', false)
-            ->assertDontSee('写真鮮明化', false);
+            ->assertDontSee('写真鮮明化', false)
+            ->assertDontSee('Travelpayouts', false)
+            ->assertDontSee('駅すぱあと', false);
 
         $this->actingAs($admin)->get('/settings?section=usage')
             ->assertOk()
@@ -63,24 +65,26 @@ class SuperAdminOnlyFeaturesTest extends TestCase
         $this->actingAs($super)->get('/settings?section=enhance')
             ->assertOk()
             ->assertSee('API設定', false)
-            ->assertSee('写真鮮明化', false)
             ->assertSee('Google マップ（Map / Transit）', false)
-            ->assertDontSee('AI鮮明化はスーパー管理者のみが利用・設定できます', false);
+            ->assertDontSee('写真鮮明化', false)
+            ->assertDontSee('Travelpayouts', false)
+            ->assertDontSee('駅すぱあと', false);
 
         $this->actingAs($super)->get('/photos')
             ->assertOk()
-            ->assertSee('初期設定', false);
+            ->assertDontSee('AIで鮮明化', false)
+            ->assertDontSee('AI鮮明化', false);
 
         $this->actingAs($super)->get('/dashboard')
             ->assertOk()
-            ->assertSee('AI鮮明化', false);
+            ->assertDontSee('AI鮮明化', false);
 
         $this->actingAs($super)->get('/settings?section=usage')
             ->assertOk()
-            ->assertSee('Photos AI鮮明化', false);
+            ->assertDontSee('Photos AI鮮明化', false);
     }
 
-    public function test_storage_stats_cache_does_not_leak_enhance_to_admin(): void
+    public function test_storage_stats_do_not_include_enhance(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-stats-cache@example.com');
         $photos = app(\App\Services\PhotoService::class);
@@ -89,7 +93,7 @@ class SuperAdminOnlyFeaturesTest extends TestCase
         $withEnhance = $photos->storageStats((int) $admin->id, true);
         $withoutEnhance = $photos->storageStats((int) $admin->id, false);
 
-        $this->assertTrue(collect($withEnhance['providers'] ?? [])->contains(
+        $this->assertFalse(collect($withEnhance['providers'] ?? [])->contains(
             fn (array $provider) => ($provider['role'] ?? '') === 'AI鮮明化'
         ));
         $this->assertFalse(collect($withoutEnhance['providers'] ?? [])->contains(
@@ -98,29 +102,29 @@ class SuperAdminOnlyFeaturesTest extends TestCase
         $this->assertFalse((bool) ($withoutEnhance['enhanceReady'] ?? false));
     }
 
-    public function test_enhance_endpoint_is_super_admin_only(): void
+    public function test_removed_enhance_endpoint_is_gone(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-enhance@example.com');
         $super = $this->makeUser(UserRole::SuperAdmin, 'super-enhance@example.com');
 
         $this->actingAs($admin)
             ->postJson('/photos/1/stability-enhance')
-            ->assertForbidden();
+            ->assertNotFound();
 
-        // Super admin gets past the role gate (may 404/422 if photo missing)
         $this->actingAs($super)
             ->postJson('/photos/1/stability-enhance')
-            ->assertStatus(422);
+            ->assertNotFound();
     }
 
-    public function test_travel_is_super_admin_only(): void
+    public function test_travel_feature_is_removed(): void
     {
         $admin = $this->makeUser(UserRole::Admin, 'admin-travel-ui@example.com');
         $standard = $this->makeUser(UserRole::Standard, 'std-travel-ui@example.com');
         $super = $this->makeUser(UserRole::SuperAdmin, 'super-travel-ui@example.com');
 
-        $this->actingAs($admin)->get('/travel')->assertForbidden();
-        $this->actingAs($standard)->get('/travel')->assertForbidden();
+        $this->actingAs($admin)->get('/travel')->assertNotFound();
+        $this->actingAs($standard)->get('/travel')->assertNotFound();
+        $this->actingAs($super)->get('/travel')->assertNotFound();
         $this->actingAs($admin)->get('/dashboard')
             ->assertOk()
             ->assertDontSee(__('航空へ'), false)
@@ -135,21 +139,20 @@ class SuperAdminOnlyFeaturesTest extends TestCase
         $this->actingAs($admin)->post('/settings/api/travelpayouts', [
             'enabled' => '1',
             'token' => 'secret',
-        ])->assertForbidden();
+        ])->assertNotFound();
 
-        $this->actingAs($super)->get('/travel')->assertOk();
         $this->actingAs($super)->get('/dashboard')
             ->assertOk()
-            ->assertSee('href="/travel"', false);
+            ->assertDontSee('href="/travel"', false);
         $this->actingAs($super)->get('/settings?section=enhance')
             ->assertOk()
-            ->assertSee(__('Travelpayouts（航空運賃）'), false);
+            ->assertDontSee(__('Travelpayouts（航空運賃）'), false);
         $this->actingAs($super)->get('/settings?section=usage')
             ->assertOk()
-            ->assertSee(__('Travelpayouts（航空運賃）'), false);
+            ->assertDontSee(__('Travelpayouts（航空運賃）'), false);
         $this->actingAs($super)->get('/mypage')
             ->assertOk()
-            ->assertSee(__('航空'), false);
+            ->assertDontSee('href="/travel"', false);
     }
 
     public function test_translate_page_is_available_to_signed_in_users(): void

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\AppContext;
 use App\Models\GuideTopic;
 use App\Models\TransitFavorite;
-use App\Models\TravelTrip;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -17,10 +16,8 @@ class WorkersAiGuideService
 
     public const TOPIC_CALENDAR = 'calendar';
 
-    /** 生活ガイドには出さず、路線検索 / Travel の画面に組み込む話題 */
+    /** 生活ガイドには出さず、路線検索の画面に組み込む話題 */
     public const TOPIC_TRANSIT = 'transit';
-
-    public const TOPIC_TRAVEL = 'travel';
 
     public const MAX_USER_TOPICS = 12;
 
@@ -92,7 +89,7 @@ class WorkersAiGuideService
     }
 
     /**
-     * 路線検索 / Travel の画面に埋め込む話題。生活ガイドの一覧には出さない。
+     * 路線検索の画面に埋め込む話題。生活ガイドの一覧には出さない。
      *
      * @return array<string, array{id: string, label: string, ready: bool, hint: string, icon: string, samples: list<string>, custom: bool}>
      */
@@ -110,19 +107,6 @@ class WorkersAiGuideService
                     __('天神から博多駅までの行き方を教えて'),
                     __('もっと安いルートは？'),
                     __('雨の日でも濡れにくい乗り換えは？'),
-                ],
-            ],
-            self::TOPIC_TRAVEL => [
-                'id' => self::TOPIC_TRAVEL,
-                'label' => __('AI に航空を相談'),
-                'ready' => true,
-                'custom' => false,
-                'hint' => __('相談すると料金表 API で航空会社と目安運賃を取り、その数字で答えます。'),
-                'icon' => '✈️',
-                'samples' => [
-                    __('福岡から羽田、ANAはいつが安いですか？'),
-                    __('来月の成田〜バンコクの最安と航空会社は？'),
-                    __('往復と片道、どちらが安い？'),
                 ],
             ],
         ];
@@ -252,15 +236,12 @@ class WorkersAiGuideService
             self::TOPIC_CALENDAR => ' Help the user plan the day using the calendar snapshot below. Suggest order, travel buffer, and what to register as a ToDo if something is missing.',
             self::TOPIC_TRANSIT => ' Help with getting around by train, bus, subway, and ferry. '
                 .'Use only timetable, fare, and transfer facts supplied with the prompt.',
-            self::TOPIC_TRAVEL => ' Help with domestic and international flight planning: when to buy, which dates look cheaper, and what to confirm before booking. '
-                .'Use only fare-table facts supplied with the prompt. Never invent prices or dates.',
             default => ' Help with everyday life tips, how to use this app, and friendly conversation.',
         };
 
         $context = match ((string) $topic['id']) {
             self::TOPIC_CALENDAR => $this->calendarSnapshot($user),
             self::TOPIC_TRANSIT => $this->transitSnapshot($user),
-            self::TOPIC_TRAVEL => $this->travelSnapshot($user),
             default => '',
         };
 
@@ -328,32 +309,6 @@ class WorkersAiGuideService
             $lines[] = '- ['.trim((string) $row->category).'] '.trim((string) $row->name)
                 .' '.trim((string) $row->from_place).' -> '.trim((string) $row->to_place)
                 .' '.trim((string) $row->line_name);
-        }
-
-        return implode("\n", $lines);
-    }
-
-    private function travelSnapshot(User $user): string
-    {
-        try {
-            $rows = TravelTrip::query()
-                ->where('user_id', $user->id)
-                ->orderBy('depart_on')
-                ->limit(6)
-                ->get();
-        } catch (\Throwable) {
-            return '';
-        }
-
-        if ($rows->isEmpty()) {
-            return 'Planned trips: none.';
-        }
-
-        $lines = ['Planned trips:'];
-        foreach ($rows as $row) {
-            $lines[] = '- '.trim((string) ($row->label ?: $row->purpose))
-                .' '.trim((string) ($row->origin ?? '')).' -> '.trim((string) ($row->destination ?? ''))
-                .' '.(string) $row->depart_on?->format('Y-m-d');
         }
 
         return implode("\n", $lines);

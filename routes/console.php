@@ -2,8 +2,6 @@
 
 use App\Console\Commands\ArchivePhotosToBackblaze;
 use App\Console\Commands\BackupDatabaseToB2Command;
-use App\Console\Commands\CheckTravelAlerts;
-use App\Console\Commands\FetchTravelPromos;
 use App\Console\Commands\ManageStorageCommand;
 use App\Console\Commands\SyncMailMetadata;
 use App\Console\Commands\TickPhotoColdArchive;
@@ -34,10 +32,6 @@ Schedule::command(TickPhotoColdArchive::class)
     ->when(fn () => app(PhotoColdArchiveRunService::class)->isRunning())
     ->withoutOverlapping(5);
 
-Schedule::command(CheckTravelAlerts::class)
-    ->dailyAt('08:00')
-    ->withoutOverlapping();
-
 Schedule::command(\App\Console\Commands\SendTodoReminders::class)
     ->everyMinute()
     ->withoutOverlapping();
@@ -46,12 +40,3 @@ Schedule::command(\App\Console\Commands\SendTodoReminders::class)
 Schedule::command(SyncMailMetadata::class)
     ->everyFiveMinutes()
     ->withoutOverlapping(4);
-
-// Seat Sale は深夜〜早朝（JST）に出ることが多いため、夜間は30分ごと・昼間は2時間ごと
-Schedule::command(FetchTravelPromos::class)
-    ->cron('*/30 0-7,22-23 * * *')
-    ->withoutOverlapping();
-
-Schedule::command(FetchTravelPromos::class)
-    ->cron('0 8,10,12,14,16,18,20 * * *')
-    ->withoutOverlapping();

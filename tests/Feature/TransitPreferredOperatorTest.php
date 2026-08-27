@@ -24,7 +24,6 @@ class TransitPreferredOperatorTest extends TestCase
             'services.navitime.base_url' => '',
             'services.google_maps.api_key' => '',
             'services.google_routes.api_key' => '',
-            'services.ekispert.api_key' => '',
         ]);
     }
 

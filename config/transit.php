@@ -7,10 +7,9 @@ return [
     | 経路検索に使う API
     |--------------------------------------------------------------------------
     |
-    | auto      … 使えるものを上から順に（NAVITIME → 駅すぱあと → 内蔵 RAPTOR）
+    | auto      … 使えるものを上から順に（NAVITIME → 内蔵 RAPTOR）
     | google    … Google Maps Routes API（日本の電車・バスは API 提供対象外。選んでも次のエンジンへ回す）
     | navitime  … NAVITIME API
-    | ekispert  … 駅すぱあと
     | raptor    … アプリ内蔵の経路探索（福岡都心の簡易ダイヤ・契約不要）
     |
     | 設定画面で選んだ値が優先され、未選択のときだけここが使われる。

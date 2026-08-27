@@ -25,7 +25,7 @@ class RoleAccessTest extends TestCase
 
     /**
      * 販売時は顧客の管理者が API キーを自分で設定する。
-     * 試作の鮮明化と、取得できない Facebook Messenger チャネルはスーパー管理者のまま。
+     * 取得できない Facebook Messenger チャネルはスーパー管理者のまま。
      */
     public function test_admin_can_change_infrastructure_api_keys(): void
     {
@@ -71,8 +71,8 @@ class RoleAccessTest extends TestCase
             ->assertOk()
             ->assertSee('LINE連携設定', false)
             ->assertDontSee('Facebook Messenger 通知連携', false);
-        $this->actingAs($admin)->post('/settings/enhance/stability', ['enabled' => '1'])->assertForbidden();
-        $this->actingAs($admin)->post('/settings/enhance/active', ['active_provider' => 'stability'])->assertForbidden();
+        $this->actingAs($admin)->post('/settings/enhance/stability', ['enabled' => '1'])->assertNotFound();
+        $this->actingAs($admin)->post('/settings/enhance/active', ['active_provider' => 'stability'])->assertNotFound();
     }
 
     public function test_admin_can_set_registration_invite_code_from_user_management(): void
@@ -166,7 +166,7 @@ class RoleAccessTest extends TestCase
         $this->actingAs($user)->get('/admin/users')->assertForbidden();
         $this->actingAs($user)->get('/finance')->assertOk();
         $this->actingAs($user)->get('/transit')->assertOk();
-        $this->actingAs($user)->get('/travel')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertNotFound();
         $this->actingAs($user)->get('/map')->assertOk();
         $this->actingAs($user)->get('/mypage')->assertOk();
         $this->actingAs($user)->get('/groups')->assertOk();
@@ -180,7 +180,7 @@ class RoleAccessTest extends TestCase
             'menu_features' => UserRole::legacyStandardMenuFeatures(),
         ])->save();
 
-        $this->actingAs($user)->get('/travel')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertNotFound();
     }
 
     public function test_light_user_is_limited_to_core_features(): void
@@ -199,7 +199,7 @@ class RoleAccessTest extends TestCase
 
         $this->actingAs($user)->get('/finance')->assertForbidden();
         $this->actingAs($user)->get('/transit')->assertForbidden();
-        $this->actingAs($user)->get('/travel')->assertForbidden();
+        $this->actingAs($user)->get('/travel')->assertNotFound();
         $this->actingAs($user)->get('/map')->assertForbidden();
         $this->actingAs($user)->get('/settings')->assertForbidden();
         $this->actingAs($user)->get('/admin/users')->assertForbidden();

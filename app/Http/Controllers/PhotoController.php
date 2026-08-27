@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\UsageLimitExceededException;
 use App\Services\GroupService;
 use App\Services\PhotoService;
-use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 
 class PhotoController extends Controller
@@ -16,7 +14,6 @@ class PhotoController extends Controller
         private PhotoService $photos,
         private GroupService $groups,
         private \App\Services\MediaStorageConfigService $mediaStorage,
-        private UserUsageLimitService $usageLimits,
     ) {}
 
     public function index(Request $request)
@@ -215,21 +212,8 @@ class PhotoController extends Controller
             ],
             'videoLimitLabel' => $this->photos->maxVideoUploadLabel(),
             'cloudinaryEditorReady' => $this->mediaStorage->cloudinaryEditorEnabled(),
-            'stabilityEnhanceReady' => $this->enhanceButtonReady(),
             ...$this->flashFromQuery($request),
         ]);
-    }
-
-    private function enhanceButtonReady(): bool
-    {
-        $user = request()->user();
-        if (! $user || ! $user->isSuperAdmin()) {
-            return false;
-        }
-
-        $enhance = app(\App\Services\EnhanceConfigService::class);
-
-        return $enhance->isReady() && $enhance->isImplemented($enhance->activeProvider());
     }
 
     public function storeAlbum(Request $request)
@@ -848,60 +832,6 @@ class PhotoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('編集版を保存しました。'));
-    }
-
-    public function stabilityEnhance(Request $request, int $id)
-    {
-        if (! $request->user()?->isSuperAdmin()) {
-            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
-        }
-
-        try {
-            $this->usageLimits->consume($request->user(), UserUsageLimitService::FEATURE_ENHANCE, 1);
-        } catch (UsageLimitExceededException $e) {
-            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
-        }
-
-        try {
-            $result = $this->photos->enhancePhoto((int) $request->user()->id, $id);
-        } catch (\App\Exceptions\EnhanceCancelledException $e) {
-            return response()->json(['ok' => false, 'cancelled' => true, 'message' => $e->getMessage()], 499);
-        } catch (\InvalidArgumentException|\RuntimeException $e) {
-            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        $photo = $result['photo'];
-        $from = ($result['sourceWidth'] && $result['sourceHeight'])
-            ? $result['sourceWidth'].'×'.$result['sourceHeight']
-            : null;
-        $to = ($result['resultWidth'] && $result['resultHeight'])
-            ? $result['resultWidth'].'×'.$result['resultHeight']
-            : null;
-
-        $message = ($from && $to)
-            ? __('AI鮮明化版を保存しました（:from → :to）。拡大表示で差を確認できます。', ['from' => $from, 'to' => $to])
-            : __('AI鮮明化版を保存しました。解像度が上がっているので、拡大して確認してください。');
-
-        return response()->json([
-            'ok' => true,
-            'message' => $message,
-            'photo' => $photo,
-            'zoom' => 2,
-        ]);
-    }
-
-    public function stabilityEnhanceCancel(Request $request, int $id)
-    {
-        if (! $request->user()?->isSuperAdmin()) {
-            return response()->json(['ok' => false, 'message' => __('この機能はスーパー管理者のみ利用できます。')], 403);
-        }
-
-        $this->photos->cancelEnhance((int) $request->user()->id, $id);
-
-        return response()->json([
-            'ok' => true,
-            'message' => __('鮮明化の中止を受け付けました。'),
-        ]);
     }
 
     public function cloudinaryEditStart(Request $request, int $id)

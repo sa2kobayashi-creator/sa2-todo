@@ -18,8 +18,6 @@ class UsageLimitPolicyService
 
     public const FEATURE_WORKERS_AI = 'workers_ai';
 
-    public const FEATURE_ENHANCE = 'enhance';
-
     /** @return list<string> */
     public static function meterFeatures(): array
     {
@@ -27,7 +25,6 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE,
             self::FEATURE_LLM_VOICE,
             self::FEATURE_WORKERS_AI,
-            self::FEATURE_ENHANCE,
         ];
     }
 
@@ -87,7 +84,6 @@ class UsageLimitPolicyService
             'yen_per_llm_voice' => max(0, (int) config('usage_limits.yen_per_llm_voice', 5)),
             'yen_per_workers_ai' => max(0, (int) config('usage_limits.yen_per_workers_ai', 3)),
             'yen_per_translate_1000' => max(0, (int) config('usage_limits.yen_per_translate_1000', 2)),
-            'yen_per_enhance' => max(0, (int) config('usage_limits.yen_per_enhance', 20)),
         ];
     }
 
@@ -267,12 +263,10 @@ class UsageLimitPolicyService
 
         $translate = (int) ($rows['translate'] ?? 0);
         $workers = (int) ($rows['workers_ai'] ?? 0);
-        $enhance = (int) ($rows['enhance'] ?? 0);
 
         $yen = $voice * max(0, (int) $platform['yen_per_llm_voice']);
         $yen += $workers * max(0, (int) $platform['yen_per_workers_ai']);
         $yen += (int) ceil($translate / 1000) * max(0, (int) $platform['yen_per_translate_1000']);
-        $yen += $enhance * max(0, (int) $platform['yen_per_enhance']);
 
         return $yen;
     }
@@ -370,7 +364,6 @@ class UsageLimitPolicyService
             'yen_per_llm_voice' => max(0, (int) ($row['yen_per_llm_voice'] ?? config('usage_limits.yen_per_llm_voice', 5))),
             'yen_per_workers_ai' => max(0, (int) ($row['yen_per_workers_ai'] ?? config('usage_limits.yen_per_workers_ai', 3))),
             'yen_per_translate_1000' => max(0, (int) ($row['yen_per_translate_1000'] ?? config('usage_limits.yen_per_translate_1000', 2))),
-            'yen_per_enhance' => max(0, (int) ($row['yen_per_enhance'] ?? config('usage_limits.yen_per_enhance', 20))),
         ];
     }
 
@@ -380,7 +373,6 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE => 'translate_chars_per_day',
             self::FEATURE_LLM_VOICE => 'llm_voice_requests_per_day',
             self::FEATURE_WORKERS_AI => 'workers_ai_requests_per_day',
-            self::FEATURE_ENHANCE => '',
             default => '',
         };
     }
@@ -401,7 +393,6 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE => max(0, (int) config('usage_limits.translate_chars_per_day', 50_000)),
             self::FEATURE_LLM_VOICE => max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30)),
             self::FEATURE_WORKERS_AI => max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20)),
-            self::FEATURE_ENHANCE => max(0, (int) config('usage_limits.enhance_requests_per_day', 10)),
             default => 0,
         };
     }

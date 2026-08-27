@@ -27,7 +27,6 @@ class NavitimeTransitSearchTest extends TestCase
             'services.navitime.node_host' => '',
             'services.google_maps.api_key' => '',
             'services.google_routes.api_key' => '',
-            'services.ekispert.api_key' => '',
         ]);
     }
 

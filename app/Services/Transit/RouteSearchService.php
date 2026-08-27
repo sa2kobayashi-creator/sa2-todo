@@ -5,7 +5,6 @@ namespace App\Services\Transit;
 use App\Models\MediaStorageSetting;
 use App\Services\GoogleRoutesConfigService;
 use App\Services\Transit\Contracts\RouteProvider;
-use App\Services\Transit\Providers\EkispertRouteProvider;
 use App\Services\Transit\Providers\GoogleRoutesRouteProvider;
 use App\Services\Transit\Providers\NavitimeRouteProvider;
 use App\Services\Transit\Providers\RaptorRouteProvider;
@@ -16,7 +15,7 @@ use App\Services\Transit\Raptor\ItineraryScorer;
  *
  * 優先順は「設定画面の選択 ＞ ROUTE_PROVIDER ＞ auto」。auto と、選んだ API が
  * 落ちたときは、使える次のプロバイダへ自動で回して結果を必ず返す。
- * 並びは NAVITIME → 駅すぱあと → 内蔵 RAPTOR。
+ * 並びは NAVITIME → 内蔵 RAPTOR。
  * Google Maps Routes は日本の電車・バスを返さないため、明示したときだけ使う。
  */
 class RouteSearchService
@@ -29,12 +28,11 @@ class RouteSearchService
     public function __construct(
         GoogleRoutesRouteProvider $google,
         NavitimeRouteProvider $navitime,
-        EkispertRouteProvider $ekispert,
         RaptorRouteProvider $raptor,
         private TransitOperatorCatalog $operators,
         private ItineraryScorer $scorer,
     ) {
-        $this->providers = [$google, $navitime, $ekispert, $raptor];
+        $this->providers = [$google, $navitime, $raptor];
     }
 
     /** @return array<string, RouteProvider> */

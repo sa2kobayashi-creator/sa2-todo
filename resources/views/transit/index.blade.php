@@ -131,9 +131,9 @@
             <button type="submit" class="button-link transit-search-btn" id="transit-search-run">{{ __('経路を検索') }}</button>
           </div>
           @if(!empty($routeEngineIsExternal))
-            <p class="hint">{{ __('上の「使う経路検索」で API を切り替えられます。自動は NAVITIME → 駅すぱあと → RAPTOR です。Google は日本の交通機関ルートが API の提供対象外です。') }}</p>
+            <p class="hint">{{ __('上の「使う経路検索」で API を切り替えられます。自動は NAVITIME → RAPTOR です。Google は日本の交通機関ルートが API の提供対象外です。') }}</p>
           @else
-            <p class="hint">{{ __('上の「使う経路検索」で NAVITIME や駅すぱあと に切り替えられます。Google Maps Routes は日本の電車・バスを返しません。いまは内蔵 RAPTOR（福岡都心の簡易ダイヤ）です。') }}</p>
+            <p class="hint">{{ __('上の「使う経路検索」で NAVITIME に切り替えられます。Google Maps Routes は日本の電車・バスを返しません。いまは内蔵 RAPTOR（福岡都心の簡易ダイヤ）です。') }}</p>
           @endif
         </form>
 

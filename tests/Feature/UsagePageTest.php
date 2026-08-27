@@ -42,15 +42,4 @@ class UsagePageTest extends TestCase
             ->assertSee('Gemini の API キーでは使用量を取得できません', false)
             ->assertDontSee('アプリ上限 ユーザーあたり1日 10 回。Stability', false);
     }
-
-    public function test_super_admin_usage_page_shows_enhance_daily_free_tier(): void
-    {
-        $super = $this->makeUser(UserRole::SuperAdmin, 'usage-enhance-tier@example.com');
-
-        $this->actingAs($super)
-            ->get('/settings?section=usage')
-            ->assertOk()
-            ->assertSee('Photos AI鮮明化', false)
-            ->assertSee('アプリ上限 ユーザーあたり1日 10 回。Stability', false);
-    }
 }

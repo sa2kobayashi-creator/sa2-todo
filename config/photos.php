@@ -106,33 +106,6 @@ return [
     /** Cloudinary Free プランの月間クレジット（ストレージ・帯域・変換の合算） */
     'cloudinary_free_credits' => (int) env('PHOTO_CLOUDINARY_FREE_CREDITS', 25),
 
-    /** Stability AI 1リクエストあたりの最大総ピクセル（API 上限 1,048,576）。超過時は縮小せずタイル分割 */
-    'stability_max_input_pixels' => (int) env('PHOTO_STABILITY_MAX_INPUT_PIXELS', 1_048_576),
-
-    /**
-     * 鮮明化結果の最大総ピクセル。API は最大約4倍まで上げるが、巨大化を抑える上限。
-     * （以前はタイル結果を元解像度へ戻しており、見た目の改善がほぼ失われていた）
-     */
-    'stability_max_output_pixels' => (int) env('PHOTO_STABILITY_MAX_OUTPUT_PIXELS', 16_777_216),
-
-    /** 鮮明化結果の長辺上限（px） */
-    'stability_max_output_edge' => (int) env('PHOTO_STABILITY_MAX_OUTPUT_EDGE', 8192),
-
-    /**
-     * Real-ESRGAN ncnn-vulkan 実行ファイルの既定パス。
-     * 設定画面のパスが空のときに参照する。
-     */
-    'realesrgan_binary' => env('REALESRGAN_BINARY', storage_path('app/bin/realesrgan-ncnn-vulkan'.(PHP_OS_FAMILY === 'Windows' ? '.exe' : ''))),
-
-    /** Real-ESRGAN 入力の長辺上限（px）。低VRAM向けに事前縮小する */
-    'realesrgan_max_input_edge' => (int) env('REALESRGAN_MAX_INPUT_EDGE', 1024),
-
-    /** Real-ESRGAN 1回あたりのタイムアウト（秒） */
-    'realesrgan_timeout' => (int) env('REALESRGAN_TIMEOUT', 600),
-
-    /** SwinIR GPU VPS API の既定タイムアウト（秒） */
-    'swinir_timeout' => (int) env('SWINIR_TIMEOUT', 600),
-
     /**
      * 原本の長辺上限（px）。0 = 解像度を変更せず原本のまま保存。
      * （互換のため残置。現行実装では未使用）

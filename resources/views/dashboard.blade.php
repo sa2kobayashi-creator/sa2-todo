@@ -23,7 +23,6 @@
         @if(auth()->user()?->isAdmin())
           @include('dashboard.partials.ai-usage')
         @endif
-        @include('dashboard.partials.travel')
       </div>
       <script>
         (function () {

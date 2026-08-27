@@ -55,7 +55,7 @@ class MediaStorageSetting extends Model
     /** 駅すぱあと（路線検索の経路探索） */
     public const PROVIDER_EKISPERT = 'ekispert';
 
-    /** 経路検索に使う API の選択（google / navitime / ekispert / raptor / auto） */
+    /** 経路検索に使う API の選択（google / navitime / raptor / auto） */
     public const PROVIDER_ROUTE_SEARCH = 'route_search';
 
     /** Google Calendar OAuth（アプリの Client ID / Secret） */

@@ -14,7 +14,6 @@ use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
 use App\Services\TodoShortcutService;
-use App\Services\TravelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -31,7 +30,6 @@ class DashboardController extends Controller
         private DisplayService $display,
         private DashboardAiUsageService $aiUsage,
         private DashboardHomeService $home,
-        private TravelService $travel,
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
         private GroupService $groups,
@@ -136,9 +134,6 @@ class DashboardController extends Controller
             'home' => $home,
             'aiUsage' => $user->isAdmin()
                 ? $this->aiUsage->summary($userId, $user->isSuperAdmin())
-                : null,
-            'travelSummary' => $user->canAccess('travel')
-                ? $this->travel->dashboardSummary($userId)
                 : null,
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),

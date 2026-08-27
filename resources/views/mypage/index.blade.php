@@ -131,9 +131,6 @@
               'finance' => '家計簿',
               'transit' => '路線検索',
             ];
-            if (! empty($canSuperAdmin)) {
-              $featureLabels['travel'] = '航空';
-            }
             $featureLabels += [
               'map' => 'マップ',
               'music' => '音楽',

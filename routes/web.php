@@ -16,9 +16,7 @@ use App\Http\Controllers\Auth\PasswordSetupController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataArchiveController;
-use App\Http\Controllers\EkispertSettingsController;
 use App\Http\Controllers\EmailChangeController;
-use App\Http\Controllers\EnhanceSettingsController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\GoogleCalendarOauthSettingsController;
 use App\Http\Controllers\GoogleCalendarSettingsController;
@@ -51,9 +49,7 @@ use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslateController;
 use App\Http\Controllers\TranslationApiKeyController;
-use App\Http\Controllers\TravelController;
 use App\Http\Controllers\UsageLimitSettingsController;
-use App\Http\Controllers\TravelpayoutsSettingsController;
 use App\Http\Controllers\VideoController;
 use App\Http\Controllers\WebPushSettingsController;
 use App\Http\Controllers\WorkersAiSettingsController;
@@ -188,8 +184,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');
-    Route::post('/photos/{id}/stability-enhance', [PhotoController::class, 'stabilityEnhance'])->middleware('throttle:ai-enhance')->whereNumber('id');
-    Route::post('/photos/{id}/stability-enhance/cancel', [PhotoController::class, 'stabilityEnhanceCancel'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/start', [PhotoController::class, 'cloudinaryEditStart'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/commit', [PhotoController::class, 'cloudinaryEditCommit'])->whereNumber('id');
     Route::post('/photos/{id}/cloudinary-edit/cancel', [PhotoController::class, 'cloudinaryEditCancel'])->whereNumber('id');
@@ -398,35 +392,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/transit/share', [TransitController::class, 'share']);
     });
 
-    Route::middleware([
-        EnsureFeature::class.':travel',
-        RequireSuperAdmin::class,
-    ])->group(function () {
-        Route::get('/travel', [TravelController::class, 'index']);
-        Route::get('/travel/airports/suggest', [TravelController::class, 'suggestAirports']);
-        Route::post('/travel/profile', [TravelController::class, 'updateProfile']);
-        Route::post('/travel/trips', [TravelController::class, 'storeTrip']);
-        Route::post('/travel/trips/quote', [TravelController::class, 'quoteTrip']);
-        Route::post('/travel/trips/draft/clear', [TravelController::class, 'clearTripDraft']);
-        Route::post('/travel/fares/table', [TravelController::class, 'fareTable']);
-        Route::post('/travel/fares/table/clear', [TravelController::class, 'clearFareTable']);
-        Route::post('/travel/fares/select', [TravelController::class, 'selectFare']);
-        Route::post('/travel/fares/select/clear', [TravelController::class, 'clearSelectedFares']);
-        Route::post('/travel/fares/select/{id}/delete', [TravelController::class, 'removeSelectedFare']);
-        Route::post('/travel/watches', [TravelController::class, 'storeWatch']);
-        Route::post('/travel/watches/{id}/delete', [TravelController::class, 'destroyWatch'])->whereNumber('id');
-        Route::post('/travel/watches/{id}/check', [TravelController::class, 'checkWatch'])->whereNumber('id');
-        Route::post('/travel/trips/{id}/update', [TravelController::class, 'updateTrip'])->whereNumber('id');
-        Route::post('/travel/trips/{id}/delete', [TravelController::class, 'destroyTrip'])->whereNumber('id');
-        Route::post('/travel/promos', [TravelController::class, 'storePromo']);
-        Route::post('/travel/promos/fetch', [TravelController::class, 'fetchPromos']);
-        Route::post('/travel/promos/{id}/update', [TravelController::class, 'updatePromo'])->whereNumber('id');
-        Route::post('/travel/promos/{id}/delete', [TravelController::class, 'destroyPromo'])->whereNumber('id');
-        Route::post('/travel/alerts/{id}/read', [TravelController::class, 'markAlertRead'])->whereNumber('id');
-        Route::post('/travel/alerts/read-all', [TravelController::class, 'markAllAlertsRead']);
-        Route::post('/travel/ai-ask', [GuideController::class, 'askTravel'])->middleware('throttle:ai-guide');
-    });
-
     Route::middleware(EnsureFeature::class.':map')->group(function () {
         Route::get('/map', [MapController::class, 'index']);
         Route::post('/map', [MapController::class, 'store']);
@@ -470,18 +435,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/limits', [UsageLimitSettingsController::class, 'update'])
                 ->middleware(RequireSuperAdmin::class);
 
-            Route::post('/settings/api/travelpayouts', [TravelpayoutsSettingsController::class, 'update'])
-                ->middleware(RequireSuperAdmin::class);
-            Route::post('/settings/api/travelpayouts/test', [TravelpayoutsSettingsController::class, 'test'])
-                ->middleware(RequireSuperAdmin::class);
             Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
             Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);
             Route::post('/settings/api/google-routes', [GoogleRoutesSettingsController::class, 'update']);
             Route::post('/settings/api/google-routes/test', [GoogleRoutesSettingsController::class, 'test']);
             Route::post('/settings/api/navitime', [NavitimeSettingsController::class, 'update']);
             Route::post('/settings/api/navitime/test', [NavitimeSettingsController::class, 'test']);
-            Route::post('/settings/api/ekispert', [EkispertSettingsController::class, 'update']);
-            Route::post('/settings/api/ekispert/test', [EkispertSettingsController::class, 'test']);
             Route::post('/settings/api/route-search', [RouteSearchSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar', [GoogleCalendarOauthSettingsController::class, 'update']);
             Route::post('/settings/api/google-calendar/test', [GoogleCalendarOauthSettingsController::class, 'test']);
@@ -518,15 +477,6 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             ->where('provider', 'line|messenger');
         Route::post('/settings/messaging/{provider}/test', [MessagingSettingsController::class, 'test'])
             ->where('provider', 'line|messenger');
-
-        Route::post('/settings/enhance/active', [EnhanceSettingsController::class, 'updateActive'])
-            ->middleware(RequireSuperAdmin::class);
-        Route::post('/settings/enhance/{provider}', [EnhanceSettingsController::class, 'updateProvider'])
-            ->middleware(RequireSuperAdmin::class)
-            ->where('provider', 'stability|realesrgan|swinir');
-        Route::post('/settings/enhance/{provider}/test', [EnhanceSettingsController::class, 'testProvider'])
-            ->middleware(RequireSuperAdmin::class)
-            ->where('provider', 'stability|realesrgan|swinir');
     });
 
     Route::middleware(RequireAdmin::class)->group(function () {

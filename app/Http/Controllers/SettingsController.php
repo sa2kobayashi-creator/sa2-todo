@@ -10,8 +10,6 @@ use App\Services\AiProviderUsageService;
 use App\Services\CalendarService;
 use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\DeeplUsageService;
-use App\Services\EkispertConfigService;
-use App\Services\EnhanceConfigService;
 use App\Services\GoogleCalendarConfigService;
 use App\Services\GoogleMapsConfigService;
 use App\Services\GoogleRoutesConfigService;
@@ -24,7 +22,6 @@ use App\Services\MessengerMessagingService;
 use App\Services\NavitimeConfigService;
 use App\Services\PhotoService;
 use App\Services\Transit\RouteSearchService;
-use App\Services\TravelpayoutsConfigService;
 use App\Services\UsageLimitPolicyService;
 use App\Services\UserUsageLimitService;
 use App\Services\WebPushConfigService;
@@ -46,12 +43,9 @@ class SettingsController extends Controller
         private CloudflareWorkersAiConfigService $workersAi,
         private DeeplUsageService $deeplUsage,
         private YoutubeVideoService $youtube,
-        private EnhanceConfigService $enhance,
-        private TravelpayoutsConfigService $travelpayouts,
         private GoogleMapsConfigService $googleMaps,
         private GoogleRoutesConfigService $googleRoutes,
         private NavitimeConfigService $navitime,
-        private EkispertConfigService $ekispert,
         private RouteSearchService $routeSearch,
         private GoogleCalendarConfigService $googleCalendarOauth,
         private LineMessagingService $lineMessaging,
@@ -120,12 +114,9 @@ class SettingsController extends Controller
             'storageCloudinary' => $section === 'storage' ? $this->safeStorageFormState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->safeStorageFormState('backblaze') : null,
             'storagePipeline' => $section === 'storage' ? $this->safeStorageFormState('pipeline') : null,
-            'enhanceSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->enhance->formState() : null,
-            'travelpayoutsSettings' => ($section === 'enhance' && $isSuperAdmin) ? $this->travelpayouts->formState() : null,
             'googleMapsSettings' => $section === 'enhance' ? $this->googleMaps->formState() : null,
             'googleRoutesSettings' => $section === 'enhance' ? $this->googleRoutes->formState() : null,
             'navitimeSettings' => $section === 'enhance' ? $this->navitime->formState() : null,
-            'ekispertSettings' => $section === 'enhance' ? $this->ekispert->formState() : null,
             'routeSearchSettings' => $section === 'enhance' ? $this->routeSearchFormState() : null,
             'googleCalendarOauthSettings' => $section === 'enhance' ? $this->googleCalendarOauth->formState() : null,
             'isSuperAdmin' => $isSuperAdmin,
