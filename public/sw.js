@@ -1,5 +1,8 @@
 /* Sa2 Plus app PWA - installability only; do not cache authenticated HTML/API */
 const CACHE = 'sa2-app-shell-v2'
+/* 共有シートから受け取った音声の一時置き場。/music/share の画面が読み出して送信する */
+const SHARE_CACHE = 'sa2-shared-audio-v1'
+const SHARE_TARGET_PATH = '/music/share'
 const PRECACHE = [
   '/manifest.webmanifest',
   '/offline.html',
@@ -26,19 +29,45 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
+      caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE)
+          .filter((key) => key !== CACHE && key !== SHARE_CACHE)
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
   )
 })
 
+/* 共有された音声を Cache Storage に置き換える。Cookie が乗らない POST を
+   ここで受け止め、以降は同一オリジンの GET 画面から送信させる。 */
+async function stashSharedAudio(request) {
+  const cache = await caches.open(SHARE_CACHE)
+  const previous = await cache.keys()
+  await Promise.all(previous.map((key) => cache.delete(key)))
+
+  let form
+  try {
+    form = await request.formData()
+  } catch (_) {
+    return 0
+  }
+
+  const files = form.getAll('tracks').filter((file) => file && typeof file.size === 'number' && file.size > 0)
+  let stored = 0
+  for (const file of files) {
+    stored += 1
+    const headers = new Headers()
+    headers.set('Content-Type', file.type || 'audio/mpeg')
+    headers.set('X-Shared-Name', encodeURIComponent(file.name || `track-${stored}.mp3`))
+    await cache.put(`/__shared-audio/${stored}`, new Response(file, { headers }))
+  }
+
+  return stored
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
-  if (req.method !== 'GET') return
 
   let url
   try {
@@ -47,6 +76,17 @@ self.addEventListener('fetch', (event) => {
     return
   }
   if (url.origin !== self.location.origin) return
+
+  if (req.method === 'POST' && url.pathname === SHARE_TARGET_PATH) {
+    event.respondWith(
+      stashSharedAudio(req)
+        .then((count) => Response.redirect(`${SHARE_TARGET_PATH}?shared=${count}`, 303))
+        .catch(() => Response.redirect(`${SHARE_TARGET_PATH}?shared=0`, 303))
+    )
+    return
+  }
+
+  if (req.method !== 'GET') return
 
   // HTML 画面遷移: 常にネットワーク。失敗時のみ静的 offline（ログイン/Photos へ落とさない）
   if (req.mode === 'navigate') {

@@ -112,8 +112,16 @@ class HelpAndAboutPagesTest extends TestCase
         });
     }
 
-    public function test_standard_user_cannot_open_contact_page(): void
+    public function test_standard_user_can_reach_the_operator(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $operator = User::create([
+            'email' => 'operator-standard-contact@example.com',
+            'display_name' => 'Operator',
+            'password' => Hash::make('password'),
+            'role' => UserRole::SuperAdmin,
+        ]);
         $user = User::create([
             'email' => 'standard-contact@example.com',
             'display_name' => 'Standard',
@@ -121,11 +129,21 @@ class HelpAndAboutPagesTest extends TestCase
             'role' => UserRole::Standard,
         ]);
 
-        $this->actingAs($user)->get('/contact')->assertForbidden();
+        $this->actingAs($user)->get('/contact')->assertOk();
         $this->actingAs($user)->post('/contact', [
-            'subject' => 'hack',
-            'body' => 'nope',
-        ])->assertForbidden();
+            'subject' => '解約について',
+            'body' => '解約の方法を教えてください。',
+        ])->assertRedirect('/contact');
+
+        \Illuminate\Support\Facades\Mail::assertSent(
+            \App\Mail\OperatorInquiryMail::class,
+            fn (\App\Mail\OperatorInquiryMail $mail) => $mail->hasTo($operator->email)
+        );
+    }
+
+    public function test_guest_cannot_open_contact_page(): void
+    {
+        $this->get('/contact')->assertRedirect('/login');
     }
 
     public function test_register_page_shows_disabled_agree_checkbox_until_docs_read(): void

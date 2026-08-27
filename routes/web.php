@@ -11,6 +11,8 @@ use App\Http\Controllers\AiProviderUsageController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\AppContextController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\BillingController;
+use App\Http\Controllers\CommercialSettingsController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordSetupController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -45,6 +47,7 @@ use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RouteSearchSettingsController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
 use App\Http\Controllers\TranslateController;
@@ -64,6 +67,8 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/terms', [LegalController::class, 'terms']);
 Route::get('/privacy', [LegalController::class, 'privacy']);
+// 有料販売の必須表示。未ログインから到達できること
+Route::get('/tokushoho', [LegalController::class, 'tokushoho'])->name('legal.tokushoho');
 
 Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
@@ -85,7 +90,8 @@ Route::post('/password/reset', [PasswordResetController::class, 'reset'])->middl
 
 Route::middleware('auth')->group(function () {
     Route::get('/password/setup', [PasswordSetupController::class, 'show']);
-    Route::post('/password/setup', [PasswordSetupController::class, 'store']);
+    Route::post('/password/setup', [PasswordSetupController::class, 'store'])
+        ->middleware('throttle:auth-password');
     Route::post('/mypage/password/request-code', [PasswordResetController::class, 'requestForCurrentUser'])
         ->middleware('throttle:auth-password');
 });
@@ -96,10 +102,13 @@ Route::post('/app-context', [AppContextController::class, 'update'])
     ->middleware(['auth'])
     ->name('app-context.update');
 
-// LINE / Messenger Webhook（CSRF 除外は bootstrap/app.php）
-Route::post('/webhooks/line', LineWebhookController::class);
-Route::get('/webhooks/messenger', [MessengerWebhookController::class, 'verify']);
-Route::post('/webhooks/messenger', [MessengerWebhookController::class, 'receive']);
+// LINE / Messenger / Stripe Webhook（CSRF 除外は bootstrap/app.php）
+Route::middleware('throttle:webhook')->group(function () {
+    Route::post('/webhooks/line', LineWebhookController::class);
+    Route::get('/webhooks/messenger', [MessengerWebhookController::class, 'verify']);
+    Route::post('/webhooks/messenger', [MessengerWebhookController::class, 'receive']);
+    Route::post('/webhooks/stripe', StripeWebhookController::class)->name('billing.webhook');
+});
 
 // Digital Asset Links（TWA）。静的ファイルでも可だが Content-Type を明示
 Route::get('/.well-known/assetlinks.json', function () {
@@ -201,14 +210,21 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::middleware(EnsureFeature::class.':music')->group(function () {
         Route::get('/music', [MusicController::class, 'index']);
         Route::post('/music', [MusicController::class, 'store']);
+        // PWA 共有シートの着地点。POST は Service Worker が横取りし、ここには GET で戻ってくる
+        Route::get('/music/share', [MusicController::class, 'share']);
         Route::get('/music/{id}/file', [MusicController::class, 'file'])->whereNumber('id');
         Route::post('/music/{id}/delete', [MusicController::class, 'destroy'])->whereNumber('id');
+        Route::post('/music/{id}/move', [MusicController::class, 'move'])->whereNumber('id');
+        Route::post('/music/libraries', [MusicController::class, 'storeLibrary']);
+        Route::post('/music/libraries/{id}/update', [MusicController::class, 'updateLibrary'])->whereNumber('id');
+        Route::post('/music/libraries/{id}/delete', [MusicController::class, 'destroyLibrary'])->whereNumber('id');
     });
 
     Route::middleware(EnsureFeature::class.':video')->group(function () {
         Route::get('/video', [VideoController::class, 'index']);
         Route::post('/video', [VideoController::class, 'store']);
         Route::get('/video/youtube/search', [VideoController::class, 'searchYoutube']);
+        Route::get('/video/youtube/popular', [VideoController::class, 'popularYoutube']);
         Route::post('/video/youtube', [VideoController::class, 'storeYoutube']);
         Route::post('/video/youtube/{id}/delete', [VideoController::class, 'destroyYoutube'])->whereNumber('id');
         Route::post('/video/youtube/{id}/move', [VideoController::class, 'moveYoutube'])->whereNumber('id');
@@ -321,11 +337,12 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/mypage/weekday-rules/{id}/exceptions/delete', [PersonalHolidayController::class, 'deleteWeekdayException'])->whereNumber('id');
     Route::get('/help', [HelpController::class, 'index']);
     Route::get('/about', [HelpController::class, 'about']);
+    // 問い合わせは契約者が運営に連絡する唯一の窓口なので、全ログインユーザーに開く
+    Route::get('/contact', [HelpController::class, 'contact']);
+    Route::post('/contact', [HelpController::class, 'sendInquiry'])->middleware('throttle:contact-inquiry');
     Route::middleware(RequireAdmin::class)->group(function () {
         Route::get('/help/overview', [HelpController::class, 'overview']);
         Route::get('/help/guide', [HelpController::class, 'guide']);
-        Route::get('/contact', [HelpController::class, 'contact']);
-        Route::post('/contact', [HelpController::class, 'sendInquiry'])->middleware('throttle:contact-inquiry');
     });
 
     // Google Calendar 個人連携（設定画面不要。Standard / Light も利用可）
@@ -347,10 +364,19 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/settings/google-calendar/calendars', [GoogleCalendarSettingsController::class, 'updateCalendars']);
     Route::post('/settings/google-calendar/import', [GoogleCalendarSettingsController::class, 'import']);
 
+    // 課金。権限の付与は Webhook だけが行い、ここは Stripe の画面へ送るだけ
+    Route::get('/mypage/plan', [BillingController::class, 'plan'])->name('billing.plan');
+    Route::post('/mypage/plan/checkout', [BillingController::class, 'checkout'])
+        ->middleware('throttle:billing');
+    Route::post('/mypage/plan/portal', [BillingController::class, 'portal'])
+        ->middleware('throttle:billing');
+
     // メールアドレス変更は新しい宛先に届いたコードを確認してから反映する
     Route::get('/mypage/email/verify', [EmailChangeController::class, 'showVerify']);
-    Route::post('/mypage/email/verify', [EmailChangeController::class, 'verify']);
-    Route::post('/mypage/email/resend', [EmailChangeController::class, 'resend']);
+    Route::post('/mypage/email/verify', [EmailChangeController::class, 'verify'])
+        ->middleware('throttle:auth-password');
+    Route::post('/mypage/email/resend', [EmailChangeController::class, 'resend'])
+        ->middleware('throttle:auth-password');
     Route::post('/mypage/email/cancel', [EmailChangeController::class, 'cancel']);
 
     Route::middleware(EnsureFeature::class.':finance')->group(function () {
@@ -426,14 +452,24 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/ai/llm', [AiLlmSettingsController::class, 'update']);
             Route::post('/settings/ai/llm/test', [AiLlmSettingsController::class, 'test']);
             Route::post('/settings/ai/llm/models', [AiLlmSettingsController::class, 'models']);
-            Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
-            Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
             Route::post('/settings/ai/workers-ai', [WorkersAiSettingsController::class, 'update']);
             Route::post('/settings/ai/workers-ai/test', [WorkersAiSettingsController::class, 'test']);
             Route::post('/settings/ai/workers-ai/models', [WorkersAiSettingsController::class, 'models']);
             Route::post('/settings/ai/usage/refresh', [AiProviderUsageController::class, 'refresh']);
             Route::post('/settings/limits', [UsageLimitSettingsController::class, 'update'])
                 ->middleware(RequireSuperAdmin::class);
+
+            Route::post('/settings/sales/legal', [CommercialSettingsController::class, 'updateLegal'])
+                ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/sales/stripe', [CommercialSettingsController::class, 'updateStripe'])
+                ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/sales/stripe/test', [CommercialSettingsController::class, 'testStripe'])
+                ->middleware(RequireSuperAdmin::class);
+
+            Route::post('/settings/api/youtube', [YoutubeSettingsController::class, 'update']);
+            Route::post('/settings/api/youtube/test', [YoutubeSettingsController::class, 'test']);
+            Route::post('/settings/ai/youtube', [YoutubeSettingsController::class, 'update']);
+            Route::post('/settings/ai/youtube/test', [YoutubeSettingsController::class, 'test']);
 
             Route::post('/settings/api/google-maps', [GoogleMapsSettingsController::class, 'update']);
             Route::post('/settings/api/google-maps/test', [GoogleMapsSettingsController::class, 'test']);

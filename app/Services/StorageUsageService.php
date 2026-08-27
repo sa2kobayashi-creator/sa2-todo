@@ -62,6 +62,13 @@ class StorageUsageService
             return 0;
         }
 
+        // data_length / index_length は MySQL 系にしかない列
+        if ($driver === 'pgsql') {
+            $row = DB::selectOne('SELECT pg_database_size(?) AS bytes', [$database]);
+
+            return (int) ($row->bytes ?? 0);
+        }
+
         $row = DB::selectOne(
             'SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes
              FROM information_schema.tables

@@ -3752,6 +3752,10 @@ class PhotoService
         string $tempPublicId,
         ?string $label = null
     ): array {
+        if ($tempPublicId !== '') {
+            $this->assertOwnedEditTempAsset($userId, $photoId, $tempPublicId);
+        }
+
         $created = $this->saveEditedImageFromUrl($userId, $photoId, $exportUrl, $label);
         if ($tempPublicId !== '') {
             $this->cloudinary->deletePhoto($tempPublicId, 'image');
@@ -3761,10 +3765,29 @@ class PhotoService
         return $created;
     }
 
-    public function cancelCloudinaryEdit(string $tempPublicId): void
+    public function cancelCloudinaryEdit(int $userId, int $photoId, string $tempPublicId): void
     {
-        if ($tempPublicId !== '') {
-            $this->cloudinary->deletePhoto($tempPublicId, 'image');
+        if ($tempPublicId === '') {
+            return;
+        }
+        $this->assertOwnedEditTempAsset($userId, $photoId, $tempPublicId);
+
+        $this->cloudinary->deletePhoto($tempPublicId, 'image');
+    }
+
+    /**
+     * 一時アセット名は startEditSession が `.../edit_tmp/photo_{id}_{random}` で作る。
+     * 自分の写真に対応する名前でなければ触らせない（他人の編集セッションの削除を防ぐ）。
+     */
+    private function assertOwnedEditTempAsset(int $userId, int $photoId, string $tempPublicId): void
+    {
+        $owned = Photo::query()->where('user_id', $userId)->whereKey($photoId)->exists();
+        if (! $owned) {
+            throw new \InvalidArgumentException(__('写真が見つかりません'));
+        }
+
+        if (! preg_match('#(?:^|/)edit_tmp/photo_'.$photoId.'_[a-z0-9]+$#', $tempPublicId)) {
+            throw new \InvalidArgumentException(__('編集セッションが一致しません。'));
         }
     }
 

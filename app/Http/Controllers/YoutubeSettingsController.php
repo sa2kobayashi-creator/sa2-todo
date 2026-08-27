@@ -20,7 +20,7 @@ class YoutubeSettingsController extends Controller
         );
 
         return $this->redirectWithMessage(
-            '/settings?section=ai#youtube-api-settings',
+            '/settings?section=enhance#youtube-api-settings',
             __('YouTube検索設定を保存しました。')
         );
     }

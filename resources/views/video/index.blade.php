@@ -6,50 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1a73e8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    {{-- YouTube 埋め込みは Referer 必須（no-referrer / same-origin だと映像が落ちることがある） --}}
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>{{ __('動画') }} - {{ config('app.name') }}</title>
     @include('partials.app-css')
   </head>
   <body class="media-player-page video-page">
     @include('partials.header', ['active' => 'video'])
+    @php
+      $nowPlaying = $nowPlaying ?? null;
+      $searchQuery = $searchQuery ?? '';
+      $searchResults = $searchResults ?? [];
+      $popular = $popular ?? [];
+      $playingSource = is_array($nowPlaying) ? (string) ($nowPlaying['source'] ?? '') : '';
+    @endphp
     <main class="page-main media-player-main">
       @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
       @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
 
-      {{-- 検索結果をスクロールしても常に見えるよう、画面上部に固定 --}}
-      <section class="panel media-player-stage media-player-stage-video" id="video-player-stage">
-        <div class="media-video-frame" id="video-local-wrap">
-          <video id="video-player" controls playsinline preload="metadata" class="media-video-el"></video>
-        </div>
-        <div class="media-video-frame media-youtube-frame" id="video-youtube-wrap" hidden>
-          <iframe
-            id="youtube-player"
-            class="media-youtube-el"
-            title="YouTube"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-            allowfullscreen
-            referrerpolicy="strict-origin-when-cross-origin"
-          ></iframe>
-        </div>
-        <div class="media-now-playing">
-          <div class="media-now-playing-text">
-            <strong id="video-now-title">{{ __('動画を選択してください') }}</strong>
-            <span class="hint" id="video-now-meta"></span>
-          </div>
-          <div class="media-transport" id="video-transport" hidden>
-            <button type="button" class="secondary" id="video-btn-pause">{{ __('一時停止') }}</button>
-            <button type="button" class="secondary" id="video-btn-resume" hidden>{{ __('再生') }}</button>
-            <button type="button" class="secondary" id="video-btn-stop">{{ __('停止') }}</button>
-          </div>
-        </div>
-      </section>
-      <div class="media-player-stage-spacer" id="video-player-spacer" aria-hidden="true"></div>
-
       <section class="panel media-player-hero">
         <div>
           <h1 class="media-player-title">{{ __('動画') }}</h1>
-          <p class="hint">{{ __('YouTube検索・リンク貼り付け・動画アップロード（MP4 / MOV）で再生できます。検索結果はライブラリに追加しなくてもプレビュー再生できます。') }}</p>
+          <p class="hint">{{ __('キーワードで YouTube を探すか、YouTube / TikTok のURLを貼ってすぐ再生できます。結果はライブラリに入れなくてもプレビューできます。') }}</p>
         </div>
         <div class="media-video-add-actions">
           <form method="post" action="/video" enctype="multipart/form-data" class="media-upload-form">
@@ -64,48 +41,123 @@
         </div>
       </section>
 
+      <section
+        class="panel media-player-stage media-player-stage-video {{ $nowPlaying ? 'is-playing' : 'is-idle' }}"
+        id="video-player-stage"
+      >
+        @if(is_array($nowPlaying) && $playingSource === 'upload')
+          <div class="media-video-frame" id="video-local-wrap">
+            <video
+              id="video-player"
+              class="media-video-el"
+              src="{{ $nowPlaying['url'] ?? '' }}"
+              controls
+              playsinline
+              autoplay
+            ></video>
+          </div>
+        @elseif(is_array($nowPlaying) && $playingSource === 'tiktok')
+          <div class="media-video-frame media-tiktok-frame" id="video-tiktok-wrap">
+            <iframe
+              id="tiktok-player"
+              class="media-tiktok-el"
+              title="{{ $nowPlaying['title'] ?? 'TikTok' }}"
+              src="{{ $nowPlaying['embedUrl'] ?? '' }}"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+            ></iframe>
+          </div>
+        @elseif(is_array($nowPlaying))
+          <div class="media-video-frame media-youtube-frame" id="video-youtube-wrap">
+            <iframe
+              id="youtube-player"
+              class="media-youtube-el"
+              title="{{ $nowPlaying['title'] ?? 'YouTube' }}"
+              src="{{ $nowPlaying['embedUrl'] ?? '' }}"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+              allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+            ></iframe>
+          </div>
+        @endif
+        <div class="media-now-playing">
+          <div class="media-now-playing-text">
+            <strong id="video-now-title">{{ is_array($nowPlaying) ? ($nowPlaying['title'] ?? __('再生中')) : __('動画を選択してください') }}</strong>
+            <span class="hint" id="video-now-meta">
+              @if(is_array($nowPlaying))
+                {{ $playingSource === 'upload' ? __('アップロード') : ($playingSource === 'tiktok' ? 'TikTok' : 'YouTube') }}
+              @endif
+            </span>
+          </div>
+        </div>
+      </section>
+
       <section class="panel media-youtube-search-panel" id="youtube-search-panel">
-        <h2 class="media-list-title">{{ __('YouTubeで探す') }}</h2>
-        <p class="hint">{{ __('結果をタップでプレビュー再生。保存する場合は「ライブラリに追加」を押してください。') }}</p>
+        <h2 class="media-list-title">{{ __('探す・再生する') }}</h2>
+        <p class="hint">{{ __('キーワード検索は YouTube。URL なら YouTube も TikTok もそのまま再生します（TikTok の検索用APIは使いません）。') }}</p>
         @if(empty($youtubeSearchReady))
           <p class="hint">
-            {{ __('検索を使うには YouTube Data API キーが必要です。') }}
-            <a href="/settings?section=ai#youtube-api-settings">{{ __('AI設定へ') }}</a>
+            {{ __('キーワードで探すには YouTube Data API キーが必要です。URL の貼り付け再生はキーなしで使えます。') }}
+            <a href="/settings?section=enhance#youtube-api-settings">{{ __('API設定へ') }}</a>
           </p>
         @endif
-        <form class="media-youtube-search-form" id="youtube-search-form">
+        <form class="media-youtube-search-form" id="youtube-search-form" method="get" action="/video">
+          <input type="hidden" name="library" value="{{ $currentLibraryId }}" />
           <input
             type="search"
             id="youtube-search-q"
             name="q"
-            placeholder="{{ __('キーワードで検索（例: ジャズ ライブ）') }}"
+            value="{{ $searchQuery }}"
+            placeholder="{{ __('キーワード、または YouTube / TikTok のURL') }}"
             autocomplete="off"
-            @disabled(empty($youtubeSearchReady))
           />
-          <button type="submit" class="button-link" @disabled(empty($youtubeSearchReady))>{{ __('検索') }}</button>
+          <button type="submit" class="button-link">{{ __('検索') }}</button>
         </form>
-        <p class="hint" id="youtube-search-status" aria-live="polite"></p>
-        <div class="media-youtube-results" id="youtube-search-results" hidden></div>
-        <div class="media-youtube-pager" id="youtube-search-pager" hidden>
-          <button type="button" class="secondary" id="youtube-search-prev" hidden>{{ __('前へ') }}</button>
-          <button type="button" class="secondary" id="youtube-search-next" hidden>{{ __('次へ') }}</button>
-        </div>
+        @if($searchQuery !== '')
+          <p class="hint {{ !empty($searchIsError) ? 'is-error' : '' }}" id="youtube-search-status">{{ $searchMessage }}</p>
+          @if($searchResults !== [])
+            <div class="media-youtube-results" id="youtube-search-results">
+              @include('video.partials.cards', ['items' => $searchResults, 'libraryId' => $currentLibraryId])
+            </div>
+          @endif
+          @if(!empty($searchPrevUrl) || !empty($searchNextUrl))
+            <nav class="media-youtube-pager" id="youtube-search-pager" aria-label="{{ __('検索結果のページ') }}">
+              @if(!empty($searchPrevUrl))
+                <a class="button-link secondary" href="{{ $searchPrevUrl }}">{{ __('‹ 前へ') }}</a>
+              @endif
+              <span class="media-pager-status">{{ $searchMessage }}</span>
+              @if(!empty($searchNextUrl))
+                <a class="button-link secondary" href="{{ $searchNextUrl }}">{{ __('次へ ›') }}</a>
+              @endif
+            </nav>
+          @endif
+        @endif
+        @if($popular !== [])
+          <div id="youtube-popular-wrap">
+            <h3 class="media-list-subtitle">{{ __('人気の動画') }}</h3>
+            <p class="hint">{{ __('日本でよく見られている YouTube。タップですぐ再生できます。') }}</p>
+            <div class="media-youtube-results" id="youtube-popular-results">
+              @include('video.partials.cards', ['items' => $popular, 'libraryId' => $currentLibraryId])
+            </div>
+          </div>
+        @endif
       </section>
 
       <section class="panel media-youtube-add">
-        <h2 class="media-list-title">{{ __('YouTubeリンクを追加') }}</h2>
+        <h2 class="media-list-title">{{ __('リンクをライブラリに保存') }}</h2>
         <form method="post" action="/video/youtube" class="media-youtube-form">
           @csrf
           <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
           <input type="hidden" name="library_id" value="{{ $currentLibraryId }}" />
           <label>
-            {{ __('YouTube URL') }}
+            {{ __('YouTube / TikTok URL') }}
             <input
               type="url"
               name="youtube_url"
               class="media-field-input"
               required
-              placeholder="https://www.youtube.com/watch?v=... または https://youtu.be/..."
+              placeholder="https://www.youtube.com/watch?v=...  /  https://www.tiktok.com/@.../video/..."
               autocomplete="off"
             />
           </label>
@@ -161,21 +213,24 @@
           <p class="hint">{{ __('マイリストにはアップロードした動画も表示されます。') }}</p>
         @endif
 
-        <h3 class="media-list-subtitle">{{ $currentLibrary['name'] ?? __('マイリスト') }}</h3>
+        <h3 class="media-list-subtitle" id="library-list-panel">{{ $currentLibrary['name'] ?? __('マイリスト') }}</h3>
         @if(count($playlist) === 0)
-          <p class="hint">{{ __('このライブラリに動画がありません。') }}</p>
+          <p class="hint">{{ ($libraryFilter ?? '') !== '' ? __('一致する動画がありません。') : __('このライブラリに動画がありません。') }}</p>
         @else
+          <form method="get" action="/video" class="media-library-filter">
+            <input type="hidden" name="library" value="{{ $currentLibraryId }}" />
+            <label class="media-library-filter-label">
+              {{ __('ライブラリ内を絞り込み') }}
+              <input type="search" id="library-filter-q" name="lq" class="media-field-input" value="{{ $libraryFilter ?? '' }}" placeholder="{{ __('タイトルで絞り込み') }}" autocomplete="off" />
+            </label>
+            <button type="submit" class="secondary">{{ __('絞り込み') }}</button>
+          </form>
           <ul class="media-track-list media-video-list" id="video-track-list">
             @foreach($playlist as $index => $item)
-              <li class="media-track-item" data-index="{{ $index }}">
-                <button
-                  type="button"
-                  class="media-track-play media-video-play"
-                  data-source="{{ $item['source'] }}"
-                  data-url="{{ $item['url'] ?? '' }}"
-                  data-embed="{{ $item['embedUrl'] ?? '' }}"
-                  data-title="{{ $item['title'] }}"
-                  data-meta="{{ $item['meta'] ?? ($item['createdAt'] ?? '') }}"
+              <li class="media-track-item" data-index="{{ $index }}" data-title="{{ $item['title'] }}">
+                <a
+                  class="media-track-play media-video-play {{ is_array($nowPlaying) && ($nowPlaying['source'] ?? '') === ($item['source'] ?? '') && (string) ($nowPlaying['youtubeId'] ?? $nowPlaying['id'] ?? '') === (string) ($item['youtubeId'] ?? $item['id'] ?? '') ? 'is-active' : '' }}"
+                  href="{{ $item['playHref'] }}"
                 >
                   <span class="media-video-thumb" aria-hidden="true">
                     @if(!empty($item['thumbUrl']))
@@ -189,6 +244,8 @@
                     <span class="hint">
                       @if(($item['source'] ?? '') === 'youtube')
                         YouTube
+                      @elseif(($item['source'] ?? '') === 'tiktok')
+                        TikTok
                       @else
                         {{ __('アップロード') }}
                       @endif
@@ -197,12 +254,12 @@
                       @endif
                     </span>
                   </span>
-                </button>
-                @if(($item['source'] ?? '') === 'youtube')
+                </a>
+                @if(in_array($item['source'] ?? '', ['youtube', 'tiktok'], true))
                   @if(count($libraries) > 1)
                     <form method="post" action="/video/youtube/{{ $item['id'] }}/move" class="media-move-form">
                       @csrf
-                      <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+                      <input type="hidden" name="returnTo" value="{{ $libraryReturnTo }}" />
                       <select name="library_id" aria-label="{{ __('移動先') }}" onchange="this.form.submit()">
                         <option value="">{{ __('移動…') }}</option>
                         @foreach($libraries as $lib)
@@ -213,9 +270,9 @@
                       </select>
                     </form>
                   @endif
-                  <form method="post" action="/video/youtube/{{ $item['id'] }}/delete" onsubmit='return confirm(@json(__('このYouTube動画を削除しますか？')))'>
+                  <form method="post" action="/video/youtube/{{ $item['id'] }}/delete" onsubmit='return confirm(@json(__('この動画をライブラリから削除しますか？')))'>
                     @csrf
-                    <input type="hidden" name="returnTo" value="/video?library={{ $currentLibraryId }}" />
+                    <input type="hidden" name="returnTo" value="{{ $libraryReturnTo }}" />
                     <button type="submit" class="text-btn danger">{{ __('削除') }}</button>
                   </form>
                 @else
@@ -224,390 +281,25 @@
               </li>
             @endforeach
           </ul>
+          @if(($libraryTotalPages ?? 1) > 1)
+            <nav class="media-youtube-pager" id="library-pager" aria-label="{{ __('ライブラリのページ') }}">
+              @if(!empty($libraryPrevUrl))
+                <a class="button-link secondary" href="{{ $libraryPrevUrl }}">{{ __('‹ 前へ') }}</a>
+              @endif
+              <span class="media-pager-status">{{ $libraryPageLabel }}</span>
+              @if(!empty($libraryNextUrl))
+                <a class="button-link secondary" href="{{ $libraryNextUrl }}">{{ __('次へ ›') }}</a>
+              @endif
+            </nav>
+          @endif
         @endif
       </section>
     </main>
     <script>
       (function () {
-        const videoCfg = {
-          csrf: document.querySelector('meta[name="csrf-token"]')?.content || '',
-          searchReady: @json(!empty($youtubeSearchReady)),
-          libraryId: @json((int) $currentLibraryId),
-          strings: {
-            searching: @json(__('検索中…')),
-            noResults: @json(__('該当する動画がありません。')),
-            searchFailed: @json(__('検索に失敗しました。')),
-            showingCount: @json(__(':count件表示')),
-            play: @json(__('再生')),
-            preview: @json(__('プレビュー')),
-            save: @json(__('ライブラリに追加')),
-            saved: @json(__('追加しました')),
-            saveFailed: @json(__('追加に失敗しました')),
-            notReady: @json(__('YouTube検索が未設定です。')),
-            previewHint: @json(__('プレビュー再生中（ライブラリ未追加）')),
-          },
-        };
-        const csrf = videoCfg.csrf
-        const player = document.getElementById('video-player')
-        const youtube = document.getElementById('youtube-player')
-        const localWrap = document.getElementById('video-local-wrap')
-        const youtubeWrap = document.getElementById('video-youtube-wrap')
-        const stageEl = document.getElementById('video-player-stage')
-        const spacerEl = document.getElementById('video-player-spacer')
-        const titleEl = document.getElementById('video-now-title')
-        const metaEl = document.getElementById('video-now-meta')
-        const transportEl = document.getElementById('video-transport')
-        const btnPause = document.getElementById('video-btn-pause')
-        const btnResume = document.getElementById('video-btn-resume')
-        const btnStop = document.getElementById('video-btn-stop')
-        const buttons = () => [...document.querySelectorAll('.media-video-play')]
         const uploadInput = document.querySelector('.media-upload-form input[type="file"]')
-        const searchReady = Boolean(videoCfg.searchReady)
-        const strings = videoCfg.strings
-        let activeSource = null // 'youtube' | 'upload' | null
-        let isPaused = false
-
         uploadInput?.addEventListener('change', () => {
           if (uploadInput.files?.length) uploadInput.closest('form')?.submit()
-        })
-
-        function syncPlayerDock() {
-          const header = document.querySelector('.site-header')
-          const headerH = header ? Math.ceil(header.getBoundingClientRect().height) : 56
-          document.documentElement.style.setProperty('--site-header-offset', headerH + 'px')
-          if (stageEl && spacerEl) {
-            spacerEl.style.height = Math.ceil(stageEl.getBoundingClientRect().height) + 'px'
-          }
-        }
-
-        function focusStage() {
-          syncPlayerDock()
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-        }
-
-        syncPlayerDock()
-        window.addEventListener('resize', syncPlayerDock)
-        if (stageEl && typeof ResizeObserver !== 'undefined') {
-          new ResizeObserver(syncPlayerDock).observe(stageEl)
-        }
-
-        function setTransportVisible(visible) {
-          if (transportEl) transportEl.hidden = !visible
-          setPausedUi(false)
-        }
-
-        function setPausedUi(paused) {
-          isPaused = paused
-          if (btnPause) btnPause.hidden = paused
-          if (btnResume) btnResume.hidden = !paused
-        }
-
-        function ytCommand(func) {
-          if (!youtube?.contentWindow) return
-          try {
-            youtube.contentWindow.postMessage(JSON.stringify({
-              event: 'command',
-              func,
-              args: [],
-            }), '*')
-          } catch (_) {}
-        }
-
-        function stopLocal() {
-          if (!player) return
-          player.pause()
-          player.removeAttribute('src')
-          player.load()
-        }
-
-        function stopYoutube() {
-          if (!youtube) return
-          ytCommand('stopVideo')
-          youtube.removeAttribute('src')
-        }
-
-        function playEmbed(embedUrl, title, meta, opts) {
-          const options = opts || {}
-          stopLocal()
-          if (localWrap) localWrap.hidden = true
-          if (youtubeWrap) youtubeWrap.hidden = false
-          if (titleEl) titleEl.textContent = title || ''
-          if (metaEl) {
-            metaEl.textContent = options.preview
-              ? (strings.previewHint + (meta ? ' · ' + meta : ''))
-              : (meta || '')
-          }
-          activeSource = 'youtube'
-          setTransportVisible(true)
-          focusStage()
-          if (youtube && embedUrl) {
-            try {
-              const u = new URL(embedUrl, window.location.origin)
-              u.searchParams.set('autoplay', '1')
-              u.searchParams.set('playsinline', '1')
-              u.searchParams.set('rel', '0')
-              u.searchParams.set('enablejsapi', '1')
-              u.searchParams.set('controls', '1')
-              u.searchParams.set('fs', '1')
-              if (!u.searchParams.get('origin')) {
-                u.searchParams.set('origin', window.location.origin)
-              }
-              // src を付け直して確実に再読込
-              youtube.src = 'about:blank'
-              requestAnimationFrame(() => {
-                youtube.src = u.toString()
-              })
-            } catch (_) {
-              const join = embedUrl.includes('?') ? '&' : '?'
-              youtube.src = embedUrl + join + 'autoplay=1&playsinline=1&enablejsapi=1&origin=' + encodeURIComponent(window.location.origin)
-            }
-          }
-        }
-
-        function playLocal(url, title, meta) {
-          stopYoutube()
-          if (youtubeWrap) youtubeWrap.hidden = true
-          if (localWrap) localWrap.hidden = false
-          if (titleEl) titleEl.textContent = title || ''
-          if (metaEl) metaEl.textContent = meta || ''
-          activeSource = 'upload'
-          setTransportVisible(true)
-          focusStage()
-          if (player) {
-            player.src = url || ''
-            player.play().catch(() => {})
-          }
-        }
-
-        function pausePlayback() {
-          if (activeSource === 'youtube') {
-            ytCommand('pauseVideo')
-            setPausedUi(true)
-            return
-          }
-          if (activeSource === 'upload' && player) {
-            player.pause()
-            setPausedUi(true)
-          }
-        }
-
-        function resumePlayback() {
-          if (activeSource === 'youtube') {
-            ytCommand('playVideo')
-            setPausedUi(false)
-            return
-          }
-          if (activeSource === 'upload' && player) {
-            player.play().catch(() => {})
-            setPausedUi(false)
-          }
-        }
-
-        function stopPlayback() {
-          stopLocal()
-          stopYoutube()
-          if (youtubeWrap) youtubeWrap.hidden = true
-          if (localWrap) localWrap.hidden = false
-          activeSource = null
-          setTransportVisible(false)
-          if (titleEl) titleEl.textContent = @json(__('動画を選択してください'))
-          if (metaEl) metaEl.textContent = ''
-          buttons().forEach((b) => b.classList.remove('is-active'))
-        }
-
-        btnPause?.addEventListener('click', pausePlayback)
-        btnResume?.addEventListener('click', resumePlayback)
-        btnStop?.addEventListener('click', stopPlayback)
-        player?.addEventListener('pause', () => {
-          if (activeSource === 'upload' && player && !player.ended) setPausedUi(true)
-        })
-        player?.addEventListener('play', () => {
-          if (activeSource === 'upload') setPausedUi(false)
-        })
-
-        function playAt(index) {
-          const list = buttons()
-          const btn = list[index]
-          if (!btn) return
-          list.forEach((b) => b.classList.toggle('is-active', b === btn))
-          const source = btn.dataset.source || 'upload'
-          if (source === 'youtube') {
-            playEmbed(btn.dataset.embed || '', btn.dataset.title || '', btn.dataset.meta || '')
-            return
-          }
-          playLocal(btn.dataset.url || '', btn.dataset.title || '', btn.dataset.meta || '')
-        }
-
-        document.getElementById('video-track-list')?.addEventListener('click', (e) => {
-          const btn = e.target.closest('.media-video-play')
-          if (!btn) return
-          const list = buttons()
-          const index = list.indexOf(btn)
-          if (index >= 0) playAt(index)
-        })
-
-        player?.addEventListener('ended', () => {
-          const list = buttons()
-          const current = list.findIndex((b) => b.classList.contains('is-active'))
-          if (current >= 0 && current < list.length - 1) playAt(current + 1)
-        })
-
-        // --- YouTube search ---
-        const searchForm = document.getElementById('youtube-search-form')
-        const searchInput = document.getElementById('youtube-search-q')
-        const statusEl = document.getElementById('youtube-search-status')
-        const resultsEl = document.getElementById('youtube-search-results')
-        const pagerEl = document.getElementById('youtube-search-pager')
-        const prevBtn = document.getElementById('youtube-search-prev')
-        const nextBtn = document.getElementById('youtube-search-next')
-        let lastQuery = ''
-        let nextPageToken = null
-        let prevPageToken = null
-
-        function setStatus(msg, isError) {
-          if (!statusEl) return
-          statusEl.textContent = msg || ''
-          statusEl.classList.toggle('is-error', Boolean(isError && msg))
-        }
-
-        function renderResults(items) {
-          if (!resultsEl) return
-          resultsEl.innerHTML = ''
-          if (!items.length) {
-            resultsEl.hidden = true
-            return
-          }
-          resultsEl.hidden = false
-          items.forEach((item) => {
-            const card = document.createElement('article')
-            card.className = 'yt-result-card'
-            card.innerHTML = `
-              <button type="button" class="yt-result-play">
-                <span class="yt-result-thumb"><img alt="" loading="lazy" /></span>
-                <span class="yt-result-copy">
-                  <strong class="yt-result-title"></strong>
-                  <span class="hint yt-result-channel"></span>
-                </span>
-                <span class="yt-result-play-label"></span>
-              </button>
-              <button type="button" class="secondary yt-result-save"></button>
-            `
-            const img = card.querySelector('img')
-            if (img) img.src = item.thumbUrl || ''
-            const title = card.querySelector('.yt-result-title')
-            if (title) title.textContent = item.title || ''
-            const channel = card.querySelector('.yt-result-channel')
-            if (channel) channel.textContent = [item.channelTitle, item.publishedAt].filter(Boolean).join(' · ')
-            const playLabel = card.querySelector('.yt-result-play-label')
-            if (playLabel) playLabel.textContent = '▶ ' + (strings.preview || strings.play)
-            const saveBtn = card.querySelector('.yt-result-save')
-            if (saveBtn) saveBtn.textContent = strings.save
-
-            card.querySelector('.yt-result-play')?.addEventListener('click', () => {
-              // ライブラリ追加なしで上部プレイヤーへプレビュー再生
-              playEmbed(item.embedUrl, item.title, item.channelTitle || '', { preview: true })
-              buttons().forEach((b) => b.classList.remove('is-active'))
-            })
-
-            saveBtn?.addEventListener('click', async () => {
-              saveBtn.disabled = true
-              try {
-                const res = await fetch('/video/youtube', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                    Accept: 'application/json',
-                  },
-                  body: JSON.stringify({
-                    youtube_id: item.youtubeId,
-                    title: item.title,
-                    thumb_url: item.thumbUrl,
-                    library_id: videoCfg.libraryId,
-                  }),
-                })
-                const data = await res.json().catch(() => ({}))
-                if (!res.ok || !data.ok) {
-                  window.alert(data.message || strings.saveFailed)
-                  return
-                }
-                saveBtn.textContent = strings.saved
-                window.location.reload()
-              } catch (_) {
-                window.alert(strings.saveFailed)
-              } finally {
-                saveBtn.disabled = false
-              }
-            })
-
-            resultsEl.appendChild(card)
-          })
-        }
-
-        function updatePager() {
-          if (!pagerEl) return
-          const hasPager = Boolean(nextPageToken || prevPageToken)
-          pagerEl.hidden = !hasPager
-          if (prevBtn) {
-            prevBtn.hidden = !prevPageToken
-            prevBtn.disabled = !prevPageToken
-          }
-          if (nextBtn) {
-            nextBtn.hidden = !nextPageToken
-            nextBtn.disabled = !nextPageToken
-          }
-        }
-
-        async function runSearch(pageToken) {
-          if (!searchReady) {
-            setStatus(strings.notReady, true)
-            return
-          }
-          const q = String(searchInput?.value || '').trim()
-          if (!q) return
-          lastQuery = q
-          setStatus(strings.searching, false)
-          try {
-            const params = new URLSearchParams({ q })
-            if (pageToken) params.set('pageToken', pageToken)
-            const res = await fetch('/video/youtube/search?' + params.toString(), {
-              headers: { Accept: 'application/json' },
-            })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok || !data.ok) {
-              setStatus(data.message || strings.searchFailed, true)
-              renderResults([])
-              nextPageToken = null
-              prevPageToken = null
-              updatePager()
-              return
-            }
-            const items = Array.isArray(data.items) ? data.items : []
-            nextPageToken = data.nextPageToken || null
-            prevPageToken = data.prevPageToken || null
-            updatePager()
-            if (!items.length) {
-              setStatus(strings.noResults, false)
-              renderResults([])
-              return
-            }
-            const total = data.totalResults != null ? `（${Number(data.totalResults).toLocaleString()}）` : ''
-            setStatus((strings.showingCount || ':count件表示').replace(':count', String(items.length)) + total, false)
-            renderResults(items)
-          } catch (_) {
-            setStatus(strings.searchFailed, true)
-          }
-        }
-
-        searchForm?.addEventListener('submit', (e) => {
-          e.preventDefault()
-          runSearch(null)
-        })
-        prevBtn?.addEventListener('click', () => {
-          if (prevPageToken) runSearch(prevPageToken)
-        })
-        nextBtn?.addEventListener('click', () => {
-          if (nextPageToken) runSearch(nextPageToken)
         })
       })()
     </script>

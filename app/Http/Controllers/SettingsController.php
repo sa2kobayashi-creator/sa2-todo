@@ -15,12 +15,14 @@ use App\Services\GoogleMapsConfigService;
 use App\Services\GoogleRoutesConfigService;
 use App\Services\HolidayService;
 use App\Services\IntegrationUsageService;
+use App\Services\LegalConfigService;
 use App\Services\LineMessagingService;
 use App\Services\LiveKitConfigService;
 use App\Services\MediaStorageConfigService;
 use App\Services\MessengerMessagingService;
 use App\Services\NavitimeConfigService;
 use App\Services\PhotoService;
+use App\Services\StripeConfigService;
 use App\Services\Transit\RouteSearchService;
 use App\Services\UsageLimitPolicyService;
 use App\Services\UserUsageLimitService;
@@ -28,6 +30,7 @@ use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
 use App\Support\FooterNav;
+use App\Support\ServerRuntimeStatus;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
@@ -49,12 +52,14 @@ class SettingsController extends Controller
         private RouteSearchService $routeSearch,
         private GoogleCalendarConfigService $googleCalendarOauth,
         private LineMessagingService $lineMessaging,
+        private LegalConfigService $legalConfig,
         private MessengerMessagingService $messengerMessaging,
         private LiveKitConfigService $livekit,
         private WebPushService $webPush,
         private WebPushConfigService $webPushConfig,
         private IntegrationUsageService $integrationUsage,
         private PhotoService $photos,
+        private StripeConfigService $stripeConfig,
         private UsageLimitPolicyService $usageLimits,
         private UserUsageLimitService $userUsageLimits,
     ) {}
@@ -66,6 +71,9 @@ class SettingsController extends Controller
         $isSuperAdmin = (bool) $request->user()?->isSuperAdmin();
         if ($section === 'limits' && ! $isSuperAdmin) {
             $section = 'usage';
+        }
+        if ($section === 'sales' && ! $isSuperAdmin) {
+            $section = 'holidays';
         }
         $messagingSection = in_array($section, ['integration', 'notifications'], true);
 
@@ -109,7 +117,7 @@ class SettingsController extends Controller
                 : [],
             'llmSettings' => $section === 'ai' ? $this->aiLlm->formState() : null,
             'workersAiSettings' => $section === 'ai' ? $this->workersAi->formState() : null,
-            'youtubeSettings' => $section === 'ai' ? $this->youtube->formState() : null,
+            'youtubeSettings' => $section === 'enhance' ? $this->youtube->formState() : null,
             'storageR2' => $section === 'storage' ? $this->safeStorageFormState('r2') : null,
             'storageCloudinary' => $section === 'storage' ? $this->safeStorageFormState('cloudinary') : null,
             'storageBackblaze' => $section === 'storage' ? $this->safeStorageFormState('backblaze') : null,
@@ -133,6 +141,9 @@ class SettingsController extends Controller
             'webPushSettings' => $section === 'integration'
                 ? $this->webPushConfig->formState()
                 : null,
+            'legalSettings' => $section === 'sales' ? $this->legalConfig->formState() : null,
+            'stripeSettings' => $section === 'sales' ? $this->stripeConfig->formState() : null,
+            'serverRuntime' => $section === 'sales' ? ServerRuntimeStatus::formState() : null,
             'footerNavSelected' => $section === 'nav'
                 ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())
                 : null,
@@ -227,7 +238,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage', 'limits'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage', 'limits', 'sales'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

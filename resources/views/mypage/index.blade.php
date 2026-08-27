@@ -63,7 +63,10 @@
       @php $plan = $planSummary ?? []; @endphp
       <div class="panel" id="plan-summary">
         <h2>{{ __('プラン・容量') }}</h2>
-        <p class="hint">{{ __('契約状態とストレージ・メールオプションの確認です。変更は管理者にお問い合わせください。') }}</p>
+        <p class="hint">
+          {{ __('契約状態とストレージ・メールオプションの確認です。') }}
+          <a href="/mypage/plan">{{ __('プラン・お支払い') }}</a>
+        </p>
         <dl class="plan-summary-grid">
           <div class="plan-summary-card">
             <dt>{{ __('契約状態') }}</dt>

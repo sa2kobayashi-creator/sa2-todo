@@ -156,6 +156,33 @@
     return points
   }
 
+  // Routes API の instructions は HTML 断片で返る。太字などは残しつつ、
+  // 属性とタグの許可リストで絞ってから差し込む
+  const ALLOWED_STEP_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'SPAN', 'DIV', 'BR', 'WBR'])
+
+  function appendSanitizedHtml(target, html) {
+    const parsed = new DOMParser().parseFromString(String(html), 'text/html')
+
+    const copy = (from, to) => {
+      from.childNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          to.appendChild(document.createTextNode(node.nodeValue))
+          return
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return
+        if (!ALLOWED_STEP_TAGS.has(node.tagName)) {
+          copy(node, to)
+          return
+        }
+        const clean = document.createElement(node.tagName.toLowerCase())
+        copy(node, clean)
+        to.appendChild(clean)
+      })
+    }
+
+    copy(parsed.body, target)
+  }
+
   function renderCustomSteps(steps) {
     if (!directionsSteps) return
     directionsSteps.innerHTML = ''
@@ -165,7 +192,7 @@
       if (step.text) {
         item.textContent = step.text
       } else if (step.instructions) {
-        item.innerHTML = step.instructions
+        appendSanitizedHtml(item, step.instructions)
       }
       directionsSteps.appendChild(item)
     })

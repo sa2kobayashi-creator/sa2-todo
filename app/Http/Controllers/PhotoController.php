@@ -873,7 +873,11 @@ class PhotoController extends Controller
     public function cloudinaryEditCancel(Request $request, int $id)
     {
         $tempPublicId = (string) $request->input('tempPublicId', '');
-        $this->photos->cancelCloudinaryEdit($tempPublicId);
+        try {
+            $this->photos->cancelCloudinaryEdit((int) $request->user()->id, $id, $tempPublicId);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['ok' => true]);
     }

@@ -19,4 +19,12 @@ return [
     /** 0 なら月額×yearly_maintenance_months_charged */
     'tenant_yearly_yen' => (int) env('COMMERCIAL_TENANT_YEARLY_YEN', 0),
     'tenant_trial_days' => (int) env('COMMERCIAL_TENANT_TRIAL_DAYS', 30),
+    /** 個人向け Standard。TOP・特商法表記・（将来）Stripe の価格はここを唯一の出所にする */
+    'standard_yen_monthly' => (int) env('COMMERCIAL_STANDARD_MONTHLY_YEN', 980),
+    'standard_yen_yearly' => (int) env('COMMERCIAL_STANDARD_YEARLY_YEN', 9800),
+    'standard_trial_days' => (int) env('COMMERCIAL_STANDARD_TRIAL_DAYS', 14),
+    /** ストレージ超過（100GB 単位・月額） */
+    'storage_overage_yen_per_100gb' => (int) env('COMMERCIAL_STORAGE_OVERAGE_YEN', 300),
+    /** 表示価格が税込か。消費者向けは総額表示義務があるため既定を税込にする */
+    'prices_include_tax' => (bool) env('COMMERCIAL_PRICES_INCLUDE_TAX', true),
 ];

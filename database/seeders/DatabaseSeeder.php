@@ -53,8 +53,17 @@ class DatabaseSeeder extends Seeder
         $this->resetSequences();
     }
 
+    /**
+     * JSON から id 付きで流し込むと採番だけ取り残されるので、最大 id に合わせ直す。
+     * シーケンスという概念があるのは PostgreSQL だけ。MySQL の AUTO_INCREMENT と
+     * sqlite の rowid は挿入時に自動で追従するため、何もしなくてよい。
+     */
     private function resetSequences(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
         foreach (['users', 'todos', 'notes', 'holiday_entries', 'weekday_rules', 'finance_accounts', 'finance_transactions', 'transit_favorites', 'map_routes'] as $table) {
             DB::statement("SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))");
         }

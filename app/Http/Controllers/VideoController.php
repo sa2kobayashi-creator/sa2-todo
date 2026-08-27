@@ -11,6 +11,8 @@ class VideoController extends Controller
 {
     use Concerns\RedirectsWithFlash;
 
+    public const LIBRARY_PAGE_SIZE = 20;
+
     public function __construct(
         private PhotoService $photos,
         private YoutubeVideoService $youtube,
@@ -67,6 +69,101 @@ class VideoController extends Controller
             }
         }
 
+        $searchQuery = trim((string) $request->query('q', ''));
+        $libraryFilter = trim((string) $request->query('lq', ''));
+        $searchResults = [];
+        $searchMessage = null;
+        $searchIsError = false;
+        $searchNextToken = null;
+        $searchPrevToken = null;
+        $searchTotalResults = null;
+        $pageToken = trim((string) $request->query('pageToken', ''));
+        $nowPlaying = null;
+
+        if ($libraryFilter !== '') {
+            $needle = mb_strtolower($libraryFilter);
+            $playlist = array_values(array_filter(
+                $playlist,
+                static fn (array $item): bool => str_contains(mb_strtolower((string) ($item['title'] ?? '')), $needle)
+            ));
+        }
+
+        if ($searchQuery !== '') {
+            $result = $this->youtube->search($searchQuery, $pageToken !== '' ? $pageToken : null);
+            if (! empty($result['ok'])) {
+                $searchResults = is_array($result['items'] ?? null) ? $result['items'] : [];
+                $searchNextToken = is_string($result['nextPageToken'] ?? null) ? $result['nextPageToken'] : null;
+                $searchPrevToken = is_string($result['prevPageToken'] ?? null) ? $result['prevPageToken'] : null;
+                $searchTotalResults = isset($result['totalResults']) ? (int) $result['totalResults'] : null;
+                $count = count($searchResults);
+                if ($count === 0) {
+                    $searchMessage = __('該当する動画がありません。');
+                } elseif ($searchTotalResults !== null && $searchTotalResults > $count) {
+                    $searchMessage = __(':count件表示（全約:total件）', [
+                        'count' => $count,
+                        'total' => $searchTotalResults,
+                    ]);
+                } else {
+                    $searchMessage = __(':count件表示', ['count' => $count]);
+                }
+                if (! empty($result['direct']) && $searchResults !== []) {
+                    $nowPlaying = $this->withAutoplay($searchResults[0]);
+                }
+            } else {
+                $searchIsError = true;
+                $searchMessage = (string) ($result['message'] ?? __('検索に失敗しました。'));
+            }
+        }
+
+        $searchResults = array_map(
+            fn (array $item): array => [...$item, 'playHref' => $this->playHref($libraryId, $item, array_filter([
+                'q' => $searchQuery !== '' ? $searchQuery : null,
+                'pageToken' => $pageToken !== '' ? $pageToken : null,
+                'lq' => $libraryFilter !== '' ? $libraryFilter : null,
+            ]))],
+            $searchResults
+        );
+
+        $popular = [];
+        if ($this->youtube->isSearchReady() && $searchQuery === '') {
+            $pop = $this->youtube->popularVideos();
+            if (! empty($pop['ok']) && is_array($pop['items'] ?? null)) {
+                $popular = array_map(
+                    fn (array $item): array => [...$item, 'playHref' => $this->playHref($libraryId, $item)],
+                    $pop['items']
+                );
+            }
+        }
+
+        $requested = $this->nowPlayingFromRequest($request, $playlist);
+        if ($requested !== null) {
+            $nowPlaying = $requested;
+        }
+
+        $libraryPaging = $this->paginatePlaylist(
+            $playlist,
+            (int) $request->query('page', 0),
+            is_array($nowPlaying) ? $nowPlaying : null
+        );
+        $libraryPage = (int) $libraryPaging['page'];
+        $libraryTotalPages = (int) $libraryPaging['totalPages'];
+        $sharedQuery = array_filter([
+            'q' => $searchQuery !== '' ? $searchQuery : null,
+            'pageToken' => $pageToken !== '' ? $pageToken : null,
+            'lq' => $libraryFilter !== '' ? $libraryFilter : null,
+        ]);
+        $libraryQuery = array_filter($sharedQuery + [
+            'page' => $libraryPage > 1 ? $libraryPage : null,
+        ]);
+        $searchPagerQuery = $sharedQuery;
+        unset($searchPagerQuery['pageToken']);
+        $playlist = array_map(function (array $item) use ($libraryId, $libraryQuery): array {
+            $item['playHref'] = $this->playHref($libraryId, $item, $libraryQuery);
+
+            return $item;
+        }, $libraryPaging['items']);
+        $libraryReturnTo = $this->videoIndexUrl($libraryId, $libraryQuery);
+
         return view('video.index', [
             'playlist' => $playlist,
             'libraries' => $libraries,
@@ -74,6 +171,35 @@ class VideoController extends Controller
             'currentLibraryId' => $libraryId,
             'youtubeSearchReady' => $this->youtube->isSearchReady(),
             'maxUploadLabel' => $this->formatBytes($this->photos->maxVideoUploadBytes()),
+            'searchQuery' => $searchQuery,
+            'searchResults' => $searchResults,
+            'searchMessage' => $searchMessage,
+            'searchIsError' => $searchIsError,
+            'searchNextUrl' => $searchNextToken
+                ? $this->videoIndexUrl($libraryId, $searchPagerQuery + ['pageToken' => $searchNextToken]).'#youtube-search-panel'
+                : null,
+            'searchPrevUrl' => $searchPrevToken
+                ? $this->videoIndexUrl($libraryId, $searchPagerQuery + ['pageToken' => $searchPrevToken]).'#youtube-search-panel'
+                : null,
+            'popular' => $popular,
+            'nowPlaying' => $nowPlaying,
+            'libraryFilter' => $libraryFilter,
+            'libraryPage' => $libraryPage,
+            'libraryTotalPages' => $libraryTotalPages,
+            'libraryPageLabel' => $libraryPaging['total'] === 0
+                ? ''
+                : __(':from–:to / :total件', [
+                    'from' => $libraryPaging['from'],
+                    'to' => $libraryPaging['to'],
+                    'total' => $libraryPaging['total'],
+                ]),
+            'libraryPrevUrl' => $libraryPage > 1
+                ? $this->videoIndexUrl($libraryId, $sharedQuery + ['page' => $libraryPage - 1]).'#library-list-panel'
+                : null,
+            'libraryNextUrl' => $libraryPage < $libraryTotalPages
+                ? $this->videoIndexUrl($libraryId, $sharedQuery + ['page' => $libraryPage + 1]).'#library-list-panel'
+                : null,
+            'libraryReturnTo' => $libraryReturnTo,
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -120,6 +246,13 @@ class VideoController extends Controller
         return response()->json($result, ! empty($result['ok']) ? 200 : 422);
     }
 
+    public function popularYoutube(): JsonResponse
+    {
+        $result = $this->youtube->popularVideos();
+
+        return response()->json($result, ! empty($result['ok']) ? 200 : 422);
+    }
+
     public function storeYoutube(Request $request)
     {
         $libraryId = (int) $request->input('library_id', 0) ?: null;
@@ -133,6 +266,8 @@ class VideoController extends Controller
         $url = trim((string) $request->input('youtube_url', ''));
         $title = trim((string) $request->input('title', ''));
         $thumb = trim((string) $request->input('thumb_url', ''));
+        $source = trim((string) $request->input('source', ''));
+        $provider = $source === 'tiktok' ? 'tiktok' : 'youtube';
 
         try {
             if ($youtubeId !== '') {
@@ -141,7 +276,8 @@ class VideoController extends Controller
                     $youtubeId,
                     $title !== '' ? $title : null,
                     $thumb !== '' ? $thumb : null,
-                    $libraryId
+                    $libraryId,
+                    $provider
                 );
             } else {
                 $item = $this->youtube->addFromUrl(
@@ -159,15 +295,19 @@ class VideoController extends Controller
             return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
         }
 
+        $savedMessage = (($item['source'] ?? '') === 'tiktok')
+            ? __('TikTok動画を追加しました。')
+            : __('YouTube動画を追加しました。');
+
         if ($wantsJson) {
             return response()->json([
                 'ok' => true,
-                'message' => __('YouTube動画を追加しました。'),
+                'message' => $savedMessage,
                 'item' => $item,
             ]);
         }
 
-        return $this->redirectWithMessage($returnTo, __('YouTube動画を追加しました。'));
+        return $this->redirectWithMessage($returnTo, $savedMessage);
     }
 
     public function destroyYoutube(Request $request, int $id)
@@ -238,6 +378,174 @@ class VideoController extends Controller
         }
 
         return $this->redirectWithMessage($returnTo, __('ライブラリへ移動しました。'));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $playlist
+     * @return array<string, mixed>|null
+     */
+    private function nowPlayingFromRequest(Request $request, array $playlist): ?array
+    {
+        $play = trim((string) $request->query('play', ''));
+        if ($play === '') {
+            return null;
+        }
+        $src = trim((string) $request->query('src', 'youtube'));
+        if ($src === '') {
+            $src = 'youtube';
+        }
+
+        foreach ($playlist as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $itemSrc = (string) ($item['source'] ?? '');
+            if ($itemSrc !== $src) {
+                continue;
+            }
+            if ($src === 'upload' && (string) ($item['id'] ?? '') === $play) {
+                return $item;
+            }
+            if ((string) ($item['youtubeId'] ?? '') === $play) {
+                return $this->withAutoplay($item);
+            }
+        }
+
+        if ($src === 'tiktok' && preg_match('/^\d{5,32}$/', $play)) {
+            return $this->withAutoplay([
+                'source' => 'tiktok',
+                'youtubeId' => $play,
+                'title' => 'TikTok '.$play,
+                'embedUrl' => $this->youtube->tiktokEmbedUrlFor($play, true),
+                'url' => 'https://www.tiktok.com/video/'.$play,
+            ]);
+        }
+
+        if ($src === 'youtube' && preg_match('/^[A-Za-z0-9_-]{6,32}$/', $play)) {
+            return $this->withAutoplay([
+                'source' => 'youtube',
+                'youtubeId' => $play,
+                'title' => 'YouTube '.$play,
+                'embedUrl' => $this->youtube->embedUrlFor($play, true),
+                'url' => 'https://www.youtube.com/watch?v='.$play,
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function withAutoplay(array $item): array
+    {
+        $source = (string) ($item['source'] ?? 'youtube');
+        $id = (string) ($item['youtubeId'] ?? '');
+        if ($source === 'tiktok' && $id !== '') {
+            $item['embedUrl'] = $this->youtube->tiktokEmbedUrlFor($id, true);
+        } elseif ($source === 'youtube' && $id !== '') {
+            $item['embedUrl'] = $this->youtube->embedUrlFor($id, true);
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, scalar|null>  $extra
+     */
+    private function playHref(int $libraryId, array $item, array $extra = []): string
+    {
+        $source = (string) ($item['source'] ?? 'youtube');
+        $play = $source === 'upload'
+            ? (string) ($item['id'] ?? '')
+            : (string) ($item['youtubeId'] ?? '');
+
+        return $this->videoIndexUrl($libraryId, $extra + [
+            'play' => $play,
+            'src' => $source,
+        ]);
+    }
+
+    /**
+     * @param  array<string, scalar|null>  $params
+     */
+    private function videoIndexUrl(int $libraryId, array $params = []): string
+    {
+        $query = ['library' => $libraryId] + $params;
+        foreach ($query as $key => $value) {
+            if ($value === null || $value === '' || $value === false) {
+                unset($query[$key]);
+            }
+        }
+
+        return '/video?'.http_build_query($query);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $playlist
+     * @param  array<string, mixed>|null  $nowPlaying
+     * @return array{items: list<array<string, mixed>>, page: int, totalPages: int, total: int, from: int, to: int}
+     */
+    private function paginatePlaylist(array $playlist, int $requestedPage, ?array $nowPlaying): array
+    {
+        $total = count($playlist);
+        $perPage = self::LIBRARY_PAGE_SIZE;
+        $totalPages = max(1, (int) ceil($total / $perPage) ?: 1);
+        $page = $requestedPage;
+        if ($page < 1) {
+            $page = 1;
+            if (is_array($nowPlaying)) {
+                $index = $this->playlistIndexOf($playlist, $nowPlaying);
+                if ($index !== null) {
+                    $page = intdiv($index, $perPage) + 1;
+                }
+            }
+        }
+        $page = max(1, min($page, $totalPages));
+        $offset = ($page - 1) * $perPage;
+        $items = array_values(array_slice($playlist, $offset, $perPage));
+        $from = $total === 0 ? 0 : $offset + 1;
+        $to = $offset + count($items);
+
+        return [
+            'items' => $items,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'total' => $total,
+            'from' => $from,
+            'to' => $to,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $playlist
+     * @param  array<string, mixed>  $playing
+     */
+    private function playlistIndexOf(array $playlist, array $playing): ?int
+    {
+        $src = (string) ($playing['source'] ?? '');
+        $playId = $src === 'upload'
+            ? (string) ($playing['id'] ?? '')
+            : (string) ($playing['youtubeId'] ?? '');
+        if ($playId === '') {
+            return null;
+        }
+
+        foreach ($playlist as $index => $item) {
+            if (! is_array($item) || (string) ($item['source'] ?? '') !== $src) {
+                continue;
+            }
+            $itemId = $src === 'upload'
+                ? (string) ($item['id'] ?? '')
+                : (string) ($item['youtubeId'] ?? '');
+            if ($itemId === $playId) {
+                return (int) $index;
+            }
+        }
+
+        return null;
     }
 
     private function formatBytes(int $bytes): string

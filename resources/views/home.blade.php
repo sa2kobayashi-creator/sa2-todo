@@ -197,8 +197,8 @@
       </section>
 
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
-        <h2 id="landing-plans-title">{{ __('ご利用料金（税別）') }}</h2>
-        <p class="lp-section-lead">{{ __('金額は税別です。テナント契約は最初から期間つきの優良プランとして公開しています。') }}</p>
+        <h2 id="landing-plans-title">{{ __('ご利用料金（税込）') }}</h2>
+        <p class="lp-section-lead">{{ __('金額はすべて税込です。テナント契約は最初から期間つきの優良プランとして公開しています。') }}</p>
         <div class="lp-plans">
           <article class="lp-plan is-tenant is-featured">
             <header class="lp-plan-head">
@@ -251,8 +251,8 @@
               <h3>{{ __('スタンダード') }}</h3>
             </header>
             <div class="lp-plan-body">
-              <p class="lp-plan-price">{{ __('¥980／月') }}</p>
-              <p class="hint">{{ __('年額 ¥9,800。約 200GB 込み。周辺メニューも使えます。') }}</p>
+              <p class="lp-plan-price">{{ __('¥:yen／月', ['yen' => number_format((int) ($standardMonthlyYen ?? 980))]) }}</p>
+              <p class="hint">{{ __('年額 ¥:yearly。約 200GB 込み。周辺メニューも使えます。', ['yearly' => number_format((int) ($standardYearlyYen ?? 9800))]) }}</p>
               <ul class="lp-plan-includes">
                 <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
                 <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
@@ -362,7 +362,7 @@
           </details>
           <details>
             <summary>{{ __('sa2-plus.com で管理者アカウントを発行してもらえますか？') }}</summary>
-            <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税別）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
+            <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税込）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
           </details>
           <details>
             <summary>{{ __('招待コードがないと使えませんか？') }}</summary>
@@ -380,7 +380,10 @@
             <a href="/register" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
           @endif
         </p>
-        <p class="hint">{{ __('ログイン後、管理者はアプリ内の問い合わせから運営へ送れます。') }}</p>
+        @if(!empty($contactEmail))
+          <p>{{ __('メールでのお問い合わせ') }}: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a></p>
+        @endif
+        <p class="hint">{{ __('ログイン後は、アプリ内の問い合わせからも運営へ送れます。') }}</p>
       </section>
     </main>
 
@@ -402,6 +405,7 @@
     <footer class="lp-footer">
       <a href="/terms">{{ __('利用規約') }}</a>
       <a href="/privacy">{{ __('プライバシーポリシー') }}</a>
+      <a href="/tokushoho">{{ __('特定商取引法に基づく表記') }}</a>
       <a href="/login">{{ __('ログイン') }}</a>
     </footer>
     @include('partials.csrf-keepalive')

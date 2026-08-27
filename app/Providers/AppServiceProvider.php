@@ -2,19 +2,29 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Services\LegalConfigService;
 use App\Services\MediaStorageConfigService;
+use App\Services\StripeConfigService;
+use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Cashier\Cashier;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(\App\Support\TenantContext::class);
+        $this->app->singleton(TenantContext::class);
         $this->app->singleton(MediaStorageConfigService::class);
+
+        // Cashier 既定の /stripe/webhook は使わない。署名検証と冪等化を自前で持つ
+        // StripeWebhookController（/webhooks/stripe）に一本化する
+        Cashier::ignoreRoutes();
+        Cashier::useCustomerModel(User::class);
     }
 
     public function boot(): void
@@ -27,6 +37,8 @@ class AppServiceProvider extends ServiceProvider
 
         try {
             app(MediaStorageConfigService::class)->applyRuntimeDisks();
+            app(LegalConfigService::class)->applyRuntime();
+            app(StripeConfigService::class)->applyRuntime();
         } catch (\Throwable) {
             // マイグレーション前などテーブル未作成時は無視
         }
@@ -91,6 +103,16 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('mail-account-write', fn (Request $request) => $unlimited
             ? Limit::none()
             : Limit::perMinute(30)->by('mail-account-write|'.($request->user()?->id ?: $request->ip())));
+
+        // Stripe の画面へ飛ばすだけだが、連打で Checkout セッションを量産させない
+        RateLimiter::for('billing', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(10)->by('billing|'.($request->user()?->id ?: $request->ip())));
+
+        // 署名不一致でも受信コストは掛かるので、送信元 IP 単位で頭を押さえる
+        RateLimiter::for('webhook', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perMinute(120)->by('webhook|'.$request->ip()));
 
         RateLimiter::for('contact-inquiry', fn (Request $request) => $unlimited
             ? Limit::none()

@@ -40,7 +40,8 @@ class LoginController extends Controller
             $user->save();
         }
 
-        Auth::login($user, $request->boolean('remember', true));
+        // 未チェックのチェックボックスはそもそも送られてこないので、既定を true にすると解除できない
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
         if ($user->must_change_password) {

@@ -42,7 +42,7 @@ class HomePageTest extends TestCase
             ->assertSee(__('よくある質問'), false)
             ->assertSee(__('運営がお客様専用のサーバーへ、同じアプリを設置します。sa2-plus.com の共有環境とは別です。'), false)
             ->assertSee(__('管理者権限・ストレージ鍵の設定はありません'), false)
-            ->assertSee(__('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税別）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', [
+            ->assertSee(__('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税込）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', [
                 'days' => (int) config('commercial.tenant_trial_days', 30),
                 'yen' => number_format((int) config('commercial.tenant_monthly_yen', 3980)),
             ]), false)

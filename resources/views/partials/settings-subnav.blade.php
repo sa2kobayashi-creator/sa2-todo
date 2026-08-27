@@ -9,6 +9,7 @@
     <a href="/settings?section=usage" @class(['active' => $navActive === 'settings' && $navSection === 'usage'])>{{ __('使用量') }}</a>
     @if(!empty($canSuperAdmin))
       <a href="/settings?section=limits" @class(['active' => $navActive === 'settings' && $navSection === 'limits'])>{{ __('制限管理') }}</a>
+      <a href="/settings?section=sales" @class(['active' => $navActive === 'settings' && $navSection === 'sales'])>{{ __('公開販売') }}</a>
     @endif
     <a href="/help" @class(['active' => $navActive === 'help'])>{{ __('ヘルプ') }}</a>
     <a href="/help/overview" @class(['active' => $navActive === 'help-overview'])>{{ __('このアプリの概要') }}</a>

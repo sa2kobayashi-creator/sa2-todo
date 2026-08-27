@@ -236,12 +236,12 @@
             <div class="mail-price-card">
               <span class="mail-price-label">{{ __('月額') }}</span>
               <strong>¥{{ number_format((int) ($addonPriceMonthly ?? 300)) }}</strong>
-              <p class="hint">{{ __('税別目安・1アドレス') }}</p>
+              <p class="hint">{{ __('税込目安・1アドレス') }}</p>
             </div>
             <div class="mail-price-card">
               <span class="mail-price-label">{{ __('年額') }}</span>
               <strong>¥{{ number_format((int) ($addonPriceYearly ?? 3000)) }}</strong>
-              <p class="hint">{{ __('税別目安・1アドレス') }}</p>
+              <p class="hint">{{ __('税込目安・1アドレス') }}</p>
             </div>
           </div>
           <p class="hint">

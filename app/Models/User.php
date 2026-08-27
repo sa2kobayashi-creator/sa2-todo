@@ -9,10 +9,12 @@ use App\Enums\UserRole;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Laravel\Cashier\Billable;
 
 class User extends Authenticatable
 {
-    use Notifiable;
+    // Billable の trial_ends_at は既存の契約カラムと同じものを指す（migration のコメント参照）
+    use Billable, Notifiable;
 
     protected $fillable = [
         'email',

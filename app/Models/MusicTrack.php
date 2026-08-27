@@ -9,6 +9,7 @@ class MusicTrack extends Model
 {
     protected $fillable = [
         'user_id',
+        'music_library_id',
         'title',
         'original_name',
         'path',
@@ -24,11 +25,17 @@ class MusicTrack extends Model
             'size_bytes' => 'integer',
             'duration_seconds' => 'integer',
             'sort_order' => 'integer',
+            'music_library_id' => 'integer',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function library(): BelongsTo
+    {
+        return $this->belongsTo(MusicLibrary::class, 'music_library_id');
     }
 }

@@ -76,6 +76,12 @@ class MediaStorageSetting extends Model
     /** 新規登録の招待コード（管理画面で設定） */
     public const PROVIDER_REGISTRATION = 'registration';
 
+    /** 特定商取引法の事業者情報（公開販売） */
+    public const PROVIDER_LEGAL = 'legal';
+
+    /** Stripe 課金（公開可能キー・シークレット・price ID） */
+    public const PROVIDER_STRIPE = 'stripe';
+
     /** 契約者には渡さない（ドメイン・Webhook・試作） */
     public const PLATFORM_ONLY_PROVIDERS = [
         self::PROVIDER_WEB_PUSH,
@@ -87,6 +93,8 @@ class MediaStorageSetting extends Model
         self::PROVIDER_REMINI,
         self::PROVIDER_SWINIR,
         self::PROVIDER_REALESRGAN,
+        self::PROVIDER_LEGAL,
+        self::PROVIDER_STRIPE,
     ];
 
     protected $fillable = [

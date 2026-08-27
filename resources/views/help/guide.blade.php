@@ -23,9 +23,10 @@
             <ol>
               <li>Open <a href="/admin/users">User management</a> and set an <strong>invite code</strong> if people should self-register. Leave it empty to close self-registration and add users yourself.</li>
               <li>Create accounts with the right role (Admin / Standard / Light). Extra menus can be ticked per user.</li>
-              <li>Under <a href="/settings?section=enhance">API Settings</a>, add Google Maps and Google Calendar OAuth (Client ID / Secret). Users then connect their own Google account on My Page.</li>
+              <li>Under <a href="/settings?section=enhance">API Settings</a>, add Google Maps, YouTube Data API (video search), and Google Calendar OAuth (Client ID / Secret). Users then connect their own Google account on My Page.</li>
               <li>Under <a href="/settings?section=storage">Storage</a>, confirm R2 / B2 (and related) credentials if photos should upload. For personal sales, save capacity mode “Store originals on B2”. Thumbnails stay on R2; new originals go to B2.</li>
               <li>Under <a href="/settings?section=ai">AI Settings</a>, add DeepL for translation, ChatGPT / Gemini for voice entry, and Cloudflare Workers AI for the life guide. Usage fees are yours after you save keys.</li>
+              <li>To sell paid plans, open <a href="/settings?section=sales">Initial setup → Public sales</a> and save the operator details plus Stripe keys. You do not need to edit .env. Leave “Start taking online orders” off until everything is ready.</li>
             </ol>
 
             <h2>2. Users, groups, mail</h2>
@@ -56,6 +57,7 @@
               <li><strong>Photos</strong> — albums, private or shared with groups. Uploads stop when a user’s free quota is full.</li>
               <li><strong>Messages</strong> — group and DM chat. Calls need LiveKit in Integrations.</li>
               <li><strong>Life guide</strong> — everyday tips, recipes, and today’s calendar. Needs Workers AI under AI Settings.</li>
+              <li><strong>Videos</strong> — search YouTube by keyword (needs a Data API key under API Settings), or paste a YouTube / TikTok URL to play immediately. TikTok does not need an API key.</li>
               <li>Phone: bottom bar. PC: header. Change which items appear under <a href="/settings?section=nav">Display menus</a>.</li>
             </ul>
 
@@ -72,9 +74,10 @@
             <ol>
               <li><a href="/admin/users">ユーザー管理</a>で、<strong>招待コード</strong>を決めます。入れるとそのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、管理者がユーザーを追加します。</li>
               <li>権限（管理者／スタンダード／ライト）を選んでアカウントを作ります。ユーザーごとに追加メニューを付けられます。</li>
-              <li><a href="/settings?section=enhance">初期設定 → API設定</a>で Google マップと Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
+              <li><a href="/settings?section=enhance">初期設定 → API設定</a>で Google マップ、YouTube Data API（動画検索）、Google カレンダー（OAuth の Client ID / Secret）を登録します。そのあと、各自が <a href="/mypage">マイページ</a> で自分の Google アカウントを連携します。</li>
               <li><a href="/settings?section=storage">初期設定 → ストレージ</a>で写真用の R2 / B2 などを確認します。個人販売では容量モード「原本はB2に置く」を保存してください。サムネは R2、新規原本は B2 です。</li>
-              <li>翻訳や音声入力、生活ガイドを使うなら <a href="/settings?section=ai">初期設定 → AI</a> に DeepL、ChatGPT / Gemini、Cloudflare Workers AI を入れます。キー保存後の利用料は管理者の責任です。</li>
+              <li><a href="/settings?section=ai">初期設定 → AI</a> に DeepL、ChatGPT / Gemini、Cloudflare Workers AI を入れます。キー保存後の利用料は管理者の責任です。</li>
+              <li>有料販売するなら <a href="/settings?section=sales">初期設定 → 公開販売</a> で事業者情報（氏名・住所・電話・メール）と Stripe のキーを保存します。.env を触る必要はありません。準備ができるまで「オンライン申し込みを開始する」はオフのままにしてください。</li>
             </ol>
 
             <h2>2. ユーザー・グループ・メール</h2>
@@ -106,6 +109,7 @@
               <li><strong>Photos</strong> … アルバム。非公開、またはグループ共有。無料枠を超えると追加アップロードが止まります。</li>
               <li><strong>メッセージ</strong> … グループと DM。通話は外部連携の LiveKit が必要です。</li>
               <li><strong>生活ガイド</strong> … 知恵・話し相手、料理、今日のカレンダー。AI 設定の Workers AI が必要です。</li>
+              <li><strong>動画</strong> … YouTube はキーワード検索（API設定の Data API キー）か URL 貼り付け。TikTok は URL を貼れば再生できます（検索用APIは不要）。</li>
               <li>スマホは画面下、PC は上部メニューです。自分の表示は <a href="/settings?section=nav">表示メニュー管理</a>、他人のメニューはユーザー／グループ管理です。</li>
             </ul>
 

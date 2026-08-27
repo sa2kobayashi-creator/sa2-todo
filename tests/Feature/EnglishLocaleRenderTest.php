@@ -40,6 +40,7 @@ class EnglishLocaleRenderTest extends TestCase
             '/mypage',
             '/settings',
             '/settings?section=enhance',
+            '/settings?section=sales',
             '/groups',
             '/video',
             '/translate',

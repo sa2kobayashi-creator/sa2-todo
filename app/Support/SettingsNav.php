@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\User;
+
 class SettingsNav
 {
     /**
@@ -9,9 +11,9 @@ class SettingsNav
      *
      * @return array<string, string> section => ラベル
      */
-    public static function setupTabs(): array
+    public static function setupTabs(?User $user = null): array
     {
-        return [
+        $tabs = [
             'holidays' => '休日設定',
             'ai' => 'AI設定',
             'storage' => 'ストレージ設定',
@@ -19,6 +21,11 @@ class SettingsNav
             'integration' => '外部連携',
             'notifications' => '通知設定',
         ];
+        if ($user?->isSuperAdmin()) {
+            $tabs['sales'] = '公開販売';
+        }
+
+        return $tabs;
     }
 
     public static function isSetupSection(?string $section): bool

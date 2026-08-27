@@ -7,14 +7,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class YoutubeVideo extends Model
 {
+    public const PROVIDER_YOUTUBE = 'youtube';
+
+    public const PROVIDER_TIKTOK = 'tiktok';
+
     protected $fillable = [
         'user_id',
         'video_library_id',
+        'provider',
         'youtube_id',
         'title',
         'url',
         'thumbnail_url',
         'sort_order',
+    ];
+
+    protected $attributes = [
+        'provider' => self::PROVIDER_YOUTUBE,
     ];
 
     protected function casts(): array

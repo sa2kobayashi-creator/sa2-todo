@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\MediaStorageSetting;
 use App\Models\VideoLibrary;
 use App\Models\YoutubeVideo;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -30,9 +31,16 @@ class YoutubeVideoService
 
     public function isSearchReady(): bool
     {
+        if ($this->apiKey() === '') {
+            return false;
+        }
         $row = $this->configRow();
+        $dbKey = trim((string) $row->secret('api_key', ''));
+        if ($dbKey !== '' && ! $row->enabled) {
+            return false;
+        }
 
-        return $row->enabled && $this->apiKey() !== '';
+        return true;
     }
 
     /**
@@ -62,8 +70,14 @@ class YoutubeVideoService
     {
         $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_YOUTUBE);
 
+        $dbKey = trim((string) $row->secret('api_key', ''));
+        $enabled = (bool) $row->enabled;
+        if (! $enabled && $dbKey === '' && $this->apiKey() !== '') {
+            $enabled = true;
+        }
+
         return [
-            'enabled' => (bool) $row->enabled,
+            'enabled' => $enabled,
             'api_key_masked' => $row->maskedSecret('api_key'),
             'ready' => $this->isSearchReady(),
             'last_test_status' => $row->last_test_status,
@@ -102,7 +116,7 @@ class YoutubeVideoService
 
         return [
             'ok' => false,
-            'message' => __('YouTube API エラー: :msg', ['msg' => mb_substr((string) $error, 0, 200)]),
+            'message' => $this->googleApiErrorMessage($error),
         ];
     }
 
@@ -133,13 +147,30 @@ class YoutubeVideoService
         if ($query === '') {
             return ['ok' => false, 'message' => __('検索キーワードを入力してください。')];
         }
+
+        $direct = $this->previewFromInput($query);
+        if ($direct !== null) {
+            return [
+                'ok' => true,
+                'direct' => true,
+                'items' => [$direct],
+                'nextPageToken' => null,
+                'prevPageToken' => null,
+                'totalResults' => 1,
+            ];
+        }
+
         if (! $this->isSearchReady()) {
-            return ['ok' => false, 'message' => __('YouTube検索が未設定です。設定 > AI設定 で Data API キーを有効化してください。')];
+            return [
+                'ok' => false,
+                'message' => __('キーワード検索には YouTube Data API キーが必要です。YouTube や TikTok のURLを貼るか、設定 → API設定 でキーを有効にしてください。'),
+            ];
         }
 
         $params = [
             'part' => 'snippet',
             'type' => 'video',
+            'videoEmbeddable' => 'true',
             'maxResults' => max(1, min(25, (int) config('youtube.search_max_results', 12))),
             'q' => $query,
             'key' => $this->apiKey(),
@@ -171,7 +202,7 @@ class YoutubeVideoService
         if (! $response->successful()) {
             $error = $response->json('error.message') ?? $response->body();
 
-            return ['ok' => false, 'message' => __('YouTube API エラー: :msg', ['msg' => mb_substr((string) $error, 0, 200)])];
+            return ['ok' => false, 'message' => $this->googleApiErrorMessage($error)];
         }
 
         $data = $response->json();
@@ -196,19 +227,7 @@ class YoutubeVideoService
                 ?: data_get($thumbs, 'default.url')
                 ?: ('https://i.ytimg.com/vi/'.$videoId.'/hqdefault.jpg')
             );
-            $title = trim((string) ($snippet['title'] ?? ''));
-            $channel = trim((string) ($snippet['channelTitle'] ?? ''));
-            $published = (string) ($snippet['publishedAt'] ?? '');
-            $items[] = [
-                'youtubeId' => $videoId,
-                'title' => $title !== '' ? html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8') : ('YouTube '.$videoId),
-                'channelTitle' => $channel !== '' ? html_entity_decode($channel, ENT_QUOTES | ENT_HTML5, 'UTF-8') : '',
-                'description' => mb_substr(trim((string) ($snippet['description'] ?? '')), 0, 240),
-                'thumbUrl' => $thumb,
-                'url' => 'https://www.youtube.com/watch?v='.$videoId,
-                'embedUrl' => $this->embedUrlFor($videoId),
-                'publishedAt' => $published !== '' ? substr($published, 0, 10) : '',
-            ];
+            $items[] = $this->youtubeResultItem($videoId, $snippet, $thumb);
         }
 
         app(IntegrationUsageService::class)->increment('youtube');
@@ -220,6 +239,95 @@ class YoutubeVideoService
             'prevPageToken' => is_string($data['prevPageToken'] ?? null) ? $data['prevPageToken'] : null,
             'totalResults' => isset($data['pageInfo']['totalResults']) ? (int) $data['pageInfo']['totalResults'] : null,
         ];
+    }
+
+    /**
+     * @return array{
+     *   ok: bool,
+     *   message?: string,
+     *   items?: list<array<string, mixed>>
+     * }
+     */
+    public function popularVideos(): array
+    {
+        if (! $this->isSearchReady()) {
+            return [
+                'ok' => false,
+                'message' => __('キーワード検索には YouTube Data API キーが必要です。YouTube や TikTok のURLを貼るか、設定 → API設定 でキーを有効にしてください。'),
+                'items' => [],
+            ];
+        }
+
+        $region = trim((string) config('youtube.search_region_code', 'JP')) ?: 'JP';
+        $cacheKey = 'youtube.popular.'.$region;
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && ! empty($cached['ok'])) {
+            return $cached;
+        }
+
+        $params = [
+            'part' => 'snippet,status',
+            'chart' => 'mostPopular',
+            'maxResults' => max(1, min(16, (int) config('youtube.search_max_results', 12))),
+            'regionCode' => $region,
+            'key' => $this->apiKey(),
+        ];
+
+        try {
+            $response = Http::timeout(15)
+                ->acceptJson()
+                ->get('https://www.googleapis.com/youtube/v3/videos', $params);
+        } catch (\Throwable $e) {
+            Log::warning('YouTube popular failed', ['error' => $e->getMessage()]);
+
+            return ['ok' => false, 'message' => __('検索に失敗しました: :msg', ['msg' => mb_substr($e->getMessage(), 0, 160)]), 'items' => []];
+        }
+
+        if (! $response->successful()) {
+            $error = $response->json('error.message') ?? $response->body();
+
+            return [
+                'ok' => false,
+                'message' => $this->googleApiErrorMessage($error),
+                'items' => [],
+            ];
+        }
+
+        $data = $response->json();
+        if (! is_array($data)) {
+            return ['ok' => false, 'message' => __('検索結果を取得できませんでした。'), 'items' => []];
+        }
+
+        $items = [];
+        foreach ($data['items'] ?? [] as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $videoId = (string) ($item['id'] ?? '');
+            if ($videoId === '' || ! preg_match('/^[A-Za-z0-9_-]{6,32}$/', $videoId)) {
+                continue;
+            }
+            $status = is_array($item['status'] ?? null) ? $item['status'] : [];
+            if (array_key_exists('embeddable', $status) && $status['embeddable'] === false) {
+                continue;
+            }
+            $snippet = is_array($item['snippet'] ?? null) ? $item['snippet'] : [];
+            $thumbs = is_array($snippet['thumbnails'] ?? null) ? $snippet['thumbnails'] : [];
+            $thumb = (string) (
+                data_get($thumbs, 'medium.url')
+                ?: data_get($thumbs, 'high.url')
+                ?: data_get($thumbs, 'default.url')
+                ?: ('https://i.ytimg.com/vi/'.$videoId.'/hqdefault.jpg')
+            );
+            $items[] = $this->youtubeResultItem($videoId, $snippet, $thumb);
+        }
+
+        app(IntegrationUsageService::class)->increment('youtube');
+
+        $result = ['ok' => true, 'items' => $items];
+        Cache::put($cacheKey, $result, 1800);
+
+        return $result;
     }
 
     /**
@@ -414,12 +522,21 @@ class YoutubeVideoService
      */
     public function addFromUrl(int $userId, string $rawUrl, ?string $title = null, ?int $libraryId = null): array
     {
-        $youtubeId = $this->extractVideoId($rawUrl);
-        if ($youtubeId === null) {
-            throw new \InvalidArgumentException(__('YouTubeのURLを認識できませんでした。'));
+        $preview = $this->previewFromInput($rawUrl);
+        if ($preview === null) {
+            throw new \InvalidArgumentException(__('YouTube または TikTok のURLを認識できませんでした。'));
         }
 
-        return $this->addFromVideoId($userId, $youtubeId, $title, null, $libraryId);
+        $source = (string) ($preview['source'] ?? YoutubeVideo::PROVIDER_YOUTUBE);
+
+        return $this->addFromVideoId(
+            $userId,
+            (string) $preview['youtubeId'],
+            $title !== null && trim($title) !== '' ? $title : (string) ($preview['title'] ?? ''),
+            is_string($preview['thumbUrl'] ?? null) ? (string) $preview['thumbUrl'] : null,
+            $libraryId,
+            $source === YoutubeVideo::PROVIDER_TIKTOK ? YoutubeVideo::PROVIDER_TIKTOK : YoutubeVideo::PROVIDER_YOUTUBE
+        );
     }
 
     /**
@@ -431,9 +548,17 @@ class YoutubeVideoService
         ?string $title = null,
         ?string $thumbnailUrl = null,
         ?int $libraryId = null,
+        string $provider = YoutubeVideo::PROVIDER_YOUTUBE,
     ): array {
         $youtubeId = trim($youtubeId);
-        if (! preg_match('/^[A-Za-z0-9_-]{6,32}$/', $youtubeId)) {
+        $provider = $provider === YoutubeVideo::PROVIDER_TIKTOK
+            ? YoutubeVideo::PROVIDER_TIKTOK
+            : YoutubeVideo::PROVIDER_YOUTUBE;
+        if ($provider === YoutubeVideo::PROVIDER_TIKTOK) {
+            if (! preg_match('/^\d{5,32}$/', $youtubeId)) {
+                throw new \InvalidArgumentException(__('TikTokのURLを認識できませんでした。'));
+            }
+        } elseif (! preg_match('/^[A-Za-z0-9_-]{6,32}$/', $youtubeId)) {
             throw new \InvalidArgumentException(__('YouTubeのURLを認識できませんでした。'));
         }
 
@@ -441,6 +566,7 @@ class YoutubeVideoService
 
         $existing = YoutubeVideo::query()
             ->where('user_id', $userId)
+            ->where('provider', $provider)
             ->where('youtube_id', $youtubeId)
             ->first();
         if ($existing) {
@@ -452,22 +578,34 @@ class YoutubeVideoService
             return $this->toArray($existing->fresh() ?? $existing);
         }
 
-        $canonical = 'https://www.youtube.com/watch?v='.$youtubeId;
-        $meta = $this->fetchOEmbed($canonical);
+        $canonical = $provider === YoutubeVideo::PROVIDER_TIKTOK
+            ? 'https://www.tiktok.com/video/'.$youtubeId
+            : 'https://www.youtube.com/watch?v='.$youtubeId;
+        $meta = $provider === YoutubeVideo::PROVIDER_TIKTOK
+            ? $this->fetchTikTokOEmbed('https://www.tiktok.com/@tiktok/video/'.$youtubeId)
+            : $this->fetchOEmbed($canonical);
         $sortOrder = (int) YoutubeVideo::query()
             ->where('user_id', $userId)
             ->where('video_library_id', $library->id)
             ->max('sort_order') + 10;
 
+        $fallbackThumb = $provider === YoutubeVideo::PROVIDER_TIKTOK
+            ? null
+            : ('https://i.ytimg.com/vi/'.$youtubeId.'/hqdefault.jpg');
+        $fallbackTitle = $provider === YoutubeVideo::PROVIDER_TIKTOK
+            ? ('TikTok '.$youtubeId)
+            : ('YouTube '.$youtubeId);
+
         $video = YoutubeVideo::query()->create([
             'user_id' => $userId,
             'video_library_id' => $library->id,
+            'provider' => $provider,
             'youtube_id' => $youtubeId,
-            'title' => $this->resolveTitle($title, $meta['title'] ?? null, $youtubeId),
+            'title' => $this->resolveTitle($title, $meta['title'] ?? null, $fallbackTitle),
             'url' => $canonical,
             'thumbnail_url' => $thumbnailUrl
                 ?: ($meta['thumbnail_url'] ?? null)
-                ?: ('https://i.ytimg.com/vi/'.$youtubeId.'/hqdefault.jpg'),
+                ?: $fallbackThumb,
             'sort_order' => $sortOrder,
         ]);
 
@@ -536,7 +674,7 @@ class YoutubeVideoService
         }
 
         $id = null;
-        if (in_array($host, ['youtube.com', 'm.youtube.com', 'music.youtube.com'], true)) {
+        if (in_array($host, ['youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtube-nocookie.com'], true)) {
             if (! empty($query['v']) && is_string($query['v'])) {
                 $id = $query['v'];
             } elseif (preg_match('#^/(embed|shorts|live|v)/([A-Za-z0-9_-]{6,})#', $path, $m)) {
@@ -594,37 +732,334 @@ class YoutubeVideoService
      */
     public function toArray(YoutubeVideo $video): array
     {
+        $provider = (string) ($video->provider ?: YoutubeVideo::PROVIDER_YOUTUBE);
+        $isTiktok = $provider === YoutubeVideo::PROVIDER_TIKTOK;
+        $id = (string) $video->youtube_id;
+
         return [
             'id' => $video->id,
-            'source' => 'youtube',
+            'source' => $isTiktok ? YoutubeVideo::PROVIDER_TIKTOK : YoutubeVideo::PROVIDER_YOUTUBE,
             'libraryId' => $video->video_library_id,
-            'youtubeId' => $video->youtube_id,
-            'title' => $video->title ?: __('YouTube動画'),
+            'youtubeId' => $id,
+            'title' => $video->title ?: ($isTiktok ? __('TikTok動画') : __('YouTube動画')),
             'url' => $video->url,
-            'embedUrl' => $this->embedUrlFor((string) $video->youtube_id),
+            'embedUrl' => $isTiktok ? $this->tiktokEmbedUrlFor($id) : $this->embedUrlFor($id),
             'thumbUrl' => $video->thumbnail_url
-                ?: 'https://i.ytimg.com/vi/'.$video->youtube_id.'/hqdefault.jpg',
+                ?: ($isTiktok ? null : ('https://i.ytimg.com/vi/'.$id.'/hqdefault.jpg')),
             'createdAt' => $video->created_at?->format('Y-m-d H:i'),
         ];
     }
 
-    public function embedUrlFor(string $youtubeId): string
+    public function embedUrlFor(string $youtubeId, bool $autoplay = false): string
     {
         $params = [
             'rel' => '0',
-            'modestbranding' => '1',
             'playsinline' => '1',
-            'enablejsapi' => '1',
+            'controls' => '1',
+            'fs' => '1',
         ];
-        $origin = rtrim((string) config('app.url', ''), '/');
-        if ($origin !== '' && preg_match('#^https?://#i', $origin)) {
-            $params['origin'] = $origin;
+        if ($autoplay) {
+            $params['autoplay'] = '1';
         }
 
         return 'https://www.youtube.com/embed/'.$youtubeId.'?'.http_build_query($params);
     }
 
-    private function resolveTitle(?string $input, ?string $oembed, string $youtubeId): string
+    public function tiktokEmbedUrlFor(string $tiktokId, bool $autoplay = false): string
+    {
+        $params = [
+            'music_info' => '0',
+            'description' => '0',
+            'loop' => '0',
+        ];
+        if ($autoplay) {
+            $params['autoplay'] = '1';
+        }
+
+        return 'https://www.tiktok.com/player/v1/'.$tiktokId.'?'.http_build_query($params);
+    }
+
+    /**
+     * URL や短縮リンクから、API なしで再生できる1件を返す。
+     *
+     * @return array<string, mixed>|null
+     */
+    public function previewFromInput(string $raw): ?array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $youtubeId = $this->extractVideoId($raw);
+        if ($youtubeId !== null) {
+            $url = 'https://www.youtube.com/watch?v='.$youtubeId;
+            $meta = $this->fetchOEmbed($url);
+            $title = trim((string) ($meta['title'] ?? ''));
+
+            return [
+                'source' => YoutubeVideo::PROVIDER_YOUTUBE,
+                'youtubeId' => $youtubeId,
+                'title' => $title !== '' ? $title : ('YouTube '.$youtubeId),
+                'channelTitle' => '',
+                'description' => '',
+                'thumbUrl' => $meta['thumbnail_url'] ?? ('https://i.ytimg.com/vi/'.$youtubeId.'/hqdefault.jpg'),
+                'url' => $url,
+                'embedUrl' => $this->embedUrlFor($youtubeId),
+                'publishedAt' => '',
+            ];
+        }
+
+        if (! $this->looksLikeUrl($raw)) {
+            return null;
+        }
+        $url = $this->normalizeWatchUrl($raw);
+        if ($url === null) {
+            return null;
+        }
+        $tiktokId = $this->extractTikTokVideoId($url);
+        if ($tiktokId === null && $this->isTikTokShortUrl($url)) {
+            $url = $this->followAllowedRedirects($url);
+            $tiktokId = $this->extractTikTokVideoId($url);
+        }
+        if ($tiktokId === null) {
+            return null;
+        }
+
+        $canonical = 'https://www.tiktok.com/@tiktok/video/'.$tiktokId;
+        $meta = $this->fetchTikTokOEmbed($canonical);
+        $title = trim((string) ($meta['title'] ?? ''));
+
+        return [
+            'source' => YoutubeVideo::PROVIDER_TIKTOK,
+            'youtubeId' => $tiktokId,
+            'title' => $title !== '' ? $title : ('TikTok '.$tiktokId),
+            'channelTitle' => is_string($meta['author_name'] ?? null) ? (string) $meta['author_name'] : 'TikTok',
+            'description' => '',
+            'thumbUrl' => $meta['thumbnail_url'] ?? null,
+            'url' => $canonical,
+            'embedUrl' => $this->tiktokEmbedUrlFor($tiktokId),
+            'publishedAt' => '',
+        ];
+    }
+
+    public function extractTikTokVideoId(string $rawUrl): ?string
+    {
+        $url = $this->normalizeWatchUrl($rawUrl);
+        if ($url === null) {
+            return null;
+        }
+        $parts = parse_url($url);
+        if (! is_array($parts) || empty($parts['host'])) {
+            return null;
+        }
+        if (! $this->isAllowedWatchHost((string) $parts['host'])) {
+            return null;
+        }
+        $path = (string) ($parts['path'] ?? '');
+        if (preg_match('#/@[^/]+/video/(\d{5,32})#', $path, $m)
+            || preg_match('#^/video/(\d{5,32})#', $path, $m)
+            || preg_match('#^/v/(\d{5,32})#', $path, $m)
+            || preg_match('#/(?:embed/v2|player/v1)/(\d{5,32})#', $path, $m)
+        ) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $snippet
+     * @return array<string, mixed>
+     */
+    private function youtubeResultItem(string $videoId, array $snippet, string $thumb): array
+    {
+        $title = trim((string) ($snippet['title'] ?? ''));
+        $channel = trim((string) ($snippet['channelTitle'] ?? ''));
+        $published = (string) ($snippet['publishedAt'] ?? '');
+
+        return [
+            'source' => YoutubeVideo::PROVIDER_YOUTUBE,
+            'youtubeId' => $videoId,
+            'title' => $title !== '' ? html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8') : ('YouTube '.$videoId),
+            'channelTitle' => $channel !== '' ? html_entity_decode($channel, ENT_QUOTES | ENT_HTML5, 'UTF-8') : '',
+            'description' => mb_substr(trim((string) ($snippet['description'] ?? '')), 0, 240),
+            'thumbUrl' => $thumb,
+            'url' => 'https://www.youtube.com/watch?v='.$videoId,
+            'embedUrl' => $this->embedUrlFor($videoId),
+            'publishedAt' => $published !== '' ? substr($published, 0, 10) : '',
+        ];
+    }
+
+    /**
+     * @return array{title?: string, thumbnail_url?: string, author_name?: string}
+     */
+    public function fetchTikTokOEmbed(string $url): array
+    {
+        try {
+            $response = Http::timeout(6)
+                ->acceptJson()
+                ->get('https://www.tiktok.com/oembed', ['url' => $url]);
+            if (! $response->successful()) {
+                return [];
+            }
+            $data = $response->json();
+            if (! is_array($data)) {
+                return [];
+            }
+
+            return [
+                'title' => is_string($data['title'] ?? null) ? $data['title'] : null,
+                'thumbnail_url' => is_string($data['thumbnail_url'] ?? null) ? $data['thumbnail_url'] : null,
+                'author_name' => is_string($data['author_name'] ?? null) ? $data['author_name'] : null,
+            ];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function isTikTokShortUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts) || empty($parts['host'])) {
+            return false;
+        }
+        $host = strtolower((string) $parts['host']);
+        $host = preg_replace('/^www\./', '', $host) ?: $host;
+        $path = (string) ($parts['path'] ?? '');
+        if (in_array($host, ['vm.tiktok.com', 'vt.tiktok.com'], true)) {
+            return true;
+        }
+
+        return $host === 'tiktok.com' && (bool) preg_match('#^/t/#', $path);
+    }
+
+    private function googleApiErrorMessage(mixed $error): string
+    {
+        $raw = trim(is_string($error) ? $error : '');
+        if ($raw === '') {
+            return __('YouTube API エラー: :msg', ['msg' => __('応答を解析できませんでした。')]);
+        }
+        $lower = strtolower($raw);
+        if (str_contains($lower, 'v3datasearchservice.list') && str_contains($lower, 'blocked')) {
+            return __('このAPIキーでは YouTube のキーワード検索が許可されていません。Google Cloud で YouTube Data API v3 を有効にし、キーの「API の制限」に YouTube Data API v3 を入れてください。メソッド制限がある場合は search.list を許可します。サーバーから呼ぶため HTTP リファラ制限は使わず、Maps 用キーとは分けてください。');
+        }
+        if (str_contains($lower, 'referer restrictions') || str_contains($lower, 'referrer restrictions')) {
+            return __('このAPIキーはウェブサイト（HTTPリファラ）制限付きです。動画検索はサーバーから呼ぶため、制限なし、またはサーバーの IP 制限にしてください。');
+        }
+        if (str_contains($lower, 'has not been used') || (str_contains($lower, 'youtube data api') && str_contains($lower, 'disabled'))) {
+            return __('この Google Cloud プロジェクトで YouTube Data API v3 が有効になっていません。API ライブラリから有効化してください。');
+        }
+        if (str_contains($lower, 'quota') || str_contains($lower, 'rate limit')) {
+            return __('YouTube API の当日クォータを使い切りました。翌日まで待つか、Cloud コンソールでクォータを確認してください。');
+        }
+
+        return __('YouTube API エラー: :msg', ['msg' => mb_substr($raw, 0, 200)]);
+    }
+
+    private function looksLikeUrl(string $value): bool
+    {
+        if (preg_match('#^https?://#i', $value)) {
+            return true;
+        }
+        if (str_contains($value, ' ') || ! str_contains($value, '.')) {
+            return false;
+        }
+
+        return (bool) preg_match('#^(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com|tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com|m\.tiktok\.com)/#i', $value);
+    }
+
+    private function normalizeWatchUrl(string $raw): ?string
+    {
+        $url = trim($raw);
+        if ($url === '') {
+            return null;
+        }
+        if (! preg_match('#^https?://#i', $url)) {
+            $url = 'https://'.$url;
+        }
+        $parts = parse_url($url);
+        if (! is_array($parts) || empty($parts['host']) || ! $this->isAllowedWatchHost((string) $parts['host'])) {
+            return null;
+        }
+
+        return $url;
+    }
+
+    private function isAllowedWatchHost(string $host): bool
+    {
+        $host = strtolower($host);
+        $host = preg_replace('/^www\./', '', $host) ?: $host;
+
+        return in_array($host, [
+            'youtube.com',
+            'm.youtube.com',
+            'music.youtube.com',
+            'youtu.be',
+            'youtube-nocookie.com',
+            'tiktok.com',
+            'm.tiktok.com',
+            'vm.tiktok.com',
+            'vt.tiktok.com',
+        ], true);
+    }
+
+    private function followAllowedRedirects(string $url, int $maxHops = 5): string
+    {
+        $current = $url;
+        for ($i = 0; $i < $maxHops; $i++) {
+            if ($this->normalizeWatchUrl($current) === null) {
+                break;
+            }
+            try {
+                $response = Http::timeout(8)
+                    ->withOptions(['allow_redirects' => false])
+                    ->withHeaders(['User-Agent' => 'Mozilla/5.0 (compatible; Sa2Plus/1.0)'])
+                    ->get($current);
+            } catch (\Throwable) {
+                break;
+            }
+            $status = $response->status();
+            if ($status < 300 || $status >= 400) {
+                return $current;
+            }
+            $location = $response->header('Location');
+            if (! is_string($location) || $location === '') {
+                return $current;
+            }
+            $next = $this->absolutizeUrl($current, $location);
+            if ($this->normalizeWatchUrl($next) === null) {
+                return $current;
+            }
+            $current = $next;
+        }
+
+        return $current;
+    }
+
+    private function absolutizeUrl(string $base, string $location): string
+    {
+        $location = trim($location);
+        if (preg_match('#^https?://#i', $location)) {
+            return $location;
+        }
+        $parts = parse_url($base);
+        if (! is_array($parts) || empty($parts['host'])) {
+            return $location;
+        }
+        $scheme = (string) ($parts['scheme'] ?? 'https');
+        $host = (string) $parts['host'];
+        if (str_starts_with($location, '//')) {
+            return $scheme.':'.$location;
+        }
+        if (str_starts_with($location, '/')) {
+            return $scheme.'://'.$host.$location;
+        }
+
+        return $scheme.'://'.$host.'/'.$location;
+    }
+
+    private function resolveTitle(?string $input, ?string $oembed, string $fallback): string
     {
         $input = is_string($input) ? trim($input) : '';
         if ($input !== '') {
@@ -634,6 +1069,6 @@ class YoutubeVideoService
             return mb_substr(trim($oembed), 0, 255);
         }
 
-        return 'YouTube '.$youtubeId;
+        return mb_substr($fallback, 0, 255);
     }
 }
