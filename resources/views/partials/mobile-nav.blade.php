@@ -9,26 +9,13 @@
 <nav
   class="mobile-bottom-nav"
   aria-label="{{ __('メインメニュー') }}"
+  aria-expanded="false"
   data-nav-count="{{ $navCount }}"
   data-expanded-rows="{{ $expandedRows }}"
   data-reorder-url="{{ url('/mypage/footer-nav') }}"
-  data-label-open="{{ __('メニューを広げる') }}"
-  data-label-close="{{ __('メニューをしまう') }}"
-  data-label-done="{{ __('完了') }}"
   @if($canExpand) data-expandable="1" @endif
 >
   <div class="mobile-nav-chrome">
-    @if($canExpand)
-      <button
-        type="button"
-        class="mobile-nav-handle"
-        aria-expanded="false"
-        aria-controls="mobile-nav-grid"
-        aria-label="{{ __('メニューを広げる') }}"
-      >
-        <span class="mobile-nav-handle-bar" aria-hidden="true"></span>
-      </button>
-    @endif
     <button type="button" class="mobile-nav-done" hidden>{{ __('完了') }}</button>
   </div>
   <div class="mobile-nav-grid" id="mobile-nav-grid">

@@ -10,10 +10,6 @@ html {
   );
 }
 
-html:has(.mobile-bottom-nav[data-expandable]) {
-  --mobile-nav-handle-height: 44px;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -11562,65 +11558,28 @@ body.map-page {
     overflow: visible;
     background: #fff;
     border-top: 1px solid #e5e7eb;
-    padding: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
     touch-action: pan-y;
   }
 
-  .mobile-bottom-nav[data-expandable],
   .mobile-bottom-nav.is-reordering {
     touch-action: none;
   }
 
-  .mobile-bottom-nav:not([data-expandable]):not(.is-reordering) .mobile-nav-chrome {
+  .mobile-nav-chrome {
     display: none;
-    min-height: 0;
-    padding: 0;
   }
 
-  .mobile-nav-chrome {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+  .mobile-bottom-nav.is-reordering .mobile-nav-chrome {
+    display: flex;
+    justify-content: flex-end;
     align-items: center;
-    position: relative;
-    min-height: var(--mobile-nav-handle-height);
-    padding: 8px 8px 6px;
     box-sizing: border-box;
+    min-height: 32px;
+    padding: 0 4px 4px;
     overflow: visible;
     flex: 0 0 auto;
-    touch-action: none;
-  }
-
-  .mobile-bottom-nav button.mobile-nav-handle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    grid-column: 1 / -1;
-    grid-row: 1;
-    align-self: stretch;
-    width: 100%;
-    height: auto;
-    min-height: 28px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: inherit;
-    box-shadow: none;
-    cursor: pointer;
-    flex: 0 0 auto;
-    -webkit-appearance: none;
-    appearance: none;
-    touch-action: none;
-  }
-
-  .mobile-nav-handle-bar {
-    display: block;
-    width: 72px;
-    height: 6px;
-    border-radius: 999px;
-    background: #6b7280;
   }
 
   .mobile-bottom-nav button.mobile-nav-done[hidden] {
@@ -11628,10 +11587,6 @@ body.map-page {
   }
 
   .mobile-bottom-nav button.mobile-nav-done {
-    grid-column: 3;
-    grid-row: 1;
-    justify-self: end;
-    align-self: center;
     position: relative;
     z-index: 2;
     display: inline-flex;

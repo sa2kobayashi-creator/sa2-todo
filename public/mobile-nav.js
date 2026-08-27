@@ -6,18 +6,12 @@
   if (!nav) return
 
   const grid = nav.querySelector('.mobile-nav-grid')
-  const handle = nav.querySelector('.mobile-nav-handle')
   const doneBtn = nav.querySelector('.mobile-nav-done')
   const expandable = nav.hasAttribute('data-expandable')
   const expandedRows = Math.max(1, parseInt(nav.getAttribute('data-expanded-rows') || '1', 10) || 1)
   const reorderUrl = nav.getAttribute('data-reorder-url') || ''
-  const labels = {
-    open: nav.getAttribute('data-label-open') || '',
-    close: nav.getAttribute('data-label-close') || '',
-  }
   const LONG_PRESS_MS = 420
   const MOVE_CANCEL_PX = 12
-  const SWIPE_EXPAND_PX = 16
 
   let expanded = false
   let reordering = false
@@ -26,8 +20,6 @@
   let pressTimer = null
   let pressStart = null
   let suppressClick = false
-  let handleSwipe = null
-  let ignoreHandleClick = false
 
   function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -38,8 +30,10 @@
   }
 
   function setHandleHeight() {
-    const height = reordering ? '48px' : (expandable ? '44px' : '0px')
-    document.documentElement.style.setProperty('--mobile-nav-handle-height', height)
+    document.documentElement.style.setProperty(
+      '--mobile-nav-handle-height',
+      reordering ? '32px' : '0px'
+    )
   }
 
   function setExpanded(next) {
@@ -49,10 +43,7 @@
       String(expanded ? expandedRows : 1)
     )
     nav.classList.toggle('is-expanded', expanded)
-    if (handle) {
-      handle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
-      handle.setAttribute('aria-label', expanded ? labels.close : labels.open)
-    }
+    nav.setAttribute('aria-expanded', expanded ? 'true' : 'false')
   }
 
   function currentKeys() {
@@ -144,7 +135,6 @@
     const point = event.touches ? event.touches[0] : event
     if (!item || !point) return
     suppressClick = true
-    handleSwipe = null
     setReordering(true)
     const rect = item.getBoundingClientRect()
     dragging = {
@@ -167,6 +157,14 @@
     } catch (_) {}
   }
 
+  function expandMenus() {
+    suppressClick = true
+    setExpanded(true)
+    try {
+      navigator.vibrate(8)
+    } catch (_) {}
+  }
+
   function eventPoint(event) {
     if (event.changedTouches && event.changedTouches[0]) return event.changedTouches[0]
     if (event.touches && event.touches[0]) return event.touches[0]
@@ -176,11 +174,6 @@
   function onPointerMove(event) {
     const point = eventPoint(event)
     if (!point) return
-
-    if (handleSwipe && !dragging && !reordering) {
-      const dy = point.clientY - handleSwipe.y
-      if (Math.abs(dy) > 8 && event.cancelable) event.preventDefault()
-    }
 
     if (pressStart && !dragging) {
       const dx = point.clientX - pressStart.x
@@ -204,28 +197,7 @@
     }
   }
 
-  function maybeFinishSwipe(event) {
-    if (!handleSwipe || reordering || dragging) {
-      handleSwipe = null
-      return
-    }
-    const point = eventPoint(event || {})
-    const y = point && point.clientY != null ? point.clientY : handleSwipe.y
-    const x = point && point.clientX != null ? point.clientX : handleSwipe.x
-    const dy = y - handleSwipe.y
-    const dx = x - handleSwipe.x
-    handleSwipe = null
-    if (Math.abs(dy) < SWIPE_EXPAND_PX || Math.abs(dy) <= Math.abs(dx)) return
-    setExpanded(dy < 0)
-    ignoreHandleClick = true
-    suppressClick = true
-    setTimeout(function () {
-      ignoreHandleClick = false
-    }, 80)
-  }
-
-  function endDrag(event) {
-    maybeFinishSwipe(event)
+  function endDrag() {
     clearPressTimer()
     pressStart = null
     const dirty = Boolean(dragging?.dirty)
@@ -249,7 +221,8 @@
     }
     clearPressTimer()
     pressTimer = setTimeout(function () {
-      startDrag(item, event)
+      if (expandable && !expanded) expandMenus()
+      else startDrag(item, event)
     }, LONG_PRESS_MS)
   }
 
@@ -280,19 +253,9 @@
     setReordering(false)
   })
 
-  handle?.addEventListener('click', function () {
-    if (reordering) return
-    if (ignoreHandleClick) {
-      ignoreHandleClick = false
-      return
-    }
-    setExpanded(!expanded)
-  })
-
-  nav.addEventListener('pointerdown', function (event) {
-    if (reordering || !expandable) return
-    if (event.button != null && event.button !== 0) return
-    if (event.target && event.target.closest && event.target.closest('.mobile-nav-done')) return
-    handleSwipe = { x: event.clientX, y: event.clientY }
+  document.addEventListener('pointerdown', function (event) {
+    if (!expanded || reordering) return
+    if (nav.contains(event.target)) return
+    setExpanded(false)
   })
 })()

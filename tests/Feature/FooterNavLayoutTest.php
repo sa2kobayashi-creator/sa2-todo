@@ -48,23 +48,27 @@ class FooterNavLayoutTest extends TestCase
         $this->actingAs($user)->get('/settings?section=nav')
             ->assertOk()
             ->assertSee('スマートフォン下部は1行5件、最大15件です', false)
-            ->assertSee('長押ししてドラッグすると並べ替えできます', false);
+            ->assertSee('長押しすると全メニューが表示されます', false)
+            ->assertSee('さらに長押しすると並べ替えできます', false)
+            ->assertDontSee('バーを上にスワイプすると', false);
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
             ->assertSee('mobile-nav-grid', false)
             ->assertSee('data-expandable="1"', false)
             ->assertSee('data-expanded-rows="3"', false)
-            ->assertSee('mobile-nav-handle', false)
+            ->assertDontSee('mobile-nav-handle', false)
+            ->assertSee('mobile-nav-done', false)
             ->assertSee('data-nav-key=', false)
             ->assertSee('mobile-nav.js', false);
 
         $css = file_get_contents(public_path('app.css'));
         $this->assertNotFalse($css);
-        $this->assertStringContainsString('--mobile-nav-handle-height: 44px', $css);
+        $this->assertStringContainsString('--mobile-nav-handle-height: 0px', $css);
+        $this->assertStringNotContainsString('--mobile-nav-handle-height: 44px', $css);
+        $this->assertStringNotContainsString('.mobile-nav-handle-bar', $css);
         $this->assertStringContainsString('.mobile-bottom-nav button.mobile-nav-done', $css);
         $this->assertStringContainsString('min-height: 28px', $css);
-        $this->assertStringContainsString('width: 72px', $css);
         $this->assertStringContainsString('.transit-time-types', $css);
     }
 
