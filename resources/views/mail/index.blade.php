@@ -1520,6 +1520,5 @@
         loadMailbox();
       })();
     </script>
-    @include('partials.mobile-nav')
   </body>
 </html>

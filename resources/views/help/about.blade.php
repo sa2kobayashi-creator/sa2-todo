@@ -44,6 +44,5 @@
         </p>
       </div>
     </main>
-    @include('partials.mobile-nav', ['active' => 'about'])
   </body>
 </html>

@@ -204,7 +204,7 @@ class BulkActionsAndPagesTest extends TestCase
             $css
         );
         $this->assertStringContainsString(
-            'bottom: calc(64px + env(safe-area-inset-bottom, 0px));',
+            'bottom: var(--mobile-nav-bar-height);',
             $css
         );
     }

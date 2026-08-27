@@ -813,7 +813,15 @@
     const el = new google.maps.places.PlaceAutocompleteElement({
       includedRegionCodes: ['jp'],
     })
+    el.style.display = 'block'
     el.style.width = '100%'
+    el.style.maxWidth = '100%'
+    el.style.minWidth = '0'
+    el.style.boxSizing = 'border-box'
+    const placeholder = targetInput.getAttribute('placeholder') || ''
+    if (placeholder) {
+      el.placeholder = placeholder
+    }
     holder.appendChild(el)
     targetInput.style.display = 'none'
     placeWidgets[slot] = el

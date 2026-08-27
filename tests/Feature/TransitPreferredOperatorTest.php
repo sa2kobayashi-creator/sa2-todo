@@ -56,6 +56,11 @@ class TransitPreferredOperatorTest extends TestCase
             ->assertSee('transit-to-mic', false)
             ->assertSee('transit-ai-mic', false)
             ->assertSee('speech-dictation.js', false);
+
+        $css = file_get_contents(public_path('app.css'));
+        $this->assertNotFalse($css);
+        $this->assertStringContainsString('gmp-place-autocomplete::part(input)', $css);
+        $this->assertStringContainsString('max-width: 100%', $css);
     }
 
     public function test_search_marks_itineraries_for_the_chosen_operator(): void

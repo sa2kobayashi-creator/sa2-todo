@@ -90,6 +90,5 @@
         @endif
       </div>
     </main>
-    @include('partials.mobile-nav', ['active' => 'help'])
   </body>
 </html>

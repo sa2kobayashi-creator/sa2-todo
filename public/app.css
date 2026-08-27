@@ -1,3 +1,19 @@
+html {
+  --mobile-nav-row-height: 52px;
+  --mobile-nav-handle-height: 0px;
+  --mobile-nav-visible-rows: 1;
+  --mobile-nav-bar-height: calc(
+    var(--mobile-nav-handle-height)
+    + (var(--mobile-nav-row-height) * var(--mobile-nav-visible-rows))
+    + 12px
+    + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+html:has(.mobile-bottom-nav[data-expandable]) {
+  --mobile-nav-handle-height: 14px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -10656,7 +10672,9 @@ body.transit-page .transit-section-head .transit-section-title {
 
 .transit-search-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  min-width: 0;
 }
 
 .transit-places {
@@ -10664,6 +10682,8 @@ body.transit-page .transit-section-head .transit-section-title {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 10px 8px;
   align-items: end;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .transit-field {
@@ -10671,6 +10691,7 @@ body.transit-page .transit-section-head .transit-section-title {
   gap: 6px;
   margin: 0;
   min-width: 0;
+  max-width: 100%;
 }
 
 .transit-field-label-row {
@@ -10739,12 +10760,17 @@ body.transit-page .transit-section-head .transit-section-title {
 .transit-field-control {
   position: relative;
   display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 body.transit-page .transit-field-control input,
 body.transit-page .transit-field select,
 body.transit-page .transit-datetime-selects select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 46px;
   padding: 10px 12px;
   border: 1px solid var(--transit-line);
@@ -10753,12 +10779,39 @@ body.transit-page .transit-datetime-selects select {
   font-size: 15px;
 }
 
-body.transit-page .pac-holder gmp-place-autocomplete {
+body.transit-page .transit-field-control input {
+  font-size: 16px;
+}
+
+/* PlaceAutocompleteElement は既定の min-width が大きく、スマホでカードからはみ出す */
+.pac-holder {
   display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+body.transit-page .pac-holder gmp-place-autocomplete,
+.pac-holder gmp-place-autocomplete,
+gmp-place-autocomplete {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+body.transit-page .pac-holder gmp-place-autocomplete {
   min-height: 46px;
   border-radius: 14px;
-  overflow: hidden;
+}
+
+body.transit-page .pac-holder gmp-place-autocomplete::part(input) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: 16px;
 }
 
 .transit-places-swap {
@@ -10837,15 +10890,6 @@ body.transit-page .transit-search-links .button-link.secondary:hover {
   z-index: 4000;
 }
 
-.pac-holder {
-  width: 100%;
-}
-
-.pac-holder gmp-place-autocomplete,
-gmp-place-autocomplete {
-  width: 100%;
-}
-
 .transit-search-actions,
 .transit-form-actions,
 .map-route-form-actions {
@@ -10892,9 +10936,9 @@ gmp-place-autocomplete {
 }
 
 .transit-time-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .transit-time-types label {
@@ -10902,15 +10946,17 @@ gmp-place-autocomplete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   min-height: 36px;
-  padding: 6px 14px;
+  padding: 6px 4px;
   border-radius: 999px;
   border: 1px solid var(--transit-line);
   background: #fff;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 650;
   color: #334155;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
 }
 
@@ -11100,7 +11146,11 @@ body.transit-page .ai-assist {
   }
 
   .transit-places {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .transit-page .panel {
+    padding: 16px 14px;
   }
 
   .transit-places-swap {
@@ -11113,6 +11163,15 @@ body.transit-page .ai-assist {
 
   .transit-datetime-selects {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .transit-time-types {
+    gap: 4px;
+  }
+
+  .transit-time-types label {
+    padding: 6px 2px;
+    font-size: 12px;
   }
 
   .transit-search-btn {
@@ -11325,12 +11384,6 @@ body.map-page {
 }
 
 @media (max-width: 768px) {
-  .mobile-bottom-nav {
-    overflow-x: auto;
-    justify-content: flex-start;
-    gap: 2px;
-  }
-
   .lang-switcher {
     margin-left: 0;
   }
@@ -11343,12 +11396,6 @@ body.map-page {
   .lang-toggle-btn {
     min-width: 36px;
     padding: 5px 10px;
-  }
-
-  .mobile-nav-item {
-    flex: 0 0 auto;
-    min-width: 58px;
-    padding: 0 4px;
   }
 
   .transit-favorite-card,
@@ -11368,7 +11415,7 @@ body.map-page {
 
 @media (max-width: 768px) {
   body {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--mobile-nav-bar-height);
   }
 
   .page-main {
@@ -11484,30 +11531,80 @@ body.map-page {
 
   .mobile-bottom-nav {
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 300;
+    max-height: var(--mobile-nav-bar-height);
+    overflow: hidden;
     background: #fff;
     border-top: 1px solid #e5e7eb;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    touch-action: pan-y;
+    transition: max-height 0.22s ease;
+  }
+
+  .mobile-bottom-nav:not([data-expandable]) {
+    padding-top: 6px;
+  }
+
+  .mobile-nav-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: var(--mobile-nav-handle-height);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .mobile-nav-handle-bar {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d1d5db;
+  }
+
+  .mobile-nav-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
   }
 
   .mobile-nav-item {
-    flex: 1;
+    flex: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
-    min-height: 52px;
+    min-width: 0;
+    width: 100%;
+    min-height: var(--mobile-nav-row-height);
+    padding: 4px 2px;
     text-decoration: none;
     color: #6b7280;
     font-size: 11px;
     font-weight: 600;
     border-radius: 10px;
+  }
+
+  .mobile-nav-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mobile-nav-item.active {
@@ -12268,9 +12365,7 @@ body.map-page {
   }
 
   .mobile-nav-item {
-    min-height: 48px;
     font-size: 10px;
-    padding: 4px 2px;
   }
 
   .mobile-nav-icon {
@@ -20750,7 +20845,7 @@ button.msg-icon-tool.is-listening,
 
   /* 戻る: 会話一覧のみ */
   body.msg-mobile-chat.msg-inbox-open {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--mobile-nav-bar-height);
   }
   body.msg-mobile-chat.msg-inbox-open .msg-layout {
     grid-template-rows: minmax(0, 1fr);
@@ -21529,7 +21624,7 @@ button.msg-icon-tool.is-listening,
     left: 0;
     right: 0;
     /* .mobile-bottom-nav と同じ高さ帯の上。bottom:0 だと全選択/範囲選択がナビ裏に隠れる */
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    bottom: var(--mobile-nav-bar-height);
     z-index: 280;
     margin: 0;
     padding: 8px 10px;

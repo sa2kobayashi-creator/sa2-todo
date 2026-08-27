@@ -7,7 +7,7 @@
 @endphp
 <div class="panel" id="footer-nav-settings">
   <h2>{{ __('表示メニュー管理') }}</h2>
-  <p class="hint">{{ __('メニューごとに、スマートフォン下部とWeb（PC）ヘッダーの表示を選べます。スマートフォンは最大:max件まで。選ばなかった項目はスマートフォンの「⋮」に入ります（Webでは⋮は表示しません）。', ['max' => FooterNav::MAX_FOOTER]) }}</p>
+  <p class="hint">{{ __('メニューごとに、スマートフォン下部とWeb（PC）ヘッダーの表示を選べます。スマートフォン下部は1行:per件、最大:max件です。6〜10件はバーを上にスワイプすると2行、11件以上は3行になります。選ばなかった項目はスマートフォンの「⋮」に入ります（Webでは⋮は表示しません）。', ['per' => FooterNav::FOOTER_PER_ROW, 'max' => FooterNav::MAX_FOOTER]) }}</p>
 
   <form method="post" action="/settings/nav" class="footer-nav-form">
     @csrf

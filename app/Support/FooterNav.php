@@ -12,8 +12,14 @@ class FooterNav
     /** Default visible footer slots (order matters). */
     public const DEFAULT_FOOTER = ['dashboard', 'todos', 'notes', 'photos', 'messages'];
 
-    /** Max items in the smartphone bottom bar. */
-    public const MAX_FOOTER = 6;
+    /** One row of the smartphone bottom bar. */
+    public const FOOTER_PER_ROW = 5;
+
+    /** Max rows when the bar is expanded (11+ items). */
+    public const MAX_FOOTER_ROWS = 3;
+
+    /** Max items in the smartphone bottom bar (5 per row × 3 rows). */
+    public const MAX_FOOTER = 15;
 
     /** Max items in the web header (catalog size; effectively unlimited for current set). */
     public const MAX_HEADER = 20;
@@ -105,6 +111,19 @@ class FooterNav
         }
 
         return $picked;
+    }
+
+    /** Collapsed bar is always 1 row. Expanded rows: 6–10 → 2, 11+ → 3. */
+    public static function footerExpandedRows(int $count): int
+    {
+        if ($count <= self::FOOTER_PER_ROW) {
+            return 1;
+        }
+        if ($count <= self::FOOTER_PER_ROW * 2) {
+            return 2;
+        }
+
+        return self::MAX_FOOTER_ROWS;
     }
 
     /**
