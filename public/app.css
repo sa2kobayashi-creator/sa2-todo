@@ -12472,6 +12472,55 @@ body.map-page {
   padding: 32px 16px 48px;
 }
 
+/* 特商法・規約など本文が長い法務ページ用 */
+.auth-shell-wide {
+  max-width: min(960px, calc(100% - 32px));
+}
+
+.auth-shell-wide .auth-card {
+  max-width: none;
+  text-align: left;
+}
+
+.auth-shell-wide .auth-card h1 {
+  text-align: left;
+}
+
+.auth-shell-wide .legal-dl {
+  grid-template-columns: minmax(160px, 240px) 1fr;
+  gap: 12px 28px;
+}
+
+.apply-plan-fieldset {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 4px;
+}
+
+.apply-plan-fieldset legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.apply-plan-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.apply-plan-option + .apply-plan-option {
+  border-top: 1px solid #f3f4f6;
+}
+
+.apply-plan-option input {
+  margin-top: 4px;
+}
+
 .auth-brand {
   display: flex;
   align-items: center;
@@ -12621,6 +12670,15 @@ body.map-page {
   border-radius: 8px;
   font: inherit;
   font-size: 14px;
+}
+
+.admin-invite-message {
+  width: 100%;
+  min-height: 9rem;
+  resize: vertical;
+  line-height: 1.6;
+  background: #f8fafc;
+  color: #1f2937;
 }
 
 .profile-dl {

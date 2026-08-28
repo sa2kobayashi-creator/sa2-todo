@@ -30,6 +30,11 @@ class StripeBillingTest extends TestCase
             'billing.plans.standard_monthly.role' => UserRole::Standard->value,
             'billing.addons.mailbox_monthly.price_id' => self::MAILBOX_PRICE,
             'cashier.secret' => 'sk_test_dummy',
+            'cashier.webhook.secret' => 'whsec_test',
+            'legal.operator_name' => 'テスト事業者',
+            'legal.address' => '東京都千代田区1-1-1',
+            'legal.phone' => '03-0000-0000',
+            'legal.contact_email' => 'support@example.com',
         ]);
     }
 
@@ -263,10 +268,14 @@ class StripeBillingTest extends TestCase
         $this->assertSame(0, BillingEvent::query()->count());
     }
 
-    public function test_a_failed_payment_marks_the_account_past_due(): void
+    public function test_a_failed_payment_marks_the_account_past_due_without_demoting(): void
     {
         $user = $this->makeUser('billing-pastdue@example.com', UserRole::Standard);
-        $user->forceFill(['stripe_id' => 'cus_pastdue_test'])->save();
+        $user->forceFill([
+            'stripe_id' => 'cus_pastdue_test',
+            'subscription_status' => SubscriptionStatus::Active,
+            'mailbox_addon_active' => true,
+        ])->save();
 
         $this->postSignedWebhook([
             'id' => 'evt_invoice_failed_1',
@@ -280,8 +289,45 @@ class StripeBillingTest extends TestCase
 
         $user->refresh();
         $this->assertSame(SubscriptionStatus::PastDue, $user->subscription_status);
-        // 猶予期間中はまだ Light に落とさない
-        $this->assertSame(UserRole::Light, $user->roleEnum());
+        // 猶予期間中はまだ Light に落とさない。mailbox も invoice 明細では触らない
+        $this->assertSame(UserRole::Standard, $user->roleEnum());
+        $this->assertTrue((bool) $user->mailbox_addon_active);
+    }
+
+    public function test_past_due_still_counts_as_active_during_grace(): void
+    {
+        $user = $this->makeUser('billing-grace@example.com', UserRole::Standard);
+        $user->forceFill([
+            'subscription_status' => SubscriptionStatus::PastDue,
+            'updated_at' => now(),
+        ])->save();
+
+        $this->assertTrue(app(\App\Services\BillingEntitlementService::class)->hasActiveSubscription($user));
+    }
+
+    public function test_a_paid_invoice_restores_active_without_rewriting_addons(): void
+    {
+        $user = $this->makeUser('billing-invoice-paid@example.com', UserRole::Standard);
+        $user->forceFill([
+            'stripe_id' => 'cus_invoice_paid',
+            'subscription_status' => SubscriptionStatus::PastDue,
+            'mailbox_addon_active' => true,
+        ])->save();
+
+        $this->postSignedWebhook([
+            'id' => 'evt_invoice_paid_1',
+            'type' => 'invoice.paid',
+            'data' => ['object' => [
+                'customer' => 'cus_invoice_paid',
+                'paid' => true,
+                'lines' => ['data' => [['price' => ['id' => self::STANDARD_PRICE]]]],
+            ]],
+        ])->assertOk();
+
+        $user->refresh();
+        $this->assertSame(SubscriptionStatus::Active, $user->subscription_status);
+        $this->assertTrue((bool) $user->mailbox_addon_active);
+        $this->assertSame(UserRole::Standard, $user->roleEnum());
     }
 
     public function test_the_plan_page_offers_the_configured_plans(): void
@@ -302,7 +348,8 @@ class StripeBillingTest extends TestCase
         $this->actingAs($user)->get('/mypage/plan')
             ->assertOk()
             ->assertDontSee('name="plan"', false)
-            ->assertSee(__('オンラインでのお申し込みは準備中です。ご希望の方はお問い合わせからご連絡ください。'), false);
+            ->assertSee(__('オンラインでのカード申し込みは準備中です。料金は次のとおりです。'), false)
+            ->assertSee(__('お問い合わせ'), false);
     }
 
     public function test_checkout_refuses_a_plan_that_is_not_self_serve(): void

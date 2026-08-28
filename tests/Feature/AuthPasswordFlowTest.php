@@ -16,6 +16,11 @@ class AuthPasswordFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function purpose(): string
+    {
+        return 'TodoとPhotosを短期間試したいです。家族の予定共有も検討中です。';
+    }
+
     private function makeUser(string $email, string $password = 'password123'): User
     {
         return User::create([
@@ -56,6 +61,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'db-code@example.com',
             'displayName' => 'Db',
             'inviteCode' => 'env-code',
+            'message' => $this->purpose(),
             'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNull(User::query()->where('email', 'db-code@example.com')->first());
@@ -64,6 +70,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'db-code@example.com',
             'displayName' => 'Db',
             'inviteCode' => 'admin-code',
+            'message' => $this->purpose(),
             'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNotNull(User::query()->where('email', 'db-code@example.com')->first());
@@ -91,6 +98,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'wrong-code@example.com',
             'displayName' => 'Wrong',
             'inviteCode' => 'nope',
+            'message' => $this->purpose(),
             'agreeTerms' => '1',
         ])->assertOk()->assertSee('招待コードが正しくありません');
 
@@ -106,6 +114,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'Newbie@Example.com',
             'displayName' => 'Newbie',
             'inviteCode' => 'family-secret',
+            'message' => $this->purpose(),
             'agreeTerms' => '1',
         ])->assertRedirect();
 
@@ -131,6 +140,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'no-agree@example.com',
             'displayName' => 'NoAgree',
             'inviteCode' => 'family-secret',
+            'message' => $this->purpose(),
         ])->assertRedirect('/register');
 
         $this->assertNull(User::query()->where('email', 'no-agree@example.com')->first());
@@ -145,6 +155,7 @@ class AuthPasswordFlowTest extends TestCase
             'email' => 'chosen@example.com',
             'displayName' => 'Chosen',
             'inviteCode' => 'family-secret',
+            'message' => $this->purpose(),
             'agreeTerms' => '1',
             'password' => 'ignored-password',
             'password_confirmation' => 'ignored-password',
@@ -152,6 +163,39 @@ class AuthPasswordFlowTest extends TestCase
 
         $user = User::query()->where('email', 'chosen@example.com')->firstOrFail();
         $this->assertFalse(Hash::check('ignored-password', $user->password));
+    }
+
+    public function test_register_rejects_disposable_email_even_with_invite(): void
+    {
+        config(['registration.invite_code' => 'family-secret']);
+        Mail::fake();
+
+        $this->post('/register', [
+            'email' => 'x@mailinator.com',
+            'displayName' => 'Spam',
+            'inviteCode' => 'family-secret',
+            'message' => $this->purpose(),
+            'agreeTerms' => '1',
+        ])->assertRedirect('/register');
+
+        $this->assertNull(User::query()->where('email', 'x@mailinator.com')->first());
+    }
+
+    public function test_register_requires_purpose_even_with_invite(): void
+    {
+        config(['registration.invite_code' => 'family-secret']);
+        Mail::fake();
+
+        $this->post('/register', [
+            'email' => 'short@example.com',
+            'displayName' => 'Short',
+            'inviteCode' => 'family-secret',
+            'message' => '短い',
+            'agreeTerms' => '1',
+        ])->assertRedirect('/register')
+            ->assertSessionHasErrors('message');
+
+        $this->assertNull(User::query()->where('email', 'short@example.com')->first());
     }
 
     public function test_first_login_is_forced_to_the_password_setup_screen(): void

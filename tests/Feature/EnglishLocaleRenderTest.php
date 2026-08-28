@@ -47,6 +47,7 @@ class EnglishLocaleRenderTest extends TestCase
             '/guide',
             '/music',
             '/admin/users',
+            '/admin/applications',
             '/help',
             '/help/overview',
             '/help/guide',
@@ -70,7 +71,7 @@ class EnglishLocaleRenderTest extends TestCase
 
     public function test_guest_pages_render_in_english(): void
     {
-        foreach (['/login', '/register', '/password/forgot', '/password/reset'] as $uri) {
+        foreach (['/login', '/register', '/apply', '/password/forgot', '/password/reset'] as $uri) {
             $response = $this->withSession(['locale' => 'en'])->get($uri);
 
             $this->assertSame(200, $response->getStatusCode(), "{$uri} should render in English");

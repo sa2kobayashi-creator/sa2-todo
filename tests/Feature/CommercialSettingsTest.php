@@ -89,6 +89,59 @@ class CommercialSettingsTest extends TestCase
         $this->assertFalse((bool) config('billing.enabled'));
     }
 
+    public function test_enabling_stripe_without_webhook_secret_is_rejected(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-stripe-webhook@example.com');
+
+        $this->actingAs($owner)->post('/settings/sales/legal', [
+            'operator_name' => '山田 太郎',
+            'address' => '東京都千代田区1-1-1',
+            'phone' => '03-0000-0000',
+            'contact_email' => 'support@example.com',
+        ]);
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/stripe', [
+                'enabled' => '1',
+                'stripe_secret' => 'sk_test_dummy',
+                'price_standard_monthly' => 'price_standard_1',
+            ])
+            ->assertRedirect('/settings?section=sales#stripe-billing-settings');
+
+        $this->assertSame(
+            __('Webhook 署名シークレット（whsec_）を保存してください。決済完了を受け取れません。'),
+            session('error')
+        );
+    }
+
+    public function test_enabling_stripe_with_complete_setup_succeeds(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-stripe-ready@example.com');
+
+        $this->actingAs($owner)->post('/settings/sales/legal', [
+            'operator_name' => '山田 太郎',
+            'address' => '東京都千代田区1-1-1',
+            'phone' => '03-0000-0000',
+            'contact_email' => 'support@example.com',
+        ]);
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/stripe', [
+                'enabled' => '1',
+                'stripe_key' => 'pk_test_abc',
+                'stripe_secret' => 'sk_test_abc',
+                'webhook_secret' => 'whsec_abc',
+                'price_standard_monthly' => 'price_standard_1',
+            ])
+            ->assertRedirect('/settings?section=sales#stripe-billing-settings');
+
+        $this->assertTrue((bool) config('billing.enabled'));
+        $this->assertSame(
+            __('Stripe 設定を保存し、オンライン申し込みを開始しました。'),
+            session('notice')
+        );
+    }
+
     public function test_super_admin_can_save_stripe_keys_without_enabling_checkout(): void
     {
         $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-stripe-save@example.com');

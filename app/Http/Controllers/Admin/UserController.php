@@ -47,6 +47,7 @@ class UserController extends Controller
             'registrationInviteCode' => Registration::inviteCode(),
             'registrationConfiguredInDatabase' => Registration::isConfiguredInDatabase(),
             'registrationOpen' => Registration::isOpen(),
+            'registrationInvitationMessage' => Registration::invitationMessage(),
         ]));
     }
 
@@ -59,17 +60,21 @@ class UserController extends Controller
         $data = $request->validate([
             'inviteCode' => ['nullable', 'string', 'max:120'],
             'clearInviteCode' => ['nullable', 'boolean'],
+            'generateInviteCode' => ['nullable', 'boolean'],
         ]);
 
         if ($request->boolean('clearInviteCode')) {
             Registration::setInviteCode('');
+            $message = __('招待コードを空にしたので、新規の自己登録は閉じました。');
+        } elseif ($request->boolean('generateInviteCode')) {
+            Registration::setInviteCode(Registration::generateInviteCode());
+            $message = __('招待コードを自動発行して保存しました。下の案内文を相手に送ってください。');
         } else {
             Registration::setInviteCode($data['inviteCode'] ?? '');
+            $message = Registration::isOpen()
+                ? __('招待コードを保存しました。このコードを知っている人だけ自己登録できます。')
+                : __('招待コードを空にしたので、新規の自己登録は閉じました。');
         }
-
-        $message = Registration::isOpen()
-            ? __('招待コードを保存しました。このコードを知っている人だけ自己登録できます。')
-            : __('招待コードを空にしたので、新規の自己登録は閉じました。');
 
         return $this->redirectWithMessage('/admin/users', $message);
     }

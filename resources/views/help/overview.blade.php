@@ -33,7 +33,7 @@
             <h2>What lives on this instance</h2>
             <ul>
               <li>API keys (Maps, Calendar OAuth, storage, DeepL, LLM, LINE, and so on) are <strong>one set for the whole app</strong>, not per user.</li>
-              <li>Photos and files are stored per user. Light is about 50GB; Standard is about 200GB.</li>
+              <li>Photos and files are stored per user. Light (trial) is about 20GB; Standard is about 200GB. Light has a weekly intake limit; after about 90 days without login we warn, then delete if there is no response.</li>
               <li>The Storage monitor page shows <strong>this server as a whole</strong>, not a per-user breakdown. Per-user photo usage is under Settings → Usage.</li>
             </ul>
 
@@ -62,7 +62,7 @@
             <h2>このアプリで共有されるもの</h2>
             <ul>
               <li>マップ・カレンダー OAuth・ストレージ・DeepL・LLM・LINE などの <strong>API キーはアプリ全体で1セット</strong>です（ユーザーごとではありません）。</li>
-              <li>写真やファイルはユーザーごとに保存されます。ライトは目安 50GB、スタンダードは約 200GB です。</li>
+              <li>写真やファイルはユーザーごとに保存されます。ライト（お試し）は目安 20GB、スタンダードは約 200GB です。ライトは週の受付上限があり、約90日未ログインで警告、応答がなければ削除されます。</li>
               <li>ストレージ監視は <strong>このサーバー全体</strong> の使用量です。ユーザー単位の写真容量は 設定 → 使用量 で確認します。</li>
             </ul>
 

@@ -9,12 +9,12 @@
   </head>
   <body class="auth-body">
     @include('partials.auth-lang-switcher')
-    <main class="auth-shell">
+    <main class="auth-shell auth-shell-wide">
       <a href="/" class="auth-brand">
         <img src="{{ asset('icons/app-icon.png') }}" alt="" class="site-logo-icon" width="40" height="40" />
         <span>{{ config('app.name') }}</span>
       </a>
-      <div class="auth-card panel" style="max-width:720px;text-align:left;">
+      <div class="auth-card panel">
         <h1>{{ __('特定商取引法に基づく表記') }}</h1>
 
         @php
@@ -70,7 +70,12 @@
             <dt>{{ __('販売価格') }}</dt>
             <dd>
               <ul class="legal-list">
-                <li>{{ __('ライト: ¥0（招待制）') }}</li>
+                <li>{{ __('ライト（お試し）: ¥0・約:gbGB・週:cap人まで・約:warn日未ログインで警告、さらに:grace日応答なしで削除', [
+                  'gb' => (int) ($lightQuotaGb ?? 20),
+                  'cap' => (int) ($lightWeeklyCap ?? 50),
+                  'warn' => (int) ($lightInactiveWarnDays ?? 90),
+                  'grace' => (int) ($lightInactiveDeleteGraceDays ?? 14),
+                ]) }}</li>
                 <li>{{ __('スタンダード: ¥:monthly／月、¥:yearly／年（:tax）', ['monthly' => number_format($standardMonthlyYen), 'yearly' => number_format($standardYearlyYen), 'tax' => $taxLabel]) }}</li>
                 <li>{{ __('テナント契約: ¥:monthly／月、¥:yearly／年（:tax）', ['monthly' => number_format($tenantMonthlyYen), 'yearly' => number_format($tenantYearlyYen), 'tax' => $taxLabel]) }}</li>
                 <li>{{ __('@sa2-plus.com メールボックス: ¥:yen／月（:tax）', ['yen' => number_format($mailboxYenMonthly), 'tax' => $taxLabel]) }}</li>
@@ -93,10 +98,15 @@
             <dd>{{ __('お申し込み時に初回分をお支払いいただき、以後は各更新日に自動で決済します。無料お試し期間がある場合は、期間終了日に初回決済を行います。') }}</dd>
 
             <dt>{{ __('サービスの提供時期') }}</dt>
-            <dd>{{ __('決済完了の確認後、ただちにご利用いただけます（通常は数分以内）。専用インスタンスは個別にご案内する構築完了日からとなります。') }}</dd>
+            <dd>{{ __('ライト（お試し）は登録用メールのリンクからパスワード設定後、ただちに利用できます。有料プランは決済完了の確認後（通常は数分以内）です。専用インスタンスは個別にご案内する構築完了日からとなります。') }}</dd>
 
             <dt>{{ __('無料お試し') }}</dt>
-            <dd>{{ __('スタンダードは:standard日間、テナント契約は:tenant日間の無料期間があります。期間内に解約すればご請求は発生しません。', ['standard' => $standardTrialDays, 'tenant' => $tenantTrialDays]) }}</dd>
+            <dd>
+              <ul class="legal-list">
+                <li>{{ __('スタンダードは:standard日間、テナント契約は:tenant日間の無料期間があります。期間内に解約すればご請求は発生しません。', ['standard' => $standardTrialDays, 'tenant' => $tenantTrialDays]) }}</li>
+                <li>{{ __('ライトは有料プランのお試しとは別の、短期間の無料お試し枠です（約:gbGB・週:cap人まで）。', ['gb' => (int) ($lightQuotaGb ?? 20), 'cap' => (int) ($lightWeeklyCap ?? 50)]) }}</li>
+              </ul>
+            </dd>
 
             <dt>{{ __('解約・返品・返金について') }}</dt>
             <dd>

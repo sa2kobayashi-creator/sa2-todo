@@ -15,7 +15,9 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CommercialSettingsController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordSetupController;
+use App\Http\Controllers\ApplyController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Admin\RegistrationApplicationController as AdminRegistrationApplicationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataArchiveController;
 use App\Http\Controllers\EmailChangeController;
@@ -80,6 +82,13 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:auth-login');
     Route::get('/register', [RegisterController::class, 'show']);
     Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:auth-register');
+    Route::get('/apply', [ApplyController::class, 'show']);
+    Route::post('/apply', [ApplyController::class, 'store'])->middleware('throttle:auth-apply');
+    Route::get('/apply/activate/{token}', [ApplyController::class, 'showActivate'])
+        ->where('token', '[A-Za-z0-9]+');
+    Route::post('/apply/activate/{token}', [ApplyController::class, 'storeActivate'])
+        ->where('token', '[A-Za-z0-9]+')
+        ->middleware('throttle:auth-password');
 });
 
 // パスワード再設定はログイン前（パスワード忘れ）とログイン後（マイページ）で同じ導線を使う
@@ -536,6 +545,10 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
         Route::post('/admin/mail-requests/{id}/reject', [AdminMailDomainRequestController::class, 'reject'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/provision', [AdminMailDomainRequestController::class, 'provision'])->whereNumber('id');
         Route::post('/admin/mail-requests/{id}/suspend', [AdminMailDomainRequestController::class, 'suspend'])->whereNumber('id');
+
+        Route::get('/admin/applications', [AdminRegistrationApplicationController::class, 'index']);
+        Route::post('/admin/applications/{id}/approve', [AdminRegistrationApplicationController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/applications/{id}/reject', [AdminRegistrationApplicationController::class, 'reject'])->whereNumber('id');
 
         Route::get('/admin/storage-archive', [StorageArchiveController::class, 'show']);
     });

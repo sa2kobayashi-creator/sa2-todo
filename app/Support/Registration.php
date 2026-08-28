@@ -72,4 +72,35 @@ final class Registration
 
         return hash_equals($expected, trim((string) $given));
     }
+
+    /** 読みやすく、紛らわしい文字（0/O, 1/I/L）を除いたランダムコード */
+    public static function generateInviteCode(): string
+    {
+        $chars = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+        $parts = [];
+        for ($p = 0; $p < 3; $p++) {
+            $part = '';
+            for ($i = 0; $i < 4; $i++) {
+                $part .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            $parts[] = $part;
+        }
+
+        return implode('-', $parts);
+    }
+
+    /** 相手に送る案内文。コードが空なら空文字 */
+    public static function invitationMessage(?string $code = null): string
+    {
+        $code = trim($code ?? self::inviteCode());
+        if ($code === '') {
+            return '';
+        }
+
+        return __(':app への招待です。\n登録ページ: :url\n招待コード: :code\n\n上記ページでコードを入力して登録してください。', [
+            'app' => (string) config('app.name'),
+            'url' => url('/register'),
+            'code' => $code,
+        ]);
+    }
 }

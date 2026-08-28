@@ -35,7 +35,7 @@
       <div class="panel">
         <h2>{{ __('新規登録（招待コード）') }}</h2>
         <p class="hint">
-          {{ __('招待コードを入れると、そのコードを知っている人だけ自己登録できます。空にすると自己登録は閉じ、下の「ユーザーを追加」だけで増やします。') }}
+          {{ __('招待コードを入れると、そのコードを知っている人だけ自己登録できます。「自動発行して保存」でランダムなコードを作れます。空にすると自己登録は閉じ、下の「ユーザーを追加」だけで増やします。') }}
         </p>
         @if(!empty($registrationOpen))
           <p class="banner notice">{{ __('現在: 自己登録は開いています') }}</p>
@@ -51,6 +51,7 @@
             <input
               type="text"
               name="inviteCode"
+              id="admin-invite-code-input"
               value="{{ old('inviteCode', $registrationInviteCode ?? '') }}"
               maxlength="120"
               autocomplete="off"
@@ -59,9 +60,68 @@
           </label>
           <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;">
             <button type="submit">{{ __('招待コードを保存') }}</button>
+            <button type="submit" name="generateInviteCode" value="1" class="secondary">{{ __('自動発行して保存') }}</button>
             <button type="submit" name="clearInviteCode" value="1" class="secondary">{{ __('空にして閉じる') }}</button>
+            <button type="button" class="secondary" id="admin-invite-copy-btn">{{ __('案内文をコピー') }}</button>
+            <span class="hint" id="admin-invite-copy-live" aria-live="polite"></span>
           </div>
+          <label style="margin-top:1rem;">{{ __('案内文（自動作成・そのまま送れます）') }}
+            <textarea
+              id="admin-invite-message"
+              class="admin-invite-message"
+              rows="6"
+              readonly
+              aria-readonly="true"
+            >{{ $registrationInvitationMessage ?? '' }}</textarea>
+          </label>
+          <p class="hint">{{ __('保存済みのコードから自動で作ります。コードを変えたあとは「保存」または「自動発行して保存」を押すと、案内文も更新されます。') }}</p>
         </form>
+        <script>
+          (function () {
+            const inviteCopyStrings = {
+              empty: @json(__('案内文は、招待コードを保存すると自動で表示されます。')),
+              ok: @json(__('案内文をコピーしました。')),
+              fail: @json(__('コピーに失敗しました。手動で選択してください。')),
+              template: @json(__(':app への招待です。\n登録ページ: :url\n招待コード: :code\n\n上記ページでコードを入力して登録してください。')),
+              appName: @json(config('app.name')),
+              registerUrl: @json(url('/register')),
+            };
+            const input = document.getElementById('admin-invite-code-input');
+            const message = document.getElementById('admin-invite-message');
+            const btn = document.getElementById('admin-invite-copy-btn');
+            const live = document.getElementById('admin-invite-copy-live');
+            if (!input || !message || !btn || !live) return;
+
+            const buildMessage = (code) => {
+              if (!code) return '';
+              return inviteCopyStrings.template
+                .replace(':app', inviteCopyStrings.appName)
+                .replace(':url', inviteCopyStrings.registerUrl)
+                .replace(':code', code);
+            };
+
+            const syncPreview = () => {
+              message.value = buildMessage((input.value || '').trim());
+            };
+
+            input.addEventListener('input', syncPreview);
+            syncPreview();
+
+            btn.addEventListener('click', async () => {
+              const text = (message.value || '').trim();
+              if (!text) {
+                live.textContent = inviteCopyStrings.empty;
+                return;
+              }
+              try {
+                await navigator.clipboard.writeText(text);
+                live.textContent = inviteCopyStrings.ok;
+              } catch (_) {
+                live.textContent = inviteCopyStrings.fail;
+              }
+            });
+          })();
+        </script>
       </div>
       @endif
 

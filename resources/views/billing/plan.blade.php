@@ -39,8 +39,14 @@
         </dl>
 
         @if(!$billingEnabled)
-          <p class="hint">{{ __('オンラインでのお申し込みは準備中です。ご希望の方はお問い合わせからご連絡ください。') }}</p>
-          <p><a href="/contact">{{ __('お問い合わせ') }}</a></p>
+          <p class="hint">{{ __('オンラインでのカード申し込みは準備中です。料金は次のとおりです。') }}</p>
+          <ul class="legal-list" style="margin-bottom:1rem;">
+            <li>{{ __('スタンダード（月額）') }}: ¥{{ number_format((int) ($standardMonthlyYen ?? 980)) }}（{{ $pricesIncludeTax ? __('税込') : __('税別') }}）</li>
+            <li>{{ __('スタンダード（年額）') }}: ¥{{ number_format((int) ($standardYearlyYen ?? 9800)) }}（{{ $pricesIncludeTax ? __('税込') : __('税別') }}）</li>
+            <li>{{ __('お試し') }}: {{ __('申し込み後 :days日間は無料', ['days' => (int) ($standardTrialDays ?? 14)]) }}</li>
+          </ul>
+          <p class="hint">{{ __('ご希望の方はお問い合わせからご連絡ください。運営が契約を用意します。') }}</p>
+          <p><a href="/contact" class="button-link">{{ __('お問い合わせ') }}</a></p>
         @elseif($hasActiveSubscription)
           <p class="hint">{{ __('プランの変更・お支払い方法の更新・解約は、決済画面（Stripe）で行えます。') }}</p>
           <form method="post" action="/mypage/plan/portal">

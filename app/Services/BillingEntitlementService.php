@@ -26,8 +26,9 @@ class BillingEntitlementService
     }
 
     /**
-     * 有料プラン（お試し含む）がいま有効か。
+     * 有料プラン（お試し・支払い遅延の猶予中を含む）がいま有効か。
      * お試しは trial_ends_at が未来、または未設定（手動運用）のとき有効。
+     * past_due は設定の猶予日数（既定7日）を過ぎるまで有効扱い。
      */
     public function hasActiveSubscription(User $user): bool
     {
@@ -46,7 +47,27 @@ class BillingEntitlementService
             return Carbon::parse($ends)->isFuture();
         }
 
+        if ($status === SubscriptionStatus::PastDue) {
+            return ! $this->pastDueGraceExpired($user);
+        }
+
         return false;
+    }
+
+    /**
+     * 支払い遅延の検知から猶予日数を過ぎたか。
+     * 専用カラムがないため、契約状態が past_due になった時点の updated_at を起点にする。
+     */
+    public function pastDueGraceExpired(User $user, ?Carbon $since = null): bool
+    {
+        if ($this->status($user) !== SubscriptionStatus::PastDue) {
+            return false;
+        }
+
+        $grace = max(0, (int) config('billing.past_due_grace_days', 7));
+        $from = $since ?? Carbon::parse($user->updated_at ?? now());
+
+        return $from->copy()->addDays($grace)->isPast();
     }
 
     /**
@@ -70,7 +91,7 @@ class BillingEntitlementService
 
     /**
      * 製品上の無料枠バイト数。
-     * Light / 未契約: config の 50GB。Standard（ロール）およびスタッフ: 200GB。
+     * Light / 未契約: config の 20GB。Standard（ロール）およびスタッフ: 200GB。
      */
     public function storageFreeQuotaBytes(User $user): int
     {
@@ -79,7 +100,7 @@ class BillingEntitlementService
             return $saved;
         }
 
-        $base = max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
+        $base = max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
         $standard = max($base, (int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
 
         if ($this->qualifiesForStandardStorageQuota($user)) {

@@ -44,6 +44,11 @@ class LoginController extends Controller
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
+        $user->forceFill([
+            'last_seen_at' => now(),
+            'dormant_warned_at' => null,
+        ])->save();
+
         if ($user->must_change_password) {
             return redirect('/password/setup');
         }

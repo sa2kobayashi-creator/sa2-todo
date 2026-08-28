@@ -1,7 +1,7 @@
 # Stripe 実課金（2B）設計
 
 ステータス: **第1段階まで実装済み（本番キー未投入）**
-記録日: 2026-08-27 / 更新: 2026-08-27
+記録日: 2026-08-27 / 更新: 2026-08-28
 
 ## 実装状況
 
@@ -15,7 +15,11 @@
 | Stripe → エンタイトルメント写像 | 済 | `app/Services/StripeBillingService.php` |
 | Checkout / Billing Portal | 済 | `app/Http/Controllers/BillingController.php`、`/mypage/plan` |
 | Webhook 受信 | 済 | `app/Http/Controllers/StripeWebhookController.php`、`POST /webhooks/stripe` |
-| テスト | 済 | `tests/Feature/StripeBillingTest.php`（19件） |
+| past_due 猶予中の権限維持 | 済 | `SubscriptionStatus::grantsPaidAccess`、`BillingEntitlementService::hasActiveSubscription` |
+| invoice.* は status のみ更新 | 済 | `StripeBillingService::applyInvoiceStatus`（権限の正は subscription.*） |
+| 課金 ON の前提（legal / webhook / price） | 済 | `StripeBillingService::enabled` / `enableBlockReason` |
+| Checkout の `client_reference_id` | 済 | `BillingController::checkout` |
+| テスト | 済 | `tests/Feature/StripeBillingTest.php` |
 | **ストレージ超過の従量報告** | **未** | `StripeBillingService::overageUnits()` はあるが、Stripe への数量反映は未実装 |
 | **請求書（テナント／専用）運用** | **未** | 手動の管理画面のまま |
 | **本番の price 作成と設定画面への投入** | **未** | 下記「本番投入前チェック」参照 |
@@ -25,9 +29,9 @@
 1. Stripe ダッシュボードで商品と price を作る（通貨 JPY = ゼロ十進通貨。`980` は 980円であって 9.8円ではない）
 2. 設定 → 公開販売 に公開可能キー・シークレット・Webhook 署名・Price ID を保存する（.env は未保存時のフォールバック）
 3. Webhook エンドポイントに `https://sa2-plus.com/webhooks/stripe` を登録し、`checkout.session.completed`・`customer.subscription.*`・`invoice.paid`・`invoice.payment_failed` を購読
-4. `/tokushoho` の `LEGAL_*` を埋める（未設定だと画面に警告が出る）
-5. 最後に `BILLING_ENABLED=true`。これを false のままにしておけば申し込みボタンは出ない
-対象: 販路 B（共有インスタンス）の Standard 月額・年額、テナント契約、ストレージ超過、メールボックス
+4. `/tokushoho` の事業者情報を埋める（未設定だと画面に警告が出る）。課金 ON にも必須
+5. 「オンライン申し込みを開始する」にチェックして保存（事業者情報・whsec・Standard Price が揃っていないと拒否される）
+6. `PHOTO_PAID_OVERAGE_ENABLED=false`、ストレージ設定の「有料枠を許可」は OFF のまま（超過の自動課金は未実装）
 
 関連（金額・製品判断の正はこちら。本書は**実装方法**の正）:
 
@@ -230,7 +234,7 @@ $user->newSubscription('default', $priceId)   // Cashier
 ```
 月次バッチ（cron・毎月1日）
   ├─ ユーザーごとに前月の使用バイトを集計（PhotoService::userUsedBytesApprox 相当）
-  ├─ 超過 = 使用量 − プラン枠（Light 50GB / Standard 200GB）
+  ├─ 超過 = 使用量 − プラン枠（Light 20GB / Standard 200GB）
   ├─ 課金単位 = ceil(超過 / 100GB)   ※0なら item を削除
   ├─ Subscription item の quantity を更新（proration_behavior: 'none'）
   └─ billing_usage_reports に記録

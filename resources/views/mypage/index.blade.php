@@ -67,6 +67,16 @@
           {{ __('契約状態とストレージ・メールオプションの確認です。') }}
           <a href="/mypage/plan">{{ __('プラン・お支払い') }}</a>
         </p>
+
+        @if(empty($plan['subscriptionActive']) && empty($plan['isStaff']))
+          <div class="banner notice" style="margin-bottom:1rem;">
+            <p style="margin:0 0 0.5rem;">{{ __('いまはライト（お試し・約:gbGB）です。容量とメニューを広げるにはスタンダードへお申し込みください。', ['gb' => max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024)))]) }}</p>
+            <p class="hint" style="margin:0 0 0.5rem;">{{ __('約:warn日ログインがない場合は警告メールが届きます。警告後:grace日ログインがなければアカウントは削除されます。', ['warn' => (int) config('registration.light_inactive_warn_days', 90), 'grace' => (int) config('registration.light_inactive_delete_grace_days', 14)]) }}</p>
+            <p class="hint" style="margin:0 0 0.75rem;">{{ __('最初の:days日間は無料。その後 ¥:yen／月（税込）。', ['days' => (int) ($plan['standardTrialDays'] ?? 14), 'yen' => number_format((int) ($plan['standardMonthlyYen'] ?? 980))]) }}</p>
+            <a href="/mypage/plan" class="button-link">{{ __('スタンダードに申し込む（¥:yen〜）', ['yen' => number_format((int) ($plan['standardMonthlyYen'] ?? 980))]) }}</a>
+          </div>
+        @endif
+
         <dl class="plan-summary-grid">
           <div class="plan-summary-card">
             <dt>{{ __('契約状態') }}</dt>

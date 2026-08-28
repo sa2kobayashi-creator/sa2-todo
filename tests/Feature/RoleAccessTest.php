@@ -96,6 +96,7 @@ class RoleAccessTest extends TestCase
             'email' => 'invited@example.com',
             'displayName' => 'Invited',
             'inviteCode' => 'family-secret',
+            'message' => 'TodoとPhotosを短期間試したいです。家族の予定共有も検討中です。',
             'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNotNull(User::query()->where('email', 'invited@example.com')->first());
@@ -110,9 +111,24 @@ class RoleAccessTest extends TestCase
             'email' => 'blocked@example.com',
             'displayName' => 'Blocked',
             'inviteCode' => 'family-secret',
+            'message' => 'TodoとPhotosを短期間試したいです。家族の予定共有も検討中です。',
             'agreeTerms' => '1',
         ])->assertRedirect();
         $this->assertNull(User::query()->where('email', 'blocked@example.com')->first());
+    }
+
+    public function test_super_admin_can_generate_registration_invite_code(): void
+    {
+        $admin = $this->makeUser(UserRole::SuperAdmin, 'admin-generate@example.com');
+
+        $this->actingAs($admin)->post('/admin/users/registration', [
+            'generateInviteCode' => '1',
+        ])->assertRedirect();
+
+        $code = \App\Support\Registration::inviteCode();
+        $this->assertNotSame('', $code);
+        $this->assertMatchesRegularExpression('/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/', $code);
+        $this->assertStringContainsString($code, \App\Support\Registration::invitationMessage());
     }
 
     public function test_regular_admin_can_change_registration_invite_code(): void

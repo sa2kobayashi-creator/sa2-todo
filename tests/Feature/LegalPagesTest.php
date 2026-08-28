@@ -57,14 +57,49 @@ class LegalPagesTest extends TestCase
         $response = $this->get('/terms')->assertOk();
 
         foreach ([
-            '有料プランと契約の成立',
+            'プランと契約の成立',
             '料金・支払方法・自動更新',
             '解約・返金',
             '反社会的勢力の排除',
             '本規約の変更',
+            '利用申請',
+            'ライト（お試し）',
+            '約90日間ログインがない場合',
         ] as $heading) {
             $response->assertSee($heading, false);
         }
+
+        $this->assertStringNotContainsString('招待制を基本', $response->getContent());
+    }
+
+    public function test_tokushoho_and_top_agree_on_light_trial_numbers(): void
+    {
+        $gb = max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024)));
+        $cap = (int) config('registration.light_weekly_cap', 50);
+        $warn = (int) config('registration.light_inactive_warn_days', 90);
+        $grace = (int) config('registration.light_inactive_delete_grace_days', 14);
+
+        $this->get('/tokushoho')
+            ->assertOk()
+            ->assertSee(__('ライト（お試し）: ¥0・約:gbGB・週:cap人まで・約:warn日未ログインで警告、さらに:grace日応答なしで削除', [
+                'gb' => $gb,
+                'cap' => $cap,
+                'warn' => $warn,
+                'grace' => $grace,
+            ]), false)
+            ->assertDontSee('50GB', false);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(__('約 :gbGB。短期間のお試し枠です（週:cap人まで）。', ['gb' => $gb, 'cap' => $cap]), false);
+    }
+
+    public function test_privacy_mentions_light_dormant_deletion(): void
+    {
+        $this->get('/privacy')
+            ->assertOk()
+            ->assertSee('約90日間ログインがない場合は警告メールを送り', false)
+            ->assertSee('約14日間ログインがない場合は、アカウントおよび関連データを削除', false);
     }
 
     public function test_privacy_lists_processors_and_the_contact_window(): void

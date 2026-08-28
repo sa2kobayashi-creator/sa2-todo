@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\LegalConfigService;
+use App\Services\StripeBillingService;
 use App\Services\StripeConfigService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class CommercialSettingsController extends Controller
     public function __construct(
         private readonly LegalConfigService $legal,
         private readonly StripeConfigService $stripe,
+        private readonly StripeBillingService $stripeBilling,
     ) {}
 
     public function updateLegal(Request $request)
@@ -53,12 +55,15 @@ class CommercialSettingsController extends Controller
         ]);
 
         $enabled = $request->boolean('enabled');
-        if ($enabled && ! $this->legal->requiredComplete()) {
-            return $this->redirectWithMessage(
-                '/settings?section=sales#stripe-billing-settings',
-                __('オンライン申し込みを始める前に、上の事業者情報（氏名・住所・電話・メール）を保存してください。'),
-                'error'
-            );
+        if ($enabled) {
+            $block = $this->stripeBilling->enableBlockReason($data);
+            if ($block !== null) {
+                return $this->redirectWithMessage(
+                    '/settings?section=sales#stripe-billing-settings',
+                    $block,
+                    'error'
+                );
+            }
         }
 
         $this->stripe->save($enabled, $data);

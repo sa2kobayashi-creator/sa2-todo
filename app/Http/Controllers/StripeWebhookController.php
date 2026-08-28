@@ -135,21 +135,8 @@ class StripeWebhookController extends Controller
             return null;
         }
 
-        $lines = (array) ($invoice['lines']['data'] ?? []);
-        $priceIds = [];
-        foreach ($lines as $line) {
-            $priceId = $line['price']['id'] ?? $line['plan']['id'] ?? null;
-            if (is_string($priceId) && $priceId !== '') {
-                $priceIds[] = ['price' => ['id' => $priceId]];
-            }
-        }
-
-        $paid = (bool) ($invoice['paid'] ?? false);
-
-        return $this->stripe->applySubscription($user, [
-            'status' => $paid ? 'active' : 'past_due',
-            'items' => ['data' => $priceIds],
-        ]);
+        // 明細から権限を再計算しない。月次請求に Standard しか載らないと mailbox 等が落ちる
+        return $this->stripe->applyInvoiceStatus($user, (bool) ($invoice['paid'] ?? false));
     }
 
     private function findUser(string $customerId, string $reference = ''): ?User

@@ -143,7 +143,7 @@ class PhotoService
         return max(1, (int) config('photos.user_quota_bytes', 10 * 1024 * 1024 * 1024));
     }
 
-    /** ユーザーごとの製品無料枠（R2+B2 合算）。契約状態により 50GB / 200GB */
+    /** ユーザーごとの製品無料枠（R2+B2 合算）。契約状態により 20GB / 200GB */
     public function userFreeQuotaBytes(?int $userId = null): int
     {
         if ($userId !== null) {
@@ -153,7 +153,7 @@ class PhotoService
             }
         }
 
-        return max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
+        return max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
     }
 
     public function overagePricePerGbMonthUsd(): float
@@ -332,7 +332,7 @@ class PhotoService
         $cloudinaryEditor = $this->mediaConfig->cloudinaryEditorEnabled();
         $cloudinaryEnabled = $this->mediaConfig->cloudinaryEnabled();
 
-        // 製品無料枠は契約状態により 50GB / 200GB（R2+B2 合算相当）
+        // 製品無料枠は契約状態により 20GB / 200GB（R2+B2 合算相当）
         $combinedQuota = $this->userFreeQuotaBytes($userId);
         $displayCapacity = max(1, (int) config('photos.storage_display_capacity_bytes', 1024 * 1024 * 1024 * 1024));
         $barUsed = $usedApprox;
@@ -484,7 +484,7 @@ class PhotoService
             'formattedUsed' => $this->formatBytes($barUsed),
             'formattedQuota' => $this->formatBytes($quota),
             'formattedCombinedQuota' => $this->formatBytes($combinedQuota),
-            'formattedLightQuota' => $this->formatBytes(max(1, (int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024))),
+            'formattedLightQuota' => $this->formatBytes(max(1, (int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024))),
             'formattedStandardQuota' => $this->formatBytes(max(1, (int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024))),
             'formattedDisplayCapacity' => $this->formatBytes($displayCapacity),
             'formattedTotalUsed' => $this->formatBytes($usedApprox),

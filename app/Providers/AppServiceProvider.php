@@ -67,6 +67,10 @@ class AppServiceProvider extends ServiceProvider
             ? Limit::none()
             : Limit::perMinute(3)->by($request->ip()));
 
+        RateLimiter::for('auth-apply', fn (Request $request) => $unlimited
+            ? Limit::none()
+            : Limit::perHour(5)->by($request->ip()));
+
         RateLimiter::for('auth-password', fn (Request $request) => $unlimited
             ? Limit::none()
             : Limit::perMinute(5)->by($request->ip()));

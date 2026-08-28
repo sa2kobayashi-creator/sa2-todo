@@ -31,6 +31,9 @@ class BillingController extends Controller
             'storageOverageActive' => (bool) $user->storage_overage_active,
             'hasStripeCustomer' => trim((string) $user->stripe_id) !== '',
             'pricesIncludeTax' => (bool) config('commercial.prices_include_tax', true),
+            'standardMonthlyYen' => (int) config('commercial.standard_yen_monthly', 980),
+            'standardYearlyYen' => (int) config('commercial.standard_yen_yearly', 9800),
+            'standardTrialDays' => (int) config('commercial.standard_trial_days', 14),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -63,6 +66,7 @@ class BillingController extends Controller
                     'success_url' => url($returnTo).'?notice='.urlencode(__('お申し込みを受け付けました。反映まで少しお待ちください。')),
                     'cancel_url' => url($returnTo),
                     'locale' => 'ja',
+                    'client_reference_id' => (string) $user->id,
                 ]);
         } catch (\Throwable $e) {
             report($e);

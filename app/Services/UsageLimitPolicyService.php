@@ -33,7 +33,7 @@ class UsageLimitPolicyService
         $translateDay = max(0, (int) config('usage_limits.translate_chars_per_day', 50_000));
         $voiceDay = max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30));
         $guideDay = max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20));
-        $lightGb = $this->bytesToGb((int) config('photos.user_free_quota_bytes', 50 * 1024 * 1024 * 1024));
+        $lightGb = $this->bytesToGb((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
         $standardGb = $this->bytesToGb((int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
 
         return [

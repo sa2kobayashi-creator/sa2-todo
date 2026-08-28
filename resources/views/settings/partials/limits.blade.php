@@ -9,7 +9,10 @@
 @endphp
 <div class="panel" id="usage-limit-settings">
   <h2>{{ __('制限管理') }}</h2>
-  <p class="hint">{{ __('運営キーで動く Light / Standard / 特別枠 / テナント契約の上限です。Standard やテナント代表はここを編集できません。未保存のあいだは従来の全員共通の日次上限です。0 はその項目を無制限にします。テナントの回数・文字数は契約メンバーの合算です。ストレージだけユーザーごとです。特別枠は運営がユーザー管理で付けた個人アカウント専用で、自己登録の招待コードとは別です。') }}</p>
+  <p class="hint">{{ __('運営キーで動く Light / Standard / 特別枠 / テナント契約の上限です。Standard やテナント代表はここを編集できません。未保存のあいだは従来の全員共通の日次上限です。0 はその項目を無制限にします。テナントの回数・文字数は契約メンバーの合算です。ストレージの製品既定は Light 約:lightGB／Standard 約:standardGB（設定を保存するとここが優先されます）。特別枠は運営がユーザー管理で付けた個人アカウント専用で、招待コード経路や利用申請とは別です。', [
+    'lightGB' => max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024))),
+    'standardGB' => max(1, (int) round(((int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024))),
+  ]) }}</p>
 
   @if($ratio >= 1)
     <div class="banner error">{{ __('運営の今月の見積が上限に達しています。SuperAdmin 以外の AI・翻訳を止めています。') }}</div>

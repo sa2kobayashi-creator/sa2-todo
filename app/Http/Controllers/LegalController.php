@@ -55,6 +55,10 @@ class LegalController extends Controller
             'storageOverageYen' => (int) config('commercial.storage_overage_yen_per_100gb', 300),
             'setupFeeYen' => (int) config('commercial.setup_fee_yen', 50000),
             'monthlyBaseYen' => (int) config('commercial.monthly_base_yen', 8000),
+            'lightQuotaGb' => max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024))),
+            'lightWeeklyCap' => max(0, (int) config('registration.light_weekly_cap', 50)),
+            'lightInactiveWarnDays' => max(1, (int) config('registration.light_inactive_warn_days', 90)),
+            'lightInactiveDeleteGraceDays' => max(1, (int) config('registration.light_inactive_delete_grace_days', 14)),
         ]);
     }
 }

@@ -9,14 +9,14 @@
   </head>
   <body class="auth-body">
     @include('partials.auth-lang-switcher')
-    <main class="auth-shell">
+    <main class="auth-shell auth-shell-wide">
       <a href="/" class="auth-brand">
         <img src="{{ asset('icons/app-icon.png') }}" alt="" class="site-logo-icon" width="40" height="40" />
         <span>{{ config('app.name') }}</span>
       </a>
-      <div class="auth-card panel" style="max-width:720px;text-align:left;">
+      <div class="auth-card panel">
         <h1>{{ __('プライバシーポリシー') }}</h1>
-        <p class="hint">{{ __('最終更新: :date', ['date' => '2026-08-27']) }}</p>
+        <p class="hint">{{ __('最終更新: :date', ['date' => '2026-08-28']) }}</p>
 
         @if(($htmlLang ?? app()->getLocale()) === 'en')
           <section class="legal-section" style="line-height:1.7;">
@@ -59,6 +59,7 @@
             <p>We use session cookies required to keep you signed in and for CSRF protection. Locale and display preferences may be stored in your browser. A Service Worker is registered so the app can run as a PWA, and if you allow notifications we store your Web Push subscription. We do not use third-party advertising cookies or third-party analytics.</p>
             <h2 style="font-size:1.05rem;margin-top:1.25rem;">8. Retention and deletion</h2>
             <p>Data is kept while your account is active. After account deletion (My Page or by an administrator), we delete associated records and stored objects as far as reasonably practicable. Operational backups may remain for up to about 30 days and are then overwritten or discarded according to hosting practice. Contract and billing records are retained for the period required by law (generally seven years for accounting records).</p>
+            <p>For Light (trial) accounts, if there is no login for about 90 days we send a warning email; if there is still no login within about 14 days after that warning, we may delete the account and its data.</p>
             <h2 style="font-size:1.05rem;margin-top:1.25rem;">9. Your rights</h2>
             <p>You may request notification of the purpose of use, disclosure, correction, addition, deletion, suspension of use or erasure, suspension of third-party provision, and disclosure of third-party provision records. From My Page you can review and change your profile, export your data, and delete your account at any time.</p>
             <p>For other requests, email the contact above. We may ask you to write from your registered email address so we can verify your identity. We respond within 30 days as a rule, at no charge.</p>
@@ -108,6 +109,7 @@
             <p>ログイン維持およびCSRF対策のためのセッションCookieを使用します。言語設定・画面設定をブラウザに保存する場合があります。PWA として動作させるため Service Worker を登録し、通知を許可された場合は Web Push の送信先を保存します。広告目的のサードパーティCookieおよび第三者提供型のアクセス解析は使用しません。</p>
             <h2 style="font-size:1.05rem;margin-top:1.25rem;">8. 保持・削除</h2>
             <p>アカウント有効期間中は機能提供に必要な期間保持します。マイページまたは管理者によるアカウント削除後は、関連レコードおよびオブジェクトの削除に努めます。運用バックアップには最大おおよそ30日程度残存しうるものとし、その後はホスティング慣行に従い上書き・破棄します。ただし、契約・請求に関する記録は、法令が定める期間（帳簿書類は原則7年間）保存します。</p>
+            <p>ライト（お試し）アカウントについて、約90日間ログインがない場合は警告メールを送り、警告後さらに約14日間ログインがない場合は、アカウントおよび関連データを削除することがあります。</p>
             <h2 style="font-size:1.05rem;margin-top:1.25rem;">9. 開示等の請求</h2>
             <p>ご本人は、保有個人データの利用目的の通知、開示、訂正・追加・削除、利用停止・消去、第三者提供の停止、および第三者提供記録の開示を請求できます。マイページからはプロフィールの確認・変更、データのエクスポート、退会が随時行えます。</p>
             <p>それ以外の請求は前記の窓口宛にメールでお申し出ください。ご本人であることを確認するため、ご登録のメールアドレスからのご連絡をお願いする場合があります。原則として受付から30日以内に回答します。手数料はいただきません。</p>
@@ -121,7 +123,7 @@
         <div class="auth-links" style="margin-top:1.5rem;">
           <a href="/terms">{{ __('利用規約') }}</a>
           <a href="/tokushoho">{{ __('特定商取引法に基づく表記') }}</a>
-          <a href="/register">{{ __('登録へ') }}</a>
+          <a href="/apply">{{ __('利用申請へ') }}</a>
           <a href="/login">{{ __('ログインへ') }}</a>
         </div>
       </div>

@@ -27,8 +27,9 @@
         <div class="lp-header-actions">
           @include('partials.auth-lang-switcher')
           <a href="/login" class="lp-btn lp-btn-ghost lp-btn-chevron">{{ __('ログイン') }}</a>
+          <a href="/apply" class="lp-btn lp-btn-primary">{{ __('利用申請') }}</a>
           @if(!empty($registrationOpen))
-            <a href="/register" class="lp-btn lp-btn-primary">{{ __('招待コードで登録') }}</a>
+            <a href="/register" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
           @endif
         </div>
       </div>
@@ -40,18 +41,16 @@
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
             <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
-            <p class="lp-hero-lead">{{ __('個人の招待利用と、家族・小組織向けの専用環境（管理者契約）があります。Todo、メモ、Photos、メッセージ、メール、マップ、路線をまとめて使えます。') }}</p>
+            <p class="lp-hero-lead">{{ __('本格利用はスタンダード、家族・小組織はテナント契約が中心です。ライトは短期間のお試し（約:gbGB）です。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</p>
             <p class="lp-cta">
-              <a href="/login" class="lp-btn lp-btn-primary lp-btn-lg lp-btn-chevron">{{ __('ログイン') }}</a>
-              @if(!empty($registrationOpen))
-                <a href="/register" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('招待コードで登録') }}</a>
-              @endif
+              <a href="/apply?plan=standard" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('スタンダードを申請する') }}</a>
+              <a href="/apply?plan=tenant" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('テナント契約を申請する') }}</a>
             </p>
             <p class="lp-hero-note">
               <span class="lp-info-shield" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M12 3.2 20 6.2v6.1c0 4.7-3.2 8.2-8 9.7-4.8-1.5-8-5-8-9.7V6.2z" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.6 12.1 2.2 2.2 4.6-4.8" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
-              {{ __('このサービスは招待制です。招待コードがあると誰でも登録できます。') }}
+              {{ __('スタンダード／テナントは運営確認後に登録メールが届きます。ライト（お試し）は自動審査のうえメールが届きます。') }}
             </p>
           </div>
 
@@ -156,7 +155,7 @@
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ea580c" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="8.5" cy="11" r="1.5"/><path d="m21 16-5-5-7 7"/></svg>
             </span>
             <strong>{{ __('Photos') }}</strong>
-            <span>{{ __('原本をまとめて保管。ライトは約 50GB、スタンダードは約 200GB。') }}</span>
+            <span>{{ __('原本をまとめて保管。ライト（お試し）は約 :gbGB、スタンダードは約 200GB。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</span>
           </li>
           <li>
             <span class="lp-feature-icon is-msg" aria-hidden="true">
@@ -198,11 +197,31 @@
 
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
         <h2 id="landing-plans-title">{{ __('ご利用料金（税込）') }}</h2>
-        <p class="lp-section-lead">{{ __('金額はすべて税込です。テナント契約は最初から期間つきの優良プランとして公開しています。') }}</p>
+        <p class="lp-section-lead">{{ __('本利用はスタンダードとテナント契約が中心です。ライトは短期間のお試しです。金額はすべて税込です。') }}</p>
         <div class="lp-plans">
-          <article class="lp-plan is-tenant is-featured">
+          <article class="lp-plan is-standard is-featured">
             <header class="lp-plan-head">
-              <p>{{ __('家族・小規模向け') }} <span class="lp-plan-badge">{{ __('おすすめ') }}</span></p>
+              <p>{{ __('個人・本利用') }} <span class="lp-plan-badge">{{ __('おすすめ') }}</span></p>
+              <h3>{{ __('スタンダード') }}</h3>
+            </header>
+            <div class="lp-plan-body">
+              <p class="lp-plan-price">{{ __('¥:yen／月', ['yen' => number_format((int) ($standardMonthlyYen ?? 980))]) }}</p>
+              <p class="hint">{{ __('年額 ¥:yearly。約 200GB 込み。周辺メニューも使えます。', ['yearly' => number_format((int) ($standardYearlyYen ?? 9800))]) }}</p>
+              <ul class="lp-plan-includes">
+                <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
+                <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
+                <li>{{ __('@sa2-plus.com メール（プランに含む）') }}</li>
+                <li>{{ __('Gmail などの外部接続は無料') }}</li>
+                <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
+              </ul>
+              <p class="hint">{{ __('14日間のお試しは、申し込み後に始まります（カード登録が必要です）。') }}</p>
+              <a href="/apply?plan=standard" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('スタンダードを申請する') }}</a>
+            </div>
+          </article>
+
+          <article class="lp-plan is-tenant">
+            <header class="lp-plan-head">
+              <p>{{ __('家族・小規模向け') }}</p>
               <h3>{{ __('テナント契約') }}</h3>
             </header>
             <div class="lp-plan-body">
@@ -217,7 +236,26 @@
                 <li>{{ __('追加ユーザー ¥:yen／人／月', ['yen' => number_format((int) ($tenantExtraUserYen ?? 1000))]) }}</li>
                 <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
               </ul>
-              <a href="#contact" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申し込む') }}</a>
+              <a href="/apply?plan=tenant" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申請する') }}</a>
+            </div>
+          </article>
+
+          <article class="lp-plan is-light">
+            <header class="lp-plan-head">
+              <p>{{ __('お試し') }}</p>
+              <h3>{{ __('ライト') }}</h3>
+            </header>
+            <div class="lp-plan-body">
+              <p class="lp-plan-price">{{ __('¥0') }}</p>
+              <p class="hint">{{ __('約 :gbGB。短期間のお試し枠です（週:cap人まで）。', ['gb' => (int) ($lightQuotaGb ?? 20), 'cap' => (int) ($lightWeeklyCap ?? 50)]) }}</p>
+              <ul class="lp-plan-includes">
+                <li>{{ __('利用目的の記入が必須（短い・不明瞭は自動拒否）') }}</li>
+                <li>{{ __('一時メールは自動拒否。管理者承認は不要（自動審査）') }}</li>
+                <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
+                <li>{{ __('約:warn日ログインがない場合は警告。さらに:grace日応答がなければ削除', ['warn' => (int) ($lightInactiveWarnDays ?? 90), 'grace' => (int) ($lightInactiveDeleteGraceDays ?? 14)]) }}</li>
+                <li>{{ __('本格利用はスタンダードへ') }}</li>
+              </ul>
+              <a href="/apply?plan=light" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('ライト（お試し）を申請する') }}</a>
             </div>
           </article>
 
@@ -244,63 +282,28 @@
               <a href="#contact" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('専用環境の相談') }}</a>
             </div>
           </article>
-
-          <article class="lp-plan is-standard">
-            <header class="lp-plan-head">
-              <p>{{ __('個人・招待') }}</p>
-              <h3>{{ __('スタンダード') }}</h3>
-            </header>
-            <div class="lp-plan-body">
-              <p class="lp-plan-price">{{ __('¥:yen／月', ['yen' => number_format((int) ($standardMonthlyYen ?? 980))]) }}</p>
-              <p class="hint">{{ __('年額 ¥:yearly。約 200GB 込み。周辺メニューも使えます。', ['yearly' => number_format((int) ($standardYearlyYen ?? 9800))]) }}</p>
-              <ul class="lp-plan-includes">
-                <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
-                <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
-                <li>{{ __('@sa2-plus.com メール（プランに含む）') }}</li>
-                <li>{{ __('Gmail などの外部接続は無料') }}</li>
-                <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
-              </ul>
-            </div>
-          </article>
-
-          <article class="lp-plan is-light">
-            <header class="lp-plan-head">
-              <p>{{ __('個人・招待') }}</p>
-              <h3>{{ __('ライト') }}</h3>
-            </header>
-            <div class="lp-plan-body">
-              <p class="lp-plan-price">{{ __('¥0') }}</p>
-              <p class="hint">{{ __('約 50GB。まずは試せる枠です。') }}</p>
-              <ul class="lp-plan-includes">
-                <li>{{ __('運営の共有サーバー（sa2-plus.com）で利用') }}</li>
-                <li>{{ __('Todo・メモ・Photos・メッセージ・マップ・路線') }}</li>
-                <li>{{ __('@sa2-plus.com はオプション') }}</li>
-                <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
-              </ul>
-            </div>
-          </article>
         </div>
-        <p class="hint lp-plans-note">{{ __('個人向けは運営の共有インスタンスです。ライト／スタンダードに管理者はありません。家族向けの管理者契約はテナント、サーバー分離は専用です。') }}</p>
+        <p class="hint lp-plans-note">{{ __('個人向けは運営の共有インスタンスです。ライトはお試し、本利用はスタンダードです。家族向けの管理者契約はテナント、サーバー分離は専用です。') }}</p>
       </section>
 
       <section class="lp-section" id="flow" aria-labelledby="landing-flow-title">
         <h2 id="landing-flow-title">{{ __('ご利用の流れ') }}</h2>
-        <p class="lp-section-lead">{{ __('専用環境を最初に契約する必要はありません。使ってから選べます。') }}</p>
+        <p class="lp-section-lead">{{ __('本利用はスタンダード／テナントの申請から。ライトはお試しです。') }}</p>
         <ol class="lp-flow">
           <li>
             <span class="lp-flow-num">1</span>
-            <h3>{{ __('無料で触る') }}</h3>
-            <p>{{ __('招待コードでライト（¥0）として登録し、Todo・メモ・写真などを実際に使います。') }}</p>
+            <h3>{{ __('利用申請') }}</h3>
+            <p>{{ __('スタンダードまたはテナントを選び、名前・メール・利用目的を送ります。') }}</p>
           </li>
           <li>
             <span class="lp-flow-num">2</span>
-            <h3>{{ __('気に入ったら有料') }}</h3>
-            <p>{{ __('日常で使うならスタンダード（¥980／月）。容量と周辺メニューが揃います。') }}</p>
+            <h3>{{ __('登録メールで開始') }}</h3>
+            <p>{{ __('スタンダード／テナントは運営確認後、ライトは自動審査後にメールが届きます。リンクからパスワードを設定します。') }}</p>
           </li>
           <li>
             <span class="lp-flow-num">3</span>
-            <h3>{{ __('家族ならテナント契約') }}</h3>
-            <p>{{ __('同じ共有サーバー上で、管理者1名・5ユーザー・メール各1アドレス。最初の:days日は無料、その後 ¥:yen／月です。サーバーを分けたいときは専用インスタンスへ。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
+            <h3>{{ __('カード登録または本利用') }}</h3>
+            <p>{{ __('スタンダードはカード登録（最初の:days日無料）。テナントは運営が環境を用意します。ライトから本格利用へ移る場合もスタンダードへ。', ['days' => (int) ($standardTrialDays ?? 14)]) }}</p>
           </li>
         </ol>
       </section>
@@ -354,7 +357,7 @@
         <div class="lp-faq">
           <details open>
             <summary>{{ __('最初から専用環境を契約すべきですか？') }}</summary>
-            <p>{{ __('多くの場合は不要です。まずライトで試し、必要ならスタンダードへ。家族で管理者が必要ならテナント契約、サーバー分離が必要なら専用へ。最初から分離が必要な組織は、その旨をご相談ください。') }}</p>
+            <p>{{ __('多くの場合は不要です。本利用はスタンダード、家族で管理者が必要ならテナント契約、サーバー分離が必要なら専用へ。ライトは短期間のお試しです。') }}</p>
           </details>
           <details>
             <summary>{{ __('個人向けと専用環境の違いは何ですか？') }}</summary>
@@ -365,20 +368,27 @@
             <p>{{ __('はい。テナント契約として、管理者は代表1名・ユーザーは月5名まで（代表を含む）・@sa2-plus.com メールは各1アドレス込みです。最初の:days日は無料、その後 ¥:yen／月（税込）です。個人のライト／スタンダードには管理者は付けません。サーバーを分けたい場合は専用インスタンスです。', ['days' => (int) ($tenantTrialDays ?? 30), 'yen' => number_format((int) ($tenantMonthlyYen ?? 3980))]) }}</p>
           </details>
           <details>
+            <summary>{{ __('ライト（お試し）の条件は？') }}</summary>
+            <p>{{ __('約:gbGB・利用目的の記入必須・週:cap人まで。一時メールや目的不明は自動でお断りします。約:warn日ログインがない場合は警告メールを送り、さらに:grace日応答がなければ削除します。本格利用はスタンダードをご利用ください。', [
+              'gb' => (int) ($lightQuotaGb ?? 20),
+              'cap' => (int) ($lightWeeklyCap ?? 50),
+              'warn' => (int) ($lightInactiveWarnDays ?? 90),
+              'grace' => (int) ($lightInactiveDeleteGraceDays ?? 14),
+            ]) }}</p>
+          </details>
+          <details>
             <summary>{{ __('招待コードがないと使えませんか？') }}</summary>
-            <p>{{ __('はい。当面は招待制です。コードがある人だけ登録できます。専用環境は個別のお見積です。') }}</p>
+            <p>{{ __('いいえ。トップの「利用申請」から申し込めます。スタンダード／テナントは運営確認後、ライトは自動審査後に登録メールが届きます。招待コードは、運営が直接渡す場合の別経路です。') }}</p>
           </details>
         </div>
       </section>
 
       <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
         <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
-        <p class="lp-section-lead">{{ __('公開料金どおり、最初の:days日は試用です。テナント契約の開始は運営が対応します。まずは招待で触っていただき、そのうえでご連絡ください。', ['days' => (int) ($tenantTrialDays ?? 30)]) }}</p>
+        <p class="lp-section-lead">{{ __('まずはスタンダードまたはテナントの利用申請から。ライトはお試しです。テナントや専用環境の詳しい相談もこちらへ。') }}</p>
         <p class="lp-cta">
-          <a href="/login" class="lp-btn lp-btn-primary">{{ __('ログイン') }}</a>
-          @if(!empty($registrationOpen))
-            <a href="/register" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
-          @endif
+          <a href="/apply?plan=standard" class="lp-btn lp-btn-primary">{{ __('スタンダードを申請する') }}</a>
+          <a href="/apply?plan=tenant" class="lp-btn lp-btn-ghost">{{ __('テナント契約を申請する') }}</a>
         </p>
         @if(!empty($contactEmail))
           <p>{{ __('メールでのお問い合わせ') }}: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a></p>
@@ -390,14 +400,12 @@
     <section class="lp-banner" aria-labelledby="landing-banner-title">
       <div class="lp-banner-inner">
         <div>
-          <h2 id="landing-banner-title">{{ __('今すぐはじめて、あなたの毎日をもっと快適に。') }}</h2>
-          <p>{{ __('招待コードをお持ちの方は、今すぐ登録・ログインできます。') }}</p>
+          <h2 id="landing-banner-title">{{ __('スタンダード／テナントで、毎日をもっと快適に。') }}</h2>
+          <p>{{ __('本利用の申請から。ライトは短期間のお試しです。') }}</p>
         </div>
         <p class="lp-cta">
-          <a href="/login" class="lp-btn lp-btn-on-dark">{{ __('ログイン') }}</a>
-          @if(!empty($registrationOpen))
-            <a href="/register" class="lp-btn lp-btn-on-dark">{{ __('招待コードで登録') }}</a>
-          @endif
+          <a href="/apply?plan=standard" class="lp-btn lp-btn-on-dark">{{ __('スタンダードを申請する') }}</a>
+          <a href="/apply?plan=tenant" class="lp-btn lp-btn-on-dark">{{ __('テナント契約を申請する') }}</a>
         </p>
       </div>
     </section>

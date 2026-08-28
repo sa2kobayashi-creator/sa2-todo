@@ -21,7 +21,7 @@
 | **Backblaze B2** | コールド／アーカイブ | 保管・転送（egress）・API 呼び出し | 動画再生の署名URL直配信で転送が増えやすい |
 | **Cloudinary** | 表示用変換・編集パイプライン | 変換・帯域・保管 | パイプライン設定次第 |
 
-**製品側の無料枠（ユーザーごと）:** Light **50GB** / Standard **200GB**（R2+B2 相当）。超過時は見込料金表示のみで、実課金は未実装。超過かつ有料未契約ならアップロード停止（`PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA`）。
+**製品側の無料枠（ユーザーごと）:** Light **20GB（お試し）** / Standard **200GB**（R2+B2 相当）。超過時は見込料金表示のみで、実課金は未実装。超過かつ有料未契約ならアップロード停止（`PHOTO_BLOCK_UPLOADS_OVER_FREE_QUOTA`）。
 
 ---
 

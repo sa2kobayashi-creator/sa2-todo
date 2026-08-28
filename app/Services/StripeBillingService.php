@@ -20,8 +20,78 @@ class StripeBillingService
 
     public function enabled(): bool
     {
-        return (bool) config('billing.enabled', false)
-            && trim((string) config('cashier.secret', '')) !== '';
+        if (! (bool) config('billing.enabled', false)) {
+            return false;
+        }
+
+        if (trim((string) config('cashier.secret', '')) === '') {
+            return false;
+        }
+
+        if (trim((string) config('cashier.webhook.secret', '')) === '') {
+            return false;
+        }
+
+        if ($this->selfServePlans() === []) {
+            return false;
+        }
+
+        // .env だけで BILLING_ENABLED=true にしても、特商法の必須項目が空なら申込を出さない
+        return app(LegalConfigService::class)->requiredComplete();
+    }
+
+    /**
+     * 画面から「オンライン申し込みを開始」できるか。できない理由を返す。
+     *
+     * @param  array<string, mixed>  $incoming  保存直前の入力（マスク済みは無視）
+     */
+    public function enableBlockReason(array $incoming = []): ?string
+    {
+        if (! app(LegalConfigService::class)->requiredComplete()) {
+            return __('オンライン申し込みを始める前に、上の事業者情報（氏名・住所・電話・メール）を保存してください。');
+        }
+
+        $secret = $this->effectiveSecret('stripe_secret', (string) ($incoming['stripe_secret'] ?? ''));
+        if ($secret === '') {
+            return __('シークレットキー（sk_）を保存してください。');
+        }
+
+        $webhook = $this->effectiveSecret('webhook_secret', (string) ($incoming['webhook_secret'] ?? ''));
+        if ($webhook === '') {
+            return __('Webhook 署名シークレット（whsec_）を保存してください。決済完了を受け取れません。');
+        }
+
+        $hasPrice = false;
+        foreach (['price_standard_monthly', 'price_standard_yearly'] as $key) {
+            $fromInput = trim((string) ($incoming[$key] ?? ''));
+            $fromConfig = match ($key) {
+                'price_standard_monthly' => (string) config('billing.plans.standard_monthly.price_id', ''),
+                'price_standard_yearly' => (string) config('billing.plans.standard_yearly.price_id', ''),
+                default => '',
+            };
+            if ($fromInput !== '' || trim($fromConfig) !== '') {
+                $hasPrice = true;
+                break;
+            }
+        }
+
+        if (! $hasPrice) {
+            return __('スタンダードの Price ID（月額または年額）を少なくとも1つ保存してください。');
+        }
+
+        return null;
+    }
+
+    private function effectiveSecret(string $dbKey, string $incoming): string
+    {
+        $value = trim($incoming);
+        if ($value !== '' && $value !== '••••••••' && ! str_starts_with($value, '••••')) {
+            return $value;
+        }
+
+        $configKey = $dbKey === 'webhook_secret' ? 'cashier.webhook.secret' : 'cashier.secret';
+
+        return trim((string) config($configKey, ''));
     }
 
     /**
@@ -172,17 +242,24 @@ class StripeBillingService
 
     /**
      * 支払い遅延から猶予日数を過ぎたか。過ぎたら有料機能を閉じる。
+     * 判定の正は BillingEntitlementService。ここは呼び出し互換のための委譲。
      */
     public function pastDueGraceExpired(User $user, ?Carbon $since = null): bool
     {
-        if ($this->entitlements->status($user) !== SubscriptionStatus::PastDue) {
-            return false;
-        }
+        return $this->entitlements->pastDueGraceExpired($user, $since);
+    }
 
-        $grace = max(0, (int) config('billing.past_due_grace_days', 7));
-        $from = $since ?? Carbon::parse($user->updated_at ?? now());
-
-        return $from->copy()->addDays($grace)->isPast();
+    /**
+     * 請求書イベントは契約状態だけ更新する。
+     * 権限・ロール・アドオンの正は customer.subscription.*（明細が請求ごとに変わるため）。
+     */
+    public function applyInvoiceStatus(User $user, bool $paid): User
+    {
+        return $this->entitlements->apply($user, [
+            'subscription_status' => $paid
+                ? SubscriptionStatus::Active
+                : SubscriptionStatus::PastDue,
+        ]);
     }
 
     /**

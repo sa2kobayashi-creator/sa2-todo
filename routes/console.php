@@ -40,3 +40,9 @@ Schedule::command(\App\Console\Commands\SendTodoReminders::class)
 Schedule::command(SyncMailMetadata::class)
     ->everyFiveMinutes()
     ->withoutOverlapping(4);
+
+Schedule::command(\App\Console\Commands\PruneDormantLightUsers::class)
+    ->dailyAt('04:15')
+    ->withoutOverlapping();
+// 本番: crontab で毎分 `php artisan schedule:run` が必要。確認は `php artisan registration:align-light-trial`
+

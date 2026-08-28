@@ -10,8 +10,8 @@ return [
     /** ffmpeg 実行ファイル（PATH 上の名前、または絶対パス） */
     'ffmpeg_path' => env('FFMPEG_PATH', 'ffmpeg'),
 
-    /** ユーザーあたりの製品無料枠（合計バイト）。R2+B2 合算。既定 50GB（Light） */
-    'user_free_quota_bytes' => (int) env('PHOTO_USER_FREE_QUOTA_BYTES', 50 * 1024 * 1024 * 1024),
+    /** ユーザーあたりの製品無料枠（合計バイト）。R2+B2 合算。既定 20GB（Light お試し） */
+    'user_free_quota_bytes' => (int) env('PHOTO_USER_FREE_QUOTA_BYTES', 20 * 1024 * 1024 * 1024),
 
     /** Standard（有料契約）の無料枠。Light 以上にする。既定 200GB */
     'standard_quota_bytes' => (int) env('PHOTO_STANDARD_QUOTA_BYTES', 200 * 1024 * 1024 * 1024),

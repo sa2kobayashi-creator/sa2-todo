@@ -24,12 +24,16 @@
         @if(empty($registrationOpen))
           <p class="hint">{{ __('現在、新規登録は受け付けていません。管理者に依頼してください。') }}</p>
         @else
-          <p class="hint">{{ __('新規登録は招待制です。管理者から招待コードを受け取ってください。登録するとライト権限で開始し、初期パスワードをメールでお送りします。') }}</p>
+          <p class="hint">{{ __('招待コードでの登録も、ライト（お試し・約:gbGB・週:cap人まで）です。利用目的の記入が必須で、一時メールは登録できません。', ['gb' => (int) ($lightQuotaGb ?? 20), 'cap' => (int) ($lightWeeklyCap ?? 50)]) }}</p>
           <form method="post" action="/register" class="auth-form" id="register-form">
             @csrf
             <label>{{ __('メールアドレス') }}<input type="email" name="email" value="{{ old('email') }}" required autocomplete="username" /></label>
             <label>{{ __('表示名') }}<input type="text" name="displayName" value="{{ old('displayName') }}" maxlength="100" /></label>
             <label>{{ __('招待コード') }}<input type="text" name="inviteCode" value="{{ old('inviteCode') }}" required maxlength="120" autocomplete="off" /></label>
+            <label>{{ __('利用目的') }} <span class="req">*</span>
+              <textarea name="message" rows="3" maxlength="2000" required minlength="{{ (int) ($purposeMinLength ?? 20) }}" placeholder="{{ __('例: Todoと写真を試したい。家族の予定共有を検討中、など（:min文字以上）', ['min' => (int) ($purposeMinLength ?? 20)]) }}">{{ old('message') }}</textarea>
+              <span class="hint">{{ __('空欄や極端に短い内容、一時メールは自動でお断りします。') }}</span>
+            </label>
             <p class="agree-terms-hint" id="agree-terms-hint">{{ __('先に利用規約とプライバシーポリシーを開いて内容を確認してください。確認後に同意チェックが有効になります。') }}</p>
             <label class="checkbox-inline agree-terms-row" for="agree-terms">
               <input

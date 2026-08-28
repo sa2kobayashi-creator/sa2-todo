@@ -17,7 +17,7 @@
     <li>{{ __('Developers → Webhooks でエンドポイントを追加します。URL は下に表示されているものをそのまま使います。') }}</li>
     <li>{{ __('購読するイベントは checkout.session.completed、customer.subscription.created / updated / deleted、invoice.paid、invoice.payment_failed です。') }}</li>
     <li>{{ __('作った Webhook の Signing secret（whsec_）と、各プランの Price ID（price_）を貼ります。') }}</li>
-    <li>{{ __('接続テストが通ったら、最後に「オンライン申し込みを開始する」にチェックして保存します。オフの間は申し込みボタンは出ません。') }}</li>
+    <li>{{ __('接続テストが通ったら、事業者情報・Webhook 署名・スタンダードの Price ID が揃っていることを確認し、最後に「オンライン申し込みを開始する」にチェックして保存します。オフの間は申し込みボタンは出ません。') }}</li>
   </ol>
 </div>
 
@@ -95,7 +95,7 @@
       <input type="checkbox" name="enabled" value="1" @checked(!empty($stripe['enabled'])) />
       {{ __('オンライン申し込みを開始する') }}
     </label>
-    <p class="hint">{{ __('オフの間はマイページのプラン画面に申し込みボタンが出ません。準備が終わるまでオフのままにしてください。') }}</p>
+    <p class="hint">{{ __('オンにするには、上の事業者情報・シークレットキー・Webhook 署名シークレット・スタンダードの Price ID（月額または年額）が必要です。オフの間はマイページのプラン画面に申し込みボタンが出ません。') }}</p>
 
     <label>
       {{ __('公開可能キー') }}

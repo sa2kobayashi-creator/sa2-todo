@@ -36,10 +36,15 @@ enum SubscriptionStatus: string
         };
     }
 
-    /** 有料機能を開いてよい状態か（お試し含む） */
+    /**
+     * 有料機能を開いてよい状態か（お試し・支払い遅延の猶予中を含む）。
+     * past_due は即剥奪せず、猶予切れは BillingEntitlementService 側で見る。
+     */
     public function grantsPaidAccess(): bool
     {
-        return $this === self::Trial || $this === self::Active;
+        return $this === self::Trial
+            || $this === self::Active
+            || $this === self::PastDue;
     }
 
     /** @return list<self> */

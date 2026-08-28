@@ -33,7 +33,7 @@
             </ul>
             <h2>Photos</h2>
             <ul>
-              <li>Each account has a storage allowance (about 50GB on Light, 200GB on Standard). Uploads stop when that quota is full.</li>
+              <li>Each account has a storage allowance (about 20GB on Light trial, 200GB on Standard). Uploads stop when that quota is full. Light has a weekly intake limit; after about 90 days without login we warn, then delete if there is no response.</li>
               <li>Albums can be private or shared with groups you belong to.</li>
             </ul>
             <h2>Messages, mail, and more</h2>
@@ -68,7 +68,7 @@
             </ul>
             <h2>Photos</h2>
             <ul>
-              <li>ユーザーごとに保管枠があります（ライトは約 50GB、スタンダードは約 200GB）。枠を超えると追加アップロードが止まることがあります。</li>
+              <li>ユーザーごとに保管枠があります（ライトは約 20GB・お試し、スタンダードは約 200GB）。枠を超えると追加アップロードが止まることがあります。ライトは週の受付上限があり、約90日未ログインで警告、応答がなければ削除されます。</li>
               <li>アルバムは非公開、または所属グループへの共有ができます。</li>
             </ul>
             <h2>メッセージ・メール・その他</h2>
