@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\LegalConfigService;
+use App\Services\SiteStatsService;
 use App\Support\CommercialOffer;
 use App\Support\Registration;
 use Illuminate\Http\RedirectResponse;
@@ -11,13 +12,18 @@ use Illuminate\View\View;
 
 class HomeController extends Controller
 {
-    public function __construct(private readonly LegalConfigService $legal) {}
+    public function __construct(
+        private readonly LegalConfigService $legal,
+        private readonly SiteStatsService $stats,
+    ) {}
 
     public function index(Request $request): View|RedirectResponse
     {
         if ($request->user()) {
             return redirect('/dashboard');
         }
+
+        $this->stats->trackTopView($request);
 
         return view('home', [
             'appName' => config('app.name'),

@@ -89,6 +89,8 @@ Route::middleware('guest')->group(function () {
     Route::post('/apply/activate/{token}', [ApplyController::class, 'storeActivate'])
         ->where('token', '[A-Za-z0-9]+')
         ->middleware('throttle:auth-password');
+    Route::post('/stats/hit', [\App\Http\Controllers\SiteStatsController::class, 'hit'])
+        ->middleware('throttle:60,1');
 });
 
 // パスワード再設定はログイン前（パスワード忘れ）とログイン後（マイページ）で同じ導線を使う

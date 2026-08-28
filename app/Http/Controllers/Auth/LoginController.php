@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Models\User;
+use App\Services\SiteStatsService;
+use App\Support\SiteStatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +14,8 @@ use Illuminate\Support\Facades\Hash;
 class LoginController extends Controller
 {
     use RedirectsWithFlash;
+
+    public function __construct(private readonly SiteStatsService $stats) {}
 
     public function show(Request $request)
     {
@@ -48,6 +52,8 @@ class LoginController extends Controller
             'last_seen_at' => now(),
             'dormant_warned_at' => null,
         ])->save();
+
+        $this->stats->increment(SiteStatEvent::LOGIN);
 
         if ($user->must_change_password) {
             return redirect('/password/setup');

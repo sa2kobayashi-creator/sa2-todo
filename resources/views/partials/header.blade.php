@@ -51,6 +51,7 @@
               <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
               @if(!empty($canSuperAdmin))
                 <a href="/settings?section=limits" class="{{ ($navSettingsSection ?? '') === 'limits' ? 'active' : '' }}" role="menuitem">{{ __('制限管理') }}</a>
+                <a href="/settings?section=stats" class="{{ ($navSettingsSection ?? '') === 'stats' ? 'active' : '' }}" role="menuitem">{{ __('アクセス統計') }}</a>
                 <a href="/settings?section=sales" class="{{ ($navSettingsSection ?? '') === 'sales' ? 'active' : '' }}" role="menuitem">{{ __('公開販売') }}</a>
               @endif
               <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>
@@ -225,6 +226,7 @@
                       <a href="/settings?section=usage" class="{{ ($navSettingsSection ?? '') === 'usage' ? 'active' : '' }}" role="menuitem">{{ __('使用量') }}</a>
                       @if(!empty($canSuperAdmin))
                         <a href="/settings?section=limits" class="{{ ($navSettingsSection ?? '') === 'limits' ? 'active' : '' }}" role="menuitem">{{ __('制限管理') }}</a>
+                        <a href="/settings?section=stats" class="{{ ($navSettingsSection ?? '') === 'stats' ? 'active' : '' }}" role="menuitem">{{ __('アクセス統計') }}</a>
                         <a href="/settings?section=sales" class="{{ ($navSettingsSection ?? '') === 'sales' ? 'active' : '' }}" role="menuitem">{{ __('公開販売') }}</a>
                       @endif
                       <a href="/help" class="{{ ($active ?? '') === 'help' ? 'active' : '' }}" role="menuitem">{{ __('ヘルプ') }}</a>

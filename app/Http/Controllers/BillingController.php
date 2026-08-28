@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\BillingEntitlementService;
+use App\Services\SiteStatsService;
 use App\Services\StripeBillingService;
+use App\Support\SiteStatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +16,7 @@ class BillingController extends Controller
     public function __construct(
         private readonly StripeBillingService $stripe,
         private readonly BillingEntitlementService $entitlements,
+        private readonly SiteStatsService $stats,
     ) {}
 
     public function plan(Request $request)
@@ -73,6 +76,8 @@ class BillingController extends Controller
 
             return $this->redirectWithMessage($returnTo, __('決済ページを開けませんでした。時間をおいて再度お試しください。'), 'error');
         }
+
+        $this->stats->increment(SiteStatEvent::CHECKOUT_START);
 
         return redirect($checkout->url);
     }

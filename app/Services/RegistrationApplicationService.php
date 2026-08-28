@@ -11,6 +11,7 @@ use App\Mail\RegistrationApplicationRejectedMail;
 use App\Models\RegistrationApplication;
 use App\Models\User;
 use App\Support\DisposableEmail;
+use App\Support\SiteStatEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -23,6 +24,8 @@ use Illuminate\Support\Str;
  */
 class RegistrationApplicationService
 {
+    public function __construct(private readonly SiteStatsService $stats) {}
+
     public function tokenTtlDays(): int
     {
         return max(1, (int) config('registration.application_token_ttl_days', 7));
@@ -41,16 +44,22 @@ class RegistrationApplicationService
     {
         $purpose = trim($purpose);
         if (mb_strlen($purpose) < $this->purposeMinLength()) {
+            $this->stats->increment(SiteStatEvent::APPLY_REJECT_PURPOSE);
+
             return __('利用目的を:min文字以上で記入してください。お試しの範囲や使いたい機能を書いてください。', [
                 'min' => $this->purposeMinLength(),
             ]);
         }
 
         if (DisposableEmail::isDisposable($email)) {
+            $this->stats->increment(SiteStatEvent::APPLY_REJECT_DISPOSABLE);
+
             return __('一時的なメールアドレスでは申し込めません。普段お使いのメールアドレスをご利用ください。');
         }
 
         if ($enforceWeeklyCap && ! $this->lightSlotsAvailable()) {
+            $this->stats->increment(SiteStatEvent::APPLY_REJECT_WEEKLY_CAP);
+
             return __('ただいまライト（お試し）の受付上限に達しています。スタンダードまたはテナント契約をご検討ください。');
         }
 

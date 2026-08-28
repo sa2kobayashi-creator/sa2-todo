@@ -24,6 +24,8 @@
         @include('settings.partials.usage')
       @elseif(($section ?? '') === 'limits' && !empty($isSuperAdmin))
         @include('settings.partials.limits')
+      @elseif(($section ?? '') === 'stats' && !empty($isSuperAdmin))
+        @include('settings.partials.stats')
       @else
       @include('settings.partials.setup-tabs')
       @if(($section ?? '') === 'sales' && !empty($isSuperAdmin))

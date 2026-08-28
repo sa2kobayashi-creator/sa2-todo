@@ -22,6 +22,7 @@ use App\Services\MediaStorageConfigService;
 use App\Services\MessengerMessagingService;
 use App\Services\NavitimeConfigService;
 use App\Services\PhotoService;
+use App\Services\SiteStatsService;
 use App\Services\StripeConfigService;
 use App\Services\Transit\RouteSearchService;
 use App\Services\UsageLimitPolicyService;
@@ -62,6 +63,7 @@ class SettingsController extends Controller
         private StripeConfigService $stripeConfig,
         private UsageLimitPolicyService $usageLimits,
         private UserUsageLimitService $userUsageLimits,
+        private SiteStatsService $siteStats,
     ) {}
 
     public function index(Request $request)
@@ -74,6 +76,13 @@ class SettingsController extends Controller
         }
         if ($section === 'sales' && ! $isSuperAdmin) {
             $section = 'holidays';
+        }
+        if ($section === 'stats' && ! $isSuperAdmin) {
+            $section = 'holidays';
+        }
+        $statsDays = max(7, min(90, (int) $request->query('days', 30)));
+        if (! in_array($statsDays, [7, 30, 90], true)) {
+            $statsDays = 30;
         }
         $messagingSection = in_array($section, ['integration', 'notifications'], true);
 
@@ -144,6 +153,9 @@ class SettingsController extends Controller
             'legalSettings' => $section === 'sales' ? $this->legalConfig->formState() : null,
             'stripeSettings' => $section === 'sales' ? $this->stripeConfig->formState() : null,
             'serverRuntime' => $section === 'sales' ? ServerRuntimeStatus::formState() : null,
+            'siteStats' => $section === 'stats' && $isSuperAdmin
+                ? $this->siteStats->dashboard($statsDays)
+                : null,
             'footerNavSelected' => $section === 'nav'
                 ? FooterNav::normalizeFooterKeys($request->user()?->footer_nav, $request->user())
                 : null,
@@ -238,7 +250,7 @@ class SettingsController extends Controller
             return 'ai';
         }
 
-        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage', 'limits', 'sales'], true) ? $value : 'holidays';
+        return in_array($value, ['integration', 'notifications', 'ai', 'holidays', 'storage', 'enhance', 'nav', 'usage', 'limits', 'sales', 'stats'], true) ? $value : 'holidays';
     }
 
     private function settingsPath(string $section, ?int $year = null): string

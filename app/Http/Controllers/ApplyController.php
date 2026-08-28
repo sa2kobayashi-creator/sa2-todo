@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\RegistrationApplicationPlan;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Services\RegistrationApplicationService;
+use App\Services\SiteStatsService;
+use App\Support\SiteStatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -13,7 +15,10 @@ class ApplyController extends Controller
 {
     use RedirectsWithFlash;
 
-    public function __construct(private readonly RegistrationApplicationService $applications) {}
+    public function __construct(
+        private readonly RegistrationApplicationService $applications,
+        private readonly SiteStatsService $stats,
+    ) {}
 
     public function show(Request $request)
     {
@@ -23,6 +28,15 @@ class ApplyController extends Controller
 
         $plan = RegistrationApplicationPlan::tryFrom((string) $request->query('plan', 'standard'))
             ?? RegistrationApplicationPlan::Standard;
+
+        if (! $this->stats->shouldSkipRequest($request)) {
+            $this->stats->increment(SiteStatEvent::APPLY_VIEW);
+            $this->stats->increment(match ($plan) {
+                RegistrationApplicationPlan::Light => SiteStatEvent::APPLY_VIEW_LIGHT,
+                RegistrationApplicationPlan::Tenant => SiteStatEvent::APPLY_VIEW_TENANT,
+                default => SiteStatEvent::APPLY_VIEW_STANDARD,
+            });
+        }
 
         return view('apply.index', array_merge($this->flashFromQuery($request), [
             'plans' => RegistrationApplicationPlan::applyable(),
@@ -55,18 +69,22 @@ class ApplyController extends Controller
             'display_name' => ['required', 'string', 'max:100'],
             'organization_name' => [$plan === 'tenant' ? 'required' : 'nullable', 'string', 'max:120'],
             'phone' => ['nullable', 'string', 'max:40'],
-            'message' => ['required', 'string', 'min:'.app(\App\Services\RegistrationApplicationService::class)->purposeMinLength(), 'max:2000'],
+            'message' => ['required', 'string', 'min:'.$this->applications->purposeMinLength(), 'max:2000'],
             'agreeTerms' => ['accepted'],
         ], [
             'agreeTerms.accepted' => __('利用規約とプライバシーポリシーへの同意が必要です。'),
             'organization_name.required' => __('テナント契約では組織・家族名が必要です。'),
             'message.required' => __('利用目的を記入してください。'),
             'message.min' => __('利用目的を:min文字以上で記入してください。お試しの範囲や使いたい機能を書いてください。', [
-                'min' => app(\App\Services\RegistrationApplicationService::class)->purposeMinLength(),
+                'min' => $this->applications->purposeMinLength(),
             ]),
         ]);
 
         if ($validator->fails()) {
+            if ($validator->errors()->has('message')) {
+                $this->stats->increment(SiteStatEvent::APPLY_REJECT_PURPOSE);
+            }
+
             return redirect('/apply?plan='.urlencode($plan))
                 ->withErrors($validator)
                 ->withInput();
@@ -77,6 +95,14 @@ class ApplyController extends Controller
             'ip_address' => $request->ip(),
             'user_agent' => (string) $request->userAgent(),
         ]);
+
+        if (! empty($result['ok']) && ! empty($result['application'])) {
+            $this->stats->increment(match ($plan) {
+                'light' => SiteStatEvent::APPLY_SUBMIT_LIGHT,
+                'tenant' => SiteStatEvent::APPLY_SUBMIT_TENANT,
+                default => SiteStatEvent::APPLY_SUBMIT_STANDARD,
+            });
+        }
 
         return $this->redirectWithMessage('/apply', $result['message'], $result['ok'] ? 'notice' : 'error');
     }
@@ -122,6 +148,12 @@ class ApplyController extends Controller
         } catch (\InvalidArgumentException $e) {
             return $this->redirectWithMessage('/apply', $e->getMessage(), 'error');
         }
+
+        $this->stats->increment(match ($application->plan) {
+            RegistrationApplicationPlan::Standard => SiteStatEvent::ACTIVATE_COMPLETE_STANDARD,
+            RegistrationApplicationPlan::Tenant => SiteStatEvent::ACTIVATE_COMPLETE_TENANT,
+            default => SiteStatEvent::ACTIVATE_COMPLETE_LIGHT,
+        });
 
         Auth::login($result['user']);
         $request->session()->regenerate();

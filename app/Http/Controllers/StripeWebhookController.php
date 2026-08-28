@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\BillingEvent;
 use App\Models\User;
+use App\Services\SiteStatsService;
 use App\Services\StripeBillingService;
+use App\Support\SiteStatEvent;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,7 +20,10 @@ use Stripe\Webhook;
  */
 class StripeWebhookController extends Controller
 {
-    public function __construct(private readonly StripeBillingService $stripe) {}
+    public function __construct(
+        private readonly StripeBillingService $stripe,
+        private readonly SiteStatsService $stats,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
@@ -107,6 +112,8 @@ class StripeWebhookController extends Controller
         if (trim((string) $user->stripe_id) === '') {
             $user->forceFill(['stripe_id' => $customerId])->save();
         }
+
+        $this->stats->increment(SiteStatEvent::CHECKOUT_COMPLETE);
 
         return $user;
     }

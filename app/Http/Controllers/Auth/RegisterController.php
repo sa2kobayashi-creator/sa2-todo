@@ -9,7 +9,9 @@ use App\Mail\WelcomeInitialPasswordMail;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use App\Services\RegistrationApplicationService;
+use App\Services\SiteStatsService;
 use App\Support\Registration;
+use App\Support\SiteStatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -22,6 +24,7 @@ class RegisterController extends Controller
     public function __construct(
         private PasswordResetService $passwords,
         private RegistrationApplicationService $applications,
+        private SiteStatsService $stats,
     ) {}
 
     public function show(Request $request)
@@ -63,6 +66,10 @@ class RegisterController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if ($validator->errors()->has('message')) {
+                $this->stats->increment(SiteStatEvent::APPLY_REJECT_PURPOSE);
+            }
+
             return redirect('/register')->withErrors($validator)->withInput();
         }
 
@@ -92,6 +99,8 @@ class RegisterController extends Controller
             'must_change_password' => true,
             'last_seen_at' => now(),
         ]);
+
+        $this->stats->increment(SiteStatEvent::REGISTER_INVITE);
 
         Mail::to($user->email)->send(new WelcomeInitialPasswordMail(
             displayName: (string) $user->display_name,

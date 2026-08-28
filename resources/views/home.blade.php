@@ -27,9 +27,9 @@
         <div class="lp-header-actions">
           @include('partials.auth-lang-switcher')
           <a href="/login" class="lp-btn lp-btn-ghost lp-btn-chevron">{{ __('ログイン') }}</a>
-          <a href="/apply" class="lp-btn lp-btn-primary">{{ __('利用申請') }}</a>
+          <a href="/apply" data-stat-event="cta.apply" class="lp-btn lp-btn-primary">{{ __('利用申請') }}</a>
           @if(!empty($registrationOpen))
-            <a href="/register" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
+            <a href="/register" data-stat-event="cta.register_invite" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
           @endif
         </div>
       </div>
@@ -43,8 +43,8 @@
             <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
             <p class="lp-hero-lead">{{ __('本格利用はスタンダード、家族・小組織はテナント契約が中心です。ライトは短期間のお試し（約:gbGB）です。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</p>
             <p class="lp-cta">
-              <a href="/apply?plan=standard" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('スタンダードを申請する') }}</a>
-              <a href="/apply?plan=tenant" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('テナント契約を申請する') }}</a>
+              <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('スタンダードを申請する') }}</a>
+              <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('テナント契約を申請する') }}</a>
             </p>
             <p class="lp-hero-note">
               <span class="lp-info-shield" aria-hidden="true">
@@ -215,7 +215,7 @@
                 <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
               </ul>
               <p class="hint">{{ __('14日間のお試しは、申し込み後に始まります（カード登録が必要です）。') }}</p>
-              <a href="/apply?plan=standard" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('スタンダードを申請する') }}</a>
+              <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('スタンダードを申請する') }}</a>
             </div>
           </article>
 
@@ -236,7 +236,7 @@
                 <li>{{ __('追加ユーザー ¥:yen／人／月', ['yen' => number_format((int) ($tenantExtraUserYen ?? 1000))]) }}</li>
                 <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
               </ul>
-              <a href="/apply?plan=tenant" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申請する') }}</a>
+              <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申請する') }}</a>
             </div>
           </article>
 
@@ -255,7 +255,7 @@
                 <li>{{ __('約:warn日ログインがない場合は警告。さらに:grace日応答がなければ削除', ['warn' => (int) ($lightInactiveWarnDays ?? 90), 'grace' => (int) ($lightInactiveDeleteGraceDays ?? 14)]) }}</li>
                 <li>{{ __('本格利用はスタンダードへ') }}</li>
               </ul>
-              <a href="/apply?plan=light" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('ライト（お試し）を申請する') }}</a>
+              <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('ライト（お試し）を申請する') }}</a>
             </div>
           </article>
 
@@ -387,8 +387,8 @@
         <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
         <p class="lp-section-lead">{{ __('まずはスタンダードまたはテナントの利用申請から。ライトはお試しです。テナントや専用環境の詳しい相談もこちらへ。') }}</p>
         <p class="lp-cta">
-          <a href="/apply?plan=standard" class="lp-btn lp-btn-primary">{{ __('スタンダードを申請する') }}</a>
-          <a href="/apply?plan=tenant" class="lp-btn lp-btn-ghost">{{ __('テナント契約を申請する') }}</a>
+          <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary">{{ __('スタンダードを申請する') }}</a>
+          <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-ghost">{{ __('テナント契約を申請する') }}</a>
         </p>
         @if(!empty($contactEmail))
           <p>{{ __('メールでのお問い合わせ') }}: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a></p>
@@ -404,8 +404,8 @@
           <p>{{ __('本利用の申請から。ライトは短期間のお試しです。') }}</p>
         </div>
         <p class="lp-cta">
-          <a href="/apply?plan=standard" class="lp-btn lp-btn-on-dark">{{ __('スタンダードを申請する') }}</a>
-          <a href="/apply?plan=tenant" class="lp-btn lp-btn-on-dark">{{ __('テナント契約を申請する') }}</a>
+          <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-on-dark">{{ __('スタンダードを申請する') }}</a>
+          <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-on-dark">{{ __('テナント契約を申請する') }}</a>
         </p>
       </div>
     </section>
@@ -417,5 +417,27 @@
       <a href="/login">{{ __('ログイン') }}</a>
     </footer>
     @include('partials.csrf-keepalive')
+
+    <script>
+      (() => {
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        document.addEventListener('click', (event) => {
+          const link = event.target.closest('[data-stat-event]');
+          if (!link) return;
+          const name = link.getAttribute('data-stat-event');
+          if (!name) return;
+          const body = new FormData();
+          body.append('event', name);
+          if (token) body.append('_token', token);
+          try {
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon('/stats/hit', body);
+            } else {
+              fetch('/stats/hit', { method: 'POST', body, credentials: 'same-origin', keepalive: true });
+            }
+          } catch (_) {}
+        }, true);
+      })();
+    </script>
   </body>
 </html>
