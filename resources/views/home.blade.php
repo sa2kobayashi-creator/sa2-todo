@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2563eb" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="description" content="{{ __('写真と動画を安く安定して置き、カレンダーとメモをすぐ使える生活アプリ。家族向けテナント契約、英語表示、これから Workers AI。') }}" />
-    <title>{{ $appName }} — {{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</title>
+    <meta name="description" content="{{ __('Sa2 Plusは、Todo・予定・メモ・写真・メール・メッセージ・地図・路線検索・AI相談をひとつにまとめたオールインワンサービスです。個人利用から家族・小規模組織まで、毎日の情報を便利に管理できます。') }}" />
+    <title>{{ __('Todo・予定・メモ・写真をまとめて管理｜:app', ['app' => $appName]) }}</title>
     @include('partials.app-css')
   </head>
   <body class="lp-body">
@@ -18,11 +18,12 @@
           <span>{{ $appName }}</span>
         </a>
         <nav class="lp-nav" aria-label="{{ __('ページ内メニュー') }}">
-          <a href="#features">{{ __('機能一覧') }}</a>
+          <a href="#about">{{ __('Sa2 Plusとは') }}</a>
+          <a href="#features">{{ __('できること') }}</a>
           <a href="#pricing">{{ __('料金プラン') }}</a>
-          <a href="#flow">{{ __('ご利用の流れ') }}</a>
+          <a href="#flow">{{ __('ご利用方法') }}</a>
           <a href="#faq">{{ __('よくある質問') }}</a>
-          <a href="#contact">{{ __('お問い合わせ') }}</a>
+          <a href="#start">{{ __('はじめる') }}</a>
         </nav>
         <div class="lp-header-actions">
           @include('partials.auth-lang-switcher')
@@ -40,11 +41,13 @@
         <div class="lp-hero-inner">
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
-            <h1>{{ __('あなたの日常をもっとシンプルに、もっと快適に。') }}</h1>
+            <h1>{{ __('Todo・予定・メモ・写真をひとつに。毎日の管理をもっとシンプルに。') }}</h1>
+            <p class="lp-hero-lead">{{ __('Sa2 Plus（サ2プラス）は、Todo・予定・メモ・写真・メール・メッセージ・地図・路線検索・AI相談など、毎日の生活や仕事に必要な機能をひとつにまとめたオールインワンサービスです。') }}</p>
+            <p class="lp-hero-lead">{{ __('予定を確認しながらTodoを管理したり、思いついたことをメモしたり、大切な写真を保存したり。日々の情報を、ひとつの場所でまとめて管理できます。') }}</p>
             <p class="lp-hero-lead">{{ __('本格利用はスタンダード、家族・小組織はテナント契約が中心です。ライトは短期間のお試し（約:gbGB）です。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</p>
             <p class="lp-cta">
-              <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('スタンダードを申請する') }}</a>
-              <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('テナント契約を申請する') }}</a>
+              <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('無料で試してみる') }}</a>
+              <a href="#pricing" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('料金プランを見る') }}</a>
             </p>
             <p class="lp-hero-note">
               <span class="lp-info-shield" aria-hidden="true">
@@ -55,7 +58,7 @@
           </div>
 
           <div class="lp-devices" aria-hidden="true">
-            <div class="lp-badge">{{ __('すべてがつながるオールインワンサービス') }}</div>
+            <div class="lp-badge">{{ __('Todo・予定・メモ・写真をひとつに') }}</div>
             <div class="lp-laptop">
               <div class="lp-laptop-lid">
                 <div class="lp-laptop-bezel">
@@ -133,71 +136,113 @@
         </div>
       </section>
 
-      <section class="lp-section" id="features" aria-labelledby="landing-features-title">
-        <h2 id="landing-features-title">{{ __('できること') }}</h2>
+            <section class="lp-section" id="about" aria-labelledby="landing-about-title">
+        <h2 id="landing-about-title">{{ __('Sa2 Plusとは？') }}</h2>
+        <p class="lp-section-lead">{{ __('Sa2 Plusは、Todo・予定・メモ・写真など、毎日の情報をまとめて管理できるオールインワンサービスです。') }}</p>
+        <p>{{ __('Todoだけ、メモだけ、写真だけと、それぞれ別のアプリを使い分けるのではなく、日常で使うさまざまな情報をひとつのサービスにまとめることを目指しています。') }}</p>
+        <p>{{ __('個人での予定管理やタスク管理はもちろん、家族や小規模な組織での利用にも対応しています。') }}</p>
+        <p>{{ __('さらに、AI相談や地図・路線検索など、日常生活を便利にする機能も利用できます。') }}</p>
+      </section>
+
+            <section class="lp-section" id="features" aria-labelledby="landing-features-title">
+        <h2 id="landing-features-title">{{ __('Sa2 Plusでできること') }}</h2>
         <ul class="lp-features">
           <li>
             <span class="lp-feature-icon is-todo" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
             </span>
-            <strong>{{ __('Todo') }}</strong>
-            <span>{{ __('一覧とカレンダー。リマインダと自分の休日。') }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-note" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="2"><path d="M7 3h8l5 5v13H7z"/><path d="M15 3v5h5M9 13h6M9 17h4"/></svg>
-            </span>
-            <strong>{{ __('メモ') }}</strong>
-            <span>{{ __('ピン留め・アーカイブ。日本語と英語の翻訳。') }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-photo" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ea580c" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="8.5" cy="11" r="1.5"/><path d="m21 16-5-5-7 7"/></svg>
-            </span>
-            <strong>{{ __('Photos') }}</strong>
-            <span>{{ __('原本をまとめて保管。ライト（お試し）は約 :gbGB、スタンダードは約 200GB。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-msg" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M4 5h16v10H8l-4 4z"/></svg>
-            </span>
-            <strong>{{ __('メッセージ') }}</strong>
-            <span>{{ __('グループとダイレクトメッセージ。') }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-mail" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e11d48" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/></svg>
-            </span>
-            <strong>{{ __('メール') }}</strong>
-            <span>{{ __('スタンダードは @sa2-plus.com。Gmail の接続もできます。') }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-map" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#0d9488" stroke-width="2"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/></svg>
-            </span>
-            <strong>{{ __('マップ') }} · {{ __('路線') }}</strong>
-            <span>{{ __('地図と乗り換え案内。') }}</span>
-          </li>
-          <li>
-            <span class="lp-feature-icon is-media" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#db2777" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            </span>
-            <strong>{{ __('音楽再生') }} · {{ __('動画再生') }}</strong>
-            <span>{{ __('プレイリストで再生。動画は検索して視聴。') }}</span>
+            <h3>{{ __('Todo・タスク管理') }}</h3>
+            <p>{{ __('毎日のTodoやタスクを一覧で管理。カレンダーと組み合わせて予定を確認しながら、やるべきことを整理できます。') }}</p>
           </li>
           <li>
             <span class="lp-feature-icon is-life" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#d97706" stroke-width="2"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
             </span>
-            <strong>{{ __('生活ガイド(AI)') }} · {{ __('家計簿') }}</strong>
-            <span>{{ __('AI に生活のことを聞ける。収支は家計簿で記録。') }}</span>
+            <h3>{{ __('予定・カレンダー管理') }}</h3>
+            <p>{{ __('日々の予定をカレンダーで確認。Todoと予定を一緒に管理することで、今日やることを分かりやすく整理できます。') }}</p>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-note" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="2"><path d="M7 3h8l5 5v13H7z"/><path d="M15 3v5h5M9 13h6M9 17h4"/></svg>
+            </span>
+            <h3>{{ __('メモ・情報管理') }}</h3>
+            <p>{{ __('思いついたアイデアや買い物リスト、仕事のメモなどを保存できます。ピン留めやアーカイブにも対応しています。') }}</p>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-photo" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ea580c" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="8.5" cy="11" r="1.5"/><path d="m21 16-5-5-7 7"/></svg>
+            </span>
+            <h3>{{ __('写真・ファイル管理') }}</h3>
+            <p>{{ __('大切な写真やファイルをまとめて管理できます。利用する環境に応じてCloudflare R2やBackblaze B2などの外部ストレージにも対応できます。') }}</p>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-mail" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e11d48" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/></svg>
+            </span>
+            <h3>{{ __('メール・メッセージ') }}</h3>
+            <p>{{ __('Sa2 Plusでは、@sa2-plus.comのメールやGmailなどの外部メールサービスを利用できます。メッセージ機能ではグループやダイレクトメッセージにも対応しています。') }}</p>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-map" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#0d9488" stroke-width="2"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/></svg>
+            </span>
+            <h3>{{ __('地図・路線検索') }}</h3>
+            <p>{{ __('地図を確認しながら目的地までのルートを検索。路線検索・乗換案内にも対応しています。路線検索は NAVITIME の経路検索に対応済みです。') }}</p>
+          </li>
+          <li>
+            <span class="lp-feature-icon is-life" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#d97706" stroke-width="2"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+            </span>
+            <h3>{{ __('AI相談') }}</h3>
+            <p>{{ __('AIに生活のちょっとした疑問や料理、予定について相談できます。カレンダーの予定を確認しながら、毎日の生活をサポートします。') }}</p>
+          </li>
+        </ul>
+        <p class="hint">{{ __('音楽再生・動画再生のほか、生活ガイド(AI)や家計簿も利用できます（機能は今後アップデートで拡張予定です）。') }}</p>
+      </section>
+
+            <section class="lp-section lp-values" id="reasons" aria-labelledby="landing-reasons-title">
+        <h2 id="landing-reasons-title">{{ __('Sa2 Plusが選ばれる理由') }}</h2>
+        <ul class="lp-value-grid">
+          <li>
+            <span class="lp-value-icon is-cloud" aria-hidden="true"></span>
+            <h3>{{ __('毎日の情報をひとつにまとめられる') }}</h3>
+            <p>{{ __('Todo、予定、メモ、写真、メール、メッセージなど、日常で利用する情報をひとつのサービスで管理できます。') }}</p>
+          </li>
+          <li>
+            <span class="lp-value-icon is-admin" aria-hidden="true"></span>
+            <h3>{{ __('必要な機能をまとめて利用') }}</h3>
+            <p>{{ __('タスク管理だけでなく、写真、メール、地図・路線検索、AI相談など、日常に必要な機能をまとめています。') }}</p>
+          </li>
+          <li>
+            <span class="lp-value-icon is-lock" aria-hidden="true"></span>
+            <h3>{{ __('個人から家族・小規模組織まで') }}</h3>
+            <p>{{ __('個人での利用から、家族や小規模な組織での利用まで、利用スタイルに合わせたプランを用意しています。') }}</p>
+          </li>
+          <li>
+            <span class="lp-value-icon is-cloud" aria-hidden="true"></span>
+            <h3>{{ __('外部ストレージにも対応') }}</h3>
+            <p>{{ __('写真やファイルを大量に保存したい場合は、Cloudflare R2やBackblaze B2などの外部ストレージを利用できます。') }}</p>
           </li>
         </ul>
       </section>
 
+            <section class="lp-section" id="audience" aria-labelledby="landing-audience-title">
+        <h2 id="landing-audience-title">{{ __('Sa2 Plusはこんな方におすすめ') }}</h2>
+        <ul class="lp-plan-includes">
+          <li>{{ __('Todoと予定をまとめて管理したい方') }}</li>
+          <li>{{ __('複数のアプリを使い分けるのが面倒な方') }}</li>
+          <li>{{ __('メモや写真をまとめて管理したい方') }}</li>
+          <li>{{ __('日常の情報をひとつの場所に整理したい方') }}</li>
+          <li>{{ __('家族で情報を管理したい方') }}</li>
+          <li>{{ __('小規模なチームで利用できるサービスを探している方') }}</li>
+          <li>{{ __('AIに生活について相談したい方') }}</li>
+          <li>{{ __('地図や路線検索もひとつのサービスで利用したい方') }}</li>
+        </ul>
+      </section>
+
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
-        <h2 id="landing-plans-title">{{ __('ご利用料金（税込）') }}</h2>
-        <p class="lp-section-lead">{{ __('本利用はスタンダードとテナント契約が中心です。ライトは短期間のお試しです。金額はすべて税込です。') }}</p>
+        <h2 id="landing-plans-title">{{ __('料金プラン') }}</h2>
+        <p class="lp-section-lead">{{ __('Sa2 Plusでは、無料で試せるライトプラン、個人向けのスタンダードプラン、家族・小規模組織向けのテナント契約、専用環境をご用意しています。') }}</p>
         <div class="lp-plans">
           <article class="lp-plan is-standard is-featured">
             <header class="lp-plan-head">
@@ -286,24 +331,29 @@
         <p class="hint lp-plans-note">{{ __('個人向けは運営の共有インスタンスです。ライトはお試し、本利用はスタンダードです。家族向けの管理者契約はテナント、サーバー分離は専用です。') }}</p>
       </section>
 
-      <section class="lp-section" id="flow" aria-labelledby="landing-flow-title">
-        <h2 id="landing-flow-title">{{ __('ご利用の流れ') }}</h2>
-        <p class="lp-section-lead">{{ __('本利用はスタンダード／テナントの申請から。ライトはお試しです。') }}</p>
+            <section class="lp-section" id="flow" aria-labelledby="landing-flow-title">
+        <h2 id="landing-flow-title">{{ __('Sa2 Plusの利用方法') }}</h2>
+        <p class="lp-section-lead">{{ __('まずはプランを選んで利用申請。メールの案内に沿って、すぐに使い始められます。') }}</p>
         <ol class="lp-flow">
           <li>
             <span class="lp-flow-num">1</span>
-            <h3>{{ __('利用申請') }}</h3>
-            <p>{{ __('スタンダードまたはテナントを選び、名前・メール・利用目的を送ります。') }}</p>
+            <h3>{{ __('プランを選択') }}</h3>
+            <p>{{ __('ライト、スタンダード、テナントなど、利用目的に合ったプランを選択します。') }}</p>
           </li>
           <li>
             <span class="lp-flow-num">2</span>
-            <h3>{{ __('登録メールで開始') }}</h3>
-            <p>{{ __('スタンダード／テナントは運営確認後、ライトは自動審査後にメールが届きます。リンクからパスワードを設定します。') }}</p>
+            <h3>{{ __('利用申請') }}</h3>
+            <p>{{ __('必要事項を入力して利用を申請します。') }}</p>
           </li>
           <li>
             <span class="lp-flow-num">3</span>
-            <h3>{{ __('カード登録または本利用') }}</h3>
-            <p>{{ __('スタンダードはカード登録（最初の:days日無料）。テナントは運営が環境を用意します。ライトから本格利用へ移る場合もスタンダードへ。', ['days' => (int) ($standardTrialDays ?? 14)]) }}</p>
+            <h3>{{ __('登録メールを確認') }}</h3>
+            <p>{{ __('審査・確認後、登録したメールアドレスに案内が届きます。スタンダード／テナントは運営確認、ライトは自動審査のうえメールが届きます。') }}</p>
+          </li>
+          <li>
+            <span class="lp-flow-num">4</span>
+            <h3>{{ __('Sa2 Plusを利用開始') }}</h3>
+            <p>{{ __('案内に従って登録を完了すると、Sa2 Plusを利用できます。') }}</p>
           </li>
         </ol>
       </section>
@@ -331,30 +381,49 @@
         </ul>
       </section>
 
-      <section class="lp-section lp-values" aria-labelledby="landing-values-title">
-        <h2 id="landing-values-title" class="visually-hidden">{{ __('選ばれる理由') }}</h2>
-        <ul class="lp-value-grid">
-          <li>
-            <span class="lp-value-icon is-lock" aria-hidden="true"></span>
-            <strong>{{ __('安心のプライバシー') }}</strong>
-            <span>{{ __('通信は暗号化します。専用環境ではデータが他のお客様と同居しません。') }}</span>
-          </li>
-          <li>
-            <span class="lp-value-icon is-cloud" aria-hidden="true"></span>
-            <strong>{{ __('外部ストレージで経済的に') }}</strong>
-            <span>{{ __('写真・ファイルは Cloudflare R2 や Backblaze B2 へ置けます。専用ではお客様クラウドを推奨します。') }}</span>
-          </li>
-          <li>
-            <span class="lp-value-icon is-admin" aria-hidden="true"></span>
-            <strong>{{ __('管理者もらくらく運用') }}</strong>
-            <span>{{ __('専用契約の代表、またはテナント契約の代表がユーザー・休日・メニューを管理できます。バックアップ方針もお渡しします。') }}</span>
-          </li>
-        </ul>
-      </section>
-
-      <section class="lp-section" id="faq" aria-labelledby="landing-faq-title">
+            <section class="lp-section" id="faq" aria-labelledby="landing-faq-title">
         <h2 id="landing-faq-title">{{ __('よくある質問') }}</h2>
         <div class="lp-faq">
+          <details>
+            <summary>{{ __('Sa2 Plusとは何ですか？') }}</summary>
+            <p>{{ __('Todo・予定・メモ・写真・メール・メッセージなどをまとめて管理できるオールインワンサービスです。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('無料で利用できますか？') }}</summary>
+            <p>{{ __('はい。ライトプランでお試しいただけます。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('Todo管理はできますか？') }}</summary>
+            <p>{{ __('はい。Todo一覧やカレンダーを利用してタスクを管理できます。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('写真を保存できますか？') }}</summary>
+            <p>{{ __('はい。Photos機能で写真を管理できます。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('AI相談はできますか？') }}</summary>
+            <p>{{ __('はい。生活の相談、料理、カレンダーなどについてAIに相談できます。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('路線検索はできますか？') }}</summary>
+            <p>{{ __('はい。地図・路線検索機能を利用できます。路線検索は NAVITIME の経路検索に対応しています。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('家族で利用できますか？') }}</summary>
+            <p>{{ __('はい。家族や小規模組織向けのテナント契約を用意しています。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('専用サーバーを利用できますか？') }}</summary>
+            <p>{{ __('はい。専用インスタンスをご用意しています。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('どの端末で使えますか？') }}</summary>
+            <p>{{ __('PCとスマートフォンの両方で利用できます。日常の管理を、同じデータで続けられます。') }}</p>
+          </details>
+          <details>
+            <summary>{{ __('後からプラン変更できますか？') }}</summary>
+            <p>{{ __('はい。まずはライト（無料）で試して、必要になったらスタンダードへ移行できます。家族・小規模で代表者の管理が必要ならテナント契約をご検討ください。') }}</p>
+          </details>
           <details open>
             <summary>{{ __('最初から専用環境を契約すべきですか？') }}</summary>
             <p>{{ __('多くの場合は不要です。本利用はスタンダード、家族で管理者が必要ならテナント契約、サーバー分離が必要なら専用へ。ライトは短期間のお試しです。') }}</p>
@@ -383,13 +452,19 @@
         </div>
       </section>
 
-      <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
-        <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
-        <p class="lp-section-lead">{{ __('まずはスタンダードまたはテナントの利用申請から。ライトはお試しです。テナントや専用環境の詳しい相談もこちらへ。') }}</p>
+      <section class="lp-section" id="start" aria-labelledby="landing-start-title">
+        <h2 id="landing-start-title">{{ __('Sa2 Plusを始めてみませんか？') }}</h2>
+        <p class="lp-section-lead">{{ __('Todo、予定、メモ、写真、メール、AI相談など、毎日の情報をひとつの場所にまとめてみませんか？') }}</p>
+        <p>{{ __('まずはライトプランでSa2 Plusをお試しいただけます。') }}</p>
         <p class="lp-cta">
-          <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary">{{ __('スタンダードを申請する') }}</a>
-          <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-ghost">{{ __('テナント契約を申請する') }}</a>
+          <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-primary">{{ __('無料で試す') }}</a>
+          <a href="#pricing" class="lp-btn lp-btn-ghost">{{ __('料金プランを見る') }}</a>
+          <a href="#contact" class="lp-btn lp-btn-ghost">{{ __('お問い合わせ') }}</a>
         </p>
+      </section>
+
+      <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
+        <h2 id="landing-contact-title" class="visually-hidden">{{ __('お問い合わせ') }}</h2>
         @if(!empty($contactEmail))
           <p>{{ __('メールでのお問い合わせ') }}: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a></p>
         @endif
@@ -400,12 +475,12 @@
     <section class="lp-banner" aria-labelledby="landing-banner-title">
       <div class="lp-banner-inner">
         <div>
-          <h2 id="landing-banner-title">{{ __('スタンダード／テナントで、毎日をもっと快適に。') }}</h2>
-          <p>{{ __('本利用の申請から。ライトは短期間のお試しです。') }}</p>
+          <h2 id="landing-banner-title">{{ __('Sa2 Plusを始めてみませんか？') }}</h2>
+          <p>{{ __('まずはライトプランでお試しいただけます。') }}</p>
         </div>
         <p class="lp-cta">
-          <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-on-dark">{{ __('スタンダードを申請する') }}</a>
-          <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-on-dark">{{ __('テナント契約を申請する') }}</a>
+          <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-on-dark">{{ __('無料で試してみる') }}</a>
+          <a href="#pricing" class="lp-btn lp-btn-on-dark">{{ __('料金プランを見る') }}</a>
         </p>
       </div>
     </section>

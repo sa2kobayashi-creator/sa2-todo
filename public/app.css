@@ -24211,11 +24211,17 @@ body.dash-home-lightbox-open {
 .lp-feature-icon.is-media { background: #fce7f3; }
 .lp-feature-icon.is-life { background: #fef3c7; }
 
-.lp-features strong {
+.lp-features strong,
+.lp-features h3 {
+  margin: 0;
   font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
-.lp-features span:last-child {
+.lp-features span:last-child,
+.lp-features p {
+  margin: 0;
   color: #64748b;
   font-size: 14px;
   line-height: 1.55;
@@ -24375,12 +24381,18 @@ body.dash-home-lightbox-open {
 .lp-value-icon.is-cloud { background: #dcfce7; }
 .lp-value-icon.is-admin { background: #ede9fe; }
 
-.lp-value-grid strong {
+.lp-value-grid strong,
+.lp-value-grid h3 {
   display: block;
-  margin-bottom: 6px;
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
-.lp-value-grid span {
+.lp-value-grid span,
+.lp-value-grid p {
+  margin: 0;
   color: #64748b;
   font-size: 14px;
   line-height: 1.6;
