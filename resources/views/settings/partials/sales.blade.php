@@ -188,12 +188,16 @@
 
 <script>
   (function () {
-    const btn = document.getElementById('stripe-billing-test-btn')
-    const live = document.getElementById('stripe-billing-test-live')
-    if (!btn || !live) return
+    const stripeBillingStrings = {
+      testing: @json(__('テスト中...')),
+      networkError: @json(__('接続に失敗しました。')),
+    };
+    const btn = document.getElementById('stripe-billing-test-btn');
+    const live = document.getElementById('stripe-billing-test-live');
+    if (!btn || !live) return;
     btn.addEventListener('click', async () => {
-      live.textContent = @json(__('確認中…'))
-      live.className = 'storage-test-live hint'
+      live.textContent = stripeBillingStrings.testing;
+      live.className = 'storage-test-live hint';
       try {
         const res = await fetch('/settings/sales/stripe/test', {
           method: 'POST',
@@ -203,14 +207,14 @@
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
           },
           credentials: 'same-origin',
-        })
-        const data = await res.json().catch(() => ({}))
-        live.textContent = data.message || String(res.status)
-        live.className = 'storage-test-live hint storage-test-result ' + (data.ok ? 'is-ok' : 'is-fail')
+        });
+        const data = await res.json().catch(() => ({}));
+        live.textContent = data.message || String(res.status);
+        live.className = 'storage-test-live hint storage-test-result ' + (data.ok ? 'is-ok' : 'is-fail');
       } catch (err) {
-        live.textContent = err?.message || @json(__('接続に失敗しました。'))
-        live.className = 'storage-test-live hint storage-test-result is-fail'
+        live.textContent = err?.message || stripeBillingStrings.networkError;
+        live.className = 'storage-test-live hint storage-test-result is-fail';
       }
-    })
-  })()
+    });
+  })();
 </script>
