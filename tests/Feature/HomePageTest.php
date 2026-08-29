@@ -120,8 +120,15 @@ class HomePageTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee(__('準備中'), false)
+            ->assertSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
             ->assertDontSee('href="/apply?plan=standard"', false)
             ->assertDontSee('data-stat-event="cta.plan.standard"', false);
+
+        Registration::setApplicationsOpen(true);
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
+            ->assertSee('href="/apply?plan=standard"', false);
     }
 
     public function test_signed_in_users_are_sent_to_the_dashboard(): void
