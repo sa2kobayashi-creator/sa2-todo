@@ -103,12 +103,10 @@ class RegistrationApplicationService
         }
 
         if (User::query()->where('email', $email)->exists()) {
-            // 既存ユーザーへの列挙を避ける
+            // 既存ユーザーへの列挙を避ける（プラン内で新規時と同一文言）
             return [
                 'ok' => true,
-                'message' => $plan === RegistrationApplicationPlan::Light
-                    ? __('条件を確認しました。登録用のメールをお送りできる場合は、まもなく届きます。')
-                    : __('申請を受け付けました。運営の確認後、登録用のメールをお送りします。'),
+                'message' => $this->acceptedMessage($plan),
             ];
         }
 
@@ -129,9 +127,23 @@ class RegistrationApplicationService
             ->where('status', RegistrationApplicationStatus::Pending)
             ->first();
 
+        $awaiting = null;
+        if (! $pending) {
+            $awaiting = RegistrationApplication::query()
+                ->where('email', $email)
+                ->where('status', RegistrationApplicationStatus::Approved)
+                ->whereNotNull('approval_token_hash')
+                ->where('approval_token_expires_at', '>', now())
+                ->orderByDesc('id')
+                ->first();
+        }
+
         if ($pending) {
             $pending->fill($attrs)->save();
             $application = $pending->fresh() ?? $pending;
+        } elseif ($awaiting) {
+            $awaiting->fill($attrs)->save();
+            $application = $awaiting->fresh() ?? $awaiting;
         } else {
             $application = RegistrationApplication::create($attrs + [
                 'email' => $email,
@@ -144,18 +156,29 @@ class RegistrationApplicationService
 
             return [
                 'ok' => true,
-                'message' => __('お試し（ライト）の登録用メールを送信しました。メール内のリンクからパスワードを設定してください。'),
+                'message' => $this->acceptedMessage($plan),
                 'application' => $application->fresh() ?? $application,
             ];
         }
 
-        $this->notifyAdmins($application);
+        if ($application->status === RegistrationApplicationStatus::Pending) {
+            $this->notifyAdmins($application);
+        }
 
         return [
             'ok' => true,
-            'message' => __('申請を受け付けました。運営の確認後、登録用のメールをお送りします。'),
+            'message' => $this->acceptedMessage($plan),
             'application' => $application,
         ];
+    }
+
+    private function acceptedMessage(RegistrationApplicationPlan $plan): string
+    {
+        if ($plan === RegistrationApplicationPlan::Light) {
+            return __('条件を確認しました。登録用のメールをお送りできる場合は、まもなく届きます。');
+        }
+
+        return __('申請を受け付けました。運営の確認後、登録用のメールをお送りします。');
     }
 
     /** 直近7日のライト新規＋登録待ちが上限未満か */
@@ -184,7 +207,8 @@ class RegistrationApplicationService
             ->where('status', RegistrationApplicationStatus::Approved)
             ->where('created_at', '>=', $since)
             ->when($excludeApplicationId, fn ($q) => $q->whereKeyNot($excludeApplicationId))
-            ->count();
+            ->distinct()
+            ->count('email');
 
         return $newLights + $awaiting;
     }
@@ -210,6 +234,7 @@ class RegistrationApplicationService
 
         $application->fill([
             'status' => RegistrationApplicationStatus::Rejected,
+            'approval_token_selector' => null,
             'approval_token_hash' => null,
             'approval_token_expires_at' => null,
             'reviewed_by' => $reviewer->id,
@@ -229,21 +254,37 @@ class RegistrationApplicationService
     public function findByPlainToken(string $plainToken): ?RegistrationApplication
     {
         $plainToken = trim($plainToken);
-        if ($plainToken === '') {
+        if ($plainToken === '' || strlen($plainToken) < 20) {
             return null;
         }
 
-        $candidates = RegistrationApplication::query()
+        $selector = substr($plainToken, 0, 12);
+        $verifier = substr($plainToken, 12);
+
+        $application = RegistrationApplication::query()
             ->where('status', RegistrationApplicationStatus::Approved)
+            ->where('approval_token_selector', $selector)
+            ->whereNotNull('approval_token_hash')
+            ->where('approval_token_expires_at', '>', now())
+            ->first();
+
+        if ($application && Hash::check($verifier, (string) $application->approval_token_hash)) {
+            return $application;
+        }
+
+        // セレクタ導入前に発行したトークン互換（上限付き）
+        $legacy = RegistrationApplication::query()
+            ->where('status', RegistrationApplicationStatus::Approved)
+            ->whereNull('approval_token_selector')
             ->whereNotNull('approval_token_hash')
             ->where('approval_token_expires_at', '>', now())
             ->orderByDesc('id')
-            ->limit(50)
+            ->limit(20)
             ->get();
 
-        foreach ($candidates as $application) {
-            if (Hash::check($plainToken, (string) $application->approval_token_hash)) {
-                return $application;
+        foreach ($legacy as $candidate) {
+            if (Hash::check($plainToken, (string) $candidate->approval_token_hash)) {
+                return $candidate;
             }
         }
 
@@ -280,6 +321,7 @@ class RegistrationApplicationService
         $application->fill([
             'status' => RegistrationApplicationStatus::Completed,
             'user_id' => $user->id,
+            'approval_token_selector' => null,
             'approval_token_hash' => null,
             'approval_token_expires_at' => null,
         ])->save();
@@ -311,11 +353,14 @@ class RegistrationApplicationService
         ?int $reviewerId,
         ?string $adminNote = null,
     ): RegistrationApplication {
-        $plainToken = Str::random(48);
+        $selector = Str::random(12);
+        $verifier = Str::random(36);
+        $plainToken = $selector.$verifier;
 
         $application->fill([
             'status' => RegistrationApplicationStatus::Approved,
-            'approval_token_hash' => Hash::make($plainToken),
+            'approval_token_selector' => $selector,
+            'approval_token_hash' => Hash::make($verifier),
             'approval_token_expires_at' => Carbon::now()->addDays($this->tokenTtlDays()),
             'reviewed_by' => $reviewerId,
             'reviewed_at' => now(),

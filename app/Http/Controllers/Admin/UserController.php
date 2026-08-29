@@ -235,13 +235,15 @@ class UserController extends Controller
 
         $user->save();
 
-        // 契約状態は Stripe 前の手動運用向け。権限ロールとは別に保存する。
-        $this->billing->apply($user, [
-            'subscription_status' => $data['subscriptionStatus'] ?? SubscriptionStatus::None->value,
-            'trial_ends_at' => $data['trialEndsAt'] ?? null,
-            'storage_overage_active' => $request->boolean('storageOverageActive'),
-            'mailbox_addon_active' => $request->boolean('mailboxAddonActive'),
-        ]);
+        // 契約状態は Stripe 前の手動運用向け。テナント管理者による自己付与を防ぐ。
+        if ($actor->isPlatformStaff()) {
+            $this->billing->apply($user, [
+                'subscription_status' => $data['subscriptionStatus'] ?? SubscriptionStatus::None->value,
+                'trial_ends_at' => $data['trialEndsAt'] ?? null,
+                'storage_overage_active' => $request->boolean('storageOverageActive'),
+                'mailbox_addon_active' => $request->boolean('mailboxAddonActive'),
+            ]);
+        }
 
         return $this->redirectWithMessage("/admin/users/{$id}", __('ユーザー情報を更新しました。'));
     }
@@ -301,6 +303,7 @@ class UserController extends Controller
                 ->mapWithKeys(fn (UserRole $role) => [$role->value => MenuFeature::defaultsForRole($role)])
                 ->all(),
             'canAssignSpecialQuota' => $actor->isSuperAdmin(),
+            'canAssignBilling' => $actor->isPlatformStaff(),
         ];
     }
 

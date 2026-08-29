@@ -71,6 +71,7 @@
           @elseif(!empty($canAssignSpecialQuota) && empty($user['canUseSpecialQuota']))
             <p class="hint">{{ __('テナント所属または運営者は特別枠を使いません。テナントは契約プール、運営者は上限なしです。') }}</p>
           @endif
+          @if(!empty($canAssignBilling))
           <fieldset class="menu-feature-fieldset">
             <legend>{{ __('契約・課金') }}</legend>
             <p class="hint">{{ __('Stripe 導入前の手動運用です。請求書で入金を確認したらここで有効にしてください。権限（ロール）とは別に保存されます。') }}</p>
@@ -93,6 +94,7 @@
               <span>{{ __('メールボックス有料オプション') }}</span>
             </label>
           </fieldset>
+          @endif
           <button type="submit">{{ __('保存') }}</button>
         </form>
       </div>

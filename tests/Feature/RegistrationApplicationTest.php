@@ -9,6 +9,7 @@ use App\Mail\RegistrationApplicationApprovedMail;
 use App\Mail\RegistrationApplicationReceivedAdminMail;
 use App\Models\RegistrationApplication;
 use App\Models\User;
+use App\Support\Registration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -21,7 +22,7 @@ class RegistrationApplicationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        \App\Support\Registration::setApplicationsOpen(true);
+        Registration::setApplicationsOpen(true);
     }
 
     private function purpose(): string
@@ -49,7 +50,7 @@ class RegistrationApplicationTest extends TestCase
 
     public function test_apply_page_redirects_home_when_applications_are_closed(): void
     {
-        \App\Support\Registration::setApplicationsOpen(false);
+        Registration::setApplicationsOpen(false);
 
         $this->get('/apply')->assertRedirect('/');
         $this->post('/apply', [
@@ -248,8 +249,31 @@ class RegistrationApplicationTest extends TestCase
             'email' => 'taken@example.com',
             'message' => $this->purpose(),
             'agreeTerms' => '1',
-        ])->assertRedirect('/apply');
+        ])->assertRedirect('/apply')
+            ->assertSessionHas('notice', __('条件を確認しました。登録用のメールをお送りできる場合は、まもなく届きます。'));
 
         $this->assertSame(0, RegistrationApplication::query()->where('email', 'taken@example.com')->count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_repeat_light_apply_reuses_awaiting_row_instead_of_multiplying(): void
+    {
+        Mail::fake();
+        config(['registration.light_weekly_cap' => 50]);
+
+        $payload = [
+            'plan' => 'light',
+            'display_name' => '再送',
+            'email' => 'reuse-light@example.com',
+            'message' => $this->purpose(),
+            'agreeTerms' => '1',
+        ];
+
+        $this->post('/apply', $payload)->assertRedirect('/apply');
+        $this->post('/apply', $payload)->assertRedirect('/apply');
+        $this->post('/apply', $payload)->assertRedirect('/apply');
+
+        $this->assertSame(1, RegistrationApplication::query()->where('email', 'reuse-light@example.com')->count());
+        Mail::assertSent(RegistrationApplicationApprovedMail::class, 3);
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\MailDomainRequestController as AdminMailDomainRequestController;
+use App\Http\Controllers\Admin\RegistrationApplicationController as AdminRegistrationApplicationController;
 use App\Http\Controllers\Admin\SalesEstimateController as AdminSalesEstimateController;
 use App\Http\Controllers\Admin\StorageArchiveController;
 use App\Http\Controllers\Admin\TenantController as AdminTenantController;
@@ -10,14 +11,13 @@ use App\Http\Controllers\AiLlmSettingsController;
 use App\Http\Controllers\AiProviderUsageController;
 use App\Http\Controllers\Api\HolidayDatesController;
 use App\Http\Controllers\AppContextController;
+use App\Http\Controllers\ApplyController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\BillingController;
-use App\Http\Controllers\CommercialSettingsController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\PasswordSetupController;
-use App\Http\Controllers\ApplyController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Admin\RegistrationApplicationController as AdminRegistrationApplicationController;
+use App\Http\Controllers\BillingController;
+use App\Http\Controllers\CommercialSettingsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataArchiveController;
 use App\Http\Controllers\EmailChangeController;
@@ -49,6 +49,7 @@ use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RouteSearchSettingsController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SiteStatsController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\TransitController;
@@ -85,11 +86,12 @@ Route::middleware('guest')->group(function () {
     Route::get('/apply', [ApplyController::class, 'show']);
     Route::post('/apply', [ApplyController::class, 'store'])->middleware('throttle:auth-apply');
     Route::get('/apply/activate/{token}', [ApplyController::class, 'showActivate'])
-        ->where('token', '[A-Za-z0-9]+');
+        ->where('token', '[A-Za-z0-9]+')
+        ->middleware('throttle:auth-password');
     Route::post('/apply/activate/{token}', [ApplyController::class, 'storeActivate'])
         ->where('token', '[A-Za-z0-9]+')
         ->middleware('throttle:auth-password');
-    Route::post('/stats/hit', [\App\Http\Controllers\SiteStatsController::class, 'hit'])
+    Route::post('/stats/hit', [SiteStatsController::class, 'hit'])
         ->middleware('throttle:60,1');
 });
 
@@ -200,7 +202,9 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     Route::post('/photos/albums/for-folder', [PhotoController::class, 'storeFolderAlbum']);
     Route::post('/photos/albums/reveal-hidden', [PhotoController::class, 'toggleRevealHiddenAlbums']);
     Route::post('/photos/albums/{id}/update', [PhotoController::class, 'updateAlbum'])->whereNumber('id');
-    Route::post('/photos/albums/{id}/unlock', [PhotoController::class, 'unlockAlbum'])->whereNumber('id');
+    Route::post('/photos/albums/{id}/unlock', [PhotoController::class, 'unlockAlbum'])
+        ->whereNumber('id')
+        ->middleware('throttle:auth-password');
     Route::post('/photos/albums/{id}/cover', [PhotoController::class, 'setCover'])->whereNumber('id');
     Route::post('/photos/albums/{id}/delete', [PhotoController::class, 'destroyAlbum'])->whereNumber('id');
     Route::post('/photos/{id}/edit-image', [PhotoController::class, 'editImage'])->whereNumber('id');

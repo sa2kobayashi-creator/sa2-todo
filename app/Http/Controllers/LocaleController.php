@@ -18,11 +18,14 @@ class LocaleController extends Controller
         $request->session()->put('locale', $locale);
 
         $redirect = $request->input('redirect');
-        if (! is_string($redirect) || $redirect === '' || ! str_starts_with($redirect, '/')) {
+        if (! is_string($redirect) || $redirect === '' || ! str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
             $redirect = url()->previous() ?: '/dashboard';
             $path = parse_url($redirect, PHP_URL_PATH) ?: '/dashboard';
             $query = parse_url($redirect, PHP_URL_QUERY);
             $redirect = $query ? $path.'?'.$query : $path;
+            if (str_starts_with((string) $redirect, '//')) {
+                $redirect = '/dashboard';
+            }
         }
 
         return redirect($redirect)

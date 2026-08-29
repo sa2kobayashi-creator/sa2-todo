@@ -17,6 +17,7 @@ class RegistrationApplication extends Model
         'phone',
         'message',
         'status',
+        'approval_token_selector',
         'approval_token_hash',
         'approval_token_expires_at',
         'user_id',

@@ -9,6 +9,7 @@ use App\Services\LiveKitCallService;
 use App\Services\PhotoService;
 use App\Services\TranslationService;
 use App\Services\UserUsageLimitService;
+use App\Support\SafeAttachmentResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -512,11 +513,14 @@ class MessageController extends Controller
         $disk = Storage::disk($attachment->disk);
         abort_unless($disk->exists($attachment->path), 404);
 
-        $headers = [
-            'Content-Type' => $attachment->mime ?: 'application/octet-stream',
-        ];
+        $headers = SafeAttachmentResponse::headers(
+            $attachment->mime,
+            (string) $attachment->original_name,
+            $download
+        );
+        $asDownload = str_starts_with($headers['Content-Disposition'], 'attachment');
 
-        if ($download) {
+        if ($asDownload) {
             return $disk->download($attachment->path, $attachment->original_name, $headers);
         }
 

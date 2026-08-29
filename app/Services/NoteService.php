@@ -6,7 +6,10 @@ use App\Enums\AppContext;
 use App\Models\Note;
 use App\Models\NoteAttachment;
 use App\Models\User;
+use App\Support\SafeAttachmentResponse;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -93,7 +96,7 @@ class NoteService
         return $note;
     }
 
-    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Note> */
+    /** @return Builder<Note> */
     public function visibleNotesQuery(int $userId, ?AppContext $context = null)
     {
         $context ??= $this->contexts->current(User::find($userId));
@@ -656,7 +659,7 @@ class NoteService
         return $attachment;
     }
 
-    public function streamAttachment(int $userId, int $attachmentId, bool $download = false): \Illuminate\Http\Response
+    public function streamAttachment(int $userId, int $attachmentId, bool $download = false): Response
     {
         $attachment = $this->findAccessibleAttachment($userId, $attachmentId);
         if (! $attachment) {
@@ -676,15 +679,11 @@ class NoteService
         }
 
         $mime = $attachment->mime ?: 'application/octet-stream';
-        $filename = str_replace(['"', "\r", "\n"], '', $attachment->original_name);
-        $disposition = ($download ? 'attachment' : 'inline').'; filename="'.$filename.'"';
+        $headers = SafeAttachmentResponse::headers($mime, (string) $attachment->original_name, $download);
+        $headers['Content-Length'] = (string) strlen($contents);
+        $headers['Cache-Control'] = 'private, max-age=3600';
 
-        return response($contents, 200, [
-            'Content-Type' => $mime,
-            'Content-Disposition' => $disposition,
-            'Content-Length' => (string) strlen($contents),
-            'Cache-Control' => 'private, max-age=3600',
-        ]);
+        return response($contents, 200, $headers);
     }
 
     /** @return array<string, mixed> */

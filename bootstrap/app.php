@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsurePasswordChanged;
+use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\SetTenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,18 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // 既定は共有ホスティング向けに全許可のまま。前段のIPが分かる環境では
-        // TRUSTED_PROXIES に列挙して X-Forwarded-For の詐称を防ぐ。
-        $trustedProxies = trim((string) env('TRUSTED_PROXIES', '*'));
-        $middleware->trustProxies(at: $trustedProxies === '*' ? '*' : array_values(array_filter(
-            array_map('trim', explode(',', $trustedProxies))
-        )));
+        // TRUSTED_PROXIES は AppServiceProvider で config 経由設定する。
+        // ここで env() すると .env 読込前に評価され常に '*' になる。
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
         $middleware->web(append: [
-            \App\Http\Middleware\SetLocale::class,
-            \App\Http\Middleware\SetTenantContext::class,
-            \App\Http\Middleware\EnsurePasswordChanged::class,
+            SetLocale::class,
+            SetTenantContext::class,
+            EnsurePasswordChanged::class,
         ]);
         $middleware->validateCsrfTokens(except: [
             'webhooks/line',

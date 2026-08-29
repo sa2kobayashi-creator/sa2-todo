@@ -42,6 +42,20 @@ class SiteStatsTest extends TestCase
         $this->assertSame(1, (int) $row->count);
     }
 
+    public function test_repeat_views_accumulate_on_the_same_row(): void
+    {
+        $this->get('/')->assertOk();
+        $this->get('/')->assertOk();
+        $this->get('/')->assertOk();
+
+        $rows = SiteStatDaily::query()
+            ->where('event_key', SiteStatEvent::TOP_VIEW)
+            ->get();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(3, (int) $rows->first()->count);
+    }
+
     public function test_cta_hit_endpoint_accepts_allowed_events(): void
     {
         $this->post('/stats/hit', ['event' => SiteStatEvent::CTA_PLAN_STANDARD])

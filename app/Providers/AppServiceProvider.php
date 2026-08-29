@@ -8,6 +8,7 @@ use App\Services\MediaStorageConfigService;
 use App\Services\StripeConfigService;
 use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -29,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->configureTrustedProxies();
         $this->configureRateLimiting();
 
         if ($this->app->environment('production')) {
@@ -42,6 +44,23 @@ class AppServiceProvider extends ServiceProvider
         } catch (\Throwable) {
             // マイグレーション前などテーブル未作成時は無視
         }
+    }
+
+    private function configureTrustedProxies(): void
+    {
+        $raw = trim((string) config('trustedproxy.proxies', ''));
+        if ($raw === '*') {
+            TrustProxies::at('*');
+
+            return;
+        }
+
+        if ($raw === '') {
+            // 空 = プロキシを信頼しない（ロリポップ直接続向け）
+            return;
+        }
+
+        TrustProxies::at(array_values(array_filter(array_map('trim', explode(',', $raw)))));
     }
 
     private function configureRateLimiting(): void

@@ -4,18 +4,25 @@ namespace App\Services;
 
 use App\Models\SiteStatDaily;
 use App\Support\SiteStatEvent;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class SiteStatsService
 {
+    private ?bool $tableReady = null;
+
     public function tableReady(): bool
     {
+        if ($this->tableReady !== null) {
+            return $this->tableReady;
+        }
+
         try {
-            return Schema::hasTable('site_stats_daily');
+            return $this->tableReady = Schema::hasTable('site_stats_daily');
         } catch (\Throwable) {
-            return false;
+            return $this->tableReady = false;
         }
     }
 
@@ -33,17 +40,33 @@ class SiteStatsService
         $date = ($on ?? now())->toDateString();
 
         try {
-            $row = SiteStatDaily::query()->firstOrCreate(
-                [
-                    'stat_date' => $date,
-                    'event_key' => $eventKey,
-                ],
-                ['count' => 0]
-            );
-            $row->increment('count', $by);
+            if ($this->addCount($date, $eventKey, $by)) {
+                return;
+            }
+
+            $now = now();
+            SiteStatDaily::query()->insert([
+                'stat_date' => $date,
+                'event_key' => $eventKey,
+                'count' => $by,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // 同時アクセスで他のリクエストが先にその日の行を作ったケース
+            $this->addCount($date, $eventKey, $by);
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    /** 既存行への UPDATE 一発。行が無ければ false。 */
+    private function addCount(string $date, string $eventKey, int $by): bool
+    {
+        return SiteStatDaily::query()
+            ->where('stat_date', $date)
+            ->where('event_key', $eventKey)
+            ->increment('count', $by) > 0;
     }
 
     public function shouldSkipRequest(?Request $request): bool
