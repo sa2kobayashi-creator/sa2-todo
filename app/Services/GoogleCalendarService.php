@@ -6,6 +6,7 @@ use App\Models\GoogleCalendarConnection;
 use App\Models\Todo;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -106,6 +107,20 @@ class GoogleCalendarService
         }
 
         $ids = $calendarIds ?? $connection->selectedCalendarIds();
+        sort($ids);
+        $cacheKey = 'gcal:events:'.$user->id.':'.md5($timeMin.'|'.$timeMax.'|'.implode(',', $ids));
+
+        return Cache::remember($cacheKey, 300, function () use ($user, $connection, $ids, $timeMin, $timeMax) {
+            return $this->fetchEventsAsTodos($user, $connection, $ids, $timeMin, $timeMax);
+        });
+    }
+
+    /**
+     * @param  list<string>  $ids
+     * @return list<array<string, mixed>>
+     */
+    private function fetchEventsAsTodos(User $user, GoogleCalendarConnection $connection, array $ids, string $timeMin, string $timeMax): array
+    {
         $token = $this->accessTokenFor($user);
         $events = [];
 
@@ -124,7 +139,8 @@ class GoogleCalendarService
                 }
 
                 $response = Http::withToken($token)
-                    ->timeout(30)
+                    ->timeout(8)
+                    ->connectTimeout(3)
                     ->acceptJson()
                     ->get('https://www.googleapis.com/calendar/v3/calendars/'.rawurlencode($calendarId).'/events', $query);
 
@@ -132,7 +148,8 @@ class GoogleCalendarService
                     $this->oauth->refreshAccessToken($connection);
                     $token = $this->accessTokenFor($user);
                     $response = Http::withToken($token)
-                        ->timeout(30)
+                        ->timeout(8)
+                        ->connectTimeout(3)
                         ->acceptJson()
                         ->get('https://www.googleapis.com/calendar/v3/calendars/'.rawurlencode($calendarId).'/events', $query);
                 }
@@ -338,6 +355,7 @@ class GoogleCalendarService
                 if (! empty($event['htmlLink'])) {
                     $localTodos[$idx]['htmlLink'] = $event['htmlLink'];
                 }
+
                 continue;
             }
             $localTodos[] = $event;

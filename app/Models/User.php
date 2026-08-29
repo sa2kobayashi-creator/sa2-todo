@@ -6,6 +6,8 @@ use App\Enums\GroupStatus;
 use App\Enums\MenuFeature;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
+use App\Support\LocaleFormat;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +17,12 @@ class User extends Authenticatable
 {
     // Billable の trial_ends_at は既存の契約カラムと同じものを指す（migration のコメント参照）
     use Billable, Notifiable;
+
+    /** @var list<string>|null リクエスト内メモ化（ShareViewData の canAccess 連打対策） */
+    private ?array $memoEffectiveMenuFeatures = null;
+
+    /** @var list<string>|null */
+    private ?array $memoGroupMenuFeatures = null;
 
     protected $fillable = [
         'email',
@@ -75,6 +83,14 @@ class User extends Authenticatable
             'header_nav' => 'array',
             'finance_extra_regions' => 'array',
         ];
+    }
+
+    public function refresh()
+    {
+        $this->memoEffectiveMenuFeatures = null;
+        $this->memoGroupMenuFeatures = null;
+
+        return parent::refresh();
     }
 
     public function isOnline(int $withinSeconds = 120): bool
@@ -148,8 +164,8 @@ class User extends Authenticatable
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<User>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<User>
+     * @param  Builder<User>  $query
+     * @return Builder<User>
      */
     public function scopeVisibleTo($query, User $actor)
     {
@@ -225,7 +241,11 @@ class User extends Authenticatable
             return [];
         }
 
-        return DB::table('group_menu_features')
+        if ($this->memoGroupMenuFeatures !== null) {
+            return $this->memoGroupMenuFeatures;
+        }
+
+        return $this->memoGroupMenuFeatures = DB::table('group_menu_features')
             ->join('group_members', 'group_members.group_id', '=', 'group_menu_features.group_id')
             ->join('groups', 'groups.id', '=', 'group_menu_features.group_id')
             ->where('group_members.user_id', $this->id)
@@ -241,17 +261,23 @@ class User extends Authenticatable
     /** @return list<string> */
     public function effectiveMenuFeatures(): array
     {
+        if ($this->memoEffectiveMenuFeatures !== null) {
+            return $this->memoEffectiveMenuFeatures;
+        }
+
         if ($this->isAdmin()) {
-            return $this->isSuperAdmin() ? MenuFeature::values() : MenuFeature::assignableValues();
+            return $this->memoEffectiveMenuFeatures = $this->isSuperAdmin()
+                ? MenuFeature::values()
+                : MenuFeature::assignableValues();
         }
 
         // 管理画面で利用メニューを明示設定した場合（空配列＝追加メニューなし）はそれを優先。
         // グループ付与で制限を上書きしない。
         if (is_array($this->menu_features)) {
-            return $this->baseMenuFeatures();
+            return $this->memoEffectiveMenuFeatures = $this->baseMenuFeatures();
         }
 
-        return array_values(array_unique([
+        return $this->memoEffectiveMenuFeatures = array_values(array_unique([
             ...$this->baseMenuFeatures(),
             ...$this->groupMenuFeatures(),
         ]));
@@ -272,7 +298,7 @@ class User extends Authenticatable
             'roleDescription' => __($role->description()),
             'menuFeatures' => $this->baseMenuFeatures(),
             'hasCustomMenuFeatures' => is_array($this->menu_features),
-            'timezone' => $this->timezone ?: \App\Support\LocaleFormat::timezone($this),
+            'timezone' => $this->timezone ?: LocaleFormat::timezone($this),
             'subscriptionStatus' => $this->subscriptionStatusEnum()->value,
             'subscriptionStatusLabel' => __($this->subscriptionStatusEnum()->label()),
             'trialEndsAt' => optional($this->trial_ends_at)?->format('Y-m-d'),

@@ -7,10 +7,17 @@ use App\Models\User;
 use App\Models\WeekdayRule;
 use App\Support\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class HolidayService
 {
+    /** @var list<int>|null */
+    private ?array $memoYears = null;
+
+    /** @var array<int|string, int|null> */
+    private array $memoViewerTenantIds = [];
+
     /** @return array<string, array{name: string, source: string}> */
     public function getHolidayInfoMapForYear(int $year, ?int $viewerUserId = null): array
     {
@@ -136,16 +143,30 @@ class HolidayService
     /** @return list<int> */
     private function collectYears(): array
     {
-        $years = [(int) date('Y'), (int) date('Y') + 1];
-        HolidayEntry::query()
-            ->get(['date', 'user_id'])
-            ->each(fn (HolidayEntry $entry) => $years[] = (int) $entry->date->format('Y'));
-        WeekdayRule::query()->get(['start_date', 'end_date'])->each(function (WeekdayRule $rule) use (&$years) {
-            $years[] = (int) $rule->start_date->format('Y');
-            $years[] = (int) $rule->end_date->format('Y');
+        if ($this->memoYears !== null) {
+            return $this->memoYears;
+        }
+
+        $this->memoYears = Cache::remember('holiday_collect_years_'.$this->mapVersion(), 3600, function () {
+            $years = [(int) date('Y'), (int) date('Y') + 1];
+
+            foreach ([
+                [HolidayEntry::query()->min('date'), HolidayEntry::query()->max('date')],
+                [WeekdayRule::query()->min('start_date'), WeekdayRule::query()->max('end_date')],
+            ] as [$min, $max]) {
+                if ($min && $max) {
+                    $from = (int) Carbon::parse($min)->format('Y');
+                    $to = (int) Carbon::parse($max)->format('Y');
+                    for ($y = $from; $y <= $to; $y++) {
+                        $years[] = $y;
+                    }
+                }
+            }
+
+            return array_values(array_unique($years));
         });
 
-        return array_values(array_unique($years));
+        return $this->memoYears;
     }
 
     /** @return list<array{date: string, name: string}> */
@@ -731,16 +752,21 @@ class HolidayService
 
     private function viewerTenantId(?int $viewerUserId): ?int
     {
+        $key = $viewerUserId ?? 'ctx';
+        if (array_key_exists($key, $this->memoViewerTenantIds)) {
+            return $this->memoViewerTenantIds[$key];
+        }
+
         if ($viewerUserId) {
             $value = User::query()->whereKey($viewerUserId)->value('tenant_id');
 
-            return $value ? (int) $value : null;
+            return $this->memoViewerTenantIds[$key] = $value ? (int) $value : null;
         }
 
-        return TenantContext::idOrNull();
+        return $this->memoViewerTenantIds[$key] = TenantContext::idOrNull();
     }
 
-    /** @return \Illuminate\Support\Collection<int, WeekdayRule> */
+    /** @return Collection<int, WeekdayRule> */
     private function weekdayRulesForMap(?int $viewerUserId)
     {
         return $this->weekdayRulesQuery($viewerUserId, true)->get();

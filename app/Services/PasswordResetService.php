@@ -58,11 +58,18 @@ class PasswordResetService
         $user->reset_last_sent_at = Carbon::now();
         $user->save();
 
-        Mail::to($user->email)->send(new PasswordResetCodeMail(
-            displayName: (string) $user->display_name,
-            code: $code,
-            expiresInMinutes: $this->codeTtlMinutes(),
-        ));
+        try {
+            Mail::to($user->email)->send(new PasswordResetCodeMail(
+                displayName: (string) $user->display_name,
+                code: $code,
+                expiresInMinutes: $this->codeTtlMinutes(),
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->clearCode($user);
+
+            throw new \RuntimeException(__('確認コードのメール送信に失敗しました。時間をおいてもう一度お試しください。'), 0, $e);
+        }
 
         if (config('mail.default') === 'log') {
             Log::info('パスワード再設定コードを発行しました', ['email' => $user->email]);

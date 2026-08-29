@@ -50,13 +50,33 @@ class RegistrationApplicationController extends Controller
 
         try {
             $this->applications->approve($application, $request->user(), $note !== '' ? $note : null);
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
             return $this->redirectWithMessage('/admin/applications', $e->getMessage(), 'error');
         }
 
         return $this->redirectWithMessage(
             '/admin/applications',
             __('申請を承認し、登録用のメールを送信しました。')
+        );
+    }
+
+    public function resend(Request $request, int $id)
+    {
+        if (! $request->user()->isPlatformStaff()) {
+            abort(403, __('利用申請の処理は運営のみが行います。'));
+        }
+
+        $application = RegistrationApplication::query()->findOrFail($id);
+
+        try {
+            $this->applications->resendActivation($application);
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return $this->redirectWithMessage('/admin/applications', $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage(
+            '/admin/applications',
+            __('登録用メールを再送しました。')
         );
     }
 
@@ -71,7 +91,7 @@ class RegistrationApplicationController extends Controller
 
         try {
             $this->applications->reject($application, $request->user(), $note !== '' ? $note : null);
-        } catch (\InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
             return $this->redirectWithMessage('/admin/applications', $e->getMessage(), 'error');
         }
 

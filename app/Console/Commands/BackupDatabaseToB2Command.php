@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\StorageManagementLog;
 use App\Services\DatabaseBackupService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class BackupDatabaseToB2Command extends Command
 {
@@ -17,9 +18,17 @@ class BackupDatabaseToB2Command extends Command
         @set_time_limit((int) config('storage_management.backup_timeout', 900));
         $result = $backup->run();
         if (! $result['ok']) {
-            $this->warn($result['reason'] ?: 'backup skipped');
+            $reason = (string) ($result['reason'] ?: 'backup skipped');
+            $this->warn($reason);
+            // b2_disabled は設定オフの正常スキップ。それ以外は気づけるよう error で残す
+            if ($reason !== 'b2_disabled') {
+                Log::error('db.backup.failed', [
+                    'reason' => $reason,
+                    'bytes' => $result['bytes'] ?? 0,
+                ]);
+            }
 
-            return $result['reason'] === 'b2_disabled' ? self::SUCCESS : self::FAILURE;
+            return $reason === 'b2_disabled' ? self::SUCCESS : self::FAILURE;
         }
 
         StorageManagementLog::query()->create([

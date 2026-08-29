@@ -25,10 +25,15 @@ class ReminderNotificationService
         $stats = ['checked' => 0, 'sent' => 0, 'skipped' => 0, 'errors' => 0];
 
         $todos = Todo::query()
+            ->with('user')
             ->where('completed', false)
             ->whereNotNull('notify_via')
             ->whereIn('notify_via', ['line', 'messenger'])
             ->whereNotNull('start_date')
+            ->whereBetween('start_date', [
+                $now->copy()->subDays(2)->toDateString(),
+                $now->copy()->addDays(2)->toDateString(),
+            ])
             ->orderBy('id')
             ->get();
 
@@ -37,6 +42,7 @@ class ReminderNotificationService
             $reminders = is_array($todo->reminders) ? $todo->reminders : [];
             if ($reminders === []) {
                 $stats['skipped']++;
+
                 continue;
             }
 
@@ -123,7 +129,7 @@ class ReminderNotificationService
      */
     public function sendReminder(Todo $todo, string $reminderKey, Carbon $fireAt): array
     {
-        $user = User::find($todo->user_id);
+        $user = $todo->relationLoaded('user') ? $todo->user : User::find($todo->user_id);
         if (! $user) {
             return ['ok' => false, 'message' => 'user_missing'];
         }

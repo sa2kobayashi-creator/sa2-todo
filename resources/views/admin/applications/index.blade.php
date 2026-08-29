@@ -72,6 +72,12 @@
               <p class="hint">{{ __('メモ') }}: {{ $app->admin_note }}</p>
             @endif
             <p class="hint">{{ $app->reviewed_at?->format('Y-m-d H:i') ?? $app->updated_at?->format('Y-m-d H:i') }}</p>
+            @if($app->isAwaitingActivation())
+              <form method="post" action="/admin/applications/{{ $app->id }}/resend" class="mail-admin-actions">
+                @csrf
+                <button type="submit" class="secondary">{{ __('登録メールを再送') }}</button>
+              </form>
+            @endif
           </article>
         @empty
           <p class="hint">{{ __('まだ処理済みの申請はありません。') }}</p>

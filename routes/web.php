@@ -556,6 +556,7 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
         Route::get('/admin/applications', [AdminRegistrationApplicationController::class, 'index']);
         Route::post('/admin/applications/{id}/approve', [AdminRegistrationApplicationController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/applications/{id}/resend', [AdminRegistrationApplicationController::class, 'resend'])->whereNumber('id');
         Route::post('/admin/applications/{id}/reject', [AdminRegistrationApplicationController::class, 'reject'])->whereNumber('id');
 
         Route::get('/admin/storage-archive', [StorageArchiveController::class, 'show']);

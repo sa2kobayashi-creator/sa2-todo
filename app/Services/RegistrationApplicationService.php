@@ -152,7 +152,14 @@ class RegistrationApplicationService
         }
 
         if ($plan === RegistrationApplicationPlan::Light) {
-            $this->autoApproveLight($application);
+            try {
+                $this->autoApproveLight($application);
+            } catch (\RuntimeException $e) {
+                return [
+                    'ok' => false,
+                    'message' => $e->getMessage(),
+                ];
+            }
 
             return [
                 'ok' => true,
@@ -242,11 +249,21 @@ class RegistrationApplicationService
             'admin_note' => $adminNote !== null && trim($adminNote) !== '' ? trim($adminNote) : $application->admin_note,
         ])->save();
 
-        Mail::to($application->email)->send(new RegistrationApplicationRejectedMail(
-            displayName: $application->display_name,
-            planLabel: __($application->plan->label()),
-            adminNote: (string) ($application->admin_note ?? ''),
-        ));
+        try {
+            Mail::to($application->email)->send(new RegistrationApplicationRejectedMail(
+                displayName: $application->display_name,
+                planLabel: __($application->plan->label()),
+                adminNote: (string) ($application->admin_note ?? ''),
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+
+            throw new \RuntimeException(
+                __('却下は保存しましたが、申請者へのメール送信に失敗しました。必要なら別途ご連絡ください。'),
+                0,
+                $e
+            );
+        }
 
         return $application->fresh() ?? $application;
     }
@@ -353,6 +370,16 @@ class RegistrationApplicationService
         ?int $reviewerId,
         ?string $adminNote = null,
     ): RegistrationApplication {
+        $previous = [
+            'status' => $application->status,
+            'approval_token_selector' => $application->approval_token_selector,
+            'approval_token_hash' => $application->approval_token_hash,
+            'approval_token_expires_at' => $application->approval_token_expires_at,
+            'reviewed_by' => $application->reviewed_by,
+            'reviewed_at' => $application->reviewed_at,
+            'admin_note' => $application->admin_note,
+        ];
+
         $selector = Str::random(12);
         $verifier = Str::random(36);
         $plainToken = $selector.$verifier;
@@ -369,16 +396,41 @@ class RegistrationApplicationService
                 : $application->admin_note,
         ])->save();
 
-        Mail::to($application->email)->send(new RegistrationApplicationApprovedMail(
-            displayName: $application->display_name,
-            planLabel: __($application->plan->label()),
-            activateUrl: url('/apply/activate/'.$plainToken),
-            expiresAt: $application->approval_token_expires_at?->format('Y-m-d H:i') ?? '',
-            isStandard: $application->plan === RegistrationApplicationPlan::Standard,
-            isTenant: $application->plan === RegistrationApplicationPlan::Tenant,
-        ));
+        try {
+            Mail::to($application->email)->send(new RegistrationApplicationApprovedMail(
+                displayName: $application->display_name,
+                planLabel: __($application->plan->label()),
+                activateUrl: url('/apply/activate/'.$plainToken),
+                expiresAt: $application->approval_token_expires_at?->format('Y-m-d H:i') ?? '',
+                isStandard: $application->plan === RegistrationApplicationPlan::Standard,
+                isTenant: $application->plan === RegistrationApplicationPlan::Tenant,
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+            $application->fill($previous)->save();
+
+            throw new \RuntimeException(
+                __('登録メールの送信に失敗しました。時間をおいて再度お試しください。'),
+                0,
+                $e
+            );
+        }
 
         return $application->fresh() ?? $application;
+    }
+
+    /** 承認済み・登録待ちの申請へ、登録メールを再送する（トークンも再発行）。 */
+    public function resendActivation(RegistrationApplication $application): RegistrationApplication
+    {
+        if (! $application->isAwaitingActivation()) {
+            throw new \InvalidArgumentException(__('登録待ちの申請だけ再送できます。'));
+        }
+
+        return $this->issueActivation(
+            $application,
+            reviewerId: $application->reviewed_by,
+            adminNote: null,
+        );
     }
 
     private function notifyAdmins(RegistrationApplication $application): void

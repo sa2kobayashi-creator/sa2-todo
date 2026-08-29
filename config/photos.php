@@ -141,6 +141,9 @@ return [
     /** 動画署名 URL の有効期限（分） */
     'video_signed_ttl_minutes' => max(5, min(240, (int) env('PHOTO_VIDEO_SIGNED_TTL_MINUTES', 60))),
 
+    /** サムネ一覧用の署名 URL 有効期限（分）。R2/B2 直配信で PHP プロキシ負荷を減らす */
+    'thumb_signed_ttl_minutes' => max(30, min(720, (int) env('PHOTO_THUMB_SIGNED_TTL_MINUTES', 360))),
+
     /** Cloudinary（表示用変換）。詳細は設定メニュー / media_storage_settings */
     'cloudinary' => [
         'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),

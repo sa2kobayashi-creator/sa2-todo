@@ -102,12 +102,23 @@ class RegisterController extends Controller
 
         $this->stats->increment(SiteStatEvent::REGISTER_INVITE);
 
-        Mail::to($user->email)->send(new WelcomeInitialPasswordMail(
-            displayName: (string) $user->display_name,
-            email: $user->email,
-            initialPassword: $initialPassword,
-            loginUrl: url('/login'),
-        ));
+        try {
+            Mail::to($user->email)->send(new WelcomeInitialPasswordMail(
+                displayName: (string) $user->display_name,
+                email: $user->email,
+                initialPassword: $initialPassword,
+                loginUrl: url('/login'),
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+            $user->delete();
+
+            return $this->redirectWithMessage(
+                '/register',
+                __('登録メールの送信に失敗しました。時間をおいてもう一度お試しください。'),
+                'error'
+            );
+        }
 
         return $this->redirectWithMessage(
             '/login',

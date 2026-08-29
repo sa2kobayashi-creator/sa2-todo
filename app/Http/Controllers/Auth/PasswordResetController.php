@@ -40,7 +40,11 @@ class PasswordResetController extends Controller
 
         // 登録の有無を知られないよう、結果に関わらず同じ画面へ進む
         if ($user) {
-            $this->reset->sendCode($user);
+            try {
+                $this->reset->sendCode($user);
+            } catch (\RuntimeException) {
+                // 送信失敗も列挙に使われないよう、成功時と同じ文言で進める
+            }
         }
 
         $request->session()->put('password_reset_email', $email);
@@ -120,7 +124,11 @@ class PasswordResetController extends Controller
             );
         }
 
-        $this->reset->sendCode($user);
+        try {
+            $this->reset->sendCode($user);
+        } catch (\RuntimeException $e) {
+            return $this->redirectWithMessage('/mypage', $e->getMessage(), 'error');
+        }
         $request->session()->put('password_reset_email', $user->email);
 
         return $this->redirectWithMessage(

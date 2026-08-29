@@ -10,8 +10,10 @@ use App\Models\GroupMessageReaction;
 use App\Models\GroupMessageThreadRead;
 use App\Models\User;
 use App\Support\LocaleFormat;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -227,6 +229,7 @@ class GroupChatService
         $row->last_read_message_id = $messageId;
         $row->save();
         $this->lastReadCache[$cacheKey] = $messageId;
+        $this->forgetUnreadCountCache($userId);
     }
 
     public function unreadCountForUser(int $userId): int
@@ -235,20 +238,29 @@ class GroupChatService
             return 0;
         }
 
-        $total = 0;
-        foreach ($this->groups->listApprovedForUser($userId) as $group) {
-            $groupId = (int) $group['id'];
-            $total += $this->unreadCountForThread($userId, $groupId, null);
-            foreach ($this->groups->listMembers($groupId) as $member) {
-                $peerId = (int) ($member['userId'] ?? 0);
-                if ($peerId <= 0 || $peerId === $userId) {
-                    continue;
+        return (int) Cache::remember('chat:unread:'.$userId, 30, function () use ($userId) {
+            $total = 0;
+            foreach ($this->groups->listApprovedForUser($userId) as $group) {
+                $groupId = (int) $group['id'];
+                $total += $this->unreadCountForThread($userId, $groupId, null);
+                foreach ($this->groups->listMembers($groupId) as $member) {
+                    $peerId = (int) ($member['userId'] ?? 0);
+                    if ($peerId <= 0 || $peerId === $userId) {
+                        continue;
+                    }
+                    $total += $this->unreadCountForThread($userId, $groupId, $peerId);
                 }
-                $total += $this->unreadCountForThread($userId, $groupId, $peerId);
             }
-        }
 
-        return $total;
+            return $total;
+        });
+    }
+
+    public function forgetUnreadCountCache(int $userId): void
+    {
+        if ($userId > 0) {
+            Cache::forget('chat:unread:'.$userId);
+        }
     }
 
     public function unreadCountForThread(int $userId, int $groupId, ?int $peerUserId): int
@@ -373,6 +385,7 @@ class GroupChatService
                 ['last_read_message_id' => max(0, $messageId - 1)]
             );
             unset($this->lastReadCache[$uid.'|'.$groupId.'|'.$peerKey]);
+            $this->forgetUnreadCountCache((int) $uid);
         }
     }
 
@@ -452,7 +465,7 @@ class GroupChatService
         $events = [];
         if ($sinceIso) {
             try {
-                $since = \Carbon\Carbon::parse($sinceIso);
+                $since = Carbon::parse($sinceIso);
             } catch (\Throwable) {
                 $since = null;
             }
@@ -924,7 +937,7 @@ class GroupChatService
         int $userId,
         int $groupId,
         ?int $peerUserId,
-        \Carbon\Carbon $since,
+        Carbon $since,
         int $afterId,
     ): array {
         $events = [];

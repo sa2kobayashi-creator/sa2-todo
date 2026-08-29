@@ -4,11 +4,24 @@ namespace App\Services;
 
 use App\Enums\AlbumVisibility;
 use App\Jobs\SyncPhotoToCloudinary;
+use App\Models\MediaStorageSetting;
 use App\Models\Photo;
 use App\Models\PhotoAlbum;
+use App\Models\User;
+use App\Support\LocaleFormat;
+use Carbon\Carbon;
+use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PhotoService
 {
@@ -54,7 +67,6 @@ class PhotoService
     /** @var array<int, int> */
     private array $usedBytesApproxCache = [];
 
-    /** @var bool|null */
     private ?bool $paidOverageAllowedCache = null;
 
     public function __construct(
@@ -108,7 +120,7 @@ class PhotoService
      * 端末によっては MIME が octet-stream で保存されているので、拡張子でも数える。
      * isVideoMime() の判定を SQL に写したもの。
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>  $query
+     * @param  Builder<Photo>  $query
      */
     private function constrainQueryToVideos($query): void
     {
@@ -147,7 +159,7 @@ class PhotoService
     public function userFreeQuotaBytes(?int $userId = null): int
     {
         if ($userId !== null) {
-            $user = \App\Models\User::query()->find($userId);
+            $user = User::query()->find($userId);
             if ($user) {
                 return $this->billing->storageFreeQuotaBytes($user);
             }
@@ -184,7 +196,7 @@ class PhotoService
             return true;
         }
 
-        $user = \App\Models\User::query()->find($userId);
+        $user = User::query()->find($userId);
         if (! $user) {
             return false;
         }
@@ -326,7 +338,7 @@ class PhotoService
         $r2Price = $this->overagePricePerGbMonthUsd();
         $b2Price = $this->b2OveragePricePerGbMonthUsd();
 
-        $pipeline = $this->mediaConfig->get(\App\Models\MediaStorageSetting::PROVIDER_PIPELINE);
+        $pipeline = $this->mediaConfig->get(MediaStorageSetting::PROVIDER_PIPELINE);
         $pipelineEnabled = (bool) $pipeline->enabled;
         $archiveEnabled = $this->mediaConfig->pipelineArchivesToBackblaze();
         $cloudinaryEditor = $this->mediaConfig->cloudinaryEditorEnabled();
@@ -445,7 +457,6 @@ class PhotoService
                 'meter' => 'credits',
             ],
         ];
-
 
         // 「次の保存先」は超過時優先モード専用（R2/B2 無料枠を使い切った後の行き先）
         if ($capacityMode === MediaStorageConfigService::CAPACITY_MODE_OVERFLOW) {
@@ -614,7 +625,7 @@ class PhotoService
     /**
      * アルバム表紙をまとめて解決（N+1 回避）。
      *
-     * @param  \Illuminate\Support\Collection<int, PhotoAlbum>  $albums
+     * @param  Collection<int, PhotoAlbum>  $albums
      * @return array<int, Photo>
      */
     private function resolveAlbumCovers($albums): array
@@ -711,7 +722,7 @@ class PhotoService
         if (! $album || ! $this->canViewAlbum($userId, $album) || ! $album->hasPassword()) {
             return false;
         }
-        if (! \Illuminate\Support\Facades\Hash::check($password, (string) $album->password_hash)) {
+        if (! Hash::check($password, (string) $album->password_hash)) {
             return false;
         }
         $key = 'photos_album_unlocks_'.$userId;
@@ -956,7 +967,7 @@ class PhotoService
     /**
      * コピー元の撮影日時を優先: EXIF → クライアントヒント → サーバー時刻。
      */
-    public function resolveTakenAtForUpload(UploadedFile $file, ?string $clientHint = null): \Carbon\Carbon
+    public function resolveTakenAtForUpload(UploadedFile $file, ?string $clientHint = null): Carbon
     {
         $fromExif = $this->readTakenAtFromExif($file);
         if ($fromExif !== null) {
@@ -971,7 +982,7 @@ class PhotoService
         return now();
     }
 
-    private function readTakenAtFromExif(UploadedFile $file): ?\Carbon\Carbon
+    private function readTakenAtFromExif(UploadedFile $file): ?Carbon
     {
         $path = $file->getRealPath();
         if (! is_string($path) || $path === '' || ! function_exists('exif_read_data')) {
@@ -1011,7 +1022,7 @@ class PhotoService
             // EXIF: "YYYY:MM:DD HH:MM:SS"
             if (preg_match('/^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/', $normalized, $m)) {
                 try {
-                    return \Carbon\Carbon::create(
+                    return Carbon::create(
                         (int) $m[1],
                         (int) $m[2],
                         (int) $m[3],
@@ -1119,7 +1130,7 @@ class PhotoService
             if (mb_strlen($password) < 4) {
                 throw new \InvalidArgumentException(__('パスワードは4文字以上にしてください。'));
             }
-            $passwordHash = \Illuminate\Support\Facades\Hash::make($password);
+            $passwordHash = Hash::make($password);
         }
 
         // 隠しアルバムは共有不可（本人専用）
@@ -1230,7 +1241,7 @@ class PhotoService
             if (mb_strlen($password) < 4) {
                 throw new \InvalidArgumentException(__('パスワードは4文字以上にしてください。'));
             }
-            $album->password_hash = \Illuminate\Support\Facades\Hash::make($password);
+            $album->password_hash = Hash::make($password);
         }
         if ($coverPhotoId !== null) {
             $cover = Photo::query()
@@ -1249,7 +1260,7 @@ class PhotoService
         return $this->albumToArray($album->load(['group', 'user'])->loadCount('activePhotos'), $userId);
     }
 
-    /** @return array{0: \App\Enums\AlbumVisibility, 1: ?int} */
+    /** @return array{0: AlbumVisibility, 1: ?int} */
     private function normalizeAlbumVisibility(int $userId, string $visibility, mixed $groupId): array
     {
         $visibilityEnum = AlbumVisibility::tryFrom($visibility) ?? AlbumVisibility::Private;
@@ -1379,6 +1390,7 @@ class PhotoService
             }
             if (! $file->isValid()) {
                 $this->throwUploadError($file);
+
                 continue;
             }
             $this->assertValidUpload($file);
@@ -1394,6 +1406,7 @@ class PhotoService
 
             if ($hash && ! $allowDuplicates && $this->findOwnedByContentHash($userId, $hash)) {
                 $skipped[] = ['name' => $originalName !== '' ? $originalName : 'file', 'hash' => $hash];
+
                 continue;
             }
 
@@ -1452,7 +1465,7 @@ class PhotoService
                     'cold_disk' => in_array($target['tier'], ['cold', 'overflow'], true) ? $target['disk'] : null,
                     'cold_path' => in_array($target['tier'], ['cold', 'overflow'], true) ? $stored['path'] : null,
                 ]);
-            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            } catch (UniqueConstraintViolationException $e) {
                 // 並行アップロード時の競合（原本とサムネが別ディスクの場合あり）
                 $this->deleteStoragePaths(array_values(array_filter([
                     $stored['path'] ?? null,
@@ -1461,6 +1474,7 @@ class PhotoService
                 if ($hash) {
                     $skipped[] = ['name' => $originalName !== '' ? $originalName : 'file', 'hash' => $hash];
                 }
+
                 continue;
             }
 
@@ -1658,6 +1672,7 @@ class PhotoService
                     }
                 } catch (\Throwable $e) {
                     report($e);
+
                     continue;
                 }
             }
@@ -1699,7 +1714,7 @@ class PhotoService
         }
 
         if (method_exists($disk, 'path')) {
-            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            /** @var FilesystemAdapter $disk */
             return $this->computeContentHashFromPath($disk->path($storagePath));
         }
 
@@ -2038,8 +2053,8 @@ class PhotoService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Photo>
+     * @param  Builder<Photo>  $query
+     * @return Builder<Photo>
      */
     public function constrainToDashboardVisible($query)
     {
@@ -2053,7 +2068,7 @@ class PhotoService
             });
     }
 
-    private function normalizeTakenAt(?string $value): ?\Carbon\Carbon
+    private function normalizeTakenAt(?string $value): ?Carbon
     {
         if ($value === null || trim($value) === '') {
             return null;
@@ -2064,7 +2079,7 @@ class PhotoService
 
         foreach (['Y-m-d\TH:i', 'Y-m-d H:i', 'Y-m-d\TH:i:s', 'Y-m-d H:i:s', 'Y-m-d'] as $format) {
             try {
-                $carbon = \Carbon\Carbon::createFromFormat($format, $raw, $tz);
+                $carbon = Carbon::createFromFormat($format, $raw, $tz);
                 if ($carbon !== false) {
                     if ($format === 'Y-m-d') {
                         $carbon->setTime(12, 0, 0);
@@ -2078,7 +2093,7 @@ class PhotoService
         }
 
         try {
-            return \Carbon\Carbon::parse($raw, $tz);
+            return Carbon::parse($raw, $tz);
         } catch (\Throwable) {
             return null;
         }
@@ -2189,7 +2204,7 @@ class PhotoService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Photo>  $photos
+     * @param  Collection<int, Photo>  $photos
      * @return array{
      *   paths: list<string>,
      *   cold: list<array{disk: string, path: string}>,
@@ -3012,7 +3027,7 @@ class PhotoService
         };
     }
 
-    private function storage(): \Illuminate\Contracts\Filesystem\Filesystem
+    private function storage(): Filesystem
     {
         return Storage::disk($this->diskName());
     }
@@ -3153,7 +3168,7 @@ class PhotoService
             return null;
         }
 
-        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        /** @var FilesystemAdapter $disk */
         $disk = $ref['disk'];
         if (! method_exists($disk, 'temporaryUrl')) {
             return null;
@@ -3209,7 +3224,7 @@ class PhotoService
     /**
      * 画像・動画をストリーム配信（HTTP Range 対応）。大きな動画をメモリに載せない。
      */
-    public function streamPhotoFile(Photo $photo, string $variant = 'original', ?string $rangeHeader = null): \Symfony\Component\HttpFoundation\Response
+    public function streamPhotoFile(Photo $photo, string $variant = 'original', ?string $rangeHeader = null): Response
     {
         $ref = $this->resolvePhotoFileRef($photo, $variant);
 
@@ -3245,7 +3260,7 @@ class PhotoService
             return response($slice, $status, $headers);
         }
 
-        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        /** @var FilesystemAdapter $disk */
         $disk = $ref['disk'];
         $path = $ref['path'];
         $diskName = $ref['diskName'];
@@ -3289,7 +3304,7 @@ class PhotoService
                 throw new \InvalidArgumentException(__('ファイルが見つかりません。'));
             }
 
-            return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($absolute, $start, $length) {
+            return new StreamedResponse(function () use ($absolute, $start, $length) {
                 $this->clearOutputBuffersForMediaStream();
                 $fh = fopen($absolute, 'rb');
                 if ($fh === false) {
@@ -3315,7 +3330,7 @@ class PhotoService
         }
 
         // S3 互換（R2 / B2）は GetObject Range で部分取得
-        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($disk, $diskName, $path, $start, $end, $status) {
+        return new StreamedResponse(function () use ($disk, $diskName, $path, $start, $end, $status) {
             $this->clearOutputBuffersForMediaStream();
 
             $emitStream = function ($stream) use ($start, $end): void {
@@ -3404,7 +3419,7 @@ class PhotoService
 
     /**
      * @return array{
-     *   disk?: \Illuminate\Contracts\Filesystem\Filesystem,
+     *   disk?: Filesystem,
      *   diskName?: string,
      *   path?: string,
      *   mime: string,
@@ -3596,7 +3611,7 @@ class PhotoService
         $base = basename(str_replace(['\\', '/'], '-', $name));
         $ascii = preg_replace('/[^\x20-\x7E]/', '_', $base) ?? '';
         $ascii = str_replace(['"', "\r", "\n"], '', $ascii);
-        $ascii = trim($ascii, " ._");
+        $ascii = trim($ascii, ' ._');
 
         return $ascii !== '' ? $ascii : 'file';
     }
@@ -3697,7 +3712,7 @@ class PhotoService
             }
         }
 
-        $response = \Illuminate\Support\Facades\Http::timeout(120)->get($imageUrl);
+        $response = Http::timeout(120)->get($imageUrl);
         if (! $response->successful()) {
             throw new \RuntimeException(__('編集結果の取得に失敗しました。'));
         }
@@ -3922,7 +3937,9 @@ class PhotoService
 
         if ($useAppProxy) {
             $url = $fileUrl;
-            $thumbUrl = $thumbFileUrl;
+            // 一覧のサムネは PHP プロキシではなく署名付き URL を優先（共有ホストの同時実行対策）
+            $thumbUrl = $this->signedUrlForPhotoPath($photo, $photo->thumb_path ?: $photo->path, preferPrimary: true)
+                ?: $thumbFileUrl;
         } else {
             $storageUrl = $this->publicUrlForPhoto($photo, $photo->path);
             $storageThumb = $this->publicUrlForPhoto($photo, $photo->thumb_path ?: $photo->path) ?: asset('icons/pwa-192.png');
@@ -4004,9 +4021,9 @@ class PhotoService
         }
 
         try {
-            $carbon = \Carbon\Carbon::createFromFormat('Y-m-d', $date, config('app.timezone', 'Asia/Tokyo'));
+            $carbon = Carbon::createFromFormat('Y-m-d', $date, config('app.timezone', 'Asia/Tokyo'));
 
-            return \App\Support\LocaleFormat::date($carbon);
+            return LocaleFormat::date($carbon);
         } catch (\Throwable) {
             return $date;
         }
@@ -4037,7 +4054,7 @@ class PhotoService
         return $this->diskName();
     }
 
-    private function storageForPhoto(Photo $photo): \Illuminate\Contracts\Filesystem\Filesystem
+    private function storageForPhoto(Photo $photo): Filesystem
     {
         return Storage::disk($this->diskForPhoto($photo));
     }
@@ -4061,6 +4078,40 @@ class PhotoService
             return $this->storageForPhoto($photo)->url($path);
         } catch (\Throwable) {
             return $this->storage()->url($path);
+        }
+    }
+
+    /**
+     * S3 互換（R2 / B2）の一時署名 URL。失敗時は null（呼び出し側でプロキシへフォールバック）。
+     */
+    private function signedUrlForPhotoPath(Photo $photo, ?string $path, bool $preferPrimary = false): ?string
+    {
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        $diskName = ($preferPrimary && $path === $photo->thumb_path && $path !== $photo->path)
+            ? $this->diskName()
+            : $this->diskForPhoto($photo);
+
+        $driver = (string) config('filesystems.disks.'.$diskName.'.driver', 'local');
+        if ($driver !== 's3') {
+            return null;
+        }
+
+        try {
+            $disk = Storage::disk($diskName);
+            if (! method_exists($disk, 'temporaryUrl')) {
+                return null;
+            }
+
+            $ttl = max(30, min(720, (int) config('photos.thumb_signed_ttl_minutes', 360)));
+
+            return $disk->temporaryUrl($path, now()->addMinutes($ttl));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
         }
     }
 

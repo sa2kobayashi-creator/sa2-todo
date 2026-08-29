@@ -16,7 +16,10 @@ class GoogleMapsSettingsController extends Controller
     {
         $this->googleMaps->saveConfig(
             $request->boolean('enabled'),
-            ['api_key' => (string) $request->input('api_key', '')]
+            [
+                'api_key' => (string) $request->input('api_key', ''),
+                'referrer_restriction_confirmed' => $request->boolean('referrer_restriction_confirmed'),
+            ]
         );
 
         return $this->redirectWithMessage(

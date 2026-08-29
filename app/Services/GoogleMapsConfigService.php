@@ -37,20 +37,28 @@ class GoogleMapsConfigService
     }
 
     /**
-     * @param  array{api_key?: mixed}  $input
+     * @param  array{api_key?: mixed, referrer_restriction_confirmed?: mixed}  $input
      */
     public function saveConfig(bool $enabled, array $input): MediaStorageSetting
     {
         $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
         $secrets = $row->secretsArray();
+        $settings = $row->settingsArray();
         $key = is_string($input['api_key'] ?? null) ? trim($input['api_key']) : '';
         if ($key !== '' && $key !== '••••••••' && ! str_starts_with($key, '••••')) {
             $secrets['api_key'] = $key;
         }
 
+        $settings['referrer_restriction_confirmed'] = ! empty($input['referrer_restriction_confirmed']);
+        if ($settings['referrer_restriction_confirmed']) {
+            $settings['referrer_restriction_confirmed_at'] = now()->toIso8601String();
+        } else {
+            unset($settings['referrer_restriction_confirmed_at']);
+        }
+
         $row->fill([
             'enabled' => $enabled,
-            'settings' => $row->settingsArray(),
+            'settings' => $settings,
             'secrets' => $secrets,
         ]);
         $row->save();
@@ -62,6 +70,7 @@ class GoogleMapsConfigService
     public function formState(): array
     {
         $row = MediaStorageSetting::forProvider(MediaStorageSetting::PROVIDER_GOOGLE_MAPS);
+        $settings = $row->settingsArray();
 
         return [
             'enabled' => (bool) $row->enabled || $this->usesEnvFallback() || ! $row->hasSecret('api_key'),
@@ -71,7 +80,38 @@ class GoogleMapsConfigService
             'last_test_status' => $row->last_test_status,
             'last_test_message' => $row->last_test_message,
             'last_tested_at' => $row->last_tested_at?->format('Y-m-d H:i'),
+            'referrer_patterns' => $this->recommendedReferrerPatterns(),
+            'credentials_url' => 'https://console.cloud.google.com/apis/credentials',
+            'referrer_restriction_confirmed' => ! empty($settings['referrer_restriction_confirmed']),
+            'referrer_restriction_confirmed_at' => isset($settings['referrer_restriction_confirmed_at'])
+                ? (string) $settings['referrer_restriction_confirmed_at']
+                : null,
         ];
+    }
+
+    /** @return list<string> */
+    public function recommendedReferrerPatterns(): array
+    {
+        $base = rtrim((string) config('app.url', ''), '/');
+        $host = parse_url($base, PHP_URL_HOST);
+        $patterns = [];
+
+        if (is_string($base) && $base !== '') {
+            $patterns[] = $base.'/*';
+            if (str_starts_with($base, 'https://')) {
+                $patterns[] = 'http://'.substr($base, strlen('https://')).'/*';
+            }
+        }
+
+        if (is_string($host) && $host !== '' && ! str_starts_with($host, 'www.')) {
+            $scheme = parse_url($base, PHP_URL_SCHEME) ?: 'https';
+            $patterns[] = $scheme.'://www.'.$host.'/*';
+        }
+
+        $patterns[] = 'http://localhost/*';
+        $patterns[] = 'http://127.0.0.1/*';
+
+        return array_values(array_unique(array_filter($patterns)));
     }
 
     /** @return array{ok: bool, message: string} */
