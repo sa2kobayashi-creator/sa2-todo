@@ -254,6 +254,11 @@
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
         <h2 id="landing-plans-title">{{ __('料金プラン') }}</h2>
         <p class="lp-section-lead">{{ __('Sa2 Plusでは、無料で試せるライトプラン、個人向けのスタンダードプラン、家族・小規模組織向けのテナント契約、専用環境をご用意しています。') }}</p>
+        @if(empty($applicationsOpen))
+          <p class="lp-plans-prep-notice" role="status">
+            {{ __('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。') }}
+          </p>
+        @endif
         <div class="lp-plans">
           <article class="lp-plan is-standard is-featured">
             <header class="lp-plan-head">
@@ -354,11 +359,6 @@
             </div>
           </article>
         </div>
-        @if(empty($applicationsOpen))
-          <p class="lp-plans-prep-notice" role="status">
-            {{ __('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。') }}
-          </p>
-        @endif
         <p class="hint lp-plans-note">{{ __('個人向けは運営の共有インスタンスです。ライトはお試し、本利用はスタンダードです。家族向けの管理者契約はテナント、サーバー分離は専用です。') }}</p>
       </section>
 
