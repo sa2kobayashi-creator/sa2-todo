@@ -24,6 +24,7 @@
           <a href="#pricing">{{ __('料金プラン') }}</a>
           <a href="#flow">{{ __('ご利用方法') }}</a>
           <a href="#faq">{{ __('よくある質問') }}</a>
+          <a href="#contact">{{ __('お問い合わせ') }}</a>
           <a href="#start">{{ __('はじめる') }}</a>
         </nav>
         <div class="lp-header-actions">
@@ -499,12 +500,25 @@
         </p>
       </section>
 
-      <section class="lp-section" id="contact" aria-labelledby="landing-contact-title">
-        <h2 id="landing-contact-title" class="visually-hidden">{{ __('お問い合わせ') }}</h2>
-        @if(!empty($contactEmail))
-          <p>{{ __('メールでのお問い合わせ') }}: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a></p>
-        @endif
-        <p class="hint">{{ __('ログイン後は、アプリ内の問い合わせからも運営へ送れます。') }}</p>
+      <section class="lp-section lp-contact" id="contact" aria-labelledby="landing-contact-title">
+        <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
+        <p class="lp-section-lead">{{ __('導入のご相談、専用インスタンス、その他のご質問はこちらからどうぞ。') }}</p>
+        <div class="lp-contact-card">
+          @if(!empty($contactEmail))
+            <p class="lp-contact-email">
+              <span class="lp-contact-label">{{ __('メールでのお問い合わせ') }}</span>
+              <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a>
+            </p>
+          @else
+            <p class="hint">{{ __('公開用の連絡先メールは準備中です。特商法表記の連絡先もあわせてご確認ください。') }}</p>
+            <p><a href="/tokushoho">{{ __('特定商取引法に基づく表記') }}</a></p>
+          @endif
+          <p class="hint">{{ __('すでにご利用中の方は、ログイン後のアプリ内「お問い合わせ」から運営へ送れます。') }}</p>
+          <p class="lp-cta" style="justify-content:center;margin-top:16px;">
+            <a href="/login" class="lp-btn lp-btn-primary">{{ __('ログインして問い合わせる') }}</a>
+            <a href="/tokushoho" class="lp-btn lp-btn-ghost">{{ __('特商法表記を見る') }}</a>
+          </p>
+        </div>
       </section>
     </main>
 
