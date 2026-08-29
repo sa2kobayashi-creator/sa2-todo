@@ -20,6 +20,8 @@ class HomePageTest extends TestCase
         $warnDays = (int) config('registration.light_inactive_warn_days', 90);
         $graceDays = (int) config('registration.light_inactive_delete_grace_days', 14);
 
+        config(['legal.contact_email' => 'info@example.com']);
+
         $this->get('/')
             ->assertOk()
             ->assertSee(config('app.name'), false)
@@ -65,7 +67,11 @@ class HomePageTest extends TestCase
             ->assertSee(__('¥980／月'), false)
             ->assertSee(__('よくある質問'), false)
             ->assertSee('id="contact"', false)
-            ->assertSee(__('導入のご相談、専用インスタンス、その他のご質問はこちらからどうぞ。'), false)
+            ->assertSee('id="contact" hidden', false)
+            ->assertSee(__('導入や専用インスタンスのご相談は、下のメールアドレスへご連絡ください。'), false)
+            ->assertSee('info@example.com', false)
+            ->assertSee(__('メールアプリで問い合わせる'), false)
+            ->assertSee('mailto:info@example.com', false)
             ->assertSee('href="#contact"', false)
             ->assertSee(__('Sa2 Plusとは何ですか？'), false)
             ->assertSee(__('Todo管理はできますか？'), false)

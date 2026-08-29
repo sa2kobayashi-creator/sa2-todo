@@ -25472,8 +25472,20 @@ body.dash-home-lightbox-open {
   font-size: 0.9rem;
   color: #64748b;
 }
+.lp-contact-email {
+  margin: 0 0 18px;
+}
 .lp-contact-email a {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 700;
   word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lp-contact-actions {
+  justify-content: center;
+  margin-top: 12px;
+}
+.lp-contact-card .hint {
+  margin: 18px 0 0;
 }

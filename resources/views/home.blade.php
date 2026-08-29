@@ -500,24 +500,30 @@
         </p>
       </section>
 
-      <section class="lp-section lp-contact" id="contact" aria-labelledby="landing-contact-title">
+      <section class="lp-section lp-contact" id="contact" hidden aria-labelledby="landing-contact-title">
         <h2 id="landing-contact-title">{{ __('お問い合わせ') }}</h2>
-        <p class="lp-section-lead">{{ __('導入のご相談、専用インスタンス、その他のご質問はこちらからどうぞ。') }}</p>
+        <p class="lp-section-lead">{{ __('導入や専用インスタンスのご相談は、下のメールアドレスへご連絡ください。') }}</p>
         <div class="lp-contact-card">
           @if(!empty($contactEmail))
             <p class="lp-contact-email">
-              <span class="lp-contact-label">{{ __('メールでのお問い合わせ') }}</span>
-              <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a>
+              <span class="lp-contact-label">{{ __('連絡先メール') }}</span>
+              <a href="mailto:{{ $contactEmail }}?subject={{ rawurlencode('Sa2 Plus お問い合わせ') }}">{{ $contactEmail }}</a>
+            </p>
+            <p class="lp-cta lp-contact-actions">
+              <a href="mailto:{{ $contactEmail }}?subject={{ rawurlencode('Sa2 Plus お問い合わせ') }}" class="lp-btn lp-btn-primary">{{ __('メールアプリで問い合わせる') }}</a>
+              <a href="/tokushoho" class="lp-btn lp-btn-ghost">{{ __('特商法表記を見る') }}</a>
+            </p>
+            <p class="hint">{{ __('すでにご利用中の方は、ログイン後のアプリ内「お問い合わせ」フォームからも送れます。') }}</p>
+            <p class="lp-cta lp-contact-actions">
+              <a href="/login" class="lp-btn lp-btn-ghost">{{ __('ログインして問い合わせる') }}</a>
             </p>
           @else
             <p class="hint">{{ __('公開用の連絡先メールは準備中です。特商法表記の連絡先もあわせてご確認ください。') }}</p>
-            <p><a href="/tokushoho">{{ __('特定商取引法に基づく表記') }}</a></p>
+            <p class="lp-cta lp-contact-actions">
+              <a href="/tokushoho" class="lp-btn lp-btn-primary">{{ __('特商法表記を見る') }}</a>
+              <a href="/login" class="lp-btn lp-btn-ghost">{{ __('ログインして問い合わせる') }}</a>
+            </p>
           @endif
-          <p class="hint">{{ __('すでにご利用中の方は、ログイン後のアプリ内「お問い合わせ」から運営へ送れます。') }}</p>
-          <p class="lp-cta" style="justify-content:center;margin-top:16px;">
-            <a href="/login" class="lp-btn lp-btn-primary">{{ __('ログインして問い合わせる') }}</a>
-            <a href="/tokushoho" class="lp-btn lp-btn-ghost">{{ __('特商法表記を見る') }}</a>
-          </p>
         </div>
       </section>
     </main>
@@ -567,6 +573,33 @@
             }
           } catch (_) {}
         }, true);
+      })();
+    </script>
+    <script>
+      (() => {
+        const section = document.getElementById('contact');
+        if (!section) return;
+
+        const openContact = () => {
+          section.hidden = false;
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        document.addEventListener('click', (event) => {
+          const link = event.target.closest('a[href="#contact"]');
+          if (!link) return;
+          event.preventDefault();
+          if (history.replaceState) {
+            history.replaceState(null, '', '#contact');
+          } else {
+            location.hash = 'contact';
+          }
+          openContact();
+        });
+
+        if (location.hash === '#contact') {
+          openContact();
+        }
       })();
     </script>
   </body>
