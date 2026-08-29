@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2563eb" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="description" content="{{ __('Sa2 Plusは、Todo・予定・メモ・写真・メール・メッセージ・地図・路線検索・AI相談をひとつにまとめたオールインワンサービスです。個人利用から家族・小規模組織まで、毎日の情報を便利に管理できます。') }}" />
-    <title>{{ __('Todo・予定・メモ・写真をまとめて管理｜:app', ['app' => $appName]) }}</title>
+    <link rel="canonical" href="{{ url('/') }}" />
+    <meta name="description" content="{{ __('Todo・メモ・写真をひとつにまとめて管理できるWebアプリ「sa2-plus」。やることの管理、メモの保存、写真の整理をシンプルに。スマートフォンやパソコンから利用できます。') }}" />
+    <title>{{ __('Todo・メモ・写真をまとめて管理できるWebアプリ｜sa2-plus') }}</title>
     @include('partials.app-css')
   </head>
   <body class="lp-body">
@@ -18,7 +19,7 @@
           <span>{{ $appName }}</span>
         </a>
         <nav class="lp-nav" aria-label="{{ __('ページ内メニュー') }}">
-          <a href="#about">{{ __('Sa2 Plusとは') }}</a>
+          <a href="#about">{{ __('sa2-plusとは') }}</a>
           <a href="#features">{{ __('できること') }}</a>
           <a href="#pricing">{{ __('料金プラン') }}</a>
           <a href="#flow">{{ __('ご利用方法') }}</a>
@@ -41,9 +42,9 @@
         <div class="lp-hero-inner">
           <div class="lp-hero-copy">
             <p class="lp-hero-tag">{{ __('予定・メモ・写真・メッセージを、ひとつの場所に。') }}</p>
-            <h1>{{ __('Todo・予定・メモ・写真をひとつに。毎日の管理をもっとシンプルに。') }}</h1>
-            <p class="lp-hero-lead">{{ __('Sa2 Plus（サ2プラス）は、Todo・予定・メモ・写真・メール・メッセージ・地図・路線検索・AI相談など、毎日の生活や仕事に必要な機能をひとつにまとめたオールインワンサービスです。') }}</p>
-            <p class="lp-hero-lead">{{ __('予定を確認しながらTodoを管理したり、思いついたことをメモしたり、大切な写真を保存したり。日々の情報を、ひとつの場所でまとめて管理できます。') }}</p>
+            <h1>{{ __('Todo・メモ・写真をひとつにまとめて管理｜sa2-plus') }}</h1>
+            <p class="lp-hero-lead">{{ __('sa2-plusは、Todo・メモ・写真をひとつにまとめて管理できるWebアプリです。「やること」はTodo、「残しておきたい情報」はメモ、「記録しておきたい画像」はPhotos。日々の情報をひとつのサービスでまとめて管理できます。') }}</p>
+            <p class="lp-hero-lead">{{ __('写真の保存・整理から、Todoやメモの管理まで。写真管理アプリとしても、Todo・メモ・写真をまとめて使えるWebアプリとしても利用できます。') }}</p>
             <p class="lp-hero-lead">{{ __('本格利用はスタンダード、家族・小組織はテナント契約が中心です。ライトは短期間のお試し（約:gbGB）です。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</p>
             <p class="lp-cta">
               <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('無料で試してみる') }}</a>
@@ -136,12 +137,12 @@
         </div>
       </section>
 
-            <section class="lp-section" id="about" aria-labelledby="landing-about-title">
-        <h2 id="landing-about-title">{{ __('Sa2 Plusとは？') }}</h2>
-        <p class="lp-section-lead">{{ __('Sa2 Plusは、Todo・予定・メモ・写真など、毎日の情報をまとめて管理できるオールインワンサービスです。') }}</p>
-        <p>{{ __('Todoだけ、メモだけ、写真だけと、それぞれ別のアプリを使い分けるのではなく、日常で使うさまざまな情報をひとつのサービスにまとめることを目指しています。') }}</p>
-        <p>{{ __('個人での予定管理やタスク管理はもちろん、家族や小規模な組織での利用にも対応しています。') }}</p>
-        <p>{{ __('さらに、AI相談や地図・路線検索など、日常生活を便利にする機能も利用できます。') }}</p>
+                  <section class="lp-section" id="about" aria-labelledby="landing-about-title">
+        <h2 id="landing-about-title">{{ __('sa2-plusとは？') }}</h2>
+        <p class="lp-section-lead">{{ __('sa2-plusは、Todo・メモ・写真をひとつにまとめて管理できるWebアプリです。') }}</p>
+        <p>{{ __('「やること」はTodo、「残しておきたい情報」はメモ、「記録しておきたい画像」はPhotos。日々の情報をひとつのサービスでまとめて管理できます。') }}</p>
+        <p>{{ __('Todoだけ、メモだけ、写真だけと、それぞれ別のアプリを使い分けるのではなく、日常で使うさまざまな情報をひとつのWebアプリにまとめることを目指しています。') }}</p>
+        <p>{{ __('個人での予定管理やタスク管理はもちろん、家族や小規模な組織での利用にも対応しています。スマートフォンでもパソコンでも利用できます。') }}</p>
       </section>
 
             <section class="lp-section" id="features" aria-labelledby="landing-features-title">
@@ -151,8 +152,8 @@
             <span class="lp-feature-icon is-todo" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
             </span>
-            <h3>{{ __('Todo・タスク管理') }}</h3>
-            <p>{{ __('毎日のTodoやタスクを一覧で管理。カレンダーと組み合わせて予定を確認しながら、やるべきことを整理できます。') }}</p>
+            <h3>{{ __('Todoをかんたんに管理') }}</h3>
+            <p>{{ __('毎日のTodoやタスクを一覧でかんたんに管理。カレンダーと組み合わせて予定を確認しながら、やるべきことを整理できます。') }}</p>
           </li>
           <li>
             <span class="lp-feature-icon is-life" aria-hidden="true">
@@ -165,15 +166,15 @@
             <span class="lp-feature-icon is-note" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="2"><path d="M7 3h8l5 5v13H7z"/><path d="M15 3v5h5M9 13h6M9 17h4"/></svg>
             </span>
-            <h3>{{ __('メモ・情報管理') }}</h3>
-            <p>{{ __('思いついたアイデアや買い物リスト、仕事のメモなどを保存できます。ピン留めやアーカイブにも対応しています。') }}</p>
+            <h3>{{ __('大切なメモをいつでも保存') }}</h3>
+            <p>{{ __('思いついたアイデアや買い物リスト、仕事のメモなど、大切な情報をいつでも保存できます。ピン留めやアーカイブにも対応しています。') }}</p>
           </li>
           <li>
             <span class="lp-feature-icon is-photo" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ea580c" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="8.5" cy="11" r="1.5"/><path d="m21 16-5-5-7 7"/></svg>
             </span>
-            <h3>{{ __('写真・ファイル管理') }}</h3>
-            <p>{{ __('大切な写真やファイルをまとめて管理できます。利用する環境に応じてCloudflare R2やBackblaze B2などの外部ストレージにも対応できます。') }}</p>
+            <h3>{{ __('写真を保存・整理できるPhotos') }}</h3>
+            <p>{{ __('sa2-plusのPhotos機能では、大切な写真をオンラインで保存・管理できます。旅行の写真や日常の記録など、必要な写真を整理して保存できます。Todoやメモとあわせて利用することで、写真だけでなく、日々の情報をひとつのWebアプリでまとめて管理できます。利用する環境に応じてCloudflare R2やBackblaze B2などの外部ストレージにも対応できます。') }}</p>
           </li>
           <li>
             <span class="lp-feature-icon is-mail" aria-hidden="true">
@@ -205,8 +206,8 @@
         <ul class="lp-value-grid">
           <li>
             <span class="lp-value-icon is-cloud" aria-hidden="true"></span>
-            <h3>{{ __('毎日の情報をひとつにまとめられる') }}</h3>
-            <p>{{ __('Todo、予定、メモ、写真、メール、メッセージなど、日常で利用する情報をひとつのサービスで管理できます。') }}</p>
+            <h3>{{ __('Todo・メモ・写真をひとつのアプリで管理') }}</h3>
+            <p>{{ __('Todo・メモ・写真を中心に、日々の情報をひとつのWebアプリでまとめて管理できます。') }}</p>
           </li>
           <li>
             <span class="lp-value-icon is-admin" aria-hidden="true"></span>
@@ -453,7 +454,7 @@
       </section>
 
       <section class="lp-section" id="start" aria-labelledby="landing-start-title">
-        <h2 id="landing-start-title">{{ __('Sa2 Plusを始めてみませんか？') }}</h2>
+        <h2 id="landing-start-title">{{ __('sa2-plusを始める') }}</h2>
         <p class="lp-section-lead">{{ __('Todo、予定、メモ、写真、メール、AI相談など、毎日の情報をひとつの場所にまとめてみませんか？') }}</p>
         <p>{{ __('まずはライトプランでSa2 Plusをお試しいただけます。') }}</p>
         <p class="lp-cta">
@@ -475,7 +476,7 @@
     <section class="lp-banner" aria-labelledby="landing-banner-title">
       <div class="lp-banner-inner">
         <div>
-          <h2 id="landing-banner-title">{{ __('Sa2 Plusを始めてみませんか？') }}</h2>
+          <h2 id="landing-banner-title">{{ __('sa2-plusを始める') }}</h2>
           <p>{{ __('まずはライトプランでお試しいただけます。') }}</p>
         </div>
         <p class="lp-cta">
