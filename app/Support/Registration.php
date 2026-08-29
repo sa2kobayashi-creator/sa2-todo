@@ -63,6 +63,42 @@ final class Registration
         $row->save();
     }
 
+    /**
+     * TOP／利用申請（/apply）の受付。公開販売のチェックで保存。
+     * DB 未設定時は config（既定 true）＝既存公開を壊さない。
+     */
+    public static function applicationsOpen(): bool
+    {
+        try {
+            $query = MediaStorageSetting::query()
+                ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION);
+            if (MediaStorageSetting::hasTenantScopeColumn()) {
+                $query->where('tenant_scope', 0);
+            }
+            $row = $query->first();
+            if ($row) {
+                $settings = $row->settingsArray();
+                if (array_key_exists('applications_open', $settings)) {
+                    return (bool) $settings['applications_open'];
+                }
+            }
+        } catch (\Throwable) {
+            // fall through
+        }
+
+        return (bool) config('registration.applications_open', true);
+    }
+
+    public static function setApplicationsOpen(bool $open): void
+    {
+        $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_REGISTRATION);
+        $settings = $row->settingsArray();
+        $settings['applications_open'] = $open;
+        $row->settings = $settings;
+        // enabled は招待コード用。ここでは触らない
+        $row->save();
+    }
+
     public static function codeMatches(?string $given): bool
     {
         $expected = self::inviteCode();

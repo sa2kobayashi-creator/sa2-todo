@@ -43,6 +43,7 @@ class HomeController extends Controller
             'lightInactiveDeleteGraceDays' => max(1, (int) config('registration.light_inactive_delete_grace_days', 14)),
             // 未ログインの人が運営に連絡できる唯一の手段。特商法表記と同じ値を使う
             'contactEmail' => $this->legal->get('contact_email'),
+            'applicationsOpen' => Registration::applicationsOpen(),
         ]);
     }
 }

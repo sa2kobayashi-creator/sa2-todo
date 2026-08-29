@@ -31,6 +31,8 @@ class CommercialSettingsTest extends TestCase
             ->assertOk()
             ->assertSee(__('公開販売'), false)
             ->assertSee('id="legal-operator-settings"', false)
+            ->assertSee('id="registration-applications-settings"', false)
+            ->assertSee(__('申請申し込みを開始する'), false)
             ->assertSee('id="stripe-billing-settings"', false)
             ->assertSee('TRUSTED_PROXIES', false)
             ->assertSee('Webhook URL', false);
@@ -140,6 +142,34 @@ class CommercialSettingsTest extends TestCase
             __('Stripe 設定を保存し、オンライン申し込みを開始しました。'),
             session('notice')
         );
+    }
+
+    public function test_super_admin_can_toggle_application_intake(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-apps-open@example.com');
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/applications', [])
+            ->assertRedirect('/settings?section=sales#registration-applications-settings');
+        $this->assertFalse(\App\Support\Registration::applicationsOpen());
+
+        auth()->logout();
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(__('準備中'), false)
+            ->assertDontSee('href="/apply?plan=standard"', false);
+
+        $this->get('/apply')->assertRedirect('/');
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/applications', ['applications_open' => '1'])
+            ->assertRedirect('/settings?section=sales#registration-applications-settings');
+        $this->assertTrue(\App\Support\Registration::applicationsOpen());
+
+        auth()->logout();
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('href="/apply?plan=standard"', false);
     }
 
     public function test_super_admin_can_save_stripe_keys_without_enabling_checkout(): void

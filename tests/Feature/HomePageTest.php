@@ -99,6 +99,7 @@ class HomePageTest extends TestCase
     public function test_apply_cta_is_always_visible_and_invite_register_appears_when_open(): void
     {
         Registration::setInviteCode('');
+        Registration::setApplicationsOpen(true);
         $this->get('/')
             ->assertOk()
             ->assertSee(__('スタンダードを申請する'), false)
@@ -110,6 +111,17 @@ class HomePageTest extends TestCase
             ->assertOk()
             ->assertSee(__('スタンダードを申請する'), false)
             ->assertSee(__('招待コードで登録'), false);
+    }
+
+    public function test_apply_ctas_show_pending_when_applications_are_closed(): void
+    {
+        Registration::setApplicationsOpen(false);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(__('準備中'), false)
+            ->assertDontSee('href="/apply?plan=standard"', false)
+            ->assertDontSee('data-stat-event="cta.plan.standard"', false);
     }
 
     public function test_signed_in_users_are_sent_to_the_dashboard(): void

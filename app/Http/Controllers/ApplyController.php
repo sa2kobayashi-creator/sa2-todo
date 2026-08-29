@@ -26,6 +26,10 @@ class ApplyController extends Controller
             return redirect('/dashboard');
         }
 
+        if (! \App\Support\Registration::applicationsOpen()) {
+            return $this->redirectWithMessage('/', __('現在、利用申請の受付は準備中です。'), 'error');
+        }
+
         $plan = RegistrationApplicationPlan::tryFrom((string) $request->query('plan', 'standard'))
             ?? RegistrationApplicationPlan::Standard;
 
@@ -51,6 +55,10 @@ class ApplyController extends Controller
     {
         if ($request->user()) {
             return redirect('/dashboard');
+        }
+
+        if (! \App\Support\Registration::applicationsOpen()) {
+            return $this->redirectWithMessage('/', __('現在、利用申請の受付は準備中です。'), 'error');
         }
 
         $request->merge([

@@ -18,6 +18,12 @@ class RegistrationApplicationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \App\Support\Registration::setApplicationsOpen(true);
+    }
+
     private function purpose(): string
     {
         return 'TodoとPhotosを短期間試したいです。家族の予定共有も検討中です。';
@@ -39,6 +45,20 @@ class RegistrationApplicationTest extends TestCase
             ->assertOk()
             ->assertSee(__('利用申請'), false)
             ->assertSee('name="plan"', false);
+    }
+
+    public function test_apply_page_redirects_home_when_applications_are_closed(): void
+    {
+        \App\Support\Registration::setApplicationsOpen(false);
+
+        $this->get('/apply')->assertRedirect('/');
+        $this->post('/apply', [
+            'plan' => 'light',
+            'display_name' => '閉',
+            'email' => 'closed-apply@example.com',
+            'message' => $this->purpose(),
+            'agreeTerms' => '1',
+        ])->assertRedirect('/');
     }
 
     public function test_light_application_is_auto_approved_without_admin_mail(): void

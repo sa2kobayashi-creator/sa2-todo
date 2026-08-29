@@ -23688,6 +23688,26 @@ body.dash-home-lightbox-open {
   padding: 10px 22px;
 }
 
+.lp-btn.is-pending {
+  background: #e2e8f0;
+  color: #64748b;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+  opacity: 0.95;
+}
+
+.lp-btn-ghost.is-pending {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.lp-btn-on-dark.is-pending {
+  background: rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
 .lp-btn-chevron::after {
   content: "›";
   margin-left: 6px;

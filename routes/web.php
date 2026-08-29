@@ -472,6 +472,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
 
             Route::post('/settings/sales/legal', [CommercialSettingsController::class, 'updateLegal'])
                 ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/sales/applications', [CommercialSettingsController::class, 'updateApplications'])
+                ->middleware(RequireSuperAdmin::class);
             Route::post('/settings/sales/stripe', [CommercialSettingsController::class, 'updateStripe'])
                 ->middleware(RequireSuperAdmin::class);
             Route::post('/settings/sales/stripe/test', [CommercialSettingsController::class, 'testStripe'])

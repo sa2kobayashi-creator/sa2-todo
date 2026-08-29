@@ -76,6 +76,19 @@ class CommercialSettingsController extends Controller
         );
     }
 
+    public function updateApplications(Request $request)
+    {
+        $open = $request->boolean('applications_open');
+        \App\Support\Registration::setApplicationsOpen($open);
+
+        return $this->redirectWithMessage(
+            '/settings?section=sales#registration-applications-settings',
+            $open
+                ? __('利用申請の受付を開始しました。TOPページに申請ボタンが表示されます。')
+                : __('利用申請の受付を停止しました。TOPページの申請ボタンは「準備中」になります。')
+        );
+    }
+
     public function testStripe(): JsonResponse
     {
         $result = $this->stripe->testConnection();

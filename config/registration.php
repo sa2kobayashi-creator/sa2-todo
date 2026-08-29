@@ -8,6 +8,12 @@ return [
     */
     'invite_code' => trim((string) env('REGISTRATION_INVITE_CODE', '')),
 
+    /**
+     * TOP 利用申請（/apply）の受付。
+     * 公開販売で DB 保存した値が優先。未保存時のみこの env／既定を使う。
+     */
+    'applications_open' => filter_var(env('REGISTRATION_APPLICATIONS_OPEN', true), FILTER_VALIDATE_BOOL),
+
     /** TOP 申請の承認リンク有効日数 */
     'application_token_ttl_days' => (int) env('REGISTRATION_APPLICATION_TOKEN_TTL_DAYS', 7),
 

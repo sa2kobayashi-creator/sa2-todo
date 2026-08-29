@@ -12,12 +12,13 @@
 
   <ol class="line-setup-steps sales-setup-steps">
     <li>{{ __('下の「事業者情報」に氏名・住所・電話・メールを入れて保存します。これが /tokushoho（特定商取引法に基づく表記）に出ます。') }}</li>
+    <li>{{ __('「申請申し込みを開始する」にチェックすると、TOPページの利用申請ボタンが有効になります。オフの間は「準備中」と表示されます。') }}</li>
     <li>{{ __('Stripe ダッシュボードで商品と価格を作ります。通貨は日本円（JPY）。980 と入れると 980円です（9.80円にはなりません）。') }}</li>
     <li>{{ __('公開可能キー（pk_）とシークレットキー（sk_）をコピーして、この画面の Stripe 欄に貼ります。') }}</li>
     <li>{{ __('Developers → Webhooks でエンドポイントを追加します。URL は下に表示されているものをそのまま使います。') }}</li>
     <li>{{ __('購読するイベントは checkout.session.completed、customer.subscription.created / updated / deleted、invoice.paid、invoice.payment_failed です。') }}</li>
     <li>{{ __('作った Webhook の Signing secret（whsec_）と、各プランの Price ID（price_）を貼ります。') }}</li>
-    <li>{{ __('接続テストが通ったら、事業者情報・Webhook 署名・スタンダードの Price ID が揃っていることを確認し、最後に「オンライン申し込みを開始する」にチェックして保存します。オフの間は申し込みボタンは出ません。') }}</li>
+    <li>{{ __('接続テストが通ったら、事業者情報・Webhook 署名・スタンダードの Price ID が揃っていることを確認し、最後に「オンライン申し込みを開始する」にチェックして保存します。オフの間はマイページのカード申し込みボタンは出ません。') }}</li>
   </ol>
 </div>
 
@@ -72,6 +73,22 @@
     </label>
     <div class="storage-form-actions">
       <button type="submit" class="button-link">{{ __('事業者情報を保存') }}</button>
+    </div>
+  </form>
+</div>
+
+<div class="panel storage-settings" id="registration-applications-settings">
+  <h3>{{ __('利用申請の受付') }}</h3>
+  <p class="hint">{{ __('TOPページの「利用申請」「無料で試す」などのボタンを制御します。Stripe のカード決済（オンライン申し込み）とは別です。') }}</p>
+  <form method="post" action="/settings/sales/applications" class="storage-provider-form">
+    @csrf
+    <label class="storage-enable">
+      <input type="checkbox" name="applications_open" value="1" @checked(!empty($applicationsOpen)) />
+      {{ __('申請申し込みを開始する') }}
+    </label>
+    <p class="hint">{{ __('オフの間は TOP の申請ボタンが「準備中」になり、/apply からの新規申請も受け付けません。すでに送った承認メールのパスワード設定リンクはそのまま使えます。') }}</p>
+    <div class="storage-form-actions">
+      <button type="submit" class="button-link">{{ __('申請受付設定を保存') }}</button>
     </div>
   </form>
 </div>

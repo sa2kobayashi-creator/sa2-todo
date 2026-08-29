@@ -29,7 +29,12 @@
         <div class="lp-header-actions">
           @include('partials.auth-lang-switcher')
           <a href="/login" class="lp-btn lp-btn-ghost lp-btn-chevron">{{ __('ログイン') }}</a>
-          <a href="/apply" data-stat-event="cta.apply" class="lp-btn lp-btn-primary">{{ __('利用申請') }}</a>
+          @include('partials.lp-apply-cta', [
+            'href' => '/apply',
+            'event' => 'cta.apply',
+            'class' => 'lp-btn lp-btn-primary',
+            'label' => __('利用申請'),
+          ])
           @if(!empty($registrationOpen))
             <a href="/register" data-stat-event="cta.register_invite" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
           @endif
@@ -47,7 +52,12 @@
             <p class="lp-hero-lead">{{ __('写真の保存・整理から、Todoやメモの管理まで。写真管理アプリとしても、Todo・メモ・写真をまとめて使えるWebアプリとしても利用できます。') }}</p>
             <p class="lp-hero-lead">{{ __('本格利用はスタンダード、家族・小組織はテナント契約が中心です。ライトは短期間のお試し（約:gbGB）です。', ['gb' => (int) ($lightQuotaGb ?? 20)]) }}</p>
             <p class="lp-cta">
-              <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-primary lp-btn-lg">{{ __('無料で試してみる') }}</a>
+              @include('partials.lp-apply-cta', [
+                'href' => '/apply?plan=light',
+                'event' => 'cta.plan.light',
+                'class' => 'lp-btn lp-btn-primary lp-btn-lg',
+                'label' => __('無料で試してみる'),
+              ])
               <a href="#pricing" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('料金プランを見る') }}</a>
             </p>
             <p class="lp-hero-note">
@@ -261,7 +271,12 @@
                 <li>{{ __('管理者権限・ストレージ鍵の設定はありません') }}</li>
               </ul>
               <p class="hint">{{ __('14日間のお試しは、申し込み後に始まります（カード登録が必要です）。') }}</p>
-              <a href="/apply?plan=standard" data-stat-event="cta.plan.standard" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('スタンダードを申請する') }}</a>
+              @include('partials.lp-apply-cta', [
+                'href' => '/apply?plan=standard',
+                'event' => 'cta.plan.standard',
+                'class' => 'lp-btn lp-btn-primary lp-plan-cta',
+                'label' => __('スタンダードを申請する'),
+              ])
             </div>
           </article>
 
@@ -282,7 +297,12 @@
                 <li>{{ __('追加ユーザー ¥:yen／人／月', ['yen' => number_format((int) ($tenantExtraUserYen ?? 1000))]) }}</li>
                 <li>{{ __('サーバー分離が必要なら専用インスタンスへ') }}</li>
               </ul>
-              <a href="/apply?plan=tenant" data-stat-event="cta.plan.tenant" class="lp-btn lp-btn-primary lp-plan-cta">{{ __('テナント契約を申請する') }}</a>
+              @include('partials.lp-apply-cta', [
+                'href' => '/apply?plan=tenant',
+                'event' => 'cta.plan.tenant',
+                'class' => 'lp-btn lp-btn-primary lp-plan-cta',
+                'label' => __('テナント契約を申請する'),
+              ])
             </div>
           </article>
 
@@ -301,7 +321,12 @@
                 <li>{{ __('約:warn日ログインがない場合は警告。さらに:grace日応答がなければ削除', ['warn' => (int) ($lightInactiveWarnDays ?? 90), 'grace' => (int) ($lightInactiveDeleteGraceDays ?? 14)]) }}</li>
                 <li>{{ __('本格利用はスタンダードへ') }}</li>
               </ul>
-              <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('ライト（お試し）を申請する') }}</a>
+              @include('partials.lp-apply-cta', [
+                'href' => '/apply?plan=light',
+                'event' => 'cta.plan.light',
+                'class' => 'lp-btn lp-btn-ghost lp-plan-cta',
+                'label' => __('ライト（お試し）を申請する'),
+              ])
             </div>
           </article>
 
@@ -458,7 +483,12 @@
         <p class="lp-section-lead">{{ __('Todo、予定、メモ、写真、メール、AI相談など、毎日の情報をひとつの場所にまとめてみませんか？') }}</p>
         <p>{{ __('まずはライトプランでSa2 Plusをお試しいただけます。') }}</p>
         <p class="lp-cta">
-          <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-primary">{{ __('無料で試す') }}</a>
+          @include('partials.lp-apply-cta', [
+            'href' => '/apply?plan=light',
+            'event' => 'cta.plan.light',
+            'class' => 'lp-btn lp-btn-primary',
+            'label' => __('無料で試す'),
+          ])
           <a href="#pricing" class="lp-btn lp-btn-ghost">{{ __('料金プランを見る') }}</a>
           <a href="#contact" class="lp-btn lp-btn-ghost">{{ __('お問い合わせ') }}</a>
         </p>
@@ -480,7 +510,12 @@
           <p>{{ __('まずはライトプランでお試しいただけます。') }}</p>
         </div>
         <p class="lp-cta">
-          <a href="/apply?plan=light" data-stat-event="cta.plan.light" class="lp-btn lp-btn-on-dark">{{ __('無料で試してみる') }}</a>
+          @include('partials.lp-apply-cta', [
+            'href' => '/apply?plan=light',
+            'event' => 'cta.plan.light',
+            'class' => 'lp-btn lp-btn-on-dark',
+            'label' => __('無料で試してみる'),
+          ])
           <a href="#pricing" class="lp-btn lp-btn-on-dark">{{ __('料金プランを見る') }}</a>
         </p>
       </div>

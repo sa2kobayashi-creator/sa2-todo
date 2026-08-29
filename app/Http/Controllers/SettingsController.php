@@ -152,6 +152,7 @@ class SettingsController extends Controller
                 : null,
             'legalSettings' => $section === 'sales' ? $this->legalConfig->formState() : null,
             'stripeSettings' => $section === 'sales' ? $this->stripeConfig->formState() : null,
+            'applicationsOpen' => $section === 'sales' ? \App\Support\Registration::applicationsOpen() : null,
             'serverRuntime' => $section === 'sales' ? ServerRuntimeStatus::formState() : null,
             'siteStats' => $section === 'stats' && $isSuperAdmin
                 ? $this->siteStats->dashboard($statsDays)
