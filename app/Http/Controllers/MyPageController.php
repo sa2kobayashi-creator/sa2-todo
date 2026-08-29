@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Jobs\DeleteUserAccountJob;
 use App\Models\User;
 use App\Services\BillingEntitlementService;
+use App\Services\DashboardAiUsageService;
 use App\Services\EmailChangeService;
 use App\Services\GoogleCalendarService;
 use App\Services\GroupService;
@@ -13,7 +14,9 @@ use App\Services\LineMessagingService;
 use App\Services\MessengerMessagingService;
 use App\Services\PhotoService;
 use App\Services\Sa2PlusMailboxService;
+use App\Services\UsageLimitPolicyService;
 use App\Services\UserDataExportService;
+use App\Services\UserUsageLimitService;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +41,9 @@ class MyPageController extends Controller
         private PhotoService $photos,
         private Sa2PlusMailboxService $domainMail,
         private WebPushService $webPush,
+        private UsageLimitPolicyService $usageLimits,
+        private UserUsageLimitService $userUsageLimits,
+        private DashboardAiUsageService $aiUsage,
     ) {}
 
     public function show(Request $request)
@@ -84,6 +90,11 @@ class MyPageController extends Controller
             'hasPendingEmail' => $this->emailChange->hasPendingChange($user),
             'googleCalendar' => $this->googleCalendar->formState($user),
             'googleCalendarActionBase' => '/mypage/google-calendar',
+            'googleCalendarTitle' => 'Googleカレンダー設定',
+            'usageRemaining' => $this->usageLimits->remainingSummary($user, $this->userUsageLimits),
+            'aiUsage' => $user->isAdmin()
+                ? $this->aiUsage->summary((int) $user->id, $user->isSuperAdmin())
+                : null,
             'lineMessaging' => $this->lineMessaging->formState($user),
             'lineMessagingActionBase' => '/mypage/messaging/line',
             'messengerMessaging' => $this->messengerMessaging->formState($user),

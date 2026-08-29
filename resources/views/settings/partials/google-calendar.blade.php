@@ -20,10 +20,10 @@
   $gcalEmbed = ! empty($googleCalendarEmbed);
 @endphp
 @if($gcalEmbed)
-<div class="google-calendar-embed" id="google-calendar">
+<div class="google-calendar-embed" @if(empty($googleCalendarOmitId)) id="google-calendar" @endif>
 @else
 <div class="panel storage-settings" id="google-calendar">
-  <h2>{{ __('Googleカレンダー') }}</h2>
+  <h2>{{ __($googleCalendarTitle ?? 'Googleカレンダー') }}</h2>
 @endif
   <p class="hint">{{ __('sa2-plus のログインとは別に、ご自身の Google アカウントのカレンダーを連携します。仕事モードのダッシュボード／Todo と同期します。仕事 ToDo 作成時は Google Meet を自動付与します。') }}</p>
 

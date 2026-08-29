@@ -34,14 +34,41 @@ class MyPageProfileTest extends TestCase
         $this->actingAs($user)
             ->get('/mypage')
             ->assertOk()
-            ->assertSee('プラン・容量', false)
+            ->assertSee('現在の利用状況', false)
             ->assertSee('契約状態', false)
             ->assertSee('写真の容量', false)
             ->assertSee('メールボックス', false)
             ->assertSee('/mail?tab=domain', false)
+            ->assertSee('このアカウントの枠', false)
+            ->assertSee('翻訳', false)
             ->assertSee('自分の休日', false)
             ->assertSee('href="/mypage/holidays"', false)
-            ->assertSee('休日を設定する', false);
+            ->assertSee('休日を設定する', false)
+            ->assertSee('data-accordion-key="mypage-features"', false)
+            ->assertSee('data-accordion-key="mypage-profile-edit"', false)
+            ->assertSee('Googleカレンダー設定', false);
+    }
+
+    public function test_admin_sees_ai_usage_on_mypage_not_dashboard(): void
+    {
+        $admin = User::create([
+            'email' => 'mypage-admin-usage@example.com',
+            'display_name' => 'Admin',
+            'password' => Hash::make('password123'),
+            'role' => UserRole::Admin,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee('現在の利用状況', false)
+            ->assertSee('AI使用料・翻訳使用料', false)
+            ->assertSee('data-accordion-key="mypage-ai-usage"', false);
+
+        $this->actingAs($admin)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee('dash-ai-usage', false);
     }
 
     public function test_timezone_can_be_updated_on_mypage(): void

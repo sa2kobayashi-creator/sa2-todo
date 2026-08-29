@@ -121,15 +121,7 @@ class DashboardHomeTest extends TestCase
         $response->assertDontSee('href="/mypage#google-calendar">Google Calendar', false);
     }
 
-    public function test_ai_usage_panel_is_hidden_from_standard_users(): void
-    {
-        $this->actingAs($this->user)->get('/dashboard')
-            ->assertOk()
-            ->assertDontSee('AI使用料・翻訳使用料', false)
-            ->assertDontSee('dash-ai-usage', false);
-    }
-
-    public function test_ai_usage_panel_is_visible_to_admins(): void
+    public function test_ai_usage_panel_is_removed_from_dashboard(): void
     {
         $admin = User::create([
             'email' => 'dashadmin@example.com',
@@ -138,9 +130,13 @@ class DashboardHomeTest extends TestCase
             'role' => 'admin',
         ]);
 
+        $this->actingAs($this->user)->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee('dash-ai-usage', false);
+
         $this->actingAs($admin)->get('/dashboard')
             ->assertOk()
-            ->assertSee('AI使用料・翻訳使用料', false)
-            ->assertSee('dash-ai-usage', false);
+            ->assertDontSee('dash-ai-usage', false)
+            ->assertDontSee('AI使用料・翻訳使用料', false);
     }
 }

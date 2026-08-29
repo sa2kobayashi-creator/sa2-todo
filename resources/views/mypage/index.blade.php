@@ -60,69 +60,7 @@
         </dl>
       </div>
 
-      @php $plan = $planSummary ?? []; @endphp
-      <div class="panel" id="plan-summary">
-        <h2>{{ __('プラン・容量') }}</h2>
-        <p class="hint">
-          {{ __('契約状態とストレージ・メールオプションの確認です。') }}
-          <a href="/mypage/plan">{{ __('プラン・お支払い') }}</a>
-        </p>
-
-        @if(empty($plan['subscriptionActive']) && empty($plan['isStaff']))
-          <div class="banner notice" style="margin-bottom:1rem;">
-            <p style="margin:0 0 0.5rem;">{{ __('いまはライト（お試し・約:gbGB）です。容量とメニューを広げるにはスタンダードへお申し込みください。', ['gb' => max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024)))]) }}</p>
-            <p class="hint" style="margin:0 0 0.5rem;">{{ __('約:warn日ログインがない場合は警告メールが届きます。警告後:grace日ログインがなければアカウントは削除されます。', ['warn' => (int) config('registration.light_inactive_warn_days', 90), 'grace' => (int) config('registration.light_inactive_delete_grace_days', 14)]) }}</p>
-            <p class="hint" style="margin:0 0 0.75rem;">{{ __('最初の:days日間は無料。その後 ¥:yen／月（税込）。', ['days' => (int) ($plan['standardTrialDays'] ?? 14), 'yen' => number_format((int) ($plan['standardMonthlyYen'] ?? 980))]) }}</p>
-            <a href="/mypage/plan" class="button-link">{{ __('スタンダードに申し込む（¥:yen〜）', ['yen' => number_format((int) ($plan['standardMonthlyYen'] ?? 980))]) }}</a>
-          </div>
-        @endif
-
-        <dl class="plan-summary-grid">
-          <div class="plan-summary-card">
-            <dt>{{ __('契約状態') }}</dt>
-            <dd>
-              {{ $plan['subscriptionStatusLabel'] ?? __('未契約') }}
-              @if(!empty($plan['trialEndsAt']))
-                <span class="hint" style="display:block;margin-top:6px;">{{ __('お試し期限') }}: {{ $plan['trialEndsAt'] }}</span>
-              @endif
-            </dd>
-          </div>
-          @if(!empty($plan['canPhotos']))
-            <div class="plan-summary-card">
-              <dt>{{ __('写真の容量') }}</dt>
-              <dd>
-                {{ $plan['storageUsedLabel'] ?? '—' }} / {{ $plan['storageQuotaLabel'] ?? '—' }}
-                @if(!empty($plan['storageUploadsBlocked']))
-                  <span class="hint" style="display:block;margin-top:6px;">{{ __('無料枠を超えているため、追加アップロードは停止中です。') }}</span>
-                @elseif(!empty($plan['storageOverageActive']))
-                  <span class="hint" style="display:block;margin-top:6px;">{{ __('有料超過が許可されています。') }}</span>
-                @endif
-                <a href="/photos" style="display:inline-block;margin-top:8px;">{{ __('Photos を開く') }}</a>
-                <a href="/archives" style="display:inline-block;margin-top:8px;margin-left:12px;">{{ __('過去データの長期保存') }}</a>
-              </dd>
-            </div>
-          @endif
-          @if(!empty($plan['canMail']))
-            <div class="plan-summary-card">
-              <dt>{{ __('メールボックス') }}（&#64;{{ $plan['mailboxDomain'] ?? 'sa2-plus.com' }}）</dt>
-              <dd>
-                @if(!empty($plan['mailboxIncludedInPlan']))
-                  {{ __('スタンダード契約に含まれています') }}
-                  <span class="hint" style="display:block;margin-top:6px;">{{ __('アドレス作成とパスワード設定は運営者が手動です。パスワードは別途お知らせします。') }}</span>
-                @elseif(!empty($plan['mailboxAddonActive']))
-                  {{ __('有料オプション: 有効') }}
-                @else
-                  {{ __('ライトプランでは個別契約です') }}
-                  <span class="hint" style="display:block;margin-top:6px;">
-                    {{ __('月額 :price 円（目安）。申請はメール画面から行えます。', ['price' => number_format((int) ($plan['mailboxAddonPriceMonthly'] ?? 300))]) }}
-                  </span>
-                @endif
-                <a href="/mail?tab=domain" style="display:inline-block;margin-top:8px;">{{ __('メール申請を開く') }}</a>
-              </dd>
-            </div>
-          @endif
-        </dl>
-      </div>
+      @include('mypage.partials.usage-status')
 
       <div class="panel" id="personal-holidays">
         <h2>{{ __('自分の休日') }}</h2>
@@ -132,67 +70,77 @@
         </div>
       </div>
 
-      <div class="panel">
-        <h2>{{ __('利用可能な機能') }}</h2>
-        <ul class="feature-access-list">
-          @php
-            $featureLabels = [
-              'dashboard' => 'ダッシュボード',
-              'todos' => 'Todo',
-              'notes' => 'メモ',
-              'photos' => 'Photos',
-              'finance' => '家計簿',
-              'transit' => '路線検索',
-            ];
-            $featureLabels += [
-              'map' => 'マップ',
-              'music' => '音楽',
-              'video' => '動画',
-              'mail' => 'メール',
-              'messages' => 'メッセージ',
-              'translate' => '翻訳',
-              'guide' => '生活ガイド',
-              'groups' => 'グループ',
-              'settings' => '設定',
-              'admin' => 'ユーザー管理',
-            ];
-          @endphp
-          @foreach($featureLabels as $key => $label)
-            <li class="{{ in_array($key, $features, true) ? 'is-allowed' : 'is-denied' }}">
-              <span>{{ __($label) }}</span>
-              <strong>{{ in_array($key, $features, true) ? __('利用可') : __('利用不可') }}</strong>
-            </li>
-          @endforeach
-        </ul>
-      </div>
+      <details class="app-accordion mypage-accordion" data-accordion-key="mypage-features">
+        <summary class="app-accordion-summary">
+          <span>{{ __('利用可能な機能') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          <ul class="feature-access-list">
+            @php
+              $featureLabels = [
+                'dashboard' => 'ダッシュボード',
+                'todos' => 'Todo',
+                'notes' => 'メモ',
+                'photos' => 'Photos',
+                'finance' => '家計簿',
+                'transit' => '路線検索',
+              ];
+              $featureLabels += [
+                'map' => 'マップ',
+                'music' => '音楽',
+                'video' => '動画',
+                'mail' => 'メール',
+                'messages' => 'メッセージ',
+                'translate' => '翻訳',
+                'guide' => '生活ガイド',
+                'groups' => 'グループ',
+                'settings' => '設定',
+                'admin' => 'ユーザー管理',
+              ];
+            @endphp
+            @foreach($featureLabels as $key => $label)
+              <li class="{{ in_array($key, $features, true) ? 'is-allowed' : 'is-denied' }}">
+                <span>{{ __($label) }}</span>
+                <strong>{{ in_array($key, $features, true) ? __('利用可') : __('利用不可') }}</strong>
+              </li>
+            @endforeach
+          </ul>
+        </div>
+      </details>
 
-      <div class="panel">
-        <h2>{{ __('プロフィール編集') }}</h2>
-        <form method="post" action="/mypage" class="stack-form">
-          @csrf
-          <label>{{ __('表示名') }}
-            <input type="text" name="displayName" value="{{ old('displayName', $user['displayName']) }}" required maxlength="100" />
-          </label>
-          @error('displayName')<p class="field-error">{{ $message }}</p>@enderror
-          <label>{{ __('メールアドレス') }}
-            <input type="email" name="email" value="{{ old('email', $user['email']) }}" required maxlength="255" autocomplete="email" />
-          </label>
-          @error('email')<p class="field-error">{{ $message }}</p>@enderror
-          <label>{{ __('タイムゾーン') }}
-            <select name="timezone">
-              @foreach(($timezoneOptions ?? []) as $option)
-                <option value="{{ $option['value'] }}" @selected(old('timezone', $user['timezone'] ?? config('app.timezone')) === $option['value'])>
-                  {{ $option['label'] }}
-                </option>
-              @endforeach
-            </select>
-          </label>
-          @error('timezone')<p class="field-error">{{ $message }}</p>@enderror
-          <p class="hint">{{ __('日付や時刻の表示に使います。未設定時はアプリ既定（Asia/Tokyo）です。') }}</p>
-          <p class="hint">{{ __('メールアドレスを変えると、新しいアドレスに6桁の確認コードを送ります。コードを入力するまで、ログインIDは今のままです。') }}</p>
-          <button type="submit">{{ __('保存') }}</button>
-        </form>
-      </div>
+      <details class="app-accordion mypage-accordion" data-accordion-key="mypage-profile-edit">
+        <summary class="app-accordion-summary">
+          <span>{{ __('プロフィール編集') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          <form method="post" action="/mypage" class="stack-form">
+            @csrf
+            <label>{{ __('表示名') }}
+              <input type="text" name="displayName" value="{{ old('displayName', $user['displayName']) }}" required maxlength="100" />
+            </label>
+            @error('displayName')<p class="field-error">{{ $message }}</p>@enderror
+            <label>{{ __('メールアドレス') }}
+              <input type="email" name="email" value="{{ old('email', $user['email']) }}" required maxlength="255" autocomplete="email" />
+            </label>
+            @error('email')<p class="field-error">{{ $message }}</p>@enderror
+            <label>{{ __('タイムゾーン') }}
+              <select name="timezone">
+                @foreach(($timezoneOptions ?? []) as $option)
+                  <option value="{{ $option['value'] }}" @selected(old('timezone', $user['timezone'] ?? config('app.timezone')) === $option['value'])>
+                    {{ $option['label'] }}
+                  </option>
+                @endforeach
+              </select>
+            </label>
+            @error('timezone')<p class="field-error">{{ $message }}</p>@enderror
+            <p class="hint">{{ __('日付や時刻の表示に使います。未設定時はアプリ既定（Asia/Tokyo）です。') }}</p>
+            <p class="hint">{{ __('メールアドレスを変えると、新しいアドレスに6桁の確認コードを送ります。コードを入力するまで、ログインIDは今のままです。') }}</p>
+            <button type="submit">{{ __('保存') }}</button>
+          </form>
+        </div>
+      </details>
 
       <div class="panel">
         <h2>{{ __('パスワードの変更') }}</h2>
@@ -205,7 +153,20 @@
         </form>
       </div>
 
-      @include('settings.partials.google-calendar')
+      <details class="app-accordion mypage-accordion" id="google-calendar" data-accordion-key="mypage-google-calendar">
+        <summary class="app-accordion-summary">
+          <span>{{ __('Googleカレンダー設定') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          @include('settings.partials.google-calendar', [
+            'googleCalendarEmbed' => true,
+            'googleCalendarOmitId' => true,
+            'googleCalendarTitle' => 'Googleカレンダー設定',
+          ])
+        </div>
+      </details>
+
       @include('mypage.partials.line-link')
       @if(auth()->user()?->isSuperAdmin())
         @include('mypage.partials.messenger-link')
@@ -231,5 +192,6 @@
         </form>
       </div>
     </main>
+    @include('partials.accordion-state')
   </body>
 </html>

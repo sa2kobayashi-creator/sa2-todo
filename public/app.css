@@ -25413,3 +25413,35 @@ body.dash-home-lightbox-open {
 }
 
 .sales-setup-steps{margin:0 0 8px;padding-left:1.3em;line-height:1.7;}
+
+/* My page accordions */
+.mypage-accordion {
+  margin: 0 0 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.mypage-accordion > .app-accordion-summary {
+  padding: 14px 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.mypage-accordion > .app-accordion-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid #f1f5f9;
+}
+.mypage-usage-subtitle {
+  margin: 18px 0 10px;
+  font-size: 1rem;
+  color: #0f172a;
+}
+.mypage-usage-meters {
+  margin-bottom: 8px;
+}
+.mypage-ai-usage-accordion {
+  margin-top: 16px;
+}
+.page-main-narrow .mypage-accordion .google-calendar-embed {
+  margin: 0;
+}

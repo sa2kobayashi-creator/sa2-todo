@@ -19,57 +19,6 @@
 
       @include('dashboard.partials.home')
 
-      <div class="dash-quick-panels" id="dash-quick-panels">
-        @if(auth()->user()?->isAdmin())
-          @include('dashboard.partials.ai-usage')
-        @endif
-      </div>
-      <script>
-        (function () {
-          const root = document.getElementById('dash-quick-panels')
-          if (!root) return
-          const mq = window.matchMedia('(max-width: 768px)')
-          function isMobile() { return mq.matches }
-          function syncBodyLock() {
-            const anyOpen = isMobile() && !!root.querySelector('details.app-accordion[open]')
-            document.body.classList.toggle('dash-quick-modal-open', anyOpen)
-          }
-          root.querySelectorAll('details.app-accordion').forEach((details) => {
-            details.addEventListener('toggle', () => {
-              if (details.open && isMobile()) {
-                root.querySelectorAll('details.app-accordion').forEach((other) => {
-                  if (other !== details) other.open = false
-                })
-              }
-              syncBodyLock()
-            })
-          })
-          root.addEventListener('click', (e) => {
-            const closeBtn = e.target.closest('[data-close-dash-quick]')
-            const body = e.target.closest('.dash-quick-modal-body')
-            const sheet = e.target.closest('.dash-quick-modal-sheet')
-            if (closeBtn) {
-              e.preventDefault()
-              e.stopPropagation()
-              closeBtn.closest('details')?.removeAttribute('open')
-              syncBodyLock()
-              return
-            }
-            if (isMobile() && body && !sheet) {
-              body.closest('details')?.removeAttribute('open')
-              syncBodyLock()
-            }
-          })
-          mq.addEventListener?.('change', () => {
-            if (!isMobile()) {
-              document.body.classList.remove('dash-quick-modal-open')
-            } else {
-              syncBodyLock()
-            }
-          })
-        })()
-      </script>
-
       <details class="app-accordion dash-calendar-accordion" id="dash-calendar" data-accordion-key="dash-calendar">
         <summary class="app-accordion-summary dash-calendar-summary">
           <h2 class="dash-calendar-title">{{ __('カレンダー') }}</h2>

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\AppContext;
 use App\Services\AppContextService;
 use App\Services\CalendarService;
-use App\Services\DashboardAiUsageService;
 use App\Services\DashboardHomeService;
 use App\Services\DisplayService;
 use App\Services\GoogleCalendarService;
@@ -28,7 +27,6 @@ class DashboardController extends Controller
         private CalendarService $calendar,
         private HolidayService $holidays,
         private DisplayService $display,
-        private DashboardAiUsageService $aiUsage,
         private DashboardHomeService $home,
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
@@ -132,9 +130,6 @@ class DashboardController extends Controller
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'home' => $home,
-            'aiUsage' => $user->isAdmin()
-                ? $this->aiUsage->summary($userId, $user->isSuperAdmin())
-                : null,
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'pendingGroupInvitations' => $this->groups->listPendingInvitationsForUser($userId),
