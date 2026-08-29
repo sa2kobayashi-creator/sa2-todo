@@ -207,7 +207,9 @@
 
       @include('settings.partials.google-calendar')
       @include('mypage.partials.line-link')
-      @include('mypage.partials.messenger-link')
+      @if(auth()->user()?->isSuperAdmin())
+        @include('mypage.partials.messenger-link')
+      @endif
       @include('mypage.partials.web-push-subscribe')
 
       <div class="panel" id="account-delete" style="border-color:#f3c1c1;">

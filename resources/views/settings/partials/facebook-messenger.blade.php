@@ -65,7 +65,7 @@
 
   <hr style="margin: 18px 0; border: 0; border-top: 1px solid #e5e7eb;" />
   <h3>{{ __('個人アカウント連携') }}</h3>
-  <p class="hint">{{ __('個人の Messenger 連携（コード発行・解除）はマイページで行います。スタンダード／ライトユーザーも自分で接続できます。') }}</p>
+  <p class="hint">{{ __('個人の Messenger 連携（コード発行・解除）はマイページで行います。表示・利用は運営のみです（一般ユーザーには出しません）。') }}</p>
   <div class="storage-form-actions">
     <a class="button-link" href="/mypage#facebook-messenger">{{ __('マイページで連携する') }}</a>
   </div>

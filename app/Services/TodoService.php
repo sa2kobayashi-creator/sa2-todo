@@ -750,7 +750,13 @@ class TodoService
     /** @param mixed $raw */
     public function parseNotifyViaFromBody(mixed $raw): ?string
     {
-        return $this->normalizeNotifyVia(is_string($raw) ? $raw : null);
+        $via = $this->normalizeNotifyVia(is_string($raw) ? $raw : null);
+        // Messenger は運営のみ表示・選択可（非運営からの POST も無視）
+        if ($via === 'messenger' && ! auth()->user()?->isSuperAdmin()) {
+            return null;
+        }
+
+        return $via;
     }
 
     /** @param mixed $raw @return list<int> */

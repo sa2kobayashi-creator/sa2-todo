@@ -278,6 +278,40 @@ class MessagingNotificationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_messenger_personal_ui_is_operator_only(): void
+    {
+        $this->configureMessenger();
+
+        $super = $this->makeAdmin();
+        $this->actingAs($super)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee('Messenger連携', false);
+
+        foreach ([UserRole::Light, UserRole::Standard, UserRole::Admin] as $role) {
+            $user = User::create([
+                'email' => 'no-mm-'.strtolower($role->value).'@example.com',
+                'display_name' => $role->label(),
+                'password' => Hash::make('password'),
+                'role' => $role,
+            ]);
+
+            $this->actingAs($user)
+                ->get('/mypage')
+                ->assertOk()
+                ->assertDontSee('Messenger連携', false);
+
+            $this->actingAs($user)
+                ->get('/todos')
+                ->assertOk()
+                ->assertDontSee('>Messenger<', false);
+
+            $this->actingAs($user)
+                ->post('/mypage/messaging/messenger/code')
+                ->assertForbidden();
+        }
+    }
+
     public function test_issued_link_code_shows_beside_the_button_not_at_the_top(): void
     {
         $this->configureLine();

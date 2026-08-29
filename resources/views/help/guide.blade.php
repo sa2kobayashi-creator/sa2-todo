@@ -40,7 +40,7 @@
             <ul>
               <li>Calendar: save the OAuth app in API Settings, then each person taps Connect on <a href="/mypage">My Page</a>. Work ToDos can create Google Calendar events with Meet.</li>
               <li>Maps / Transit: need the Maps key in API Settings.</li>
-              <li>LINE / Messenger: save the channel in <a href="/settings?section=integration">Integrations</a>, then each person links their account on My Page.</li>
+              <li>LINE: save the channel in <a href="/settings?section=integration">Integrations</a>, then each person links their account on My Page.</li>
             </ul>
 
             <h2>4. Storage and usage</h2>
@@ -92,7 +92,7 @@
               <li>カレンダーは API設定に OAuth アプリを保存したあと、各自がマイページから連携します。仕事 Todo は Google カレンダーへ予定を出せます（Meet 付き）。</li>
               <li>マップ／路線検索は API設定の Maps キーが必要です。</li>
               <li>路線検索の電車・バスは <strong>NAVITIME</strong> を登録します。Google Maps Routes は日本の交通機関ルートが API の提供対象外です。未登録のときは福岡都心の内蔵ダイヤで検索します。地図の車・徒歩ルートに Google Maps Routes を使います。</li>
-              <li>LINE／Messenger は <a href="/settings?section=integration">外部連携</a> でチャネルを保存し、各自がマイページでつなぎます。</li>
+              <li>LINE は <a href="/settings?section=integration">外部連携</a> でチャネルを保存し、各自がマイページでつなぎます。</li>
             </ul>
 
             <h2>4. ストレージと使用量</h2>

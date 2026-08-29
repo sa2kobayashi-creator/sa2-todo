@@ -116,6 +116,7 @@ class MessagingSettingsController extends Controller
     public function issueCode(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
+        $this->assertCanUsePersonalMessenger($provider);
         $path = $this->returnPath($request, $provider);
 
         if (! $this->providerConfigured($provider)) {
@@ -139,6 +140,7 @@ class MessagingSettingsController extends Controller
     public function disconnect(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
+        $this->assertCanUsePersonalMessenger($provider);
         $this->links->disconnect($request->user(), $provider);
 
         return $this->redirectWithMessage($this->returnPath($request, $provider), __('連携を解除しました。'));
@@ -147,6 +149,7 @@ class MessagingSettingsController extends Controller
     public function test(Request $request, string $provider)
     {
         $provider = $this->normalizeProvider($provider);
+        $this->assertCanUsePersonalMessenger($provider);
         $path = $this->returnPath($request, $provider);
         $result = $this->reminders->sendTest($request->user(), $provider);
 
@@ -184,6 +187,14 @@ class MessagingSettingsController extends Controller
     {
         if ($provider === MessagingConnection::PROVIDER_MESSENGER && ! auth()->user()?->isSuperAdmin()) {
             abort(403, __('この設定は運営のみが変更できます。'));
+        }
+    }
+
+    /** Messenger の個人連携 UI は運用停止中のため運営のみ */
+    private function assertCanUsePersonalMessenger(string $provider): void
+    {
+        if ($provider === MessagingConnection::PROVIDER_MESSENGER && ! auth()->user()?->isSuperAdmin()) {
+            abort(403, __('Messenger連携は現在、運営のみ利用できます。'));
         }
     }
 

@@ -23,7 +23,7 @@
             <ul>
               <li>Open <strong>Dashboard</strong> for today and shortcuts. Switch <strong>Personal / Work</strong> in the header.</li>
               <li>Phone: bottom bar. PC: header. Extra items are in the ⋮ menu.</li>
-              <li>Google Calendar, LINE, and Messenger are linked on <a href="/mypage">My Page</a> (your own account, not the app login).</li>
+              <li>Google Calendar, LINE are linked on <a href="/mypage">My Page</a> (your own account, not the app login).</li>
             </ul>
             <h2>ToDos &amp; notes</h2>
             <ul>
@@ -40,7 +40,7 @@
             <ul>
               <li>Groups are join-by-invite. You cannot browse every user’s email.</li>
               <li>A @sa2-plus.com address is included in Standard. On Light it is a separate add-on. Connecting Gmail stays free. The operator creates the address and password by hand and sends you the password separately.</li>
-              <li>LINE / Messenger reminders need an admin to save the channel, then you link on My Page.</li>
+              <li>LINE reminders need an admin to save the channel, then you link on My Page.</li>
               <li>Other menus (household budget, maps, transit, translate, music, videos, mail) appear when your account includes them.</li>
             </ul>
             <h2>Account</h2>
@@ -58,7 +58,7 @@
             <ul>
               <li><strong>ダッシュボード</strong>で今日の予定とショートカットを見ます。ヘッダーの<strong>個人／仕事</strong>で表示を切り替えられます。</li>
               <li>スマホは画面下のメニュー、PCは上部メニューです。入りきらない項目は「⋮」にあります。</li>
-              <li>Googleカレンダー／LINE／Messenger の個人連携は <a href="/mypage">マイページ</a> です（このアプリのログインとは別です）。</li>
+              <li>Googleカレンダー／LINE の個人連携は <a href="/mypage">マイページ</a> です（このアプリのログインとは別です）。</li>
             </ul>
             <h2>Todo・メモ</h2>
             <ul>
@@ -75,7 +75,7 @@
             <ul>
               <li>グループは招待／承諾で参加します。全ユーザーのメール一覧は出ません。</li>
               <li>@sa2-plus.com のメールアドレスはスタンダード契約に含まれます。ライトは個別契約です。Gmail などの外部接続はこれまでどおり無料です。アドレス作成とパスワード設定は運営者が手動で行い、パスワードは別途お知らせします。</li>
-              <li>LINE／Messenger 通知は、管理者がチャネルを設定したあと、各自がマイページで連携します。</li>
+              <li>LINE 通知は、管理者がチャネルを設定したあと、各自がマイページで連携します。</li>
               <li>家計簿、マップ、路線、翻訳、音楽、動画、メールなどは、アカウントにメニューがあるとき表示されます。</li>
             </ul>
             <h2>アカウント</h2>

@@ -41,7 +41,11 @@ class ShareViewData
             'reminderLabels' => collect(TodoService::REMINDER_LABELS)->map(fn (string $label) => __($label))->all(),
             'reminderOptions' => TodoService::REMINDER_OPTIONS,
             'notifyViaLabels' => collect(TodoService::NOTIFY_VIA_LABELS)->map(fn (string $label) => __($label))->all(),
-            'notifyViaOptions' => TodoService::NOTIFY_VIA_OPTIONS,
+            // Messenger 通知は運用停止中のため、運営（SuperAdmin）以外の Todo UI から外す
+            'notifyViaOptions' => array_values(array_filter(
+                TodoService::NOTIFY_VIA_OPTIONS,
+                fn (string $key) => $key !== 'messenger' || $request->user()?->isSuperAdmin()
+            )),
             'nationalHolidayDates' => $this->holidays->listAllJapaneseNationalHolidayDateKeys($viewerId),
             'closureDates' => $this->holidays->listAllClosureDateKeys($viewerId),
             'businessClosureDates' => $this->holidays->listAllBusinessClosureDateKeys($viewerId),

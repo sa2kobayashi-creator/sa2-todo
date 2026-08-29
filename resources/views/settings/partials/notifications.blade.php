@@ -19,6 +19,7 @@
         @endif
       </dd>
     </div>
+    @if(auth()->user()?->isSuperAdmin())
     <div>
       <dt>{{ __('Messenger') }}</dt>
       <dd>
@@ -31,6 +32,7 @@
         @endif
       </dd>
     </div>
+    @endif
     <div>
       <dt>{{ __('Web Push') }}</dt>
       <dd>{{ !empty($pushConfigured) ? __('利用可能') : __('管理者のVAPID設定待ち') }}</dd>
