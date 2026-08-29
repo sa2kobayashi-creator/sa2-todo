@@ -72,6 +72,49 @@ class FooterNavLayoutTest extends TestCase
         $this->assertStringContainsString('.transit-time-types', $css);
     }
 
+    public function test_admin_unset_footer_includes_all_allowed_and_is_expandable(): void
+    {
+        $admin = User::create([
+            'email' => 'footer-nav-admin@example.com',
+            'display_name' => 'Admin Footer',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Admin,
+            'footer_nav' => null,
+        ]);
+
+        $keys = FooterNav::normalizeFooterKeys(null, $admin);
+        $this->assertGreaterThan(FooterNav::FOOTER_PER_ROW, count($keys));
+        $this->assertSame(3, FooterNav::footerExpandedRows(count($keys)));
+        $this->assertContains('mail', $keys);
+        $this->assertContains('map', $keys);
+
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('data-expandable="1"', false)
+            ->assertSee('data-expanded-rows="3"', false)
+            ->assertSee('data-nav-key="mail"', false)
+            ->assertSee('data-nav-key="map"', false);
+    }
+
+    public function test_legacy_saved_default_five_footer_expands_like_unset(): void
+    {
+        $admin = User::create([
+            'email' => 'footer-nav-admin-legacy@example.com',
+            'display_name' => 'Admin Legacy Footer',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Admin,
+            'footer_nav' => FooterNav::DEFAULT_FOOTER,
+        ]);
+
+        $keys = FooterNav::normalizeFooterKeys($admin->footer_nav, $admin);
+        $this->assertGreaterThan(FooterNav::FOOTER_PER_ROW, count($keys));
+
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('data-expandable="1"', false)
+            ->assertSee('data-expanded-rows="3"', false);
+    }
+
     public function test_signed_in_user_can_reorder_footer_icons(): void
     {
         $user = User::create([

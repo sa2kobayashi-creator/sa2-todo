@@ -77,12 +77,23 @@ class FooterNav
         ));
     }
 
-    /** @return list<string> */
+    /**
+     * 未設定（null）時、および昔の既定5件だけが保存されている場合は、
+     * 利用可能メニューをすべて下部に載せる（Webヘッダーと同じ）。
+     * 6件以上なら長押しで2〜3段に展開できる。
+     *
+     * @return list<string>
+     */
     public static function normalizeFooterKeys(?array $keys, ?User $user): array
     {
         $allowed = self::allowedKeys($user);
+
+        if ($keys === null || self::isLegacyDefaultFooterSelection($keys, $allowed)) {
+            return self::defaultFooterKeysForAllowed($allowed);
+        }
+
         $picked = [];
-        foreach ($keys ?? [] as $key) {
+        foreach ($keys as $key) {
             $key = (string) $key;
             if (! in_array($key, $allowed, true) || in_array($key, $picked, true)) {
                 continue;
@@ -94,22 +105,56 @@ class FooterNav
         }
 
         if ($picked === []) {
-            foreach (self::DEFAULT_FOOTER as $key) {
-                if (in_array($key, $allowed, true)) {
-                    $picked[] = $key;
-                }
-                if (count($picked) >= self::MAX_FOOTER) {
-                    break;
-                }
-            }
-        }
-
-        // Always keep at least core items if somehow empty
-        if ($picked === []) {
-            $picked = array_values(array_intersect(self::CORE, $allowed));
+            return self::defaultFooterKeysForAllowed($allowed);
         }
 
         return $picked;
+    }
+
+    /**
+     * 並べ替えだけで既定5件が JSON 保存されたケースを「未設定」扱いする。
+     *
+     * @param  list<string>|null  $keys
+     * @param  list<string>  $allowed
+     */
+    private static function isLegacyDefaultFooterSelection(?array $keys, array $allowed): bool
+    {
+        if ($keys === null) {
+            return true;
+        }
+
+        $legacy = [];
+        foreach (self::DEFAULT_FOOTER as $key) {
+            if (in_array($key, $allowed, true)) {
+                $legacy[] = $key;
+            }
+        }
+
+        return $legacy !== [] && self::sameKeySet($keys, $legacy);
+    }
+
+    /**
+     * @param  list<string>  $allowed
+     * @return list<string>
+     */
+    private static function defaultFooterKeysForAllowed(array $allowed): array
+    {
+        $ordered = [];
+        foreach (array_merge(self::DEFAULT_FOOTER, $allowed) as $key) {
+            if (! in_array($key, $allowed, true) || in_array($key, $ordered, true)) {
+                continue;
+            }
+            $ordered[] = $key;
+            if (count($ordered) >= self::MAX_FOOTER) {
+                break;
+            }
+        }
+
+        if ($ordered === []) {
+            return array_values(array_intersect(self::CORE, $allowed));
+        }
+
+        return $ordered;
     }
 
     /** Collapsed bar is always 1 row. Expanded rows: 6–10 → 2, 11+ → 3. */
