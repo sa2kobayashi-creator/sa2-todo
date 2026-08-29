@@ -62,14 +62,6 @@
 
       @include('mypage.partials.usage-status')
 
-      <div class="panel" id="personal-holidays">
-        <h2>{{ __('自分の休日') }}</h2>
-        <p class="hint">{{ __('ここで設定した休日は、あなたのカレンダーと Todo にだけ反映されます。他の人には見えません。') }}</p>
-        <div class="storage-form-actions">
-          <a class="button-link" href="/mypage/holidays">{{ __('休日を設定する') }}</a>
-        </div>
-      </div>
-
       <details class="app-accordion mypage-accordion" data-accordion-key="mypage-features">
         <summary class="app-accordion-summary">
           <span>{{ __('利用可能な機能') }}</span>
@@ -142,16 +134,21 @@
         </div>
       </details>
 
-      <div class="panel">
-        <h2>{{ __('パスワードの変更') }}</h2>
-        <p class="hint">
-          {{ __('登録メールアドレスに6桁の確認コードをお送りします。次の画面でコードと新しいパスワードを入力してください。') }}
-        </p>
-        <form method="post" action="/mypage/password/request-code" class="stack-form">
-          @csrf
-          <button type="submit">{{ __('確認コードを送信') }}</button>
-        </form>
-      </div>
+      <details class="app-accordion mypage-accordion" data-accordion-key="mypage-password">
+        <summary class="app-accordion-summary">
+          <span>{{ __('パスワードの変更') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          <p class="hint">
+            {{ __('登録メールアドレスに6桁の確認コードをお送りします。次の画面でコードと新しいパスワードを入力してください。') }}
+          </p>
+          <form method="post" action="/mypage/password/request-code" class="stack-form">
+            @csrf
+            <button type="submit">{{ __('確認コードを送信') }}</button>
+          </form>
+        </div>
+      </details>
 
       <details class="app-accordion mypage-accordion" id="google-calendar" data-accordion-key="mypage-google-calendar">
         <summary class="app-accordion-summary">
@@ -167,30 +164,69 @@
         </div>
       </details>
 
-      @include('mypage.partials.line-link')
-      @if(auth()->user()?->isSuperAdmin())
-        @include('mypage.partials.messenger-link')
-      @endif
-      @include('mypage.partials.web-push-subscribe')
-
-      <div class="panel" id="account-delete" style="border-color:#f3c1c1;">
-        <h2>{{ __('退会（アカウント削除）') }}</h2>
-        <p class="hint">{{ __('アカウントと、写真・メモ・音楽などのデータを削除します。この操作は取り消せません。') }}</p>
-        <p class="hint">{{ __('退会前に、データのコピー（JSON ZIP）をダウンロードできます。写真・音楽ファイル本体は含まれません。') }}</p>
-        <div class="storage-form-actions" style="margin-bottom:12px;">
-          <a class="button-link secondary" href="/mypage/export">{{ __('データをエクスポート') }}</a>
+      <details class="app-accordion mypage-accordion" id="line-messaging" data-accordion-key="mypage-line">
+        <summary class="app-accordion-summary">
+          <span>{{ __('LINE連携') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body mypage-accordion-embed">
+          @include('mypage.partials.line-link', ['mypageEmbed' => true])
         </div>
-        <form method="post" action="/mypage/delete" class="stack-form" onsubmit="return confirm(@json(__('本当に退会しますか？データは復元できません。')))">
-          @csrf
-          <label>{{ __('現在のパスワード') }}
-            <input type="password" name="password" required autocomplete="current-password" />
-          </label>
-          <label>{{ __('確認（「退会」または DELETE と入力）') }}
-            <input type="text" name="confirm" required autocomplete="off" placeholder="退会" />
-          </label>
-          <button type="submit" class="danger">{{ __('退会する') }}</button>
-        </form>
+      </details>
+
+      @if(auth()->user()?->isSuperAdmin())
+        <details class="app-accordion mypage-accordion" id="facebook-messenger" data-accordion-key="mypage-messenger">
+          <summary class="app-accordion-summary">
+            <span>{{ __('Messenger連携') }}</span>
+            <span class="app-accordion-caret" aria-hidden="true">▾</span>
+          </summary>
+          <div class="app-accordion-body mypage-accordion-embed">
+            @include('mypage.partials.messenger-link', ['mypageEmbed' => true])
+          </div>
+        </details>
+      @endif
+
+      <details class="app-accordion mypage-accordion" id="web-push-subscribe" data-accordion-key="mypage-web-push">
+        <summary class="app-accordion-summary">
+          <span>{{ __('メッセージと通話の通知') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body mypage-accordion-embed">
+          @include('mypage.partials.web-push-subscribe', ['mypageEmbed' => true])
+        </div>
+      </details>
+
+      <div class="panel" id="personal-holidays">
+        <h2>{{ __('自分の休日') }}</h2>
+        <p class="hint">{{ __('ここで設定した休日は、あなたのカレンダーと Todo にだけ反映されます。他の人には見えません。') }}</p>
+        <div class="storage-form-actions">
+          <a class="button-link" href="/mypage/holidays">{{ __('休日を設定する') }}</a>
+        </div>
       </div>
+
+      <details class="app-accordion mypage-accordion mypage-accordion-danger" id="account-delete" data-accordion-key="mypage-account-delete">
+        <summary class="app-accordion-summary">
+          <span>{{ __('退会（アカウント削除）') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          <p class="hint">{{ __('アカウントと、写真・メモ・音楽などのデータを削除します。この操作は取り消せません。') }}</p>
+          <p class="hint">{{ __('退会前に、データのコピー（JSON ZIP）をダウンロードできます。写真・音楽ファイル本体は含まれません。') }}</p>
+          <div class="storage-form-actions" style="margin-bottom:12px;">
+            <a class="button-link secondary" href="/mypage/export">{{ __('データをエクスポート') }}</a>
+          </div>
+          <form method="post" action="/mypage/delete" class="stack-form" onsubmit="return confirm(@json(__('本当に退会しますか？データは復元できません。')))">
+            @csrf
+            <label>{{ __('現在のパスワード') }}
+              <input type="password" name="password" required autocomplete="current-password" />
+            </label>
+            <label>{{ __('確認（「退会」または DELETE と入力）') }}
+              <input type="text" name="confirm" required autocomplete="off" placeholder="退会" />
+            </label>
+            <button type="submit" class="danger">{{ __('退会する') }}</button>
+          </form>
+        </div>
+      </details>
     </main>
     @include('partials.accordion-state')
   </body>

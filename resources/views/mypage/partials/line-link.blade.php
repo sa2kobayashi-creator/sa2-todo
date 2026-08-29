@@ -10,9 +10,14 @@
   ];
   $lineActive = !empty($lm['ready']);
   $lineBase = $lineMessagingActionBase ?? '/mypage/messaging/line';
+  $lineEmbed = ! empty($mypageEmbed);
 @endphp
+@if($lineEmbed)
+<div class="mypage-embed-body">
+@else
 <div class="panel storage-settings" id="line-messaging">
   <h2>{{ __('LINE連携') }}</h2>
+@endif
   <p class="hint">{{ __('公式アカウントを友だち追加し、下で発行した6桁コードを、その公式アカウントのトークへテキストだけで送ってください。「個別のお問い合わせを受け付けておりません」と返るときは、公式アカウント側の応答メッセージがオンのままです。ToDo の通知方法で「LINE」を選ぶとリマインダが届きます。') }}</p>
 
   @if(!empty($lm['qr_code_url']))

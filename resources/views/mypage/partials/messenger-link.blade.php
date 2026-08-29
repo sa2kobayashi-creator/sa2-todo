@@ -9,9 +9,14 @@
   ];
   $messengerReady = !empty($mm['ready']) || !empty($mm['configured']);
   $messengerBase = $messengerMessagingActionBase ?? '/mypage/messaging/messenger';
+  $messengerEmbed = ! empty($mypageEmbed);
 @endphp
+@if($messengerEmbed)
+<div class="mypage-embed-body">
+@else
 <div class="panel storage-settings" id="facebook-messenger">
   <h2>{{ __('Messenger連携') }}</h2>
+@endif
   <p class="hint">{{ __('ページの Messenger に、下で発行した6桁コードを送ってください。ToDo の通知方法で「Messenger」を選ぶとリマインダが届きます。') }}</p>
 
   @if(! $messengerReady)

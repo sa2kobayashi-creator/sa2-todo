@@ -25445,3 +25445,10 @@ body.dash-home-lightbox-open {
 .page-main-narrow .mypage-accordion .google-calendar-embed {
   margin: 0;
 }
+
+.mypage-accordion-danger {
+  border-color: #f3c1c1;
+}
+.mypage-accordion-embed .mypage-embed-body {
+  margin: 0;
+}

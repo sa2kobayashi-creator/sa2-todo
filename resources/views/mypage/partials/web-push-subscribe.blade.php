@@ -1,8 +1,13 @@
 @php
   $pushReady = !empty($pushConfigured);
+  $pushEmbed = ! empty($mypageEmbed);
 @endphp
+@if($pushEmbed)
+<div class="mypage-embed-body">
+@else
 <div class="panel" id="web-push-subscribe">
   <h2>{{ __('メッセージと通話の通知') }}</h2>
+@endif
   <p class="hint">{{ __('アプリを閉じているときでも、新着メッセージと通話の着信をこの端末の通知で受け取れます。使うブラウザ・端末ごとに登録してください。') }}</p>
   <div class="storage-form-actions line-code-issue-row">
     <button type="button" class="button-link secondary" id="push-subscribe-btn" @disabled(! $pushReady)>{{ __('この端末の通知を登録') }}</button>
