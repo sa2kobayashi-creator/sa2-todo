@@ -196,13 +196,18 @@
         </div>
       </details>
 
-      <div class="panel" id="personal-holidays">
-        <h2>{{ __('自分の休日') }}</h2>
-        <p class="hint">{{ __('ここで設定した休日は、あなたのカレンダーと Todo にだけ反映されます。他の人には見えません。') }}</p>
-        <div class="storage-form-actions">
-          <a class="button-link" href="/mypage/holidays">{{ __('休日を設定する') }}</a>
+      <details class="app-accordion mypage-accordion" id="personal-holidays" data-accordion-key="mypage-holidays">
+        <summary class="app-accordion-summary">
+          <span>{{ __('自分の休日') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          <p class="hint">{{ __('ここで設定した休日は、あなたのカレンダーと Todo にだけ反映されます。他の人には見えません。') }}</p>
+          <div class="storage-form-actions">
+            <a class="button-link" href="/mypage/holidays">{{ __('休日を設定する') }}</a>
+          </div>
         </div>
-      </div>
+      </details>
 
       <details class="app-accordion mypage-accordion mypage-accordion-danger" id="account-delete" data-accordion-key="mypage-account-delete">
         <summary class="app-accordion-summary">

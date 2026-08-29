@@ -49,6 +49,7 @@ class MyPageProfileTest extends TestCase
             ->assertSee('data-accordion-key="mypage-password"', false)
             ->assertSee('data-accordion-key="mypage-line"', false)
             ->assertSee('data-accordion-key="mypage-web-push"', false)
+            ->assertSee('data-accordion-key="mypage-holidays"', false)
             ->assertSee('data-accordion-key="mypage-account-delete"', false)
             ->assertSee('Googleカレンダー設定', false);
     }
