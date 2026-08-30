@@ -22186,6 +22186,13 @@ button.msg-icon-tool.is-listening,
   padding: 14px 14px;
 }
 
+.dash-app-install > .app-accordion-summary > h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--dash-home-text, #202124);
+}
+
 .dash-app-install > .app-accordion-body {
   padding: 0 14px 14px;
 }
