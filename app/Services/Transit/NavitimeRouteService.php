@@ -2,10 +2,13 @@
 
 namespace App\Services\Transit;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\GoogleMapsConfigService;
 use App\Services\IntegrationUsageService;
 use App\Services\NavitimeConfigService;
 use App\Services\Transit\Raptor\ItineraryScorer;
+use App\Services\UserUsageLimitService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -70,12 +73,19 @@ class NavitimeRouteService
         ];
         $params += $this->timeParams((string) ($query['departureAt'] ?? ''), (string) ($query['timeType'] ?? 'departure'));
 
+        try {
+            $this->assertRouteBudget();
+        } catch (UsageLimitExceededException $e) {
+            return ['ok' => false, 'message' => $e->getMessage(), 'itineraries' => []];
+        }
+
         $result = $this->navitime->get('route_transit', $params);
         if (! $result['ok']) {
             return ['ok' => false, 'message' => $result['message'], 'itineraries' => []];
         }
 
         $this->usage->increment('navitime');
+        $this->consumeRouteBudget();
 
         $items = is_array($result['data']['items'] ?? null) ? $result['data']['items'] : [];
         $itineraries = [];
@@ -416,5 +426,23 @@ class NavitimeRouteService
         $m = intdiv($sec % 3600, 60);
 
         return $h > 0 ? $h.'時間'.$m.'分' : $m.'分';
+    }
+
+    private function assertRouteBudget(): void
+    {
+        $user = Auth::user();
+        if (! $user instanceof \App\Models\User) {
+            return;
+        }
+        app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+    }
+
+    private function consumeRouteBudget(): void
+    {
+        $user = Auth::user();
+        if (! $user instanceof \App\Models\User) {
+            return;
+        }
+        app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
     }
 }

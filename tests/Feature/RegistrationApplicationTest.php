@@ -62,6 +62,27 @@ class RegistrationApplicationTest extends TestCase
         ])->assertRedirect('/');
     }
 
+    public function test_apply_rejects_closed_plan_while_other_plans_remain_open(): void
+    {
+        Registration::setApplicationsOpenByPlan([
+            'light' => false,
+            'standard' => true,
+            'tenant' => false,
+            'dedicated' => false,
+        ]);
+
+        $this->get('/apply?plan=light')->assertRedirect('/');
+        $this->get('/apply?plan=standard')->assertOk();
+
+        $this->post('/apply', [
+            'plan' => 'light',
+            'display_name' => '閉',
+            'email' => 'closed-plan@example.com',
+            'message' => $this->purpose(),
+            'agreeTerms' => '1',
+        ])->assertRedirect('/');
+    }
+
     public function test_light_application_is_auto_approved_without_admin_mail(): void
     {
         Mail::fake();

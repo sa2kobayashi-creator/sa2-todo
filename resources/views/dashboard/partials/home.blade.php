@@ -20,12 +20,16 @@
         <span class="dash-home-count-num">{{ (int) ($counts['events'] ?? 0) }}</span>
         <span class="dash-home-count-label">{{ __('今日の予定') }}</span>
       </li>
-      <li>
+      <li class="dash-home-count-todo">
         <a class="dash-home-count-link" href="{{ $links['todosToday'] ?? '/todos?view=day' }}">
           <span class="dash-home-count-icon" aria-hidden="true">✓</span>
           <span class="dash-home-count-num">{{ (int) ($counts['todos'] ?? 0) }}</span>
           <span class="dash-home-count-label">{{ __('今日のTodo') }}</span>
         </a>
+        @include('partials.usage-limit-warnings', [
+          'warnings' => $usageWarnings ?? [],
+          'compact' => true,
+        ])
       </li>
       @if($unreadCount > 0)
         <li class="is-attention">

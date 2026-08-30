@@ -21,16 +21,20 @@
         · {{ __('回数・文字数は契約メンバー合算です') }}
       @endif
     </p>
+    @include('partials.usage-limit-warnings', ['warnings' => $remaining['warnings'] ?? []])
     <div class="usage-overview-grid">
-      @foreach(['translate' => __('翻訳'), 'llm_voice' => __('音声AI'), 'workers_ai' => __('生活ガイド')] as $meter => $label)
+      @foreach(\App\Services\UserUsageLimitService::featureShortLabels() as $meter => $label)
         @php $m = $remaining['meters'][$meter] ?? null; @endphp
         @if(!$m)
           @continue
         @endif
-        <article class="usage-overview-card">
+        <article class="usage-overview-card{{ !empty($m['warn_level']) ? ' is-'.$m['warn_level'] : '' }}">
           <strong>{{ $label }}</strong>
           <span>{{ __('本日') }} {{ number_format((int) $m['used_today']) }}@if((int) $m['daily_limit'] > 0) / {{ number_format((int) $m['daily_limit']) }}@else / {{ __('上限なし') }}@endif</span>
           <span>{{ __('今月') }} {{ number_format((int) $m['used_month']) }}@if((int) $m['monthly_limit'] > 0) / {{ number_format((int) $m['monthly_limit']) }}@else / {{ __('上限なし') }}@endif</span>
+          @if(!empty($m['warn_message']))
+            <p class="usage-overview-warn is-{{ $m['warn_level'] }}">{{ $m['warn_message'] }}</p>
+          @endif
         </article>
       @endforeach
     </div>

@@ -155,7 +155,9 @@ class SettingsController extends Controller
             'appInstallSettings' => $section === 'sales' && $isSuperAdmin
                 ? app(\App\Services\AppInstallConfigService::class)->formState()
                 : null,
-            'applicationsOpen' => $section === 'sales' ? \App\Support\Registration::applicationsOpen() : null,
+            'applicationsOpenByPlan' => $section === 'sales'
+                ? \App\Support\Registration::applicationsOpenByPlan()
+                : null,
             'serverRuntime' => $section === 'sales' ? ServerRuntimeStatus::formState() : null,
             'siteStats' => $section === 'stats' && $isSuperAdmin
                 ? $this->siteStats->dashboard($statsDays)

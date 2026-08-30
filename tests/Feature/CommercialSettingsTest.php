@@ -34,7 +34,7 @@ class CommercialSettingsTest extends TestCase
             ->assertSee('id="app-install-settings"', false)
             ->assertSee(__('アプリインストール（Android APK）'), false)
             ->assertSee('id="registration-applications-settings"', false)
-            ->assertSee(__('申請申し込みを開始する'), false)
+            ->assertSee(__('スタンダードの申請を開始する'), false)
             ->assertSee('id="stripe-billing-settings"', false)
             ->assertSee('TRUSTED_PROXIES', false)
             ->assertSee('Webhook URL', false);
@@ -154,6 +154,7 @@ class CommercialSettingsTest extends TestCase
             ->post('/settings/sales/applications', [])
             ->assertRedirect('/settings?section=sales#registration-applications-settings');
         $this->assertFalse(\App\Support\Registration::applicationsOpen());
+        $this->assertFalse(\App\Support\Registration::applicationsOpenFor('standard'));
 
         auth()->logout();
         $this->get('/')
@@ -164,14 +165,46 @@ class CommercialSettingsTest extends TestCase
         $this->get('/apply')->assertRedirect('/');
 
         $this->actingAs($owner)
-            ->post('/settings/sales/applications', ['applications_open' => '1'])
+            ->post('/settings/sales/applications', [
+                'applications_open_light' => '1',
+                'applications_open_standard' => '1',
+                'applications_open_tenant' => '1',
+                'applications_open_dedicated' => '1',
+            ])
             ->assertRedirect('/settings?section=sales#registration-applications-settings');
         $this->assertTrue(\App\Support\Registration::applicationsOpen());
+        $this->assertTrue(\App\Support\Registration::applicationsOpenFor('standard'));
 
         auth()->logout();
         $this->get('/')
             ->assertOk()
             ->assertSee('href="/apply?plan=standard"', false);
+    }
+
+    public function test_super_admin_can_open_plans_independently(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-apps-per-plan@example.com');
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/applications', [
+                'applications_open_standard' => '1',
+            ])
+            ->assertRedirect('/settings?section=sales#registration-applications-settings');
+
+        $this->assertTrue(\App\Support\Registration::applicationsOpenFor('standard'));
+        $this->assertFalse(\App\Support\Registration::applicationsOpenFor('light'));
+        $this->assertFalse(\App\Support\Registration::applicationsOpenFor('tenant'));
+        $this->assertFalse(\App\Support\Registration::applicationsOpenFor('dedicated'));
+
+        auth()->logout();
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('href="/apply?plan=standard"', false)
+            ->assertDontSee('href="/apply?plan=light"', false)
+            ->assertDontSee('data-stat-event="cta.plan.dedicated"', false);
+
+        $this->get('/apply?plan=light')->assertRedirect('/');
+        $this->get('/apply?plan=standard')->assertOk();
     }
 
     public function test_super_admin_can_save_stripe_keys_without_enabling_checkout(): void

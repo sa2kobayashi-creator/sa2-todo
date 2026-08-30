@@ -12,6 +12,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\BillingEntitlementService;
 use App\Services\TenantContractService;
+use App\Services\UsageLimitPolicyService;
+use App\Services\UserUsageLimitService;
 use App\Support\FooterNav;
 use App\Support\Registration;
 use Illuminate\Http\Request;
@@ -26,17 +28,26 @@ class UserController extends Controller
     public function __construct(
         private BillingEntitlementService $billing,
         private TenantContractService $tenants,
+        private UserUsageLimitService $usageLimits,
+        private UsageLimitPolicyService $usagePolicies,
     ) {}
 
     public function index(Request $request)
     {
         $actor = $request->user();
-        $users = User::query()
+        $models = User::query()
             ->with('tenant')
             ->visibleTo($actor)
             ->orderBy('id')
-            ->get()
-            ->map(fn (User $user) => $this->presentUser($user, $request));
+            ->get();
+
+        $usageByUser = $this->usageLimits->monthUsageByUserIds($models->pluck('id')->all());
+
+        $users = $models->map(fn (User $user) => $this->presentUser(
+            $user,
+            $request,
+            $usageByUser[(int) $user->id] ?? null
+        ));
 
         return view('admin.users.index', array_merge($this->flashFromQuery($request), $this->formMeta($actor), [
             'users' => $users,
@@ -89,6 +100,8 @@ class UserController extends Controller
         return view('admin.users.show', array_merge($this->flashFromQuery($request), [
             'user' => $this->presentUser($user, $request),
             'menuFeatures' => MenuFeature::assignable(),
+            'usageDetail' => $this->usagePolicies->remainingSummary($user, $this->usageLimits),
+            'usageMonthParts' => ($this->usageLimits->monthUsageByUserIds([(int) $user->id])[(int) $user->id]['parts'] ?? []),
         ]));
     }
 
@@ -308,7 +321,7 @@ class UserController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function presentUser(User $user, Request $request): array
+    private function presentUser(User $user, Request $request, ?array $monthUsage = null): array
     {
         $actor = $request->user();
         $menuLabels = collect(MenuFeature::assignable())
@@ -321,6 +334,12 @@ class UserController extends Controller
             ? __('すべて（運営者）')
             : __('すべて（管理者）');
 
+        $monthUsage ??= $this->usageLimits->monthUsageByUserIds([(int) $user->id])[(int) $user->id] ?? [
+            'parts' => [],
+            'total' => 0,
+            'by_feature' => [],
+        ];
+
         return [
             ...$user->toPublicArray(),
             'isSelf' => $user->id === $actor->id,
@@ -330,6 +349,8 @@ class UserController extends Controller
             'menuFeatureLabels' => $user->isAdmin()
                 ? [$staffLabel]
                 : $menuLabels,
+            'usageMonthParts' => $monthUsage['parts'] ?? [],
+            'usageMonthTotal' => (int) ($monthUsage['total'] ?? 0),
         ];
     }
 

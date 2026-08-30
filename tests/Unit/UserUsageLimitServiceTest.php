@@ -283,4 +283,94 @@ class UserUsageLimitServiceTest extends TestCase
         $this->expectException(UsageLimitExceededException::class);
         $svc->consume($member, UserUsageLimitService::FEATURE_WORKERS_AI, 1);
     }
+
+    public function test_unsaved_policies_use_suggested_monthly_limits_on_mypage_summary(): void
+    {
+        $user = User::create([
+            'email' => 'unsaved-month@example.com',
+            'display_name' => 'Unsaved',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $policies = app(UsageLimitPolicyService::class);
+        $this->assertSame(200_000, $policies->monthlyLimit($user, UsageLimitPolicyService::FEATURE_TRANSLATE));
+        $this->assertSame(100, $policies->monthlyLimit($user, UsageLimitPolicyService::FEATURE_LLM_VOICE));
+        $this->assertSame(80, $policies->monthlyLimit($user, UsageLimitPolicyService::FEATURE_WORKERS_AI));
+
+        $summary = $policies->remainingSummary($user, app(UserUsageLimitService::class));
+        $this->assertSame(200_000, $summary['meters']['translate']['monthly_limit']);
+        $this->assertSame('light', $summary['plan']);
+        $this->assertSame(100, $summary['meters'][UsageLimitPolicyService::FEATURE_ROUTE_SEARCH]['monthly_limit']);
+        $this->assertSame(50, $summary['meters'][UsageLimitPolicyService::FEATURE_YOUTUBE]['monthly_limit']);
+        $this->assertSame(30, $summary['meters'][UsageLimitPolicyService::FEATURE_CLOUDINARY]['monthly_limit']);
+        $this->assertSame(20, $summary['meters'][UsageLimitPolicyService::FEATURE_LIVEKIT]['monthly_limit']);
+        $this->assertSame([], $summary['warnings']);
+    }
+
+    public function test_monthly_usage_warnings_at_80_90_and_100_percent(): void
+    {
+        $policies = app(UsageLimitPolicyService::class);
+        $templates = $policies->suggestedTemplates();
+        $templates['light']['translate_chars_per_month'] = 100;
+        $policies->save($templates, $policies->suggestedPlatform());
+
+        $user = User::create([
+            'email' => 'warn-month@example.com',
+            'display_name' => 'Warn',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $svc = app(UserUsageLimitService::class);
+        $svc->consume($user, UserUsageLimitService::FEATURE_TRANSLATE, 80);
+        $summary = $policies->remainingSummary($user, $svc);
+        $this->assertSame('warn', $summary['meters']['translate']['warn_level']);
+        $this->assertStringContainsString('80%', (string) $summary['meters']['translate']['warn_message']);
+        $this->assertCount(1, $summary['warnings']);
+
+        $svc->consume($user, UserUsageLimitService::FEATURE_TRANSLATE, 10);
+        $summary = $policies->remainingSummary($user, $svc);
+        $this->assertSame('critical', $summary['meters']['translate']['warn_level']);
+        $this->assertStringContainsString('残り', (string) $summary['meters']['translate']['warn_message']);
+
+        $svc->consume($user, UserUsageLimitService::FEATURE_TRANSLATE, 10);
+        $summary = $policies->remainingSummary($user, $svc);
+        $this->assertSame('stopped', $summary['meters']['translate']['warn_level']);
+        $this->assertStringContainsString('停止', (string) $summary['meters']['translate']['warn_message']);
+    }
+
+    public function test_route_search_consume_is_blocked_by_daily_limit(): void
+    {
+        config(['usage_limits.route_search_requests_per_day' => 1]);
+
+        $user = User::create([
+            'email' => 'route-limit@example.com',
+            'display_name' => 'Route',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $svc = app(UserUsageLimitService::class);
+        $svc->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+        $this->expectException(UsageLimitExceededException::class);
+        $svc->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+    }
+
+    public function test_explicit_zero_monthly_limit_stays_unlimited(): void
+    {
+        $policies = app(UsageLimitPolicyService::class);
+        $templates = $policies->suggestedTemplates();
+        $templates['light']['translate_chars_per_month'] = 0;
+        $policies->save($templates, $policies->suggestedPlatform());
+
+        $user = User::create([
+            'email' => 'zero-month@example.com',
+            'display_name' => 'Zero',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $this->assertSame(0, $policies->monthlyLimit($user, UsageLimitPolicyService::FEATURE_TRANSLATE));
+    }
 }

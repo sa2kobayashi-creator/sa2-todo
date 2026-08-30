@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\PhotoService;
+use App\Services\UserUsageLimitService;
 use App\Services\YoutubeVideoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,8 +91,27 @@ class VideoController extends Controller
         }
 
         if ($searchQuery !== '') {
+            try {
+                app(UserUsageLimitService::class)->assertWithin(
+                    $request->user(),
+                    UserUsageLimitService::FEATURE_YOUTUBE,
+                    1
+                );
+            } catch (UsageLimitExceededException $e) {
+                $searchMessage = $e->getMessage();
+                $searchIsError = true;
+                $searchQuery = '';
+            }
+        }
+
+        if ($searchQuery !== '') {
             $result = $this->youtube->search($searchQuery, $pageToken !== '' ? $pageToken : null);
             if (! empty($result['ok'])) {
+                app(UserUsageLimitService::class)->consume(
+                    $request->user(),
+                    UserUsageLimitService::FEATURE_YOUTUBE,
+                    1
+                );
                 $searchResults = is_array($result['items'] ?? null) ? $result['items'] : [];
                 $searchNextToken = is_string($result['nextPageToken'] ?? null) ? $result['nextPageToken'] : null;
                 $searchPrevToken = is_string($result['prevPageToken'] ?? null) ? $result['prevPageToken'] : null;
@@ -238,17 +259,51 @@ class VideoController extends Controller
 
     public function searchYoutube(Request $request): JsonResponse
     {
+        try {
+            app(UserUsageLimitService::class)->assertWithin(
+                $request->user(),
+                UserUsageLimitService::FEATURE_YOUTUBE,
+                1
+            );
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
+        }
+
         $result = $this->youtube->search(
             (string) $request->input('q', ''),
             $request->input('pageToken')
         );
+        if (! empty($result['ok'])) {
+            app(UserUsageLimitService::class)->consume(
+                $request->user(),
+                UserUsageLimitService::FEATURE_YOUTUBE,
+                1
+            );
+        }
 
         return response()->json($result, ! empty($result['ok']) ? 200 : 422);
     }
 
-    public function popularYoutube(): JsonResponse
+    public function popularYoutube(Request $request): JsonResponse
     {
+        try {
+            app(UserUsageLimitService::class)->assertWithin(
+                $request->user(),
+                UserUsageLimitService::FEATURE_YOUTUBE,
+                1
+            );
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
+        }
+
         $result = $this->youtube->popularVideos();
+        if (! empty($result['ok'])) {
+            app(UserUsageLimitService::class)->consume(
+                $request->user(),
+                UserUsageLimitService::FEATURE_YOUTUBE,
+                1
+            );
+        }
 
         return response()->json($result, ! empty($result['ok']) ? 200 : 422);
     }

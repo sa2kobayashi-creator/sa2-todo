@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\GroupService;
 use App\Services\PhotoService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 
 class PhotoController extends Controller
@@ -837,7 +839,19 @@ class PhotoController extends Controller
     public function cloudinaryEditStart(Request $request, int $id)
     {
         try {
+            app(UserUsageLimitService::class)->assertWithin(
+                $request->user(),
+                UserUsageLimitService::FEATURE_CLOUDINARY,
+                1
+            );
             $session = $this->photos->startCloudinaryEdit((int) $request->user()->id, $id);
+            app(UserUsageLimitService::class)->consume(
+                $request->user(),
+                UserUsageLimitService::FEATURE_CLOUDINARY,
+                1
+            );
+        } catch (UsageLimitExceededException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 429);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }

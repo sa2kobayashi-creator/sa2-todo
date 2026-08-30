@@ -30,8 +30,20 @@ class ApplyController extends Controller
             return $this->redirectWithMessage('/', __('現在、利用申請の受付は準備中です。'), 'error');
         }
 
-        $plan = RegistrationApplicationPlan::tryFrom((string) $request->query('plan', 'standard'))
-            ?? RegistrationApplicationPlan::Standard;
+        $openPlans = array_values(array_filter(
+            RegistrationApplicationPlan::applyable(),
+            static fn (RegistrationApplicationPlan $p) => \App\Support\Registration::applicationsOpenFor($p->value)
+        ));
+        if ($openPlans === []) {
+            return $this->redirectWithMessage('/', __('現在、利用申請の受付は準備中です。'), 'error');
+        }
+
+        $requested = RegistrationApplicationPlan::tryFrom((string) $request->query('plan', ''));
+        if ($requested !== null && ! \App\Support\Registration::applicationsOpenFor($requested->value)) {
+            return $this->redirectWithMessage('/', __('現在、このプランの利用申請は準備中です。'), 'error');
+        }
+
+        $plan = $requested ?? $openPlans[0];
 
         if (! $this->stats->shouldSkipRequest($request)) {
             $this->stats->increment(SiteStatEvent::APPLY_VIEW);
@@ -43,7 +55,7 @@ class ApplyController extends Controller
         }
 
         return view('apply.index', array_merge($this->flashFromQuery($request), [
-            'plans' => RegistrationApplicationPlan::applyable(),
+            'plans' => $openPlans,
             'selectedPlan' => $plan,
             'standardMonthlyYen' => (int) config('commercial.standard_yen_monthly', 980),
             'standardTrialDays' => (int) config('commercial.standard_trial_days', 14),
@@ -70,6 +82,9 @@ class ApplyController extends Controller
         ]);
 
         $plan = (string) $request->input('plan', '');
+        if ($plan === '' || ! \App\Support\Registration::applicationsOpenFor($plan)) {
+            return $this->redirectWithMessage('/', __('現在、このプランの利用申請は準備中です。'), 'error');
+        }
 
         $validator = Validator::make($request->all(), [
             'plan' => ['required', 'in:light,standard,tenant'],

@@ -2,9 +2,13 @@
 
 namespace App\Services\Transit;
 
+use App\Exceptions\UsageLimitExceededException;
+use App\Models\User;
 use App\Services\GoogleRoutesConfigService;
 use App\Services\IntegrationUsageService;
 use App\Services\Transit\Raptor\ItineraryScorer;
+use App\Services\UserUsageLimitService;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Google Maps Routes API の公共交通ルートを、画面共通の itinerary 形式に変換する。
@@ -48,6 +52,15 @@ class GoogleRoutesRouteService
         ];
         $body += $this->timeParams((string) ($query['departureAt'] ?? ''), (string) ($query['timeType'] ?? 'departure'));
 
+        try {
+            $user = Auth::user();
+            if ($user instanceof User) {
+                app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+            }
+        } catch (UsageLimitExceededException $e) {
+            return ['ok' => false, 'message' => $e->getMessage(), 'itineraries' => []];
+        }
+
         $result = $this->routes->computeRoutes($body);
         if (! $result['ok']) {
             return ['ok' => false, 'message' => $result['message'], 'itineraries' => []];
@@ -63,6 +76,10 @@ class GoogleRoutesRouteService
         }
 
         $this->usage->increment('google_routes');
+        $user = Auth::user();
+        if ($user instanceof User) {
+            app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+        }
 
         $limit = max(1, min(10, (int) ($query['limit'] ?? 5)));
         $itineraries = [];

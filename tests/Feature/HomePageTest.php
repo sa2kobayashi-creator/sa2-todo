@@ -133,6 +133,19 @@ class HomePageTest extends TestCase
             ->assertDontSee('href="/apply?plan=standard"', false)
             ->assertDontSee('data-stat-event="cta.plan.standard"', false);
 
+        Registration::setApplicationsOpenByPlan([
+            'light' => false,
+            'standard' => true,
+            'tenant' => false,
+            'dedicated' => true,
+        ]);
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
+            ->assertSee('href="/apply?plan=standard"', false)
+            ->assertDontSee('href="/apply?plan=light"', false)
+            ->assertSee('data-stat-event="cta.plan.dedicated"', false);
+
         Registration::setApplicationsOpen(true);
         $this->get('/')
             ->assertOk()

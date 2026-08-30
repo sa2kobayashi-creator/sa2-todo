@@ -35,6 +35,7 @@
             'event' => 'cta.apply',
             'class' => 'lp-btn lp-btn-primary',
             'label' => __('利用申請'),
+            'applicationsOpen' => !empty($applicationsOpen),
           ])
           @if(!empty($registrationOpen))
             <a href="/register" data-stat-event="cta.register_invite" class="lp-btn lp-btn-ghost">{{ __('招待コードで登録') }}</a>
@@ -58,6 +59,7 @@
                 'event' => 'cta.plan.light',
                 'class' => 'lp-btn lp-btn-primary lp-btn-lg',
                 'label' => __('無料で試してみる'),
+                'plan' => 'light',
               ])
               <a href="#pricing" class="lp-btn lp-btn-ghost lp-btn-lg">{{ __('料金プランを見る') }}</a>
             </p>
@@ -255,7 +257,7 @@
       <section class="lp-section" id="pricing" aria-labelledby="landing-plans-title">
         <h2 id="landing-plans-title">{{ __('料金プラン') }}</h2>
         <p class="lp-section-lead">{{ __('Sa2 Plusでは、無料で試せるライトプラン、個人向けのスタンダードプラン、家族・小規模組織向けのテナント契約、専用環境をご用意しています。') }}</p>
-        @if(empty($applicationsOpen))
+        @if(empty($applicationsFullyOpen))
           <p class="lp-plans-prep-notice" role="status">
             {{ __('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。') }}
           </p>
@@ -282,6 +284,7 @@
                 'event' => 'cta.plan.standard',
                 'class' => 'lp-btn lp-btn-primary lp-plan-cta',
                 'label' => __('スタンダードを申請する'),
+                'plan' => 'standard',
               ])
             </div>
           </article>
@@ -308,6 +311,7 @@
                 'event' => 'cta.plan.tenant',
                 'class' => 'lp-btn lp-btn-primary lp-plan-cta',
                 'label' => __('テナント契約を申請する'),
+                'plan' => 'tenant',
               ])
             </div>
           </article>
@@ -332,6 +336,7 @@
                 'event' => 'cta.plan.light',
                 'class' => 'lp-btn lp-btn-ghost lp-plan-cta',
                 'label' => __('ライト（お試し）を申請する'),
+                'plan' => 'light',
               ])
             </div>
           </article>
@@ -356,7 +361,13 @@
                 <li><span>{{ __('メールボックス（1アドレス）') }}</span><strong>{{ __('¥300／月 または ¥3,000／年') }}</strong></li>
               </ul>
               <p class="hint">{{ __('専用は別サーバーです。共有 sa2-plus.com 上の管理者契約はテナント契約です。') }}</p>
-              <a href="#contact" class="lp-btn lp-btn-ghost lp-plan-cta">{{ __('専用環境の相談') }}</a>
+              @include('partials.lp-apply-cta', [
+                'href' => '#contact',
+                'event' => 'cta.plan.dedicated',
+                'class' => 'lp-btn lp-btn-ghost lp-plan-cta',
+                'label' => __('専用環境の相談'),
+                'plan' => 'dedicated',
+              ])
             </div>
           </article>
         </div>
@@ -494,6 +505,7 @@
             'event' => 'cta.plan.light',
             'class' => 'lp-btn lp-btn-primary',
             'label' => __('無料で試す'),
+            'plan' => 'light',
           ])
           <a href="#pricing" class="lp-btn lp-btn-ghost">{{ __('料金プランを見る') }}</a>
           <a href="#contact" class="lp-btn lp-btn-ghost">{{ __('お問い合わせ') }}</a>
@@ -540,6 +552,7 @@
             'event' => 'cta.plan.light',
             'class' => 'lp-btn lp-btn-on-dark',
             'label' => __('無料で試してみる'),
+            'plan' => 'light',
           ])
           <a href="#pricing" class="lp-btn lp-btn-on-dark">{{ __('料金プランを見る') }}</a>
         </p>

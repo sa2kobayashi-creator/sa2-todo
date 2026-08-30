@@ -13,6 +13,8 @@ use App\Services\HolidayService;
 use App\Services\NoteService;
 use App\Services\TodoService;
 use App\Services\TodoShortcutService;
+use App\Services\UsageLimitPolicyService;
+use App\Services\UserUsageLimitService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -31,6 +33,8 @@ class DashboardController extends Controller
         private AppContextService $contexts,
         private GoogleCalendarService $googleCalendar,
         private GroupService $groups,
+        private UsageLimitPolicyService $usageLimits,
+        private UserUsageLimitService $userUsageLimits,
     ) {}
 
     public function index(Request $request)
@@ -63,6 +67,7 @@ class DashboardController extends Controller
         $context = $this->contexts->current($user, $request);
         $allTodos = $this->todos->listTodos($userId, $context)->all();
         $home = $this->home->build($user, $allTodos, $context);
+        $usageRemaining = $this->usageLimits->remainingSummary($user, $this->userUsageLimits);
         $activeNotes = $this->notes->listActiveNotesForCalendar($userId);
 
         if ($context === AppContext::Work) {
@@ -130,6 +135,7 @@ class DashboardController extends Controller
             'notesForJs' => $activeNotes,
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'home' => $home,
+            'usageWarnings' => $usageRemaining['warnings'] ?? [],
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'pendingGroupInvitations' => $this->groups->listPendingInvitationsForUser($userId),

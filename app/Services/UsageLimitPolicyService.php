@@ -18,6 +18,14 @@ class UsageLimitPolicyService
 
     public const FEATURE_WORKERS_AI = 'workers_ai';
 
+    public const FEATURE_ROUTE_SEARCH = 'route_search';
+
+    public const FEATURE_YOUTUBE = 'youtube';
+
+    public const FEATURE_CLOUDINARY = 'cloudinary';
+
+    public const FEATURE_LIVEKIT = 'livekit';
+
     /** @return list<string> */
     public static function meterFeatures(): array
     {
@@ -25,6 +33,10 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE,
             self::FEATURE_LLM_VOICE,
             self::FEATURE_WORKERS_AI,
+            self::FEATURE_ROUTE_SEARCH,
+            self::FEATURE_YOUTUBE,
+            self::FEATURE_CLOUDINARY,
+            self::FEATURE_LIVEKIT,
         ];
     }
 
@@ -33,8 +45,33 @@ class UsageLimitPolicyService
         $translateDay = max(0, (int) config('usage_limits.translate_chars_per_day', 50_000));
         $voiceDay = max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30));
         $guideDay = max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20));
+        $routeDay = max(0, (int) config('usage_limits.route_search_requests_per_day', 30));
+        $youtubeDay = max(0, (int) config('usage_limits.youtube_requests_per_day', 20));
+        $cloudinaryDay = max(0, (int) config('usage_limits.cloudinary_requests_per_day', 10));
+        $livekitDay = max(0, (int) config('usage_limits.livekit_requests_per_day', 10));
         $lightGb = $this->bytesToGb((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
         $standardGb = $this->bytesToGb((int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
+
+        $lightExtras = [
+            'route_search_requests_per_day' => 15,
+            'route_search_requests_per_month' => 100,
+            'youtube_requests_per_day' => 10,
+            'youtube_requests_per_month' => 50,
+            'cloudinary_requests_per_day' => 5,
+            'cloudinary_requests_per_month' => 30,
+            'livekit_requests_per_day' => 5,
+            'livekit_requests_per_month' => 20,
+        ];
+        $standardExtras = [
+            'route_search_requests_per_day' => $routeDay,
+            'route_search_requests_per_month' => $routeDay * 10,
+            'youtube_requests_per_day' => $youtubeDay,
+            'youtube_requests_per_month' => $youtubeDay * 10,
+            'cloudinary_requests_per_day' => $cloudinaryDay,
+            'cloudinary_requests_per_month' => $cloudinaryDay * 10,
+            'livekit_requests_per_day' => $livekitDay,
+            'livekit_requests_per_month' => $livekitDay * 10,
+        ];
 
         return [
             UsageLimitPolicy::PLAN_LIGHT => [
@@ -45,6 +82,7 @@ class UsageLimitPolicyService
                 'llm_voice_requests_per_month' => 100,
                 'workers_ai_requests_per_day' => 8,
                 'workers_ai_requests_per_month' => 80,
+                ...$lightExtras,
             ],
             UsageLimitPolicy::PLAN_STANDARD => [
                 'storage_quota_gb' => max(1, (int) round($standardGb)),
@@ -54,6 +92,7 @@ class UsageLimitPolicyService
                 'llm_voice_requests_per_month' => $voiceDay * 10,
                 'workers_ai_requests_per_day' => $guideDay,
                 'workers_ai_requests_per_month' => $guideDay * 10,
+                ...$standardExtras,
             ],
             UsageLimitPolicy::PLAN_SPECIAL => [
                 'storage_quota_gb' => max(1, (int) round($lightGb)),
@@ -63,6 +102,7 @@ class UsageLimitPolicyService
                 'llm_voice_requests_per_month' => 100,
                 'workers_ai_requests_per_day' => 8,
                 'workers_ai_requests_per_month' => 80,
+                ...$lightExtras,
             ],
             UsageLimitPolicy::PLAN_TENANT => [
                 'storage_quota_gb' => max(1, (int) round($standardGb)),
@@ -72,6 +112,14 @@ class UsageLimitPolicyService
                 'llm_voice_requests_per_month' => $voiceDay * 10,
                 'workers_ai_requests_per_day' => max($guideDay, 40),
                 'workers_ai_requests_per_month' => max($guideDay, 40) * 10,
+                'route_search_requests_per_day' => max($routeDay, 60),
+                'route_search_requests_per_month' => max($routeDay, 60) * 10,
+                'youtube_requests_per_day' => max($youtubeDay, 40),
+                'youtube_requests_per_month' => max($youtubeDay, 40) * 10,
+                'cloudinary_requests_per_day' => max($cloudinaryDay, 20),
+                'cloudinary_requests_per_month' => max($cloudinaryDay, 20) * 10,
+                'livekit_requests_per_day' => max($livekitDay, 20),
+                'livekit_requests_per_month' => max($livekitDay, 20) * 10,
             ],
         ];
     }
@@ -84,6 +132,10 @@ class UsageLimitPolicyService
             'yen_per_llm_voice' => max(0, (int) config('usage_limits.yen_per_llm_voice', 5)),
             'yen_per_workers_ai' => max(0, (int) config('usage_limits.yen_per_workers_ai', 3)),
             'yen_per_translate_1000' => max(0, (int) config('usage_limits.yen_per_translate_1000', 2)),
+            'yen_per_route_search' => max(0, (int) config('usage_limits.yen_per_route_search', 4)),
+            'yen_per_youtube' => max(0, (int) config('usage_limits.yen_per_youtube', 2)),
+            'yen_per_cloudinary' => max(0, (int) config('usage_limits.yen_per_cloudinary', 5)),
+            'yen_per_livekit' => max(0, (int) config('usage_limits.yen_per_livekit', 8)),
         ];
     }
 
@@ -192,12 +244,14 @@ class UsageLimitPolicyService
             return 0;
         }
 
-        $saved = $this->storedLimits($this->planForUser($user));
+        $plan = $this->planForUser($user);
+        $saved = $this->storedLimits($plan);
         if (array_key_exists($key, $saved)) {
             return max(0, (int) $saved[$key]);
         }
 
-        return 0;
+        // 未保存時は制限管理の提案テンプレート（月次）。0 は無制限扱いなので保存済みの 0 はそのまま。
+        return $this->suggestedLimit($plan, $key, 0);
     }
 
     /** 保存済みなら GB。なければ null（photos.php の既存ロジックへ）。 */
@@ -263,10 +317,18 @@ class UsageLimitPolicyService
 
         $translate = (int) ($rows['translate'] ?? 0);
         $workers = (int) ($rows['workers_ai'] ?? 0);
+        $route = (int) ($rows['route_search'] ?? 0);
+        $youtube = (int) ($rows['youtube'] ?? 0);
+        $cloudinary = (int) ($rows['cloudinary'] ?? 0);
+        $livekit = (int) ($rows['livekit'] ?? 0);
 
         $yen = $voice * max(0, (int) $platform['yen_per_llm_voice']);
         $yen += $workers * max(0, (int) $platform['yen_per_workers_ai']);
         $yen += (int) ceil($translate / 1000) * max(0, (int) $platform['yen_per_translate_1000']);
+        $yen += $route * max(0, (int) $platform['yen_per_route_search']);
+        $yen += $youtube * max(0, (int) $platform['yen_per_youtube']);
+        $yen += $cloudinary * max(0, (int) $platform['yen_per_cloudinary']);
+        $yen += $livekit * max(0, (int) $platform['yen_per_livekit']);
 
         return $yen;
     }
@@ -299,27 +361,88 @@ class UsageLimitPolicyService
      * @return array{
      *   plan: string,
      *   pool: bool,
-     *   meters: array<string, array{daily_limit: int, monthly_limit: int, used_today: int, used_month: int}>
+     *   meters: array<string, array{
+     *     daily_limit: int,
+     *     monthly_limit: int,
+     *     used_today: int,
+     *     used_month: int,
+     *     monthly_ratio: float,
+     *     warn_level: ?string,
+     *     warn_message: ?string
+     *   }>,
+     *   warnings: list<array{meter: string, label: string, level: string, message: string, ratio: float}>
      * }
      */
     public function remainingSummary(User $user, UserUsageLimitService $usage): array
     {
+        $labels = UserUsageLimitService::featureShortLabels();
         $meters = [];
-        foreach ([self::FEATURE_TRANSLATE, self::FEATURE_LLM_VOICE, self::FEATURE_WORKERS_AI] as $meter) {
+        $warnings = [];
+
+        foreach (self::meterFeatures() as $meter) {
             $feature = $meter === self::FEATURE_LLM_VOICE ? 'llm_voice' : $meter;
+            $dailyLimit = $this->dailyLimit($user, $meter);
+            $monthlyLimit = $this->monthlyLimit($user, $meter);
+            $usedToday = $usage->usedToday($user, $feature);
+            $usedMonth = $usage->usedThisMonth($user, $feature);
+            $ratio = $monthlyLimit > 0 ? min(1.0, $usedMonth / $monthlyLimit) : 0.0;
+            $label = (string) ($labels[$meter] ?? $meter);
+            [$level, $message] = $this->monthlyWarn($label, $ratio, $monthlyLimit);
+
             $meters[$meter] = [
-                'daily_limit' => $this->dailyLimit($user, $meter),
-                'monthly_limit' => $this->monthlyLimit($user, $meter),
-                'used_today' => $usage->usedToday($user, $feature),
-                'used_month' => $usage->usedThisMonth($user, $feature),
+                'daily_limit' => $dailyLimit,
+                'monthly_limit' => $monthlyLimit,
+                'used_today' => $usedToday,
+                'used_month' => $usedMonth,
+                'monthly_ratio' => $ratio,
+                'warn_level' => $level,
+                'warn_message' => $message,
             ];
+
+            if ($level !== null && $message !== null) {
+                $warnings[] = [
+                    'meter' => $meter,
+                    'label' => $label,
+                    'level' => $level,
+                    'message' => $message,
+                    'ratio' => $ratio,
+                ];
+            }
         }
+
+        usort($warnings, static fn (array $a, array $b) => $b['ratio'] <=> $a['ratio']);
 
         return [
             'plan' => $this->planForUser($user),
             'pool' => $this->usesTenantPool($user),
             'meters' => $meters,
+            'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string} [level, message]
+     */
+    private function monthlyWarn(string $label, float $ratio, int $monthlyLimit): array
+    {
+        if ($monthlyLimit <= 0) {
+            return [null, null];
+        }
+
+        $pct = (int) floor(min(100, $ratio * 100));
+        $remain = max(0, 100 - $pct);
+
+        if ($ratio >= 1.0) {
+            return ['stopped', __(':name停止', ['name' => $label])];
+        }
+        if ($ratio >= 0.9) {
+            return ['critical', __('残り:pct%です', ['pct' => max(1, $remain)])];
+        }
+        if ($ratio >= 0.8) {
+            return ['warn', __('今月の:name利用量が:pct%です', ['name' => $label, 'pct' => max(80, $pct)])];
+        }
+
+        return [null, null];
     }
 
     /** @return array<string, mixed> */
@@ -346,6 +469,14 @@ class UsageLimitPolicyService
             'llm_voice_requests_per_month',
             'workers_ai_requests_per_day',
             'workers_ai_requests_per_month',
+            'route_search_requests_per_day',
+            'route_search_requests_per_month',
+            'youtube_requests_per_day',
+            'youtube_requests_per_month',
+            'cloudinary_requests_per_day',
+            'cloudinary_requests_per_month',
+            'livekit_requests_per_day',
+            'livekit_requests_per_month',
         ];
         $clean = [];
         foreach ($keys as $key) {
@@ -364,6 +495,10 @@ class UsageLimitPolicyService
             'yen_per_llm_voice' => max(0, (int) ($row['yen_per_llm_voice'] ?? config('usage_limits.yen_per_llm_voice', 5))),
             'yen_per_workers_ai' => max(0, (int) ($row['yen_per_workers_ai'] ?? config('usage_limits.yen_per_workers_ai', 3))),
             'yen_per_translate_1000' => max(0, (int) ($row['yen_per_translate_1000'] ?? config('usage_limits.yen_per_translate_1000', 2))),
+            'yen_per_route_search' => max(0, (int) ($row['yen_per_route_search'] ?? config('usage_limits.yen_per_route_search', 4))),
+            'yen_per_youtube' => max(0, (int) ($row['yen_per_youtube'] ?? config('usage_limits.yen_per_youtube', 2))),
+            'yen_per_cloudinary' => max(0, (int) ($row['yen_per_cloudinary'] ?? config('usage_limits.yen_per_cloudinary', 5))),
+            'yen_per_livekit' => max(0, (int) ($row['yen_per_livekit'] ?? config('usage_limits.yen_per_livekit', 8))),
         ];
     }
 
@@ -373,6 +508,10 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE => 'translate_chars_per_day',
             self::FEATURE_LLM_VOICE => 'llm_voice_requests_per_day',
             self::FEATURE_WORKERS_AI => 'workers_ai_requests_per_day',
+            self::FEATURE_ROUTE_SEARCH => 'route_search_requests_per_day',
+            self::FEATURE_YOUTUBE => 'youtube_requests_per_day',
+            self::FEATURE_CLOUDINARY => 'cloudinary_requests_per_day',
+            self::FEATURE_LIVEKIT => 'livekit_requests_per_day',
             default => '',
         };
     }
@@ -383,6 +522,10 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE => 'translate_chars_per_month',
             self::FEATURE_LLM_VOICE => 'llm_voice_requests_per_month',
             self::FEATURE_WORKERS_AI => 'workers_ai_requests_per_month',
+            self::FEATURE_ROUTE_SEARCH => 'route_search_requests_per_month',
+            self::FEATURE_YOUTUBE => 'youtube_requests_per_month',
+            self::FEATURE_CLOUDINARY => 'cloudinary_requests_per_month',
+            self::FEATURE_LIVEKIT => 'livekit_requests_per_month',
             default => '',
         };
     }
@@ -393,8 +536,22 @@ class UsageLimitPolicyService
             self::FEATURE_TRANSLATE => max(0, (int) config('usage_limits.translate_chars_per_day', 50_000)),
             self::FEATURE_LLM_VOICE => max(0, (int) config('usage_limits.llm_voice_requests_per_day', 30)),
             self::FEATURE_WORKERS_AI => max(0, (int) config('usage_limits.workers_ai_requests_per_day', 20)),
+            self::FEATURE_ROUTE_SEARCH => max(0, (int) config('usage_limits.route_search_requests_per_day', 30)),
+            self::FEATURE_YOUTUBE => max(0, (int) config('usage_limits.youtube_requests_per_day', 20)),
+            self::FEATURE_CLOUDINARY => max(0, (int) config('usage_limits.cloudinary_requests_per_day', 10)),
+            self::FEATURE_LIVEKIT => max(0, (int) config('usage_limits.livekit_requests_per_day', 10)),
             default => 0,
         };
+    }
+
+    private function suggestedLimit(string $plan, string $key, int $fallback): int
+    {
+        $defaults = $this->suggestedTemplates()[$plan] ?? [];
+        if (array_key_exists($key, $defaults)) {
+            return max(0, (int) $defaults[$key]);
+        }
+
+        return max(0, $fallback);
     }
 
     private function hasActiveSubscription(User $user): bool

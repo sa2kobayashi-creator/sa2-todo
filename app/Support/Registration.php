@@ -6,6 +6,12 @@ use App\Models\MediaStorageSetting;
 
 final class Registration
 {
+    /** @return list<string> */
+    public static function applicationPlanKeys(): array
+    {
+        return ['light', 'standard', 'tenant', 'dedicated'];
+    }
+
     public static function isOpen(): bool
     {
         return self::inviteCode() !== '';
@@ -63,39 +69,111 @@ final class Registration
         $row->save();
     }
 
+    /** @return list<string> /apply で申し込めるプラン */
+    public static function applyablePlanKeys(): array
+    {
+        return ['light', 'standard', 'tenant'];
+    }
+
     /**
-     * TOP／利用申請（/apply）の受付。公開販売のチェックで保存。
-     * DB 未設定時は config（既定 true）＝既存公開を壊さない。
+     * /apply 受付（ライト／スタンダード／テナントのいずれかが開いているか）。
+     * 専用インスタンスは相談導線のため含めない。プラン別は applicationsOpenFor()。
      */
     public static function applicationsOpen(): bool
     {
-        try {
-            $query = MediaStorageSetting::query()
-                ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION);
-            if (MediaStorageSetting::hasTenantScopeColumn()) {
-                $query->where('tenant_scope', 0);
+        foreach (self::applyablePlanKeys() as $plan) {
+            if (self::applicationsOpenFor($plan)) {
+                return true;
             }
-            $row = $query->first();
-            if ($row) {
-                $settings = $row->settingsArray();
-                if (array_key_exists('applications_open', $settings)) {
-                    return (bool) $settings['applications_open'];
-                }
+        }
+
+        return false;
+    }
+
+    /** 最初に開いている申請可能プラン（なければ null） */
+    public static function firstOpenApplyablePlan(): ?string
+    {
+        foreach (self::applyablePlanKeys() as $plan) {
+            if (self::applicationsOpenFor($plan)) {
+                return $plan;
             }
-        } catch (\Throwable) {
-            // fall through
+        }
+
+        return null;
+    }
+
+    /** 全プランが受付中か（バナー「一部準備中」判定の逆）。 */
+    public static function applicationsFullyOpen(): bool
+    {
+        foreach (self::applicationPlanKeys() as $plan) {
+            if (! self::applicationsOpenFor($plan)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public static function applicationsOpenByPlan(): array
+    {
+        $out = [];
+        foreach (self::applicationPlanKeys() as $plan) {
+            $out[$plan] = self::applicationsOpenFor($plan);
+        }
+
+        return $out;
+    }
+
+    public static function applicationsOpenFor(string $plan): bool
+    {
+        $plan = strtolower(trim($plan));
+        if (! in_array($plan, self::applicationPlanKeys(), true)) {
+            return false;
+        }
+
+        $settings = self::registrationSettings();
+        $planKey = 'applications_open_'.$plan;
+        if (is_array($settings) && array_key_exists($planKey, $settings)) {
+            return (bool) $settings[$planKey];
+        }
+
+        // 旧・一括フラグからの移行
+        if (is_array($settings) && array_key_exists('applications_open', $settings)) {
+            return (bool) $settings['applications_open'];
         }
 
         return (bool) config('registration.applications_open', true);
     }
 
+    /** @deprecated 一括。内部では全プランに同じ値を書く */
     public static function setApplicationsOpen(bool $open): void
+    {
+        $flags = [];
+        foreach (self::applicationPlanKeys() as $plan) {
+            $flags[$plan] = $open;
+        }
+        self::setApplicationsOpenByPlan($flags);
+    }
+
+    /**
+     * @param  array<string, bool>  $openByPlan
+     */
+    public static function setApplicationsOpenByPlan(array $openByPlan): void
     {
         $row = MediaStorageSetting::writeForProvider(MediaStorageSetting::PROVIDER_REGISTRATION);
         $settings = $row->settingsArray();
-        $settings['applications_open'] = $open;
+        $any = false;
+        foreach (self::applicationPlanKeys() as $plan) {
+            $open = (bool) ($openByPlan[$plan] ?? false);
+            $settings['applications_open_'.$plan] = $open;
+            $any = $any || $open;
+        }
+        // 旧コード互換
+        $settings['applications_open'] = $any;
         $row->settings = $settings;
-        // enabled は招待コード用。ここでは触らない
         $row->save();
     }
 
@@ -138,5 +216,27 @@ final class Registration
             'url' => url('/register'),
             'code' => $code,
         ]);
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function registrationSettings(): ?array
+    {
+        try {
+            $query = MediaStorageSetting::query()
+                ->where('provider', MediaStorageSetting::PROVIDER_REGISTRATION);
+            if (MediaStorageSetting::hasTenantScopeColumn()) {
+                $query->where('tenant_scope', 0);
+            }
+            $row = $query->first();
+            if (! $row) {
+                return null;
+            }
+
+            $settings = $row->settingsArray();
+
+            return is_array($settings) ? $settings : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

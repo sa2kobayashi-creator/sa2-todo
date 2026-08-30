@@ -32,7 +32,11 @@ class UsageLimitSettingsTest extends TestCase
             ->assertSee('制限管理', false)
             ->assertSee('テナント（契約プール）', false)
             ->assertSee('特別枠', false)
-            ->assertSee('運営全体の非常停止', false);
+            ->assertSee('運営全体の非常停止', false)
+            ->assertSee('路線・経路検索（回／月）', false)
+            ->assertSee('YouTube検索（回／月）', false)
+            ->assertSee('Cloudinary編集（回／月）', false)
+            ->assertSee('通話 LiveKit（回／月）', false);
 
         $this->actingAs($super)->post('/settings/limits', [
             'templates' => [
@@ -113,7 +117,8 @@ class UsageLimitSettingsTest extends TestCase
 
         $this->actingAs($super)->get('/admin/users')
             ->assertOk()
-            ->assertSee('特別枠にする', false);
+            ->assertSee('特別枠にする', false)
+            ->assertSee('今月の使用量', false);
 
         $this->actingAs($super)->post('/admin/users', [
             'displayName' => 'Guest',

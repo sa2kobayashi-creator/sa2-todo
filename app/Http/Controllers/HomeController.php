@@ -44,6 +44,8 @@ class HomeController extends Controller
             // 未ログインの人が運営に連絡できる唯一の手段。特商法表記と同じ値を使う
             'contactEmail' => $this->legal->get('contact_email'),
             'applicationsOpen' => Registration::applicationsOpen(),
+            'applicationsFullyOpen' => Registration::applicationsFullyOpen(),
+            'applicationsOpenByPlan' => Registration::applicationsOpenByPlan(),
         ]);
     }
 }

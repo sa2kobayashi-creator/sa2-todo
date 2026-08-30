@@ -22,6 +22,14 @@ class UserUsageLimitService
 
     public const FEATURE_WORKERS_AI = 'workers_ai';
 
+    public const FEATURE_ROUTE_SEARCH = 'route_search';
+
+    public const FEATURE_YOUTUBE = 'youtube';
+
+    public const FEATURE_CLOUDINARY = 'cloudinary';
+
+    public const FEATURE_LIVEKIT = 'livekit';
+
     public function __construct(private UsageLimitPolicyService $policies) {}
 
     /** @return list<string> */
@@ -33,6 +41,81 @@ class UserUsageLimitService
             self::FEATURE_LLM_VOICE_TODO,
             self::FEATURE_LLM_VOICE_NOTE,
         ];
+    }
+
+    /** @return array<string, string> feature => 短い表示名 */
+    public static function featureShortLabels(): array
+    {
+        return [
+            self::FEATURE_TRANSLATE => __('翻訳'),
+            self::FEATURE_LLM_VOICE => __('音声AI'),
+            self::FEATURE_WORKERS_AI => __('生活ガイド'),
+            self::FEATURE_ROUTE_SEARCH => __('路線・経路'),
+            self::FEATURE_YOUTUBE => __('YouTube'),
+            self::FEATURE_CLOUDINARY => __('Cloudinary'),
+            self::FEATURE_LIVEKIT => __('通話'),
+        ];
+    }
+
+    /**
+     * ユーザーごとの今月使用量（一覧用）。
+     *
+     * @param  list<int>  $userIds
+     * @return array<int, array{parts: list<string>, total: int, by_feature: array<string, int>}>
+     */
+    public function monthUsageByUserIds(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+        $empty = ['parts' => [], 'total' => 0, 'by_feature' => []];
+        if ($userIds === []) {
+            return [];
+        }
+
+        $from = now()->startOfMonth()->toDateString();
+        $to = now()->toDateString();
+        $rows = UserDailyUsage::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('usage_date', '>=', $from)
+            ->whereDate('usage_date', '<=', $to)
+            ->selectRaw('user_id, feature, SUM(amount) as amount')
+            ->groupBy('user_id', 'feature')
+            ->get();
+
+        $out = [];
+        foreach ($userIds as $id) {
+            $out[$id] = $empty;
+        }
+
+        foreach ($rows as $row) {
+            $uid = (int) $row->user_id;
+            $feature = (string) $row->feature;
+            $amount = (int) $row->amount;
+            if (! isset($out[$uid])) {
+                $out[$uid] = $empty;
+            }
+            $meter = $this->isLlmVoiceFeature($feature) ? self::FEATURE_LLM_VOICE : $feature;
+            $out[$uid]['by_feature'][$meter] = (int) ($out[$uid]['by_feature'][$meter] ?? 0) + $amount;
+            $out[$uid]['total'] += $amount;
+        }
+
+        $labels = self::featureShortLabels();
+        foreach ($out as $uid => $data) {
+            $parts = [];
+            foreach ($labels as $key => $label) {
+                $n = (int) ($data['by_feature'][$key] ?? 0);
+                if ($n <= 0) {
+                    continue;
+                }
+                if ($key === self::FEATURE_TRANSLATE) {
+                    $parts[] = $label.':'.number_format($n);
+                } else {
+                    $parts[] = $label.':'.$n;
+                }
+            }
+            $out[$uid]['parts'] = $parts;
+        }
+
+        return $out;
     }
 
     public function limitFor(string $feature): int
@@ -205,6 +288,10 @@ class UserUsageLimitService
         return match ($feature) {
             self::FEATURE_TRANSLATE => UsageLimitPolicyService::FEATURE_TRANSLATE,
             self::FEATURE_WORKERS_AI => UsageLimitPolicyService::FEATURE_WORKERS_AI,
+            self::FEATURE_ROUTE_SEARCH => UsageLimitPolicyService::FEATURE_ROUTE_SEARCH,
+            self::FEATURE_YOUTUBE => UsageLimitPolicyService::FEATURE_YOUTUBE,
+            self::FEATURE_CLOUDINARY => UsageLimitPolicyService::FEATURE_CLOUDINARY,
+            self::FEATURE_LIVEKIT => UsageLimitPolicyService::FEATURE_LIVEKIT,
             default => $feature,
         };
     }
@@ -237,6 +324,30 @@ class UserUsageLimitService
                 'used' => number_format($used),
             ]),
             self::FEATURE_WORKERS_AI => __(':whenの生活ガイド利用上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_ROUTE_SEARCH => __(':whenの路線・経路検索上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_YOUTUBE => __(':whenのYouTube検索上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_CLOUDINARY => __(':whenのCloudinary編集上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_LIVEKIT => __(':whenの通話上限（:scope :limit回）に達しました。使用済み: :used', [
                 'when' => $when,
                 'scope' => $scope,
                 'limit' => $limit,

@@ -189,6 +189,7 @@
                     <th scope="col">{{ __('契約') }}</th>
                   @endif
                   <th scope="col">{{ __('権限') }}</th>
+                  <th scope="col">{{ __('今月の使用量') }}</th>
                   <th scope="col">{{ __('利用メニュー') }}</th>
                   <th scope="col">{{ __('操作') }}</th>
                 </tr>
@@ -212,14 +213,18 @@
                     <td>
                       <span class="role-badge {{ $user['role'] }}">{{ $user['roleLabel'] }}</span>
                     </td>
+                    <td class="admin-users-usage-cell">
+                      @if(!empty($user['usageMonthParts']))
+                        <span class="admin-usage-month-summary" title="{{ implode(' / ', $user['usageMonthParts']) }}">{{ implode(' · ', $user['usageMonthParts']) }}</span>
+                      @else
+                        <span class="hint">{{ __('なし') }}</span>
+                      @endif
+                    </td>
                     <td>
-                      <div class="menu-feature-labels">
-                        @forelse($user['menuFeatureLabels'] as $label)
-                          <span class="menu-feature-label">{{ $label }}</span>
-                        @empty
-                          <span class="hint">{{ __('なし') }}</span>
-                        @endforelse
-                      </div>
+                      @include('admin.users.partials.menu-feature-labels', [
+                        'labels' => $user['menuFeatureLabels'] ?? [],
+                        'popupId' => 'menu-popup-'.$user['id'],
+                      ])
                     </td>
                     <td class="admin-users-actions">
                       <a href="/admin/users/{{ $user['id'] }}" class="mini-btn">{{ __('詳細') }}</a>
@@ -265,6 +270,26 @@
           createRole.addEventListener('change', () => applyRoleDefaults(createFieldset, createRole.value));
           applyRoleDefaults(createFieldset, createRole.value);
         }
+
+        document.addEventListener('click', (event) => {
+          const openBtn = event.target.closest('[data-menu-popup-target]');
+          if (openBtn) {
+            const modal = document.getElementById(openBtn.getAttribute('data-menu-popup-target'));
+            if (modal) modal.hidden = false;
+            return;
+          }
+          const closeEl = event.target.closest('[data-menu-popup-close]');
+          if (closeEl) {
+            const modal = closeEl.closest('.modal');
+            if (modal) modal.hidden = true;
+          }
+        });
+        document.addEventListener('keydown', (event) => {
+          if (event.key !== 'Escape') return;
+          document.querySelectorAll('.modal:not([hidden])').forEach((modal) => {
+            if (modal.querySelector('[data-menu-popup-close]')) modal.hidden = true;
+          });
+        });
       })();
     </script>
   </body>

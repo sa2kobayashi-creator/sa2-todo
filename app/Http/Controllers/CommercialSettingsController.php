@@ -80,14 +80,19 @@ class CommercialSettingsController extends Controller
 
     public function updateApplications(Request $request)
     {
-        $open = $request->boolean('applications_open');
-        \App\Support\Registration::setApplicationsOpen($open);
+        $flags = [];
+        foreach (\App\Support\Registration::applicationPlanKeys() as $plan) {
+            $flags[$plan] = $request->boolean('applications_open_'.$plan);
+        }
+        \App\Support\Registration::setApplicationsOpenByPlan($flags);
+
+        $openCount = count(array_filter($flags));
 
         return $this->redirectWithMessage(
             '/settings?section=sales#registration-applications-settings',
-            $open
-                ? __('利用申請の受付を開始しました。TOPページに申請ボタンが表示されます。')
-                : __('利用申請の受付を停止しました。TOPページの申請ボタンは「準備中」になります。')
+            $openCount > 0
+                ? __('利用申請の受付設定を保存しました（:countプラン受付中）。', ['count' => $openCount])
+                : __('利用申請の受付をすべて停止しました。TOPページの申請ボタンは「準備中」になります。')
         );
     }
 

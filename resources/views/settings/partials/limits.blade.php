@@ -79,12 +79,60 @@
               <td><input type="number" name="templates[{{ $plan }}][workers_ai_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['workers_ai_requests_per_month'] ?? 0) }}" /></td>
             @endforeach
           </tr>
+          <tr>
+            <th>{{ __('路線・経路検索（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][route_search_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['route_search_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('路線・経路検索（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][route_search_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['route_search_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('YouTube検索（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][youtube_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['youtube_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('YouTube検索（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][youtube_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['youtube_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('Cloudinary編集（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][cloudinary_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['cloudinary_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('Cloudinary編集（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][cloudinary_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['cloudinary_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('通話 LiveKit（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][livekit_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['livekit_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('通話 LiveKit（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][livekit_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['livekit_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
         </tbody>
       </table>
     </div>
 
     <h3>{{ __('運営全体の非常停止') }}</h3>
-    <p class="hint">{{ __('見積円は公式請求ではなく、回数×下の単価です。0 でブレーカーをオフにします。全停止は障害・請求事故用です。') }}</p>
+    <p class="hint">{{ __('見積円は公式請求ではなく、回数×下の単価です。0 でブレーカーをオフにします。全停止は障害・請求事故用です。Maps JS の地図表示自体は回数枠の対象外です（経路APIのみ）。') }}</p>
     <p>
       {{ __('今月の見積') }}: <strong>¥{{ number_format($yen) }}</strong>
       @if($yenCap > 0)
@@ -111,6 +159,22 @@
       <label>
         {{ __('見積：翻訳 1000文字（円）') }}
         <input type="number" name="platform[yen_per_translate_1000]" min="0" value="{{ (int) ($platform['yen_per_translate_1000'] ?? 2) }}" />
+      </label>
+      <label>
+        {{ __('見積：路線・経路 1回（円）') }}
+        <input type="number" name="platform[yen_per_route_search]" min="0" value="{{ (int) ($platform['yen_per_route_search'] ?? 4) }}" />
+      </label>
+      <label>
+        {{ __('見積：YouTube 1回（円）') }}
+        <input type="number" name="platform[yen_per_youtube]" min="0" value="{{ (int) ($platform['yen_per_youtube'] ?? 2) }}" />
+      </label>
+      <label>
+        {{ __('見積：Cloudinary 1回（円）') }}
+        <input type="number" name="platform[yen_per_cloudinary]" min="0" value="{{ (int) ($platform['yen_per_cloudinary'] ?? 5) }}" />
+      </label>
+      <label>
+        {{ __('見積：通話 1回（円）') }}
+        <input type="number" name="platform[yen_per_livekit]" min="0" value="{{ (int) ($platform['yen_per_livekit'] ?? 8) }}" />
       </label>
     </div>
     <button type="submit">{{ __('制限を保存') }}</button>

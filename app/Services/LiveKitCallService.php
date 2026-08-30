@@ -5,6 +5,7 @@ namespace App\Services;
 use Agence104\LiveKit\AccessToken;
 use Agence104\LiveKit\AccessTokenOptions;
 use Agence104\LiveKit\VideoGrant;
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -72,6 +73,12 @@ class LiveKitCallService
             throw new \RuntimeException(__('通話機能はまだ設定されていません。'));
         }
 
+        try {
+            app(UserUsageLimitService::class)->assertWithin($fromUser, UserUsageLimitService::FEATURE_LIVEKIT, 1);
+        } catch (UsageLimitExceededException $e) {
+            throw new \RuntimeException($e->getMessage(), 0, $e);
+        }
+
         $fromId = (int) $fromUser->id;
         $roomName = $this->directRoomName($groupId, $fromId, $peerUserId);
         $payload = [
@@ -96,6 +103,7 @@ class LiveKitCallService
         }
 
         app(IntegrationUsageService::class)->increment('livekit', 'calls');
+        app(UserUsageLimitService::class)->consume($fromUser, UserUsageLimitService::FEATURE_LIVEKIT, 1);
 
         return $payload;
     }

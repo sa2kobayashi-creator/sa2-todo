@@ -1,9 +1,17 @@
-{{-- TOP 利用申請 CTA。$applicationsOpen が false のとき「準備中」表示 --}}
+{{-- TOP 利用申請 CTA。$plan（light/standard/tenant/dedicated）または $applicationsOpen で開閉 --}}
 @php
+  use App\Support\Registration;
   $ctaClass = $class ?? 'lp-btn lp-btn-primary';
   $ctaLabel = $label ?? __('利用申請');
   $ctaPending = $pendingLabel ?? __('準備中');
-  $ctaOpen = ! empty($applicationsOpen);
+  $ctaPlan = isset($plan) ? (string) $plan : null;
+  if ($ctaPlan !== null && $ctaPlan !== '') {
+    $ctaOpen = Registration::applicationsOpenFor($ctaPlan);
+  } elseif (array_key_exists('applicationsOpen', get_defined_vars())) {
+    $ctaOpen = ! empty($applicationsOpen);
+  } else {
+    $ctaOpen = Registration::applicationsOpen();
+  }
 @endphp
 @if($ctaOpen)
   <a
@@ -16,6 +24,6 @@
     class="{{ $ctaClass }} is-pending"
     role="status"
     aria-disabled="true"
-    title="{{ __('現在、利用申請の受付は準備中です。') }}"
+    title="{{ __('現在、このプランの利用申請は準備中です。') }}"
   >{{ $ctaPending }}</span>
 @endif

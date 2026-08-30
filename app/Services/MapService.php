@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\MapRoute;
+use App\Models\User;
 use App\Services\Transit\RouteSearchService;
 use App\Services\Transit\TransitItinerary;
+use Illuminate\Support\Facades\Auth;
 
 class MapService
 {
@@ -234,6 +237,15 @@ class MapService
             return [...$empty, 'fallback' => true];
         }
 
+        try {
+            $user = Auth::user();
+            if ($user instanceof User) {
+                app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+            }
+        } catch (UsageLimitExceededException $e) {
+            return [...$empty, 'message' => $e->getMessage()];
+        }
+
         $googleMode = self::GOOGLE_TRAVEL_MODES[$mode];
         $body = [
             'origin' => $this->routePlace($originLabel, $originLat, $originLng),
@@ -262,6 +274,10 @@ class MapService
         }
 
         $this->usage->increment('google_routes');
+        $user = Auth::user();
+        if ($user instanceof User) {
+            app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+        }
         $first = $presented[0];
 
         return [
