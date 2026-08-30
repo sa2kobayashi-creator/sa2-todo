@@ -22204,10 +22204,17 @@ button.msg-icon-tool.is-listening,
   line-height: 1.5;
 }
 
+.dash-app-install-desc {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--dash-home-text, #202124);
+  line-height: 1.55;
+}
+
 .dash-app-install-actions {
   display: flex;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 8px;
 }
@@ -22218,12 +22225,12 @@ button.msg-icon-tool.is-listening,
 
 .dash-app-install-btn {
   display: inline-flex;
-  flex: 1 1 0;
+  flex: 1 1 calc(33.333% - 8px);
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: 44px;
-  min-width: 0;
+  min-width: 7.5rem;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #c7d7fe;
@@ -22236,6 +22243,16 @@ button.msg-icon-tool.is-listening,
   font-family: inherit;
   text-align: center;
   white-space: nowrap;
+}
+
+.dash-pwa-guide-install-wrap {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 520px) {
+  .dash-app-install-btn {
+    flex: 1 1 100%;
+  }
 }
 
 .dash-app-install-btn.secondary,

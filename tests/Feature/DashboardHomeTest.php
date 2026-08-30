@@ -69,8 +69,14 @@ class DashboardHomeTest extends TestCase
         $response->assertSee('路線検索', false);
         $response->assertSee('dash-app-install', false);
         $response->assertSee(__('アプリをインストール'), false);
-        $response->assertSee(__('Android：準備中'), false);
+        $response->assertSee(__('Sa2 Plus は、Todo・メモ・Photos・メッセージ・メール・マップなどをひとつにまとめた Web アプリです。スマホに入れておくと、ブラウザを開かずにホーム画面からすぐ使えます。'), false);
+        $response->assertSee(__('Android：PWA'), false);
         $response->assertSee(__('iPhone：PWA'), false);
+        $html = $response->getContent();
+        $this->assertTrue(
+            str_contains($html, __('Android：準備中')) || str_contains($html, __('Android：APK')),
+            'Dashboard install card should show Android APK or coming-soon state.'
+        );
     }
 
     public function test_personal_mode_links_to_app_calendar_and_hides_google_connect(): void
