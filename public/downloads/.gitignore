@@ -1,0 +1,5 @@
+# Place the signed TWA APK here as sa2-plus.apk
+# (built from /twa — see twa/README.md). Binary is gitignored.
+*
+!.gitignore
+!README.md

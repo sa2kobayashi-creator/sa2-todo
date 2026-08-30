@@ -56,6 +56,8 @@
     @endif
   </header>
 
+  @include('dashboard.partials.app-install')
+
   <div class="dash-home-grid">
     <section class="dash-home-card dash-home-next" aria-labelledby="dash-home-next-title">
       <div class="dash-home-card-head">

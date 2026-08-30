@@ -67,6 +67,10 @@ class DashboardHomeTest extends TestCase
         $response->assertSee('dash-calendar-accordion', false);
         $response->assertSee('メモ', false);
         $response->assertSee('路線検索', false);
+        $response->assertSee('dash-app-install', false);
+        $response->assertSee(__('アプリをインストール'), false);
+        $response->assertSee(__('Android：準備中'), false);
+        $response->assertSee(__('iPhone：PWA'), false);
     }
 
     public function test_personal_mode_links_to_app_calendar_and_hides_google_connect(): void

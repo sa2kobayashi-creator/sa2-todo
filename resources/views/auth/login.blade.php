@@ -34,7 +34,7 @@
             {{ __('パスワード') }}
             <input type="password" name="password" required autocomplete="current-password" />
           </label>
-          <label class="auth-remember">
+          <label class="auth-remember checkbox-inline">
             <input type="checkbox" name="remember" value="1" checked />
             <span>{{ __('ログイン状態を保持する') }}</span>
           </label>
