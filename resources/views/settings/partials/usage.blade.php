@@ -20,7 +20,9 @@
       @if(!empty($remaining['pool']))
         · {{ __('回数・文字数は契約メンバー合算です') }}
       @endif
+      · {{ __('今月の見込金額（目安）') }}: <strong>¥{{ number_format((int) ($remaining['estimated_yen_total'] ?? 0)) }}</strong>
     </p>
+    <p class="hint">{{ __('単価・金額は制限管理の見積単価による目安です。公式請求ではありません。') }}</p>
     @include('partials.usage-limit-warnings', ['warnings' => $remaining['warnings'] ?? []])
     <div class="usage-overview-grid">
       @foreach(\App\Services\UserUsageLimitService::featureShortLabels() as $meter => $label)
@@ -32,12 +34,59 @@
           <strong>{{ $label }}</strong>
           <span>{{ __('本日') }} {{ number_format((int) $m['used_today']) }}@if((int) $m['daily_limit'] > 0) / {{ number_format((int) $m['daily_limit']) }}@else / {{ __('上限なし') }}@endif</span>
           <span>{{ __('今月') }} {{ number_format((int) $m['used_month']) }}@if((int) $m['monthly_limit'] > 0) / {{ number_format((int) $m['monthly_limit']) }}@else / {{ __('上限なし') }}@endif</span>
+          <span>{{ __('単価（目安）') }}: ¥{{ number_format((int) ($m['unit_yen'] ?? 0)) }}／{{ $m['unit_label'] ?? __('1回') }}</span>
+          <b>{{ __('今月見込') }}: ¥{{ number_format((int) ($m['estimated_yen'] ?? 0)) }}</b>
           @if(!empty($m['warn_message']))
             <p class="usage-overview-warn is-{{ $m['warn_level'] }}">{{ $m['warn_message'] }}</p>
           @endif
         </article>
       @endforeach
     </div>
+  </section>
+@endif
+
+@php $catalog = $pricingCatalog ?? null; @endphp
+@if(!empty($catalog['groups']))
+  <section class="panel" id="pricing-catalog">
+    <h2>{{ __('現在の料金一覧（目安）') }}</h2>
+    <p class="hint">{{ $catalog['disclaimer'] ?? '' }}</p>
+    @if(!empty($catalog['tax_label']))
+      <p class="hint">{{ __('販売価格の表示') }}: {{ $catalog['tax_label'] }}</p>
+    @endif
+    @foreach($catalog['groups'] as $group)
+      <div class="pricing-catalog-group">
+        <h3>{{ $group['label'] ?? '' }}</h3>
+        @if(!empty($group['hint']))
+          <p class="hint">{{ $group['hint'] }}</p>
+        @endif
+        <div class="admin-users-table-wrap">
+          <table class="admin-users-table admin-users-table-readonly pricing-catalog-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ __('項目') }}</th>
+                <th scope="col">{{ __('料金（目安）') }}</th>
+                <th scope="col">{{ __('備考') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach(($group['items'] ?? []) as $item)
+                <tr>
+                  <td>{{ $item['name'] ?? '' }}</td>
+                  <td>{{ $item['price'] ?? '' }}</td>
+                  <td class="hint">{{ $item['note'] ?? '' }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      </div>
+    @endforeach
+    @if(!empty($isSuperAdmin))
+      <p class="hint" style="margin-top:12px;">
+        {{ __('運営全体の今月見積（全ユーザー合算・目安）') }}: <strong>¥{{ number_format((int) ($usageEstimatedYen ?? 0)) }}</strong>
+        · <a href="/settings?section=limits">{{ __('制限を編集') }}</a>
+      </p>
+    @endif
   </section>
 @endif
 

@@ -40,6 +40,34 @@ class UsagePageTest extends TestCase
             ->assertSee('Standard', false)
             ->assertSee('公式APIの使用量', false)
             ->assertSee('Gemini の API キーでは使用量を取得できません', false)
+            ->assertSee('単価（目安）', false)
+            ->assertSee('今月見込', false)
+            ->assertSee('現在の料金一覧（目安）', false)
+            ->assertSee('スタンダード（月額）', false)
+            ->assertSee('運営原価の見積単価', false)
             ->assertDontSee('アプリ上限 ユーザーあたり1日 10 回。Stability', false);
+    }
+
+    public function test_usage_meter_shows_estimated_yen_from_unit_price(): void
+    {
+        $user = $this->makeUser(UserRole::Admin, 'usage-yen@example.com');
+        $policies = app(\App\Services\UsageLimitPolicyService::class);
+        $templates = $policies->suggestedTemplates();
+        $platform = $policies->suggestedPlatform();
+        $platform['yen_per_translate_1000'] = 2;
+        $policies->save($templates, $platform);
+
+        app(\App\Services\UserUsageLimitService::class)
+            ->consume($user, \App\Services\UserUsageLimitService::FEATURE_TRANSLATE, 2500);
+
+        $summary = $policies->remainingSummary($user, app(\App\Services\UserUsageLimitService::class));
+        $this->assertSame(2, $summary['meters']['translate']['unit_yen']);
+        $this->assertSame(6, $summary['meters']['translate']['estimated_yen']); // ceil(2500/1000)*2
+        $this->assertGreaterThanOrEqual(6, $summary['estimated_yen_total']);
+
+        $this->actingAs($user)
+            ->get('/settings?section=usage')
+            ->assertOk()
+            ->assertSee('¥6', false);
     }
 }

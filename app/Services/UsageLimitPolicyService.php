@@ -299,7 +299,6 @@ class UsageLimitPolicyService
             return 0;
         }
 
-        $platform = $this->platformLimits();
         $start = now()->startOfMonth()->toDateString();
         $superIds = User::query()->where('role', UserRole::SuperAdmin->value)->pluck('id')->all();
 
@@ -315,22 +314,197 @@ class UsageLimitPolicyService
             $voice += (int) ($rows[$feature] ?? 0);
         }
 
-        $translate = (int) ($rows['translate'] ?? 0);
-        $workers = (int) ($rows['workers_ai'] ?? 0);
-        $route = (int) ($rows['route_search'] ?? 0);
-        $youtube = (int) ($rows['youtube'] ?? 0);
-        $cloudinary = (int) ($rows['cloudinary'] ?? 0);
-        $livekit = (int) ($rows['livekit'] ?? 0);
-
-        $yen = $voice * max(0, (int) $platform['yen_per_llm_voice']);
-        $yen += $workers * max(0, (int) $platform['yen_per_workers_ai']);
-        $yen += (int) ceil($translate / 1000) * max(0, (int) $platform['yen_per_translate_1000']);
-        $yen += $route * max(0, (int) $platform['yen_per_route_search']);
-        $yen += $youtube * max(0, (int) $platform['yen_per_youtube']);
-        $yen += $cloudinary * max(0, (int) $platform['yen_per_cloudinary']);
-        $yen += $livekit * max(0, (int) $platform['yen_per_livekit']);
+        $yen = $this->estimateYenForAmount(self::FEATURE_LLM_VOICE, $voice);
+        $yen += $this->estimateYenForAmount(self::FEATURE_WORKERS_AI, (int) ($rows['workers_ai'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_TRANSLATE, (int) ($rows['translate'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_ROUTE_SEARCH, (int) ($rows['route_search'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_YOUTUBE, (int) ($rows['youtube'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_CLOUDINARY, (int) ($rows['cloudinary'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_LIVEKIT, (int) ($rows['livekit'] ?? 0));
 
         return $yen;
+    }
+
+    /**
+     * 制限管理の見積単価で、使用量から円を見積もる。
+     */
+    public function estimateYenForAmount(string $meter, int $amount): int
+    {
+        $amount = max(0, $amount);
+        if ($amount === 0) {
+            return 0;
+        }
+
+        $platform = $this->platformLimits();
+
+        return match ($meter) {
+            self::FEATURE_TRANSLATE => (int) ceil($amount / 1000) * max(0, (int) ($platform['yen_per_translate_1000'] ?? 0)),
+            self::FEATURE_LLM_VOICE => $amount * max(0, (int) ($platform['yen_per_llm_voice'] ?? 0)),
+            self::FEATURE_WORKERS_AI => $amount * max(0, (int) ($platform['yen_per_workers_ai'] ?? 0)),
+            self::FEATURE_ROUTE_SEARCH => $amount * max(0, (int) ($platform['yen_per_route_search'] ?? 0)),
+            self::FEATURE_YOUTUBE => $amount * max(0, (int) ($platform['yen_per_youtube'] ?? 0)),
+            self::FEATURE_CLOUDINARY => $amount * max(0, (int) ($platform['yen_per_cloudinary'] ?? 0)),
+            self::FEATURE_LIVEKIT => $amount * max(0, (int) ($platform['yen_per_livekit'] ?? 0)),
+            default => 0,
+        };
+    }
+
+    /**
+     * @return array{unit_yen: int, unit_label: string}
+     */
+    public function meterUnitInfo(string $meter): array
+    {
+        $platform = $this->platformLimits();
+
+        return match ($meter) {
+            self::FEATURE_TRANSLATE => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_translate_1000'] ?? 0)),
+                'unit_label' => __('1000文字'),
+            ],
+            self::FEATURE_LLM_VOICE => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_llm_voice'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_WORKERS_AI => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_workers_ai'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_ROUTE_SEARCH => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_route_search'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_YOUTUBE => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_youtube'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_CLOUDINARY => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_cloudinary'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_LIVEKIT => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_livekit'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            default => [
+                'unit_yen' => 0,
+                'unit_label' => __('1回'),
+            ],
+        };
+    }
+
+    /**
+     * 販売価格・運営見積単価の一覧（目安）。
+     *
+     * @return array{
+     *   disclaimer: string,
+     *   tax_label: string,
+     *   groups: list<array{id: string, label: string, hint: string, items: list<array{name: string, price: string, note: string}>}>
+     * }
+     */
+    public function pricingCatalog(): array
+    {
+        $taxLabel = config('commercial.prices_include_tax', true) ? __('税込') : __('税別');
+        $included = max(1, (int) config('commercial.included_users', 5));
+        $tenantMonthly = max(0, (int) config('commercial.tenant_monthly_yen', 3980));
+        $tenantYearly = max(0, (int) config('commercial.tenant_yearly_yen', 0));
+        if ($tenantYearly <= 0) {
+            $tenantYearly = $tenantMonthly * max(1, (int) config('commercial.yearly_maintenance_months_charged', 11));
+        }
+        $lightGb = max(1, (int) round(((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024)) / (1024 ** 3)));
+        $standardGb = max(1, (int) round(((int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024)) / (1024 ** 3)));
+        $platform = $this->platformLimits();
+        $labels = UserUsageLimitService::featureShortLabels();
+
+        $opsItems = [];
+        foreach (self::meterFeatures() as $meter) {
+            $info = $this->meterUnitInfo($meter);
+            $opsItems[] = [
+                'name' => (string) ($labels[$meter] ?? $meter),
+                'price' => '¥'.number_format((int) $info['unit_yen']).'／'.$info['unit_label'],
+                'note' => __('制限管理の見積単価'),
+            ];
+        }
+
+        return [
+            'disclaimer' => __('公式の請求額ではなく目安です。販売価格は公開料金設定、運営原価は制限管理の見積単価に基づきます。為替・プロバイダ料金改定で実際とずれることがあります。'),
+            'tax_label' => $taxLabel,
+            'groups' => [
+                [
+                    'id' => 'customer',
+                    'label' => __('販売価格（お客様向け）'),
+                    'hint' => __('TOP・特商法・Stripe で使う公開料金です。'),
+                    'items' => [
+                        [
+                            'name' => __('ライト（お試し）'),
+                            'price' => '¥0',
+                            'note' => __('約:gbGB・自動審査', ['gb' => $lightGb]),
+                        ],
+                        [
+                            'name' => __('スタンダード（月額）'),
+                            'price' => '¥'.number_format((int) config('commercial.standard_yen_monthly', 980)).'／'.__('月'),
+                            'note' => __('最初の:days日無料・約:gbGB', [
+                                'days' => (int) config('commercial.standard_trial_days', 14),
+                                'gb' => $standardGb,
+                            ]),
+                        ],
+                        [
+                            'name' => __('スタンダード（年額）'),
+                            'price' => '¥'.number_format((int) config('commercial.standard_yen_yearly', 9800)).'／'.__('年'),
+                            'note' => __('約:gbGB', ['gb' => $standardGb]),
+                        ],
+                        [
+                            'name' => __('テナント契約（月額）'),
+                            'price' => '¥'.number_format($tenantMonthly).'／'.__('月'),
+                            'note' => __('最初の:days日無料・:users名まで', [
+                                'days' => (int) config('commercial.tenant_trial_days', 30),
+                                'users' => $included,
+                            ]),
+                        ],
+                        [
+                            'name' => __('テナント契約（年額）'),
+                            'price' => '¥'.number_format($tenantYearly).'／'.__('年'),
+                            'note' => __(':users名まで', ['users' => $included]),
+                        ],
+                        [
+                            'name' => __('テナント／専用の追加ユーザー'),
+                            'price' => '¥'.number_format((int) config('commercial.extra_user_yen_monthly', 1000)).'／'.__('人／月'),
+                            'note' => __('含む人数を超えた場合'),
+                        ],
+                        [
+                            'name' => __('メールボックス（月額）'),
+                            'price' => '¥'.number_format((int) config('commercial.mailbox_yen_monthly', 300)).'／'.__('月'),
+                            'note' => __('@sa2-plus.com 1アドレス'),
+                        ],
+                        [
+                            'name' => __('メールボックス（年額）'),
+                            'price' => '¥'.number_format((int) config('commercial.mailbox_yen_yearly', 3000)).'／'.__('年'),
+                            'note' => __('@sa2-plus.com 1アドレス'),
+                        ],
+                        [
+                            'name' => __('ストレージ超過'),
+                            'price' => '¥'.number_format((int) config('commercial.storage_overage_yen_per_100gb', 300)).'／100GB／'.__('月'),
+                            'note' => __('見込表示。実課金は今後'),
+                        ],
+                        [
+                            'name' => __('専用インスタンス（初期構築）'),
+                            'price' => '¥'.number_format((int) config('commercial.setup_fee_yen', 50000)).'〜',
+                            'note' => __('別サーバー設置'),
+                        ],
+                        [
+                            'name' => __('専用インスタンス（月額保守）'),
+                            'price' => '¥'.number_format((int) config('commercial.monthly_base_yen', 8000)).'〜／'.__('月'),
+                            'note' => __(':users名まで', ['users' => $included]),
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'ops',
+                    'label' => __('運営原価の見積単価'),
+                    'hint' => __('使用量×この単価で今月の見積円を計算します。制限管理で変更できます。'),
+                    'items' => $opsItems,
+                ],
+            ],
+        ];
     }
 
     public function circuitBreakerTripped(): bool
@@ -389,6 +563,9 @@ class UsageLimitPolicyService
             $label = (string) ($labels[$meter] ?? $meter);
             [$level, $message] = $this->monthlyWarn($label, $ratio, $monthlyLimit);
 
+            $unit = $this->meterUnitInfo($meter);
+            $estimatedYen = $this->estimateYenForAmount($meter, $usedMonth);
+
             $meters[$meter] = [
                 'daily_limit' => $dailyLimit,
                 'monthly_limit' => $monthlyLimit,
@@ -397,6 +574,9 @@ class UsageLimitPolicyService
                 'monthly_ratio' => $ratio,
                 'warn_level' => $level,
                 'warn_message' => $message,
+                'unit_yen' => $unit['unit_yen'],
+                'unit_label' => $unit['unit_label'],
+                'estimated_yen' => $estimatedYen,
             ];
 
             if ($level !== null && $message !== null) {
@@ -412,11 +592,17 @@ class UsageLimitPolicyService
 
         usort($warnings, static fn (array $a, array $b) => $b['ratio'] <=> $a['ratio']);
 
+        $estimatedTotal = 0;
+        foreach ($meters as $row) {
+            $estimatedTotal += (int) ($row['estimated_yen'] ?? 0);
+        }
+
         return [
             'plan' => $this->planForUser($user),
             'pool' => $this->usesTenantPool($user),
             'meters' => $meters,
             'warnings' => $warnings,
+            'estimated_yen_total' => $estimatedTotal,
         ];
     }
 

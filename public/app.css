@@ -22917,6 +22917,18 @@ body.dash-home-lightbox-open {
   border-color: #ef4444;
   background: #fef2f2;
 }
+
+.pricing-catalog-group {
+  margin-top: 1.25rem;
+}
+.pricing-catalog-group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+.pricing-catalog-table td:nth-child(2) {
+  font-weight: 600;
+  white-space: nowrap;
+}
 .usage-overview-warn {
   margin: 6px 0 0;
   font-size: 12px;

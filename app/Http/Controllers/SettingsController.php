@@ -114,6 +114,9 @@ class SettingsController extends Controller
             'usageRemaining' => in_array($section, ['limits', 'usage'], true) && $request->user()
                 ? $this->usageLimits->remainingSummary($request->user(), $this->userUsageLimits)
                 : null,
+            'pricingCatalog' => $section === 'usage'
+                ? $this->usageLimits->pricingCatalog()
+                : null,
             'translationKeys' => $section === 'ai'
                 ? TranslationApiKey::queryForCurrentTenant()->orderBy('priority', 'desc')->orderBy('id')->get()
                 : collect(),
