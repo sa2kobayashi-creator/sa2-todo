@@ -305,6 +305,10 @@ class UserUsageLimitServiceTest extends TestCase
         $this->assertSame(50, $summary['meters'][UsageLimitPolicyService::FEATURE_YOUTUBE]['monthly_limit']);
         $this->assertSame(30, $summary['meters'][UsageLimitPolicyService::FEATURE_CLOUDINARY]['monthly_limit']);
         $this->assertSame(20, $summary['meters'][UsageLimitPolicyService::FEATURE_LIVEKIT]['monthly_limit']);
+        $this->assertSame(2000, $summary['meters'][UsageLimitPolicyService::FEATURE_MAPS]['monthly_limit']);
+        $this->assertSame(2000, $summary['meters'][UsageLimitPolicyService::FEATURE_NOTIFY]['monthly_limit']);
+        $this->assertSame(5000, $summary['meters'][UsageLimitPolicyService::FEATURE_VIDEO_PLAY]['monthly_limit']);
+        $this->assertSame(500, $summary['meters'][UsageLimitPolicyService::FEATURE_ATTACHMENT]['monthly_limit']);
         $this->assertSame([], $summary['warnings']);
     }
 
@@ -355,6 +359,40 @@ class UserUsageLimitServiceTest extends TestCase
         $svc->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
         $this->expectException(UsageLimitExceededException::class);
         $svc->consume($user, UserUsageLimitService::FEATURE_ROUTE_SEARCH, 1);
+    }
+
+    public function test_maps_notify_video_and_attachment_consume_respect_daily_limits(): void
+    {
+        config([
+            'usage_limits.maps_requests_per_day' => 1,
+            'usage_limits.notify_requests_per_day' => 1,
+            'usage_limits.video_play_requests_per_day' => 1,
+            'usage_limits.attachment_requests_per_day' => 1,
+        ]);
+
+        $user = User::create([
+            'email' => 'extra-meters@example.com',
+            'display_name' => 'Extra',
+            'password' => Hash::make('password'),
+            'role' => UserRole::Light,
+        ]);
+
+        $svc = app(UserUsageLimitService::class);
+        foreach ([
+            UserUsageLimitService::FEATURE_MAPS,
+            UserUsageLimitService::FEATURE_NOTIFY,
+            UserUsageLimitService::FEATURE_VIDEO_PLAY,
+            UserUsageLimitService::FEATURE_ATTACHMENT,
+        ] as $feature) {
+            $svc->consume($user, $feature, 1);
+            $blocked = false;
+            try {
+                $svc->consume($user, $feature, 1);
+            } catch (UsageLimitExceededException) {
+                $blocked = true;
+            }
+            $this->assertTrue($blocked, 'Expected UsageLimitExceededException for '.$feature);
+        }
     }
 
     public function test_explicit_zero_monthly_limit_stays_unlimited(): void

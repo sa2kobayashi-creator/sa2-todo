@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Services\MapService;
+use App\Services\UserUsageLimitService;
 use Illuminate\Http\Request;
 
 class MapController extends Controller
@@ -16,12 +18,28 @@ class MapController extends Controller
         $userId = (int) $request->user()->id;
         $routes = $this->maps->listRoutes($userId);
         $selectedId = (int) $request->query('route', 0);
+        $flash = $this->flashFromQuery($request);
+        $hasGoogleMapsApiKey = $this->maps->hasApiKey();
+        $error = $flash['error'] ?? null;
+
+        if ($hasGoogleMapsApiKey) {
+            try {
+                app(UserUsageLimitService::class)->consume(
+                    $request->user(),
+                    UserUsageLimitService::FEATURE_MAPS,
+                    1
+                );
+            } catch (UsageLimitExceededException $e) {
+                $hasGoogleMapsApiKey = false;
+                $error = $e->getMessage();
+            }
+        }
 
         return view('map.index', [
             'routes' => $routes,
             'selectedRoute' => collect($routes)->firstWhere('id', $selectedId > 0 ? $selectedId : null),
             'googleMapsApiKey' => $this->maps->getApiKey(),
-            'hasGoogleMapsApiKey' => $this->maps->hasApiKey(),
+            'hasGoogleMapsApiKey' => $hasGoogleMapsApiKey,
             'defaultCenter' => MapService::DEFAULT_CENTER,
             'travelModeLabels' => collect(MapService::TRAVEL_MODE_LABELS)
                 ->map(fn (string $label) => __($label))
@@ -35,7 +53,8 @@ class MapController extends Controller
                 'openInGoogleMaps' => __('Google Maps で開く'),
                 'directionsDenied' => __('Google のルート API がこのキーでは使えません。設定 → API設定を確認してください。'),
             ],
-            ...$this->flashFromQuery($request),
+            ...$flash,
+            'error' => $error,
         ]);
     }
 

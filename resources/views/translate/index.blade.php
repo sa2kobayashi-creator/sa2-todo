@@ -73,12 +73,21 @@
             <label class="gt-pane-label" id="gt-source-label">{{ __('日本語') }}</label>
             <textarea id="translate-input" maxlength="50000" placeholder="{{ __('翻訳したい文章') }}">{{ $input ?? '' }}</textarea>
             <div class="gt-pane-foot">
+              <button type="button" class="gt-clear" id="translate-clear">{{ __('クリア') }}</button>
               <button type="button" class="gt-mic" id="translate-mic" hidden>{{ __('マイクで話す') }}</button>
               <button type="button" class="gt-go" id="translate-submit" @disabled(empty($configured))>{{ __('翻訳する') }}</button>
             </div>
           </div>
           <div class="gt-pane gt-pane-out">
-            <label class="gt-pane-label" id="gt-target-label">{{ __('英語') }}</label>
+            <div class="gt-pane-head">
+              <label class="gt-pane-label" id="gt-target-label">{{ __('英語') }}</label>
+              <button type="button" class="gt-icon-btn" id="translate-copy" title="{{ __('コピー') }}" aria-label="{{ __('コピー') }}">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                </svg>
+              </button>
+            </div>
             <textarea id="translate-output" readonly placeholder="{{ __('翻訳結果がここに表示されます') }}">{{ $output ?? '' }}</textarea>
           </div>
         </div>
@@ -174,6 +183,10 @@
         'emptyHistory' => __('履歴はまだありません'),
         'saved' => __('保存済み'),
         'history' => __('履歴'),
+        'clear' => __('クリア'),
+        'copy' => __('コピー'),
+        'copied' => __('コピーしました'),
+        'copyFailed' => __('コピーに失敗しました'),
       ];
       $langLabels = [
         'AUTO' => __('言語を検出'),
@@ -188,7 +201,7 @@
     <script type="application/json" id="translate-lang-labels">@json($langLabels)</script>
     <script
       id="translate-page-boot"
-      src="{{ asset('translate-page.js') }}?v=gt-2"
+      src="{{ asset('translate-page.js') }}?v=gt-3"
       defer
       data-configured="{{ !empty($configured) ? '1' : '0' }}"
     ></script>

@@ -30,6 +30,14 @@ class UserUsageLimitService
 
     public const FEATURE_LIVEKIT = 'livekit';
 
+    public const FEATURE_MAPS = 'maps';
+
+    public const FEATURE_NOTIFY = 'notify';
+
+    public const FEATURE_VIDEO_PLAY = 'video_play';
+
+    public const FEATURE_ATTACHMENT = 'attachment';
+
     public function __construct(private UsageLimitPolicyService $policies) {}
 
     /** @return list<string> */
@@ -54,6 +62,10 @@ class UserUsageLimitService
             self::FEATURE_YOUTUBE => __('YouTube'),
             self::FEATURE_CLOUDINARY => __('Cloudinary'),
             self::FEATURE_LIVEKIT => __('通話'),
+            self::FEATURE_MAPS => __('地図・ジオコード'),
+            self::FEATURE_NOTIFY => __('通知'),
+            self::FEATURE_VIDEO_PLAY => __('動画再生'),
+            self::FEATURE_ATTACHMENT => __('添付'),
         ];
     }
 
@@ -292,6 +304,10 @@ class UserUsageLimitService
             self::FEATURE_YOUTUBE => UsageLimitPolicyService::FEATURE_YOUTUBE,
             self::FEATURE_CLOUDINARY => UsageLimitPolicyService::FEATURE_CLOUDINARY,
             self::FEATURE_LIVEKIT => UsageLimitPolicyService::FEATURE_LIVEKIT,
+            self::FEATURE_MAPS => UsageLimitPolicyService::FEATURE_MAPS,
+            self::FEATURE_NOTIFY => UsageLimitPolicyService::FEATURE_NOTIFY,
+            self::FEATURE_VIDEO_PLAY => UsageLimitPolicyService::FEATURE_VIDEO_PLAY,
+            self::FEATURE_ATTACHMENT => UsageLimitPolicyService::FEATURE_ATTACHMENT,
             default => $feature,
         };
     }
@@ -348,6 +364,30 @@ class UserUsageLimitService
                 'used' => $used,
             ]),
             self::FEATURE_LIVEKIT => __(':whenの通話上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_MAPS => __(':whenの地図・ジオコード上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_NOTIFY => __(':whenの通知上限（:scope :limit通）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_VIDEO_PLAY => __(':whenの動画再生上限（:scope :limit回）に達しました。使用済み: :used', [
+                'when' => $when,
+                'scope' => $scope,
+                'limit' => $limit,
+                'used' => $used,
+            ]),
+            self::FEATURE_ATTACHMENT => __(':whenの添付上限（:scope :limit件）に達しました。使用済み: :used', [
                 'when' => $when,
                 'scope' => $scope,
                 'limit' => $limit,

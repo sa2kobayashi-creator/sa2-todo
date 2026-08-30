@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\GroupMessageAttachment;
@@ -522,6 +523,21 @@ class GroupChatService
             ]));
         }
 
+        if ($files !== []) {
+            $owner = User::query()->find($userId);
+            if ($owner instanceof User) {
+                try {
+                    app(UserUsageLimitService::class)->assertWithin(
+                        $owner,
+                        UserUsageLimitService::FEATURE_ATTACHMENT,
+                        count($files)
+                    );
+                } catch (UsageLimitExceededException $e) {
+                    throw new \InvalidArgumentException($e->getMessage(), 0, $e);
+                }
+            }
+        }
+
         $reply = null;
         if ($replyToId !== null) {
             $reply = $this->findAccessibleMessage($userId, $replyToId);
@@ -562,6 +578,21 @@ class GroupChatService
                 $userId
             );
         });
+
+        if ($files !== []) {
+            $owner = User::query()->find($userId);
+            if ($owner instanceof User) {
+                try {
+                    app(UserUsageLimitService::class)->consume(
+                        $owner,
+                        UserUsageLimitService::FEATURE_ATTACHMENT,
+                        count($files)
+                    );
+                } catch (UsageLimitExceededException $e) {
+                    throw new \InvalidArgumentException($e->getMessage(), 0, $e);
+                }
+            }
+        }
 
         $this->notifyNewMessage($userId, $groupId, $peerUserId, $payload);
 

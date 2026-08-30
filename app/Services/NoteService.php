@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AppContext;
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\Note;
 use App\Models\NoteAttachment;
 use App\Models\User;
@@ -606,9 +607,34 @@ class NoteService
             throw new \InvalidArgumentException(__('添付は1メモあたり最大 :max 件までです。', ['max' => $max]));
         }
 
+        $owner = User::query()->find($userId);
+        if ($owner instanceof User) {
+            try {
+                app(UserUsageLimitService::class)->assertWithin(
+                    $owner,
+                    UserUsageLimitService::FEATURE_ATTACHMENT,
+                    count($uploads)
+                );
+            } catch (UsageLimitExceededException $e) {
+                throw new \InvalidArgumentException($e->getMessage(), 0, $e);
+            }
+        }
+
         $created = [];
         foreach ($uploads as $file) {
             $created[] = $this->storeAttachment($note, $userId, $file);
+        }
+
+        if ($owner instanceof User && $created !== []) {
+            try {
+                app(UserUsageLimitService::class)->consume(
+                    $owner,
+                    UserUsageLimitService::FEATURE_ATTACHMENT,
+                    count($created)
+                );
+            } catch (UsageLimitExceededException $e) {
+                throw new \InvalidArgumentException($e->getMessage(), 0, $e);
+            }
         }
 
         return $created;

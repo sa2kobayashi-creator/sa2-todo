@@ -26,6 +26,14 @@ class UsageLimitPolicyService
 
     public const FEATURE_LIVEKIT = 'livekit';
 
+    public const FEATURE_MAPS = 'maps';
+
+    public const FEATURE_NOTIFY = 'notify';
+
+    public const FEATURE_VIDEO_PLAY = 'video_play';
+
+    public const FEATURE_ATTACHMENT = 'attachment';
+
     /** @return list<string> */
     public static function meterFeatures(): array
     {
@@ -37,6 +45,10 @@ class UsageLimitPolicyService
             self::FEATURE_YOUTUBE,
             self::FEATURE_CLOUDINARY,
             self::FEATURE_LIVEKIT,
+            self::FEATURE_MAPS,
+            self::FEATURE_NOTIFY,
+            self::FEATURE_VIDEO_PLAY,
+            self::FEATURE_ATTACHMENT,
         ];
     }
 
@@ -49,9 +61,14 @@ class UsageLimitPolicyService
         $youtubeDay = max(0, (int) config('usage_limits.youtube_requests_per_day', 20));
         $cloudinaryDay = max(0, (int) config('usage_limits.cloudinary_requests_per_day', 10));
         $livekitDay = max(0, (int) config('usage_limits.livekit_requests_per_day', 10));
+        $mapsDay = max(0, (int) config('usage_limits.maps_requests_per_day', 200));
+        $notifyDay = max(0, (int) config('usage_limits.notify_requests_per_day', 200));
+        $videoDay = max(0, (int) config('usage_limits.video_play_requests_per_day', 300));
+        $attachmentDay = max(0, (int) config('usage_limits.attachment_requests_per_day', 100));
         $lightGb = $this->bytesToGb((int) config('photos.user_free_quota_bytes', 20 * 1024 * 1024 * 1024));
         $standardGb = $this->bytesToGb((int) config('photos.standard_quota_bytes', 200 * 1024 * 1024 * 1024));
 
+        // 緩めの次段枠（Maps・通知・動画再生・添付）
         $lightExtras = [
             'route_search_requests_per_day' => 15,
             'route_search_requests_per_month' => 100,
@@ -61,6 +78,14 @@ class UsageLimitPolicyService
             'cloudinary_requests_per_month' => 30,
             'livekit_requests_per_day' => 5,
             'livekit_requests_per_month' => 20,
+            'maps_requests_per_day' => 100,
+            'maps_requests_per_month' => 2000,
+            'notify_requests_per_day' => 100,
+            'notify_requests_per_month' => 2000,
+            'video_play_requests_per_day' => 200,
+            'video_play_requests_per_month' => 5000,
+            'attachment_requests_per_day' => 50,
+            'attachment_requests_per_month' => 500,
         ];
         $standardExtras = [
             'route_search_requests_per_day' => $routeDay,
@@ -71,6 +96,14 @@ class UsageLimitPolicyService
             'cloudinary_requests_per_month' => $cloudinaryDay * 10,
             'livekit_requests_per_day' => $livekitDay,
             'livekit_requests_per_month' => $livekitDay * 10,
+            'maps_requests_per_day' => $mapsDay,
+            'maps_requests_per_month' => $mapsDay * 15,
+            'notify_requests_per_day' => $notifyDay,
+            'notify_requests_per_month' => $notifyDay * 15,
+            'video_play_requests_per_day' => $videoDay,
+            'video_play_requests_per_month' => $videoDay * 20,
+            'attachment_requests_per_day' => $attachmentDay,
+            'attachment_requests_per_month' => $attachmentDay * 15,
         ];
 
         return [
@@ -120,6 +153,14 @@ class UsageLimitPolicyService
                 'cloudinary_requests_per_month' => max($cloudinaryDay, 20) * 10,
                 'livekit_requests_per_day' => max($livekitDay, 20),
                 'livekit_requests_per_month' => max($livekitDay, 20) * 10,
+                'maps_requests_per_day' => max($mapsDay, 400),
+                'maps_requests_per_month' => max($mapsDay, 400) * 15,
+                'notify_requests_per_day' => max($notifyDay, 400),
+                'notify_requests_per_month' => max($notifyDay, 400) * 15,
+                'video_play_requests_per_day' => max($videoDay, 600),
+                'video_play_requests_per_month' => max($videoDay, 600) * 20,
+                'attachment_requests_per_day' => max($attachmentDay, 200),
+                'attachment_requests_per_month' => max($attachmentDay, 200) * 15,
             ],
         ];
     }
@@ -136,6 +177,10 @@ class UsageLimitPolicyService
             'yen_per_youtube' => max(0, (int) config('usage_limits.yen_per_youtube', 2)),
             'yen_per_cloudinary' => max(0, (int) config('usage_limits.yen_per_cloudinary', 5)),
             'yen_per_livekit' => max(0, (int) config('usage_limits.yen_per_livekit', 8)),
+            'yen_per_maps' => max(0, (int) config('usage_limits.yen_per_maps', 1)),
+            'yen_per_notify' => max(0, (int) config('usage_limits.yen_per_notify', 1)),
+            'yen_per_video_play' => max(0, (int) config('usage_limits.yen_per_video_play', 1)),
+            'yen_per_attachment' => max(0, (int) config('usage_limits.yen_per_attachment', 1)),
         ];
     }
 
@@ -321,6 +366,10 @@ class UsageLimitPolicyService
         $yen += $this->estimateYenForAmount(self::FEATURE_YOUTUBE, (int) ($rows['youtube'] ?? 0));
         $yen += $this->estimateYenForAmount(self::FEATURE_CLOUDINARY, (int) ($rows['cloudinary'] ?? 0));
         $yen += $this->estimateYenForAmount(self::FEATURE_LIVEKIT, (int) ($rows['livekit'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_MAPS, (int) ($rows['maps'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_NOTIFY, (int) ($rows['notify'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_VIDEO_PLAY, (int) ($rows['video_play'] ?? 0));
+        $yen += $this->estimateYenForAmount(self::FEATURE_ATTACHMENT, (int) ($rows['attachment'] ?? 0));
 
         return $yen;
     }
@@ -345,6 +394,10 @@ class UsageLimitPolicyService
             self::FEATURE_YOUTUBE => $amount * max(0, (int) ($platform['yen_per_youtube'] ?? 0)),
             self::FEATURE_CLOUDINARY => $amount * max(0, (int) ($platform['yen_per_cloudinary'] ?? 0)),
             self::FEATURE_LIVEKIT => $amount * max(0, (int) ($platform['yen_per_livekit'] ?? 0)),
+            self::FEATURE_MAPS => $amount * max(0, (int) ($platform['yen_per_maps'] ?? 0)),
+            self::FEATURE_NOTIFY => $amount * max(0, (int) ($platform['yen_per_notify'] ?? 0)),
+            self::FEATURE_VIDEO_PLAY => $amount * max(0, (int) ($platform['yen_per_video_play'] ?? 0)),
+            self::FEATURE_ATTACHMENT => $amount * max(0, (int) ($platform['yen_per_attachment'] ?? 0)),
             default => 0,
         };
     }
@@ -384,6 +437,22 @@ class UsageLimitPolicyService
             self::FEATURE_LIVEKIT => [
                 'unit_yen' => max(0, (int) ($platform['yen_per_livekit'] ?? 0)),
                 'unit_label' => __('1回'),
+            ],
+            self::FEATURE_MAPS => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_maps'] ?? 0)),
+                'unit_label' => __('1回'),
+            ],
+            self::FEATURE_NOTIFY => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_notify'] ?? 0)),
+                'unit_label' => __('1通'),
+            ],
+            self::FEATURE_VIDEO_PLAY => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_video_play'] ?? 0)),
+                'unit_label' => __('1再生'),
+            ],
+            self::FEATURE_ATTACHMENT => [
+                'unit_yen' => max(0, (int) ($platform['yen_per_attachment'] ?? 0)),
+                'unit_label' => __('1件'),
             ],
             default => [
                 'unit_yen' => 0,
@@ -663,6 +732,14 @@ class UsageLimitPolicyService
             'cloudinary_requests_per_month',
             'livekit_requests_per_day',
             'livekit_requests_per_month',
+            'maps_requests_per_day',
+            'maps_requests_per_month',
+            'notify_requests_per_day',
+            'notify_requests_per_month',
+            'video_play_requests_per_day',
+            'video_play_requests_per_month',
+            'attachment_requests_per_day',
+            'attachment_requests_per_month',
         ];
         $clean = [];
         foreach ($keys as $key) {
@@ -685,6 +762,10 @@ class UsageLimitPolicyService
             'yen_per_youtube' => max(0, (int) ($row['yen_per_youtube'] ?? config('usage_limits.yen_per_youtube', 2))),
             'yen_per_cloudinary' => max(0, (int) ($row['yen_per_cloudinary'] ?? config('usage_limits.yen_per_cloudinary', 5))),
             'yen_per_livekit' => max(0, (int) ($row['yen_per_livekit'] ?? config('usage_limits.yen_per_livekit', 8))),
+            'yen_per_maps' => max(0, (int) ($row['yen_per_maps'] ?? config('usage_limits.yen_per_maps', 1))),
+            'yen_per_notify' => max(0, (int) ($row['yen_per_notify'] ?? config('usage_limits.yen_per_notify', 1))),
+            'yen_per_video_play' => max(0, (int) ($row['yen_per_video_play'] ?? config('usage_limits.yen_per_video_play', 1))),
+            'yen_per_attachment' => max(0, (int) ($row['yen_per_attachment'] ?? config('usage_limits.yen_per_attachment', 1))),
         ];
     }
 
@@ -698,6 +779,10 @@ class UsageLimitPolicyService
             self::FEATURE_YOUTUBE => 'youtube_requests_per_day',
             self::FEATURE_CLOUDINARY => 'cloudinary_requests_per_day',
             self::FEATURE_LIVEKIT => 'livekit_requests_per_day',
+            self::FEATURE_MAPS => 'maps_requests_per_day',
+            self::FEATURE_NOTIFY => 'notify_requests_per_day',
+            self::FEATURE_VIDEO_PLAY => 'video_play_requests_per_day',
+            self::FEATURE_ATTACHMENT => 'attachment_requests_per_day',
             default => '',
         };
     }
@@ -712,6 +797,10 @@ class UsageLimitPolicyService
             self::FEATURE_YOUTUBE => 'youtube_requests_per_month',
             self::FEATURE_CLOUDINARY => 'cloudinary_requests_per_month',
             self::FEATURE_LIVEKIT => 'livekit_requests_per_month',
+            self::FEATURE_MAPS => 'maps_requests_per_month',
+            self::FEATURE_NOTIFY => 'notify_requests_per_month',
+            self::FEATURE_VIDEO_PLAY => 'video_play_requests_per_month',
+            self::FEATURE_ATTACHMENT => 'attachment_requests_per_month',
             default => '',
         };
     }
@@ -726,6 +815,10 @@ class UsageLimitPolicyService
             self::FEATURE_YOUTUBE => max(0, (int) config('usage_limits.youtube_requests_per_day', 20)),
             self::FEATURE_CLOUDINARY => max(0, (int) config('usage_limits.cloudinary_requests_per_day', 10)),
             self::FEATURE_LIVEKIT => max(0, (int) config('usage_limits.livekit_requests_per_day', 10)),
+            self::FEATURE_MAPS => max(0, (int) config('usage_limits.maps_requests_per_day', 200)),
+            self::FEATURE_NOTIFY => max(0, (int) config('usage_limits.notify_requests_per_day', 200)),
+            self::FEATURE_VIDEO_PLAY => max(0, (int) config('usage_limits.video_play_requests_per_day', 300)),
+            self::FEATURE_ATTACHMENT => max(0, (int) config('usage_limits.attachment_requests_per_day', 100)),
             default => 0,
         };
     }

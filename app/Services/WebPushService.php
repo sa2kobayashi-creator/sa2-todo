@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +44,14 @@ class WebPushService
         if ($subscriptions->isEmpty()) {
             return;
         }
+
+        try {
+            app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_NOTIFY, 1);
+        } catch (UsageLimitExceededException) {
+            return;
+        }
+
+        $delivered = false;
 
         try {
             $webPush = new WebPush([
@@ -89,6 +98,7 @@ class WebPushService
                     if ($report->isSuccess()) {
                         $subscription->forceFill(['last_used_at' => now()])->save();
                         app(IntegrationUsageService::class)->increment('web_push', 'deliveries');
+                        $delivered = true;
                         continue;
                     }
 
@@ -115,6 +125,14 @@ class WebPushService
                 'user_id' => $user->id,
                 'message' => $e->getMessage(),
             ]);
+        }
+
+        if ($delivered) {
+            try {
+                app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_NOTIFY, 1);
+            } catch (UsageLimitExceededException) {
+                // 配信済みのため失敗しても止めない
+            }
         }
     }
 }

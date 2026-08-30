@@ -160,6 +160,41 @@
       })
     }
 
+    const clearBtn = document.getElementById('translate-clear')
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        input.value = ''
+        output.value = ''
+        showStatus('')
+        input.focus()
+      })
+    }
+
+    const copyBtn = document.getElementById('translate-copy')
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const text = String(output.value || '').trim()
+        if (!text) return
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text)
+          } else {
+            output.focus()
+            output.select()
+            document.execCommand('copy')
+          }
+          copyBtn.classList.add('is-ok')
+          showStatus(i18n.copied || '')
+          setTimeout(() => {
+            copyBtn.classList.remove('is-ok')
+            if (status && status.textContent === (i18n.copied || '')) showStatus('')
+          }, 1500)
+        } catch (_) {
+          showStatus(i18n.copyFailed || '')
+        }
+      })
+    }
+
     // Modes
     document.querySelectorAll('.gt-mode').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -175,27 +210,50 @@
       })
     })
 
-    // Mic
+    // Mic — モバイルで continuous + 累積追記すると同じ文が二重になるため、
+    // セッション開始時の原文を固定し、results 全体から都度組み立てる。
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || window.matchMedia('(max-width: 768px)').matches
     if (SpeechRecognition && micBtn && configured) {
       micBtn.hidden = false
       let recognition = null
       let listening = false
       let debounceTimer = 0
+      let sessionBase = ''
+
+      function collapseRepeatedPhrase(text) {
+        const raw = String(text || '').replace(/\s+/g, ' ').trim()
+        if (!raw) return ''
+        const spaced = raw.match(/^(.{2,}?)\s+\1(?:\s+\1)*$/u)
+        if (spaced) return spaced[1].trim()
+        const compact = raw.replace(/\s+/g, '')
+        if (compact.length >= 4 && compact.length % 2 === 0) {
+          const half = compact.slice(0, compact.length / 2)
+          if (half === compact.slice(compact.length / 2) && half.length >= 2) {
+            return half
+          }
+        }
+        return raw
+      }
+
+      function speechLang() {
+        return source.value === 'JA' ? 'ja-JP'
+          : (source.value === 'KO' ? 'ko-KR'
+            : (source.value === 'TL' ? 'fil-PH'
+              : (source.value === 'ZH' ? 'zh-CN' : 'en-US')))
+      }
+
       micBtn.addEventListener('click', () => {
         if (listening && recognition) {
-          recognition.stop()
+          try { recognition.stop() } catch (_) {}
           return
         }
         recognition = new SpeechRecognition()
-        recognition.lang = source.value === 'JA' ? 'ja-JP'
-          : (source.value === 'KO' ? 'ko-KR'
-            : (source.value === 'TL' ? 'fil-PH' : 'en-US'))
-        recognition.continuous = !!isMobile
+        recognition.lang = speechLang()
+        // continuous はスマホブラウザで同一発話が複数 final になるためオフ
+        recognition.continuous = false
         recognition.interimResults = true
-        let finalText = input.value ? (input.value.trim() + ' ') : ''
+        sessionBase = String(input.value || '').trim()
+
         recognition.onstart = () => {
           listening = true
           micBtn.textContent = i18n.stop || 'Stop'
@@ -207,23 +265,46 @@
           micBtn.textContent = i18n.mic || 'Mic'
           micBtn.classList.remove('is-live')
         }
-        recognition.onerror = recognition.onend
+        recognition.onerror = (ev) => {
+          listening = false
+          micBtn.textContent = i18n.mic || 'Mic'
+          micBtn.classList.remove('is-live')
+          const err = ev && ev.error
+          if (err && err !== 'aborted' && err !== 'no-speech') {
+            showStatus(i18n.failed || '')
+          }
+        }
         recognition.onresult = (event) => {
+          let finals = ''
           let interim = ''
-          for (let i = event.resultIndex; i < event.results.length; i += 1) {
-            const chunk = event.results[i][0].transcript
-            if (event.results[i].isFinal) finalText += chunk + ' '
+          for (let i = 0; i < event.results.length; i += 1) {
+            const chunk = (event.results[i][0] && event.results[i][0].transcript) || ''
+            if (event.results[i].isFinal) finals += chunk
             else interim += chunk
           }
-          input.value = (finalText + interim).trim()
+          const spoken = collapseRepeatedPhrase((finals + interim).replace(/\s+/g, ' ').trim())
+          input.value = [sessionBase, spoken].filter(Boolean).join(' ')
+
+          const last = event.results[event.results.length - 1]
+          if (!last || !last.isFinal) return
           clearTimeout(debounceTimer)
           debounceTimer = setTimeout(async () => {
-            if (!finalText.trim()) return
-            const data = await translateText(finalText.trim(), { live: true, mode: 'text' })
+            const spokenFinal = collapseRepeatedPhrase(finals.replace(/\s+/g, ' ').trim())
+            const text = [sessionBase, spokenFinal].filter(Boolean).join(' ')
+            input.value = text
+            if (!text) return
+            const data = await translateText(text, { live: true, mode: 'text' })
             if (data) output.value = data.translated || ''
-          }, 700)
+          }, 400)
         }
-        recognition.start()
+        try {
+          recognition.start()
+        } catch (_) {
+          listening = false
+          micBtn.textContent = i18n.mic || 'Mic'
+          micBtn.classList.remove('is-live')
+          showStatus(i18n.failed || '')
+        }
       })
     }
 

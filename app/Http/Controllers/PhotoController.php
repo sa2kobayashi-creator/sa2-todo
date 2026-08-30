@@ -918,6 +918,10 @@ class PhotoController extends Controller
                 $variant = 'original';
             }
 
+            if ($variant === 'original' && $this->isVideoPlayStart($request, $photo)) {
+                $this->consumeVideoPlayBudget($request, $photo);
+            }
+
             // 動画原本は署名付き URL へ直リンク（ロリポップ経由の dual-hop を避ける）
             if ($variant === 'original' && ! $request->boolean('proxy')) {
                 $signed = $this->photos->temporaryVideoPlayUrl($photo);
@@ -931,6 +935,8 @@ class PhotoController extends Controller
                 $variant,
                 $request->header('Range')
             );
+        } catch (UsageLimitExceededException $e) {
+            abort(429, $e->getMessage());
         } catch (\InvalidArgumentException $e) {
             abort(404, $e->getMessage());
         }
@@ -1250,5 +1256,40 @@ class PhotoController extends Controller
             ['0', 'false', 'off', 'no', ''],
             true
         );
+    }
+
+    /**
+     * 動画原本の再生開始時のみ計上（サムネ・Range 追従は対象外）。
+     *
+     * @throws UsageLimitExceededException
+     */
+    private function consumeVideoPlayBudget(Request $request, \App\Models\Photo $photo): void
+    {
+        $ext = pathinfo((string) $photo->path, PATHINFO_EXTENSION);
+        if (! $this->photos->isVideoMime((string) ($photo->mime ?? ''), $ext)) {
+            return;
+        }
+
+        app(UserUsageLimitService::class)->consume(
+            $request->user(),
+            UserUsageLimitService::FEATURE_VIDEO_PLAY,
+            1
+        );
+    }
+
+    private function isVideoPlayStart(Request $request, \App\Models\Photo $photo): bool
+    {
+        $ext = pathinfo((string) $photo->path, PATHINFO_EXTENSION);
+        if (! $this->photos->isVideoMime((string) ($photo->mime ?? ''), $ext)) {
+            return false;
+        }
+
+        $range = trim((string) $request->header('Range', ''));
+        if ($range === '') {
+            return true;
+        }
+
+        // 先頭からの Range（bytes=0-...）は再生開始とみなす
+        return (bool) preg_match('/^bytes=0-/i', $range);
     }
 }

@@ -187,6 +187,15 @@ class NavitimeRouteService
             return null;
         }
 
+        $user = Auth::user();
+        if ($user instanceof \App\Models\User) {
+            try {
+                app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_MAPS, 1);
+            } catch (UsageLimitExceededException) {
+                return null;
+            }
+        }
+
         try {
             $res = Http::timeout(10)->acceptJson()->get('https://maps.googleapis.com/maps/api/geocode/json', [
                 'address' => $word,
@@ -206,6 +215,14 @@ class NavitimeRouteService
         $location = $json['results'][0]['geometry']['location'] ?? null;
         if (! is_array($location) || ! isset($location['lat'], $location['lng'])) {
             return null;
+        }
+
+        if ($user instanceof \App\Models\User) {
+            try {
+                app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_MAPS, 1);
+            } catch (UsageLimitExceededException) {
+                // 直前の assert と競合した場合は結果は返すが計上は諦める
+            }
         }
 
         return [

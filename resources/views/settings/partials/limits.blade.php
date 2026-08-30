@@ -127,6 +127,54 @@
               <td><input type="number" name="templates[{{ $plan }}][livekit_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['livekit_requests_per_month'] ?? 0) }}" /></td>
             @endforeach
           </tr>
+          <tr>
+            <th>{{ __('地図・ジオコード（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][maps_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['maps_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('地図・ジオコード（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][maps_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['maps_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('通知（通／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][notify_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['notify_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('通知（通／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][notify_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['notify_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('動画再生（回／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][video_play_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['video_play_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('動画再生（回／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][video_play_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['video_play_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('添付（件／日）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][attachment_requests_per_day]" min="0" value="{{ (int) ($templates[$plan]['attachment_requests_per_day'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
+          <tr>
+            <th>{{ __('添付（件／月）') }}</th>
+            @foreach($planColumns as $plan)
+              <td><input type="number" name="templates[{{ $plan }}][attachment_requests_per_month]" min="0" value="{{ (int) ($templates[$plan]['attachment_requests_per_month'] ?? 0) }}" /></td>
+            @endforeach
+          </tr>
         </tbody>
       </table>
     </div>
@@ -175,6 +223,22 @@
       <label>
         {{ __('見積：通話 1回（円）') }}
         <input type="number" name="platform[yen_per_livekit]" min="0" value="{{ (int) ($platform['yen_per_livekit'] ?? 8) }}" />
+      </label>
+      <label>
+        {{ __('見積：地図・ジオコード 1回（円）') }}
+        <input type="number" name="platform[yen_per_maps]" min="0" value="{{ (int) ($platform['yen_per_maps'] ?? 1) }}" />
+      </label>
+      <label>
+        {{ __('見積：通知 1通（円）') }}
+        <input type="number" name="platform[yen_per_notify]" min="0" value="{{ (int) ($platform['yen_per_notify'] ?? 1) }}" />
+      </label>
+      <label>
+        {{ __('見積：動画再生 1回（円）') }}
+        <input type="number" name="platform[yen_per_video_play]" min="0" value="{{ (int) ($platform['yen_per_video_play'] ?? 1) }}" />
+      </label>
+      <label>
+        {{ __('見積：添付 1件（円）') }}
+        <input type="number" name="platform[yen_per_attachment]" min="0" value="{{ (int) ($platform['yen_per_attachment'] ?? 1) }}" />
       </label>
     </div>
     <button type="submit">{{ __('制限を保存') }}</button>

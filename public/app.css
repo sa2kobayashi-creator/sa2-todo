@@ -21341,18 +21341,56 @@ button.msg-icon-tool.is-listening,
   background: transparent;
 }
 .gt-pane textarea:focus { outline: none; }
+.gt-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.gt-pane-head .gt-pane-label {
+  margin: 0;
+}
+.gt-icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--gt-muted, #5f6368);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.gt-icon-btn:hover,
+.gt-icon-btn:focus-visible {
+  background: rgba(26, 115, 232, 0.08);
+  color: var(--gt-blue);
+  outline: none;
+}
+.gt-icon-btn.is-ok {
+  color: #137333;
+}
 .gt-pane-foot {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   flex-wrap: wrap;
 }
-.gt-mic, .gt-go, .gt-file-btn {
+.gt-mic, .gt-go, .gt-file-btn, .gt-clear {
   border: 0;
   border-radius: 999px;
   padding: 10px 16px;
   font-weight: 700;
   cursor: pointer;
+}
+.gt-clear {
+  background: #fff;
+  border: 1px solid var(--gt-line);
+  color: #5f6368;
+  margin-right: auto;
 }
 .gt-mic {
   background: #fff;

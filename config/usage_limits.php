@@ -13,6 +13,10 @@ return [
     'youtube_requests_per_day' => (int) env('USER_YOUTUBE_REQUESTS_PER_DAY', 20),
     'cloudinary_requests_per_day' => (int) env('USER_CLOUDINARY_REQUESTS_PER_DAY', 10),
     'livekit_requests_per_day' => (int) env('USER_LIVEKIT_REQUESTS_PER_DAY', 10),
+    'maps_requests_per_day' => (int) env('USER_MAPS_REQUESTS_PER_DAY', 200),
+    'notify_requests_per_day' => (int) env('USER_NOTIFY_REQUESTS_PER_DAY', 200),
+    'video_play_requests_per_day' => (int) env('USER_VIDEO_PLAY_REQUESTS_PER_DAY', 300),
+    'attachment_requests_per_day' => (int) env('USER_ATTACHMENT_REQUESTS_PER_DAY', 100),
 
     'yen_per_llm_voice' => (int) env('USAGE_YEN_PER_LLM_VOICE', 5),
     'yen_per_workers_ai' => (int) env('USAGE_YEN_PER_WORKERS_AI', 3),
@@ -21,4 +25,8 @@ return [
     'yen_per_youtube' => (int) env('USAGE_YEN_PER_YOUTUBE', 2),
     'yen_per_cloudinary' => (int) env('USAGE_YEN_PER_CLOUDINARY', 5),
     'yen_per_livekit' => (int) env('USAGE_YEN_PER_LIVEKIT', 8),
+    'yen_per_maps' => (int) env('USAGE_YEN_PER_MAPS', 1),
+    'yen_per_notify' => (int) env('USAGE_YEN_PER_NOTIFY', 1),
+    'yen_per_video_play' => (int) env('USAGE_YEN_PER_VIDEO_PLAY', 1),
+    'yen_per_attachment' => (int) env('USAGE_YEN_PER_ATTACHMENT', 1),
 ];

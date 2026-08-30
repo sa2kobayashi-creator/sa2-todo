@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\UsageLimitExceededException;
 use App\Models\MessagingConnection;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
@@ -73,7 +74,22 @@ class LineMessagingService
             return ['ok' => false, 'message' => 'LINE が未連携です。'];
         }
 
-        return $this->pushText($connection->external_user_id, $text);
+        try {
+            app(UserUsageLimitService::class)->assertWithin($user, UserUsageLimitService::FEATURE_NOTIFY, 1);
+        } catch (UsageLimitExceededException $e) {
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+
+        $result = $this->pushText($connection->external_user_id, $text);
+        if (! empty($result['ok'])) {
+            try {
+                app(UserUsageLimitService::class)->consume($user, UserUsageLimitService::FEATURE_NOTIFY, 1);
+            } catch (UsageLimitExceededException) {
+                // 送信済みのため失敗しても止めない
+            }
+        }
+
+        return $result;
     }
 
     public function pushText(string $lineUserId, string $text): array
