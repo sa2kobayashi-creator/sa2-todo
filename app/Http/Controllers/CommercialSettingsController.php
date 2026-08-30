@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AppInstallConfigService;
 use App\Services\LegalConfigService;
 use App\Services\StripeBillingService;
 use App\Services\StripeConfigService;
@@ -16,6 +17,7 @@ class CommercialSettingsController extends Controller
         private readonly LegalConfigService $legal,
         private readonly StripeConfigService $stripe,
         private readonly StripeBillingService $stripeBilling,
+        private readonly AppInstallConfigService $appInstall,
     ) {}
 
     public function updateLegal(Request $request)
@@ -86,6 +88,38 @@ class CommercialSettingsController extends Controller
             $open
                 ? __('利用申請の受付を開始しました。TOPページに申請ボタンが表示されます。')
                 : __('利用申請の受付を停止しました。TOPページの申請ボタンは「準備中」になります。')
+        );
+    }
+
+    public function updateAppInstall(Request $request)
+    {
+        $returnTo = '/settings?section=sales#app-install-settings';
+
+        if ($request->boolean('remove_apk')) {
+            $this->appInstall->removeLocalApk();
+
+            return $this->redirectWithMessage($returnTo, __('アップロード済みの APK を削除しました。'));
+        }
+
+        $data = $request->validate([
+            'apk_url' => ['nullable', 'string', 'max:500'],
+            'apk_file' => ['nullable', 'file', 'max:153600'],
+        ]);
+
+        try {
+            if ($request->hasFile('apk_file')) {
+                $this->appInstall->storeUploadedApk($request->file('apk_file'));
+            }
+            $this->appInstall->saveUrl($data['apk_url'] ?? '');
+        } catch (\InvalidArgumentException $e) {
+            return $this->redirectWithMessage($returnTo, $e->getMessage(), 'error');
+        }
+
+        return $this->redirectWithMessage(
+            $returnTo,
+            $request->hasFile('apk_file')
+                ? __('APKを保存しました。ダッシュボードのインストールからダウンロードできます。')
+                : __('アプリインストール設定を保存しました。')
         );
     }
 

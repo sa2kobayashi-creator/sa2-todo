@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\AppInstallConfigService;
 use App\Services\LegalConfigService;
 use App\Services\MediaStorageConfigService;
 use App\Services\StripeConfigService;
@@ -41,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
             app(MediaStorageConfigService::class)->applyRuntimeDisks();
             app(LegalConfigService::class)->applyRuntime();
             app(StripeConfigService::class)->applyRuntime();
+            app(AppInstallConfigService::class)->applyRuntime();
         } catch (\Throwable) {
             // マイグレーション前などテーブル未作成時は無視
         }

@@ -82,6 +82,9 @@ class MediaStorageSetting extends Model
     /** Stripe 課金（公開可能キー・シークレット・price ID） */
     public const PROVIDER_STRIPE = 'stripe';
 
+    /** Android APK 配布（ダッシュボードのインストールリンク） */
+    public const PROVIDER_APP_INSTALL = 'app_install';
+
     /** 契約者には渡さない（ドメイン・Webhook・試作） */
     public const PLATFORM_ONLY_PROVIDERS = [
         self::PROVIDER_WEB_PUSH,
@@ -95,6 +98,7 @@ class MediaStorageSetting extends Model
         self::PROVIDER_REALESRGAN,
         self::PROVIDER_LEGAL,
         self::PROVIDER_STRIPE,
+        self::PROVIDER_APP_INSTALL,
     ];
 
     protected $fillable = [

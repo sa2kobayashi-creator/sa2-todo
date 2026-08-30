@@ -134,6 +134,18 @@ Route::get('/.well-known/assetlinks.json', function () {
     ]);
 });
 
+// Android APK（実体は public/downloads/sa2-plus.apk。短い URL でも配信）
+Route::get('/sa2-plus.apk', function () {
+    $path = \App\Support\AppInstall::localAbsolutePath();
+    abort_unless(is_string($path) && is_file($path), 404);
+
+    return response()->file($path, [
+        'Content-Type' => 'application/vnd.android.package-archive',
+        'Content-Disposition' => 'attachment; filename="sa2-plus.apk"',
+        'Cache-Control' => 'public, max-age=300',
+    ]);
+});
+
 // Google Calendar OAuth callback（ログイン連携ではない。セッションのログインユーザーに紐付ける）
 Route::get('/auth/google/calendar/callback', [GoogleCalendarSettingsController::class, 'callback'])
     ->middleware(['auth', ShareViewData::class]);
@@ -481,6 +493,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/sales/stripe', [CommercialSettingsController::class, 'updateStripe'])
                 ->middleware(RequireSuperAdmin::class);
             Route::post('/settings/sales/stripe/test', [CommercialSettingsController::class, 'testStripe'])
+                ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/sales/app-install', [CommercialSettingsController::class, 'updateAppInstall'])
                 ->middleware(RequireSuperAdmin::class);
 
             Route::post('/settings/api/youtube', [YoutubeSettingsController::class, 'update']);

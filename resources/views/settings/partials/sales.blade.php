@@ -77,6 +77,46 @@
   </form>
 </div>
 
+@php $appInstall = $appInstallSettings ?? []; @endphp
+<div class="panel storage-settings" id="app-install-settings">
+  <h3>{{ __('アプリインストール（Android APK）') }}</h3>
+  <p class="hint">{{ __('ダッシュボードの「アプリをインストール」から配る Android APK です。ファイルをアップロードするか、外部の配布URLを指定してください。iPhone は PWA（ホーム画面に追加）案内のみです。') }}</p>
+
+  @if(!empty($appInstall['available']))
+    <p class="hint storage-test-result is-ok">
+      {{ __('配布可能です。') }}
+      @if(!empty($appInstall['effective_url']))
+        <a href="{{ $appInstall['effective_url'] }}" target="_blank" rel="noopener">{{ __('ダウンロードを開く') }}</a>
+      @endif
+    </p>
+  @else
+    <div class="banner error">{{ __('まだ APK がありません。アップロードか URL を保存するまで、ダッシュボードでは「Android：準備中」と表示されます。') }}</div>
+  @endif
+
+  <form method="post" action="/settings/sales/app-install" class="storage-provider-form" enctype="multipart/form-data">
+    @csrf
+    <label>
+      {{ __('外部配布URL（任意）') }}
+      <input type="url" name="apk_url" value="{{ $appInstall['apk_url'] ?? '' }}" maxlength="500" placeholder="https://example.com/sa2-plus.apk" />
+      <span class="hint">{{ __('外部ホストのURLだけを書いてください。このサイト上に置く場合は下でアップロードし、外部URLは空のままにしてください（配信URLは /sa2-plus.apk になります）。') }}</span>
+    </label>
+    <label>
+      {{ __('APKファイルをアップロード') }}
+      <input type="file" name="apk_file" accept=".apk,application/vnd.android.package-archive" />
+      <span class="hint">{{ __('保存先: public/:path（最大約150MB）', ['path' => $appInstall['local_path'] ?? 'downloads/sa2-plus.apk']) }}</span>
+    </label>
+    @if(!empty($appInstall['has_local_file']))
+      <p class="hint">{{ __('アップロード済み: :size', ['size' => $appInstall['local_size_label'] ?? '']) }}</p>
+    @endif
+    <div class="storage-form-actions">
+      <button type="submit" class="button-link">{{ __('アプリインストール設定を保存') }}</button>
+      @if(!empty($appInstall['has_local_file']))
+        <button type="submit" name="remove_apk" value="1" class="secondary">{{ __('アップロード済みAPKを削除') }}</button>
+      @endif
+    </div>
+  </form>
+</div>
+
 <div class="panel storage-settings" id="registration-applications-settings">
   <h3>{{ __('利用申請の受付') }}</h3>
   <p class="hint">{{ __('TOPページの「利用申請」「無料で試す」などのボタンを制御します。Stripe のカード決済（オンライン申し込み）とは別です。') }}</p>

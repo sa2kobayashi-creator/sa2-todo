@@ -31,6 +31,8 @@ class CommercialSettingsTest extends TestCase
             ->assertOk()
             ->assertSee(__('公開販売'), false)
             ->assertSee('id="legal-operator-settings"', false)
+            ->assertSee('id="app-install-settings"', false)
+            ->assertSee(__('アプリインストール（Android APK）'), false)
             ->assertSee('id="registration-applications-settings"', false)
             ->assertSee(__('申請申し込みを開始する'), false)
             ->assertSee('id="stripe-billing-settings"', false)
@@ -196,6 +198,36 @@ class CommercialSettingsTest extends TestCase
 
         $this->actingAs($admin)
             ->post('/settings/sales/legal', ['operator_name' => '誰か'])
+            ->assertForbidden();
+    }
+
+    public function test_super_admin_can_save_android_apk_url(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-apk-url@example.com');
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/app-install', [
+                'apk_url' => 'https://cdn.example.com/sa2-plus.apk',
+            ])
+            ->assertRedirect('/settings?section=sales#app-install-settings');
+
+        $this->assertSame('https://cdn.example.com/sa2-plus.apk', \App\Support\AppInstall::androidApkUrl());
+
+        $this->actingAs($owner)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('https://cdn.example.com/sa2-plus.apk', false)
+            ->assertSee(__('Android：APK'), false)
+            ->assertDontSee(__('Android：準備中'), false);
+    }
+
+    public function test_admin_cannot_post_app_install_settings(): void
+    {
+        $admin = $this->makeUser(UserRole::Admin, 'admin-apk-post@example.com');
+
+        $this->actingAs($admin)
+            ->post('/settings/sales/app-install', [
+                'apk_url' => 'https://cdn.example.com/sa2-plus.apk',
+            ])
             ->assertForbidden();
     }
 }
