@@ -69,26 +69,11 @@
             <span class="hint">{{ __('空欄や極端に短い内容、一時メールは自動でお断りします。') }}</span>
           </label>
 
-          <p class="agree-terms-hint" id="agree-terms-hint">{{ __('先に利用規約とプライバシーポリシーを開いて内容を確認してください。確認後に同意チェックが有効になります。') }}</p>
-          <label class="checkbox-inline agree-terms-row" for="agree-terms">
-            <input
-              type="checkbox"
-              name="agreeTerms"
-              id="agree-terms"
-              value="1"
-              @checked(old('agreeTerms'))
-              required
-              disabled
-              aria-describedby="agree-terms-hint"
-            />
-            <span>
-              {!! __(':terms と :privacy に同意します。', [
-                'terms' => '<a href="/terms" target="_blank" rel="noopener" id="agree-link-terms" data-legal="terms">'.e(__('利用規約')).'</a>',
-                'privacy' => '<a href="/privacy" target="_blank" rel="noopener" id="agree-link-privacy" data-legal="privacy">'.e(__('プライバシーポリシー')).'</a>',
-              ]) !!}
-            </span>
-          </label>
-          <button type="submit" class="auth-submit" id="apply-submit" disabled>{{ __('申請する') }}</button>
+          @include('partials.agree-terms', [
+            'submitButtonId' => 'apply-submit',
+            'submitLabel' => __('申請する'),
+            'readyHint' => __('内容を確認済みです。同意する場合はチェックを入れて申請してください。'),
+          ])
         </form>
 
         <div class="auth-links">
@@ -100,21 +85,8 @@
     @include('partials.csrf-keepalive')
     <script>
       (() => {
-        const TERMS_KEY = 'sa2_legal_terms_read'
-        const PRIVACY_KEY = 'sa2_legal_privacy_read'
-        const checkbox = document.getElementById('agree-terms')
-        const submit = document.getElementById('apply-submit')
-        const hint = document.getElementById('agree-terms-hint')
-        const linkTerms = document.getElementById('agree-link-terms')
-        const linkPrivacy = document.getElementById('agree-link-privacy')
         const orgRow = document.getElementById('apply-org-row')
         const planInputs = document.querySelectorAll('input[name="plan"]')
-        if (!checkbox || !submit) return
-
-        const has = (key) => {
-          try { return localStorage.getItem(key) === '1' } catch (_) { return false }
-        }
-
         const syncOrg = () => {
           const plan = document.querySelector('input[name="plan"]:checked')?.value
           if (!orgRow) return
@@ -126,35 +98,8 @@
             orgRow.querySelector('input')?.removeAttribute('required')
           }
         }
-
-        const refresh = () => {
-          const termsOk = has(TERMS_KEY)
-          const privacyOk = has(PRIVACY_KEY)
-          linkTerms?.classList.toggle('is-read', termsOk)
-          linkPrivacy?.classList.toggle('is-read', privacyOk)
-          const ready = termsOk && privacyOk
-          checkbox.disabled = !ready
-          if (!ready) checkbox.checked = false
-          submit.disabled = !ready || !checkbox.checked
-          if (hint) {
-            hint.textContent = ready
-              ? @json(__('内容を確認済みです。同意する場合はチェックを入れて申請してください。'))
-              : @json(__('先に利用規約とプライバシーポリシーを開いて内容を確認してください。確認後に同意チェックが有効になります。'))
-          }
-        }
-
-        checkbox.addEventListener('change', refresh)
         planInputs.forEach((el) => el.addEventListener('change', syncOrg))
-        window.addEventListener('storage', (event) => {
-          if (event.key === TERMS_KEY || event.key === PRIVACY_KEY) refresh()
-        })
-        window.addEventListener('focus', refresh)
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') refresh()
-        })
-        setInterval(refresh, 1500)
         syncOrg()
-        refresh()
       })()
     </script>
   </body>

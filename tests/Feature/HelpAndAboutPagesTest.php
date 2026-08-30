@@ -153,6 +153,26 @@ class HelpAndAboutPagesTest extends TestCase
         $html = $this->get('/register')->assertOk()->getContent();
         $this->assertStringContainsString('id="agree-terms"', $html);
         $this->assertMatchesRegularExpression('/id="agree-terms"[^>]*\bdisabled\b/', $html);
-        $this->assertStringContainsString('agree-terms-row', $html);
+        $this->assertStringContainsString('agree-terms-box', $html);
+        $this->assertStringContainsString(__('同意の前に、規約の確認が必要です'), $html);
+        $this->assertStringContainsString(__('利用規約を開く'), $html);
+        $this->assertStringContainsString(__('プライバシーポリシーを開く'), $html);
+    }
+
+    public function test_apply_page_explains_terms_must_be_opened_before_agree(): void
+    {
+        \App\Support\Registration::setApplicationsOpenByPlan([
+            'light' => true,
+            'standard' => false,
+            'tenant' => false,
+            'dedicated' => false,
+        ]);
+
+        $html = $this->get('/apply')->assertOk()->getContent();
+        $this->assertStringContainsString('agree-terms-box', $html);
+        $this->assertStringContainsString(__('チェックボックスは最初は押せません'), $html);
+        $this->assertStringContainsString('id="agree-link-terms"', $html);
+        $this->assertStringContainsString('id="agree-link-privacy"', $html);
+        $this->assertMatchesRegularExpression('/id="agree-terms"[^>]*\bdisabled\b/', $html);
     }
 }

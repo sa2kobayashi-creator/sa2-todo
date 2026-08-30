@@ -34,82 +34,16 @@
               <textarea name="message" rows="3" maxlength="2000" required minlength="{{ (int) ($purposeMinLength ?? 20) }}" placeholder="{{ __('例: Todoと写真を試したい。家族の予定共有を検討中、など（:min文字以上）', ['min' => (int) ($purposeMinLength ?? 20)]) }}">{{ old('message') }}</textarea>
               <span class="hint">{{ __('空欄や極端に短い内容、一時メールは自動でお断りします。') }}</span>
             </label>
-            <p class="agree-terms-hint" id="agree-terms-hint">{{ __('先に利用規約とプライバシーポリシーを開いて内容を確認してください。確認後に同意チェックが有効になります。') }}</p>
-            <label class="checkbox-inline agree-terms-row" for="agree-terms">
-              <input
-                type="checkbox"
-                name="agreeTerms"
-                id="agree-terms"
-                value="1"
-                @checked(old('agreeTerms'))
-                required
-                disabled
-                aria-describedby="agree-terms-hint"
-              />
-              <span>
-                {!! __(':terms と :privacy に同意します。', [
-                  'terms' => '<a href="/terms" target="_blank" rel="noopener" id="agree-link-terms" data-legal="terms">'.e(__('利用規約')).'</a>',
-                  'privacy' => '<a href="/privacy" target="_blank" rel="noopener" id="agree-link-privacy" data-legal="privacy">'.e(__('プライバシーポリシー')).'</a>',
-                ]) !!}
-              </span>
-            </label>
-            <button type="submit" class="auth-submit" id="register-submit" disabled>{{ __('登録') }}</button>
+            @include('partials.agree-terms', [
+              'submitButtonId' => 'register-submit',
+              'submitLabel' => __('登録'),
+              'readyHint' => __('内容を確認済みです。同意する場合はチェックを入れて登録してください。'),
+            ])
           </form>
         @endif
         <div class="auth-links"><a href="/login">{{ __('ログインへ') }}</a></div>
       </div>
     </main>
     @include('partials.csrf-keepalive')
-    @if(!empty($registrationOpen))
-      <script>
-        (() => {
-          const TERMS_KEY = 'sa2_legal_terms_read';
-          const PRIVACY_KEY = 'sa2_legal_privacy_read';
-          const checkbox = document.getElementById('agree-terms');
-          const submit = document.getElementById('register-submit');
-          const hint = document.getElementById('agree-terms-hint');
-          const linkTerms = document.getElementById('agree-link-terms');
-          const linkPrivacy = document.getElementById('agree-link-privacy');
-          if (!checkbox || !submit) return;
-
-          const has = (key) => {
-            try { return localStorage.getItem(key) === '1'; } catch (_) { return false; }
-          };
-
-          const refresh = () => {
-            const termsOk = has(TERMS_KEY);
-            const privacyOk = has(PRIVACY_KEY);
-            linkTerms?.classList.toggle('is-read', termsOk);
-            linkPrivacy?.classList.toggle('is-read', privacyOk);
-            const ready = termsOk && privacyOk;
-            checkbox.disabled = !ready;
-            if (!ready) {
-              checkbox.checked = false;
-            }
-            submit.disabled = !ready || !checkbox.checked;
-            if (hint) {
-              hint.textContent = ready
-                ? @json(__('内容を確認済みです。同意する場合はチェックを入れて登録してください。'))
-                : @json(__('先に利用規約とプライバシーポリシーを開いて内容を確認してください。確認後に同意チェックが有効になります。'));
-            }
-          };
-
-          checkbox.addEventListener('change', refresh);
-          // 別タブで /terms・/privacy を開いたとき（localStorage はタブ間で共有）
-          window.addEventListener('storage', (event) => {
-            if (event.key === TERMS_KEY || event.key === PRIVACY_KEY) {
-              refresh();
-            }
-          });
-          window.addEventListener('focus', refresh);
-          document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') refresh();
-          });
-          // 戻ってきた直後の取りこぼし防止
-          setInterval(refresh, 1500);
-          refresh();
-        })();
-      </script>
-    @endif
   </body>
 </html>
