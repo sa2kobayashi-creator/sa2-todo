@@ -136,6 +136,7 @@ class DashboardController extends Controller
             'formatEventTooltip' => fn ($todo) => $this->todos->formatEventTooltip($todo),
             'home' => $home,
             'usageWarnings' => $usageRemaining['warnings'] ?? [],
+            'showLightFeedback' => $user->roleEnum() === \App\Enums\UserRole::Light,
             'googleCalendarConnected' => $this->googleCalendar->connectionFor($user) !== null,
             'approvedGroups' => $context === AppContext::Work ? [] : $this->groups->listApprovedForUser($userId),
             'pendingGroupInvitations' => $this->groups->listPendingInvitationsForUser($userId),

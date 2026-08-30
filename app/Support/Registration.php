@@ -127,6 +127,25 @@ final class Registration
         return $out;
     }
 
+    /**
+     * ライト申請だけ受付中（試験運用案内の表示条件）。
+     * スタンダード／テナント／専用のいずれかが開いていれば false。
+     */
+    public static function isLightOnlyApplicationsOpen(): bool
+    {
+        if (! self::applicationsOpenFor('light')) {
+            return false;
+        }
+
+        foreach (['standard', 'tenant', 'dedicated'] as $plan) {
+            if (self::applicationsOpenFor($plan)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static function applicationsOpenFor(string $plan): bool
     {
         $plan = strtolower(trim($plan));

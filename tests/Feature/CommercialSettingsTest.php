@@ -207,6 +207,40 @@ class CommercialSettingsTest extends TestCase
         $this->get('/apply?plan=standard')->assertOk();
     }
 
+    public function test_top_shows_light_soft_launch_copy_only_when_light_alone_is_open(): void
+    {
+        $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-light-soft@example.com');
+        $softLaunch = __('現在試験的に運用をライトプランで開始しました。そのほかのプランは現在開発中で近日公開予定でございます。ご使用のご意見等をログイン後のダッシュボード上部の「ご使用後の意見はこちら」のご意見ボタンから頂けると幸いでございます。');
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/applications', [
+                'applications_open_light' => '1',
+            ])
+            ->assertRedirect('/settings?section=sales#registration-applications-settings');
+
+        $this->assertTrue(\App\Support\Registration::isLightOnlyApplicationsOpen());
+
+        auth()->logout();
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(__('まずはライトプランでお試しいただけます。'), false)
+            ->assertSee($softLaunch, false);
+
+        $this->actingAs($owner)
+            ->post('/settings/sales/applications', [
+                'applications_open_light' => '1',
+                'applications_open_standard' => '1',
+            ])
+            ->assertRedirect('/settings?section=sales#registration-applications-settings');
+
+        $this->assertFalse(\App\Support\Registration::isLightOnlyApplicationsOpen());
+
+        auth()->logout();
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee($softLaunch, false);
+    }
+
     public function test_super_admin_can_save_stripe_keys_without_enabling_checkout(): void
     {
         $owner = $this->makeUser(UserRole::SuperAdmin, 'owner-stripe-save@example.com');

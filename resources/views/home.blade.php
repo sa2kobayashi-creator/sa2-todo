@@ -499,6 +499,9 @@
         <h2 id="landing-start-title">{{ __('sa2-plusを始める') }}</h2>
         <p class="lp-section-lead">{{ __('Todo、予定、メモ、写真、メール、AI相談など、毎日の情報をひとつの場所にまとめてみませんか？') }}</p>
         <p>{{ __('まずはライトプランでSa2 Plusをお試しいただけます。') }}</p>
+        @if(!empty($lightOnlyApplicationsOpen))
+          <p>{{ __('現在試験的に運用をライトプランで開始しました。そのほかのプランは現在開発中で近日公開予定でございます。ご使用のご意見等をログイン後のダッシュボード上部の「ご使用後の意見はこちら」のご意見ボタンから頂けると幸いでございます。') }}</p>
+        @endif
         <p class="lp-cta">
           @include('partials.lp-apply-cta', [
             'href' => '/apply?plan=light',
@@ -545,6 +548,9 @@
         <div>
           <h2 id="landing-banner-title">{{ __('sa2-plusを始める') }}</h2>
           <p>{{ __('まずはライトプランでお試しいただけます。') }}</p>
+          @if(!empty($lightOnlyApplicationsOpen))
+            <p>{{ __('現在試験的に運用をライトプランで開始しました。そのほかのプランは現在開発中で近日公開予定でございます。ご使用のご意見等をログイン後のダッシュボード上部の「ご使用後の意見はこちら」のご意見ボタンから頂けると幸いでございます。') }}</p>
+          @endif
         </div>
         <p class="lp-cta">
           @include('partials.lp-apply-cta', [

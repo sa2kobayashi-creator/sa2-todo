@@ -26,8 +26,11 @@ return [
     /** ライト未ログイン警告までの日数（既定 90日＝約3か月） */
     'light_inactive_warn_days' => (int) env('REGISTRATION_LIGHT_INACTIVE_WARN_DAYS', 90),
 
-    /** 警告後、ログインがなければ削除するまでの猶予日数 */
+    /** ライト未ログイン警告後、ログインがなければ削除するまでの猶予日数 */
     'light_inactive_delete_grace_days' => (int) env('REGISTRATION_LIGHT_INACTIVE_DELETE_GRACE_DAYS', 14),
+
+    /** ライトユーザーのご意見メールの宛先 */
+    'light_feedback_to' => trim((string) env('LIGHT_FEEDBACK_TO', 'info@sa2-plus.com')),
 
     /**
      * 捨てアド判定用ドメイン（小文字）。ここに含まれると申請を自動拒否。

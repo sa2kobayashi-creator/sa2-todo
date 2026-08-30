@@ -367,6 +367,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
     // 問い合わせは契約者が運営に連絡する唯一の窓口なので、全ログインユーザーに開く
     Route::get('/contact', [HelpController::class, 'contact']);
     Route::post('/contact', [HelpController::class, 'sendInquiry'])->middleware('throttle:contact-inquiry');
+    Route::post('/dashboard/light-feedback', [HelpController::class, 'sendLightFeedback'])
+        ->middleware('throttle:contact-inquiry');
     Route::middleware(RequireAdmin::class)->group(function () {
         Route::get('/help/overview', [HelpController::class, 'overview']);
         Route::get('/help/guide', [HelpController::class, 'guide']);

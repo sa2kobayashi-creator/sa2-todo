@@ -22122,6 +22122,33 @@ button.msg-icon-tool.is-listening,
   background: linear-gradient(180deg, #f8fbff 0%, #ffffff 70%);
 }
 
+.dash-home-feedback {
+  margin: 0 0 10px;
+}
+
+.dash-home-feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #c5d8f5;
+  background: #eef5ff;
+  color: #174ea6;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dash-home-feedback-btn:hover,
+.dash-home-feedback-btn:focus-visible {
+  background: #e0edff;
+  outline: none;
+}
+
 .dash-home-date {
   margin: 0 0 4px;
   font-size: 14px;

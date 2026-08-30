@@ -11,6 +11,13 @@
 @endphp
 
 <section class="dash-home" aria-label="{{ __('今日') }}">
+  @if(!empty($showLightFeedback))
+    <div class="dash-home-feedback">
+      <button type="button" class="dash-home-feedback-btn" id="dash-light-feedback-open">
+        {{ __('ご使用後の意見はこちら') }}
+      </button>
+    </div>
+  @endif
   <header class="dash-home-greeting">
     <p class="dash-home-date">{{ $home['dateLabel'] ?? '' }}</p>
     <h1 class="dash-home-hello">{{ $home['greetingLine'] ?? '' }}</h1>
@@ -406,3 +413,45 @@
     </nav>
   </footer>
 </section>
+
+@if(!empty($showLightFeedback))
+  <div class="modal modal-centered" id="dash-light-feedback-modal" hidden>
+    <div class="modal-backdrop" data-close-light-feedback></div>
+    <div class="modal-dialog" role="dialog" aria-labelledby="dash-light-feedback-title">
+      <div class="modal-header">
+        <h2 id="dash-light-feedback-title">{{ __('ご使用後の意見はこちら') }}</h2>
+        <button type="button" class="modal-close" data-close-light-feedback aria-label="{{ __('閉じる') }}">×</button>
+      </div>
+      <form method="post" action="/dashboard/light-feedback" class="modal-form" id="dash-light-feedback-form">
+        @csrf
+        <p class="hint">{{ __('ライトプランのご利用についてのご意見・ご要望を運営へ送ります。返信は登録メールアドレスへお送りすることがあります。') }}</p>
+        <label>{{ __('ご意見') }}
+          <textarea name="body" rows="6" required maxlength="5000" placeholder="{{ __('使いやすさ、ほしい機能、困ったことなど') }}">{{ old('body') }}</textarea>
+        </label>
+        @error('body')
+          <p class="hint storage-test-result is-fail">{{ $message }}</p>
+        @enderror
+        <div class="modal-actions">
+          <button type="button" class="secondary" data-close-light-feedback>{{ __('キャンセル') }}</button>
+          <button type="submit">{{ __('送信する') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const modal = document.getElementById('dash-light-feedback-modal')
+      const openBtn = document.getElementById('dash-light-feedback-open')
+      if (!modal || !openBtn) return
+      const open = () => { modal.hidden = false }
+      const close = () => { modal.hidden = true }
+      openBtn.addEventListener('click', open)
+      modal.querySelectorAll('[data-close-light-feedback]').forEach((el) => {
+        el.addEventListener('click', close)
+      })
+      @if($errors->has('body'))
+        open()
+      @endif
+    })()
+  </script>
+@endif

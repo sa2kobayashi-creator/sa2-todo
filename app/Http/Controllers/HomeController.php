@@ -46,6 +46,7 @@ class HomeController extends Controller
             'applicationsOpen' => Registration::applicationsOpen(),
             'applicationsFullyOpen' => Registration::applicationsFullyOpen(),
             'applicationsOpenByPlan' => Registration::applicationsOpenByPlan(),
+            'lightOnlyApplicationsOpen' => Registration::isLightOnlyApplicationsOpen(),
         ]);
     }
 }

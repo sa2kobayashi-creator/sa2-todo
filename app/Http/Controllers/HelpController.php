@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
+use App\Mail\LightUserFeedbackMail;
 use App\Mail\OperatorInquiryMail;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -92,5 +93,36 @@ class HelpController extends Controller
         }
 
         return $this->redirectWithMessage('/contact', __('お問い合わせを送信しました。運営者から返信します。'));
+    }
+
+    public function sendLightFeedback(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || $user->roleEnum() !== UserRole::Light) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $to = trim((string) config('registration.light_feedback_to', 'info@sa2-plus.com'));
+        if ($to === '' || ! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return $this->redirectWithMessage('/dashboard', __('送信先メールが設定されていません。'), 'error');
+        }
+
+        try {
+            Mail::to($to)->send(new LightUserFeedbackMail(
+                senderName: (string) ($user->display_name ?: $user->email),
+                senderEmail: (string) $user->email,
+                bodyText: $data['body'],
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage('/dashboard', __('送信に失敗しました。時間をおいて再度お試しください。'), 'error');
+        }
+
+        return $this->redirectWithMessage('/dashboard', __('ご意見を送信しました。ありがとうございます。'));
     }
 }
