@@ -23,22 +23,10 @@ class BillingController extends Controller
     {
         $user = $request->user();
 
-        return view('billing.plan', [
-            'billingEnabled' => $this->stripe->enabled(),
-            'plans' => $this->stripe->selfServePlans(),
-            'status' => $this->entitlements->status($user),
-            'statusLabel' => __($this->entitlements->status($user)->label()),
-            'hasActiveSubscription' => $this->entitlements->hasActiveSubscription($user),
-            'trialEndsAt' => optional($user->trial_ends_at)?->format('Y-m-d'),
-            'mailboxAddonActive' => (bool) $user->mailbox_addon_active,
-            'storageOverageActive' => (bool) $user->storage_overage_active,
-            'hasStripeCustomer' => trim((string) $user->stripe_id) !== '',
-            'pricesIncludeTax' => (bool) config('commercial.prices_include_tax', true),
-            'standardMonthlyYen' => (int) config('commercial.standard_yen_monthly', 980),
-            'standardYearlyYen' => (int) config('commercial.standard_yen_yearly', 9800),
-            'standardTrialDays' => (int) config('commercial.standard_trial_days', 14),
-            ...$this->flashFromQuery($request),
-        ]);
+        return view('billing.plan', array_merge(
+            $this->stripe->planPageData($user),
+            $this->flashFromQuery($request),
+        ));
     }
 
     public function checkout(Request $request)

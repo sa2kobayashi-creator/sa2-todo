@@ -21,6 +21,104 @@ class StripeBillingService
 {
     public function __construct(private readonly BillingEntitlementService $entitlements) {}
 
+    /**
+     * /mypage/plan とマイページ埋め込みで共有する画面データ。
+     *
+     * @return array<string, mixed>
+     */
+    public function planPageData(User $user): array
+    {
+        return [
+            'billingEnabled' => $this->enabled(),
+            'plans' => $this->selfServePlans(),
+            'status' => $this->entitlements->status($user),
+            'statusLabel' => __($this->entitlements->status($user)->label()),
+            'hasActiveSubscription' => $this->entitlements->hasActiveSubscription($user),
+            'trialEndsAt' => optional($user->trial_ends_at)?->format('Y-m-d'),
+            'mailboxAddonActive' => (bool) $user->mailbox_addon_active,
+            'storageOverageActive' => (bool) $user->storage_overage_active,
+            'hasStripeCustomer' => trim((string) $user->stripe_id) !== '',
+            'pricesIncludeTax' => (bool) config('commercial.prices_include_tax', true),
+            'standardMonthlyYen' => (int) config('commercial.standard_yen_monthly', 980),
+            'standardYearlyYen' => (int) config('commercial.standard_yen_yearly', 9800),
+            'standardTrialDays' => (int) config('commercial.standard_trial_days', 14),
+        ];
+    }
+
+    /**
+     * 退会・アカウント削除前に Stripe 上のサブスクを即時解約する。
+     * ローカルに subscription 行が無くても、顧客に紐づく契約をすべて止める。
+     *
+     * @throws \RuntimeException 解約できず課金が残る恐れがあるとき
+     */
+    public function cancelAllSubscriptionsForDeletion(User $user): void
+    {
+        $customerId = trim((string) $user->stripe_id);
+        if ($customerId === '') {
+            return;
+        }
+
+        if (trim((string) config('cashier.secret', '')) === '') {
+            Log::warning('stripe cancel on delete skipped: secret missing', [
+                'user_id' => $user->id,
+            ]);
+            throw new \RuntimeException(
+                __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。')
+            );
+        }
+
+        try {
+            $stripe = $user->stripe();
+            $page = $stripe->subscriptions->all([
+                'customer' => $customerId,
+                'status' => 'all',
+                'limit' => 100,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            Log::error('stripe cancel on delete: list failed', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException(
+                __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。'),
+                0,
+                $e
+            );
+        }
+
+        foreach ($page->data as $subscription) {
+            $status = (string) ($subscription->status ?? '');
+            if (in_array($status, ['canceled', 'incomplete_expired'], true)) {
+                continue;
+            }
+
+            try {
+                // 即時解約（期末まで残す cancel だと、退会後に請求が残る）
+                $stripe->subscriptions->cancel($subscription->id, [
+                    'prorate' => false,
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+                Log::error('stripe cancel on delete: cancel failed', [
+                    'user_id' => $user->id,
+                    'subscription_id' => $subscription->id ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+                throw new \RuntimeException(
+                    __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。'),
+                    0,
+                    $e
+                );
+            }
+        }
+
+        Log::info('stripe subscriptions canceled for account deletion', [
+            'user_id' => $user->id,
+            'customer' => $customerId,
+        ]);
+    }
+
     public function enabled(): bool
     {
         if (! (bool) config('billing.enabled', false)) {

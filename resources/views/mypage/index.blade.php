@@ -62,6 +62,16 @@
 
       @include('mypage.partials.usage-status')
 
+      <details class="app-accordion mypage-accordion" id="billing-plan" data-accordion-key="mypage-billing-plan" open>
+        <summary class="app-accordion-summary">
+          <span>{{ __('プラン・お支払い') }}</span>
+          <span class="app-accordion-caret" aria-hidden="true">▾</span>
+        </summary>
+        <div class="app-accordion-body">
+          @include('billing.partials.plan-panel')
+        </div>
+      </details>
+
       <details class="app-accordion mypage-accordion" data-accordion-key="mypage-features">
         <summary class="app-accordion-summary">
           <span>{{ __('利用可能な機能') }}</span>
@@ -216,6 +226,7 @@
         </summary>
         <div class="app-accordion-body">
           <p class="hint">{{ __('アカウントと、写真・メモ・音楽などのデータを削除します。この操作は取り消せません。') }}</p>
+          <p class="hint">{{ __('有料プランに加入中の場合は、退会と同時に Stripe の定期課金も解約します。解約に失敗したときは退会できません。') }}</p>
           <p class="hint">{{ __('退会前に、データのコピー（JSON ZIP）をダウンロードできます。写真・音楽ファイル本体は含まれません。') }}</p>
           <div class="storage-form-actions" style="margin-bottom:12px;">
             <a class="button-link secondary" href="/mypage/export">{{ __('データをエクスポート') }}</a>

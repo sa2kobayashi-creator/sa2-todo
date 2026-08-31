@@ -14,6 +14,7 @@ use App\Services\LineMessagingService;
 use App\Services\MessengerMessagingService;
 use App\Services\PhotoService;
 use App\Services\Sa2PlusMailboxService;
+use App\Services\StripeBillingService;
 use App\Services\UsageLimitPolicyService;
 use App\Services\UserDataExportService;
 use App\Services\UserUsageLimitService;
@@ -44,6 +45,7 @@ class MyPageController extends Controller
         private UsageLimitPolicyService $usageLimits,
         private UserUsageLimitService $userUsageLimits,
         private DashboardAiUsageService $aiUsage,
+        private StripeBillingService $stripeBilling,
     ) {}
 
     public function show(Request $request)
@@ -59,7 +61,7 @@ class MyPageController extends Controller
             ? $this->photos->storageStats((int) $user->id, $user->isSuperAdmin())
             : null;
 
-        return view('mypage.index', array_merge($this->flashFromQuery($request), [
+        return view('mypage.index', array_merge($this->flashFromQuery($request), $this->stripeBilling->planPageData($user), [
             'user' => $user->toPublicArray(),
             'role' => $user->roleEnum(),
             'features' => array_values(array_filter(
@@ -197,6 +199,20 @@ class MyPageController extends Controller
             return $this->redirectWithMessage(
                 '/mypage#account-delete',
                 __('最後のスーパー管理者は退会できません。先に別のスーパー管理者を任命してください。'),
+                'error'
+            );
+        }
+
+        try {
+            $this->stripeBilling->cancelAllSubscriptionsForDeletion($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage(
+                '/mypage#account-delete',
+                $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。'),
                 'error'
             );
         }

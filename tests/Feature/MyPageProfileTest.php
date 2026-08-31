@@ -45,6 +45,10 @@ class MyPageProfileTest extends TestCase
             ->assertSee('href="/mypage/holidays"', false)
             ->assertSee('休日を設定する', false)
             ->assertSee('data-accordion-key="mypage-features"', false)
+            ->assertSee('data-accordion-key="mypage-billing-plan"', false)
+            ->assertSee('id="billing-plan"', false)
+            ->assertSee(__('プラン・お支払い'), false)
+            ->assertSee(__('ご契約の状態'), false)
             ->assertSee('data-accordion-key="mypage-profile-edit"', false)
             ->assertSee('data-accordion-key="mypage-password"', false)
             ->assertSee('data-accordion-key="mypage-line"', false)
@@ -52,6 +56,33 @@ class MyPageProfileTest extends TestCase
             ->assertSee('data-accordion-key="mypage-holidays"', false)
             ->assertSee('data-accordion-key="mypage-account-delete"', false)
             ->assertSee('Googleカレンダー設定', false);
+    }
+
+    public function test_mypage_shows_billing_portal_when_subscription_is_active(): void
+    {
+        config([
+            'billing.enabled' => true,
+            'billing.plans.standard_monthly.price_id' => 'price_standard_monthly_test',
+            'cashier.secret' => 'sk_test_dummy',
+            'cashier.webhook.secret' => 'whsec_test',
+            'legal.operator_name' => 'テスト事業者',
+            'legal.address' => '東京都千代田区1-1-1',
+            'legal.phone' => '03-0000-0000',
+            'legal.contact_email' => 'support@example.com',
+        ]);
+
+        $user = $this->makeUser('mypage-billing-portal@example.com');
+        $user->forceFill([
+            'subscription_status' => \App\Enums\SubscriptionStatus::Trial,
+            'trial_ends_at' => now()->addDays(14),
+            'stripe_id' => 'cus_test_mypage',
+        ])->save();
+
+        $this->actingAs($user)
+            ->get('/mypage')
+            ->assertOk()
+            ->assertSee(__('契約内容を変更'), false)
+            ->assertSee('action="/mypage/plan/portal"', false);
     }
 
     public function test_admin_sees_ai_usage_on_mypage_not_dashboard(): void
