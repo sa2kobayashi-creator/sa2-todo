@@ -379,11 +379,19 @@ class MediaStorageConfigService
             return null;
         }
 
+        $region = trim((string) $row->setting('region', ''));
+        if ($region === '' && preg_match('#://s3\.([a-z0-9-]+)\.backblazeb2\.com#i', $endpoint, $m)) {
+            $region = $m[1];
+        }
+        if ($region === '') {
+            $region = 'us-east-005';
+        }
+
         return [
             'driver' => 's3',
             'key' => $key,
             'secret' => $secret,
-            'region' => (string) $row->setting('region', 'us-west-004'),
+            'region' => $region,
             'bucket' => $bucket,
             'url' => (string) $row->setting('url', ''),
             'endpoint' => $endpoint,

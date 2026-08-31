@@ -193,7 +193,7 @@
 
 <div class="panel storage-settings" id="storage-backblaze">
   <h2>Backblaze B2</h2>
-  <p class="hint">{{ __('長期保存用です。S3 互換の Endpoint（例: https://s3.us-west-004.backblazeb2.com）を入力してください。パイプラインで自動アーカイブを有効にすると、指定日数を過ぎた原本をここへ移動します（サムネは高速表示のためホット側に残します）。') }}</p>
+  <p class="hint">{{ __('長期保存用です。S3 互換の Endpoint は B2 のバケット画面に表示される値をそのまま使います（例: https://s3.us-east-005.backblazeb2.com）。Region も Endpoint の地域名と揃えてください。パイプラインで自動アーカイブを有効にすると、指定日数を過ぎた原本をここへ移動します（サムネは高速表示のためホット側に残します）。') }}</p>
   @if(!empty($backblaze['last_test_message']))
     <p class="hint storage-test-result {{ ($backblaze['last_test_status'] ?? '') === 'ok' ? 'is-ok' : 'is-fail' }}">
       {{ ($backblaze['last_tested_at'] ?? '') }} — {{ $backblaze['last_test_message'] }}
@@ -220,10 +220,11 @@
       <input type="text" name="bucket" value="{{ $bSettings['bucket'] ?? '' }}" />
     </label>
     <label>Endpoint
-      <input type="url" name="endpoint" value="{{ $bSettings['endpoint'] ?? '' }}" placeholder="https://s3.us-west-004.backblazeb2.com" />
+      <input type="url" name="endpoint" value="{{ $bSettings['endpoint'] ?? '' }}" placeholder="https://s3.us-east-005.backblazeb2.com" />
     </label>
     <label>Region
-      <input type="text" name="region" value="{{ $bSettings['region'] ?? 'us-west-004' }}" />
+      <input type="text" name="region" value="{{ $bSettings['region'] ?? '' }}" placeholder="us-east-005" />
+      <span class="hint">{{ __('空欄なら Endpoint の地域名（us-east-005 など）を使います。') }}</span>
     </label>
     <label>Public URL <span class="hint inline-hint">{{ __('任意') }}</span>
       <input type="url" name="url" value="{{ $bSettings['url'] ?? '' }}" />

@@ -6,6 +6,8 @@ use App\Models\Photo;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\UnableToSetVisibility;
+use League\Flysystem\UnableToWriteFile;
 
 class PhotoColdArchiveService
 {
@@ -600,13 +602,18 @@ class PhotoColdArchiveService
         }
 
         try {
-            $ok = $cold->writeStream($path, $stream, [
-                'visibility' => 'private',
+            // disk 設定は throw=false のため、失敗理由が false だけになってログに残らない。
+            // ドライバを直接叩いて UnableToWriteFile の本文（B2/S3 の実メッセージ）を拾う。
+            // visibility は付けない（DatabaseBackup と同じ。B2 で ACL 非対応だと失敗しやすい）。
+            $cold->getDriver()->writeStream($path, $stream, [
                 'ContentType' => (string) ($photo->mime ?: 'application/octet-stream'),
             ]);
-            if ($ok === false) {
-                throw new \RuntimeException('Cold writeStream returned false: '.$path);
-            }
+        } catch (UnableToWriteFile|UnableToSetVisibility $e) {
+            throw new \RuntimeException(
+                'Cold write failed: '.$path.' — '.$e->getMessage(),
+                0,
+                $e
+            );
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);
