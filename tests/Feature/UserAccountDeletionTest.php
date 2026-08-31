@@ -166,4 +166,25 @@ class UserAccountDeletionTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'stripe-fail-leave@example.com']);
         $this->assertAuthenticatedAs($user);
     }
+
+    public function test_mypage_delete_aborts_when_entitled_without_stripe_customer(): void
+    {
+        config(['cashier.secret' => 'sk_test_dummy']);
+        $this->makeUser(UserRole::SuperAdmin, 'keep-sa2@example.com');
+        $user = $this->makeUser(UserRole::Standard, 'entitled-no-cus@example.com');
+        $user->forceFill([
+            'subscription_status' => \App\Enums\SubscriptionStatus::Trial,
+            'trial_ends_at' => now()->addDays(7),
+            'stripe_id' => null,
+        ])->save();
+
+        $this->actingAs($user)->post('/mypage/delete', [
+            'password' => 'password',
+            'confirm' => '退会',
+        ])->assertRedirect();
+
+        $this->assertNotEmpty(session('error'));
+        $this->assertDatabaseHas('users', ['email' => 'entitled-no-cus@example.com']);
+        $this->assertAuthenticatedAs($user);
+    }
 }

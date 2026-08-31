@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Checkout;
 use Stripe\Exception\InvalidRequestException as StripeInvalidRequestException;
+use Stripe\StripeClient;
 
 /**
  * Stripe と既存のエンタイトルメント層をつなぐ層。
@@ -47,36 +48,109 @@ class StripeBillingService
 
     /**
      * 退会・アカウント削除前に Stripe 上のサブスクを即時解約する。
-     * ローカルに subscription 行が無くても、顧客に紐づく契約をすべて止める。
+     *
+     * - users.stripe_id が空でも、有料契約中／ローカル subscription 行／メール一致の顧客を探す
+     * - 解約対象があるのに止められないときは例外（退会を中止させる）
      *
      * @throws \RuntimeException 解約できず課金が残る恐れがあるとき
      */
     public function cancelAllSubscriptionsForDeletion(User $user): void
     {
-        $customerId = trim((string) $user->stripe_id);
-        if ($customerId === '') {
+        app(StripeConfigService::class)->applyRuntime();
+
+        $mustStopBilling = $this->userLikelyHasBillableSubscription($user);
+        $customerId = $this->resolveStripeCustomerIdForDeletion($user);
+        $localSubIds = $this->localOpenStripeSubscriptionIds($user);
+
+        if ($customerId === '' && $localSubIds === [] && ! $mustStopBilling) {
             return;
         }
 
-        if (trim((string) config('cashier.secret', '')) === '') {
+        $secret = trim((string) config('cashier.secret', ''));
+        if ($secret === '') {
             Log::warning('stripe cancel on delete skipped: secret missing', [
                 'user_id' => $user->id,
+                'must_stop' => $mustStopBilling,
             ]);
-            throw new \RuntimeException(
-                __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。')
-            );
+            if ($mustStopBilling || $customerId !== '' || $localSubIds !== []) {
+                throw new \RuntimeException(
+                    __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。')
+                );
+            }
+
+            return;
         }
 
+        $stripe = new StripeClient($secret);
+        $canceledIds = [];
+
         try {
-            $stripe = $user->stripe();
-            $page = $stripe->subscriptions->all([
-                'customer' => $customerId,
-                'status' => 'all',
-                'limit' => 100,
-            ]);
+            foreach ($localSubIds as $subscriptionId) {
+                $this->cancelStripeSubscriptionId($stripe, $subscriptionId, $user, $canceledIds);
+                if ($customerId === '') {
+                    $customerId = $this->customerIdFromSubscription($stripe, $subscriptionId);
+                }
+            }
+
+            if ($customerId === '') {
+                $customerId = $this->findStripeCustomerIdByEmail($stripe, (string) $user->email);
+            }
+
+            if ($customerId !== '' && trim((string) $user->stripe_id) === '') {
+                $user->forceFill(['stripe_id' => $customerId])->save();
+            }
+
+            if ($customerId !== '') {
+                $page = $stripe->subscriptions->all([
+                    'customer' => $customerId,
+                    'status' => 'all',
+                    'limit' => 100,
+                ]);
+                foreach ($page->data as $subscription) {
+                    $status = (string) ($subscription->status ?? '');
+                    if (in_array($status, ['canceled', 'incomplete_expired'], true)) {
+                        continue;
+                    }
+                    $this->cancelStripeSubscriptionId(
+                        $stripe,
+                        (string) $subscription->id,
+                        $user,
+                        $canceledIds
+                    );
+                }
+
+                $remaining = $stripe->subscriptions->all([
+                    'customer' => $customerId,
+                    'status' => 'all',
+                    'limit' => 100,
+                ]);
+                foreach ($remaining->data as $subscription) {
+                    $status = (string) ($subscription->status ?? '');
+                    if (! in_array($status, ['canceled', 'incomplete_expired'], true)) {
+                        Log::error('stripe cancel on delete: open subscription remains', [
+                            'user_id' => $user->id,
+                            'subscription_id' => $subscription->id ?? null,
+                            'status' => $status,
+                        ]);
+                        throw new \RuntimeException(
+                            __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。')
+                        );
+                    }
+                }
+            } elseif ($mustStopBilling) {
+                Log::error('stripe cancel on delete: no customer id for entitled user', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                ]);
+                throw new \RuntimeException(
+                    __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。')
+                );
+            }
+        } catch (\RuntimeException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             report($e);
-            Log::error('stripe cancel on delete: list failed', [
+            Log::error('stripe cancel on delete failed', [
                 'user_id' => $user->id,
                 'message' => $e->getMessage(),
             ]);
@@ -87,36 +161,141 @@ class StripeBillingService
             );
         }
 
-        foreach ($page->data as $subscription) {
-            $status = (string) ($subscription->status ?? '');
-            if (in_array($status, ['canceled', 'incomplete_expired'], true)) {
-                continue;
-            }
-
-            try {
-                // 即時解約（期末まで残す cancel だと、退会後に請求が残る）
-                $stripe->subscriptions->cancel($subscription->id, [
-                    'prorate' => false,
-                ]);
-            } catch (\Throwable $e) {
-                report($e);
-                Log::error('stripe cancel on delete: cancel failed', [
-                    'user_id' => $user->id,
-                    'subscription_id' => $subscription->id ?? null,
-                    'message' => $e->getMessage(),
-                ]);
-                throw new \RuntimeException(
-                    __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。'),
-                    0,
-                    $e
-                );
-            }
-        }
-
         Log::info('stripe subscriptions canceled for account deletion', [
             'user_id' => $user->id,
             'customer' => $customerId,
+            'canceled' => array_values($canceledIds),
         ]);
+    }
+
+    private function userLikelyHasBillableSubscription(User $user): bool
+    {
+        if ($this->entitlements->hasActiveSubscription($user)) {
+            return true;
+        }
+
+        $status = $this->entitlements->status($user);
+
+        return in_array($status, [
+            SubscriptionStatus::Trial,
+            SubscriptionStatus::Active,
+            SubscriptionStatus::PastDue,
+        ], true);
+    }
+
+    private function resolveStripeCustomerIdForDeletion(User $user): string
+    {
+        return trim((string) $user->stripe_id);
+    }
+
+    /** @return list<string> */
+    private function localOpenStripeSubscriptionIds(User $user): array
+    {
+        try {
+            return $user->subscriptions()
+                ->whereNotNull('stripe_id')
+                ->whereNotIn('stripe_status', ['canceled', 'incomplete_expired'])
+                ->pluck('stripe_id')
+                ->map(fn ($id) => trim((string) $id))
+                ->filter(fn (string $id) => str_starts_with($id, 'sub_'))
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function findStripeCustomerIdByEmail(StripeClient $stripe, string $email): string
+    {
+        $email = strtolower(trim($email));
+        if ($email === '' || ! str_contains($email, '@')) {
+            return '';
+        }
+
+        try {
+            $page = $stripe->customers->all([
+                'email' => $email,
+                'limit' => 10,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('stripe cancel on delete: customer email lookup failed', [
+                'email' => $email,
+                'message' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
+
+        foreach ($page->data as $customer) {
+            $id = trim((string) ($customer->id ?? ''));
+            if (str_starts_with($id, 'cus_')) {
+                return $id;
+            }
+        }
+
+        return '';
+    }
+
+    private function customerIdFromSubscription(StripeClient $stripe, string $subscriptionId): string
+    {
+        try {
+            $subscription = $stripe->subscriptions->retrieve($subscriptionId);
+            $customer = $subscription->customer ?? null;
+            if (is_object($customer) && isset($customer->id)) {
+                return trim((string) $customer->id);
+            }
+
+            return trim((string) $customer);
+        } catch (\Throwable $e) {
+            Log::warning('stripe cancel on delete: subscription retrieve for customer failed', [
+                'subscription_id' => $subscriptionId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
+    }
+
+    /**
+     * @param  list<string>  $canceledIds
+     */
+    private function cancelStripeSubscriptionId(
+        StripeClient $stripe,
+        string $subscriptionId,
+        User $user,
+        array &$canceledIds,
+    ): void {
+        $subscriptionId = trim($subscriptionId);
+        if ($subscriptionId === '' || isset($canceledIds[$subscriptionId])) {
+            return;
+        }
+
+        try {
+            $current = $stripe->subscriptions->retrieve($subscriptionId);
+            $status = (string) ($current->status ?? '');
+            if (in_array($status, ['canceled', 'incomplete_expired'], true)) {
+                $canceledIds[$subscriptionId] = $subscriptionId;
+
+                return;
+            }
+
+            $stripe->subscriptions->cancel($subscriptionId, [
+                'prorate' => false,
+            ]);
+            $canceledIds[$subscriptionId] = $subscriptionId;
+        } catch (\Throwable $e) {
+            report($e);
+            Log::error('stripe cancel on delete: cancel failed', [
+                'user_id' => $user->id,
+                'subscription_id' => $subscriptionId,
+                'message' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException(
+                __('有料契約の解約に失敗しました。プラン・お支払いから解約してから、もう一度退会してください。'),
+                0,
+                $e
+            );
+        }
     }
 
     public function enabled(): bool
