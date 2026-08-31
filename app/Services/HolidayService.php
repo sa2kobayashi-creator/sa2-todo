@@ -234,7 +234,68 @@ class HolidayService
         $add(11, 3, '文化の日');
         $add(11, 23, '勤労感謝の日');
 
-        return $items;
+        return $this->applySubstituteAndCitizenHolidays($items);
+    }
+
+    /**
+     * 祝日法の振替休日・国民の休日を付与する。
+     * 例: 2026-09-21 敬老の日 と 2026-09-23 秋分の日 → 2026-09-22 国民の休日
+     *
+     * @param  list<array{date: string, name: string}>  $items
+     * @return list<array{date: string, name: string}>
+     */
+    private function applySubstituteAndCitizenHolidays(array $items): array
+    {
+        /** @var array<string, string> $byDate */
+        $byDate = [];
+        foreach ($items as $item) {
+            $byDate[$item['date']] = $item['name'];
+        }
+
+        // 振替休日: 日曜の祝日 → 直後の「祝日でない日」
+        $statutory = array_keys($byDate);
+        sort($statutory);
+        foreach ($statutory as $date) {
+            $day = Carbon::parse($date);
+            if ($day->dayOfWeek !== Carbon::SUNDAY) {
+                continue;
+            }
+            $candidate = $day->copy()->addDay();
+            while (isset($byDate[$candidate->format('Y-m-d')])) {
+                $candidate->addDay();
+            }
+            $key = $candidate->format('Y-m-d');
+            if (! isset($byDate[$key])) {
+                $byDate[$key] = '振替休日';
+            }
+        }
+
+        // 国民の休日: 祝日と祝日に挟まれた日（1日だけ）
+        $dates = array_keys($byDate);
+        sort($dates);
+        $extra = [];
+        for ($i = 0; $i < count($dates) - 1; $i++) {
+            $left = Carbon::parse($dates[$i]);
+            $right = Carbon::parse($dates[$i + 1]);
+            if ((int) $left->diffInDays($right) !== 2) {
+                continue;
+            }
+            $mid = $left->copy()->addDay()->format('Y-m-d');
+            if (! isset($byDate[$mid])) {
+                $extra[$mid] = '国民の休日';
+            }
+        }
+        foreach ($extra as $date => $name) {
+            $byDate[$date] = $name;
+        }
+
+        ksort($byDate);
+        $out = [];
+        foreach ($byDate as $date => $name) {
+            $out[] = ['date' => $date, 'name' => $name];
+        }
+
+        return $out;
     }
 
     /**

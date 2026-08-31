@@ -28,6 +28,42 @@ class HolidayServiceTest extends TestCase
         $this->assertSame('旧正月', $byDate['2026-02-17']);
     }
 
+    public function test_japanese_holidays_include_citizen_holiday_between_aged_and_equinox_2026(): void
+    {
+        $items = app(HolidayService::class)->computeJapaneseNationalHolidays(2026);
+        $byDate = [];
+        foreach ($items as $item) {
+            $byDate[$item['date']] = $item['name'];
+        }
+
+        $this->assertSame('敬老の日', $byDate['2026-09-21']);
+        $this->assertSame('国民の休日', $byDate['2026-09-22']);
+        $this->assertSame('秋分の日', $byDate['2026-09-23']);
+    }
+
+    public function test_japanese_holidays_include_substitute_when_holiday_falls_on_sunday(): void
+    {
+        // 2026-02-11 建国記念の日は水曜日。2023-02-11 は土曜、2024-02-11 は日曜 → 振替 2/12
+        $items = app(HolidayService::class)->computeJapaneseNationalHolidays(2024);
+        $byDate = [];
+        foreach ($items as $item) {
+            $byDate[$item['date']] = $item['name'];
+        }
+
+        $this->assertSame('建国記念の日', $byDate['2024-02-11']);
+        $this->assertSame('振替休日', $byDate['2024-02-12']);
+    }
+
+    public function test_import_japanese_holidays_adds_missing_citizen_holiday(): void
+    {
+        $service = app(HolidayService::class);
+        $service->importNationalHolidays(2026, 'jp');
+
+        $map = $service->getHolidayInfoMapForYear(2026);
+        $this->assertSame('国民の休日', $map['2026-09-22']['name']);
+        $this->assertSame('national', $map['2026-09-22']['source']);
+    }
+
     public function test_import_philippine_holidays_registers_entries_for_calendar(): void
     {
         $service = app(HolidayService::class);

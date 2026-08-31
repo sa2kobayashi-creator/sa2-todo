@@ -141,10 +141,21 @@ class HomePageTest extends TestCase
         ]);
         $this->get('/')
             ->assertOk()
-            ->assertSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
+            ->assertDontSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
             ->assertSee('href="/apply?plan=standard"', false)
             ->assertDontSee('href="/apply?plan=light"', false)
             ->assertSee('data-stat-event="cta.plan.dedicated"', false);
+
+        Registration::setApplicationsOpenByPlan([
+            'light' => true,
+            'standard' => false,
+            'tenant' => false,
+            'dedicated' => false,
+        ]);
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee(__('現在最終準備中の機能がありますので今しばらくのお待ちをお願いいたします。'), false)
+            ->assertSee('href="/apply?plan=light"', false);
 
         Registration::setApplicationsOpen(true);
         $this->get('/')
