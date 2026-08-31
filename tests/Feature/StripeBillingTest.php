@@ -404,6 +404,39 @@ class StripeBillingTest extends TestCase
         );
     }
 
+    public function test_checkout_failure_message_explains_numeric_price(): void
+    {
+        $svc = app(StripeBillingService::class);
+        $e = new \RuntimeException('The `price` parameter should be the ID of a price object, rather than the literal numerical price.');
+
+        $this->assertSame(
+            __('料金プランの Price ID が正しくありません。金額（例: 980）ではなく、Stripe の price_ で始まる ID を設定してください。'),
+            $svc->checkoutFailureMessage($e)
+        );
+    }
+
+    public function test_checkout_failure_message_explains_managed_payments_tax_code(): void
+    {
+        $svc = app(StripeBillingService::class);
+        $e = new \RuntimeException('Invalid line_items[0]: the product tax code is missing. Managed Payments is enabled by default.');
+
+        $this->assertSame(
+            __('Stripe の Managed Payments（税コード必須）が有効なため決済を開けませんでした。商品に税コードを付けるか、Managed Payments をオフにしてください。'),
+            $svc->checkoutFailureMessage($e)
+        );
+    }
+
+    public function test_self_serve_plans_ignore_numeric_price_ids(): void
+    {
+        config(['billing.plans.standard_monthly.price_id' => '980']);
+        config(['billing.plans.standard_yearly.price_id' => 'price_ok_yearly']);
+
+        $plans = app(StripeBillingService::class)->selfServePlans();
+
+        $this->assertArrayNotHasKey('standard_monthly', $plans);
+        $this->assertArrayHasKey('standard_yearly', $plans);
+    }
+
     public function test_forget_stripe_customer_clears_local_ids(): void
     {
         $user = $this->makeUser('billing-stale-cus@example.com');

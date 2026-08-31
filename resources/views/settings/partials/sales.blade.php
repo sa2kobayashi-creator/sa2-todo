@@ -194,7 +194,7 @@
     </ul>
 
     <h4 class="ai-settings-subtitle">{{ __('Price ID（Stripe が発行する price_ で始まる値）') }}</h4>
-    <p class="hint">{{ __('商品を作ったあと「価格」の ID を貼ります。空のプランは申し込み候補に出ません。テナント契約は運営が作るので、ここにあっても利用者の画面には出ません。') }}</p>
+    <p class="hint">{{ __('商品を作ったあと「価格」の ID（例: price_1ABC...）を貼ります。¥980 などの金額数字は使えません。空のプランは申し込み候補に出ません。テナント契約は運営が作るので、ここにあっても利用者の画面には出ません。') }}</p>
     <label>
       {{ __('スタンダード（月額）') }}
       <input type="text" name="price_standard_monthly" value="{{ $prices['price_standard_monthly'] ?? '' }}" placeholder="price_..." autocomplete="off" />

@@ -68,6 +68,17 @@ class CommercialSettingsController extends Controller
             }
         }
 
+        foreach (array_keys(StripeConfigService::PRICE_MAP) as $priceKey) {
+            $value = trim((string) ($data[$priceKey] ?? ''));
+            if ($value !== '' && ! $this->stripeBilling->looksLikeStripePriceId($value)) {
+                return $this->redirectWithMessage(
+                    '/settings?section=sales#stripe-billing-settings',
+                    __('Price ID は price_ で始まる値にしてください。金額（980 など）は使えません。Stripe ダッシュボードの「価格」ID をコピーしてください。'),
+                    'error'
+                );
+            }
+        }
+
         $this->stripe->save($enabled, $data);
 
         return $this->redirectWithMessage(

@@ -72,10 +72,14 @@ class StripeBillingService
                 'price_standard_yearly' => (string) config('billing.plans.standard_yearly.price_id', ''),
                 default => '',
             };
-            if ($fromInput !== '' || trim($fromConfig) !== '') {
-                $hasPrice = true;
-                break;
+            $candidate = $fromInput !== '' ? $fromInput : trim($fromConfig);
+            if ($candidate === '') {
+                continue;
             }
+            if (! $this->looksLikeStripePriceId($candidate)) {
+                return __('Price ID は price_ で始まる値にしてください。金額（980 など）は使えません。Stripe ダッシュボードの「価格」ID をコピーしてください。');
+            }
+            $hasPrice = true;
         }
 
         if (! $hasPrice) {
@@ -83,6 +87,17 @@ class StripeBillingService
         }
 
         return null;
+    }
+
+    public function looksLikeStripePriceId(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || ctype_digit($value)) {
+            return false;
+        }
+
+        // Stripe は price_1ABC...。テスト用の price_standard_1 なども許可する。
+        return (bool) preg_match('/^price_[A-Za-z0-9_]+$/', $value);
     }
 
     private function effectiveSecret(string $dbKey, string $incoming): string
@@ -106,7 +121,8 @@ class StripeBillingService
     {
         return array_filter(
             (array) config('billing.plans', []),
-            fn (array $plan) => ($plan['self_serve'] ?? false) && trim((string) ($plan['price_id'] ?? '')) !== ''
+            fn (array $plan) => ($plan['self_serve'] ?? false)
+                && $this->looksLikeStripePriceId((string) ($plan['price_id'] ?? ''))
         );
     }
 
@@ -118,7 +134,7 @@ class StripeBillingService
     public function planByKey(string $key): ?array
     {
         $plan = (array) config('billing.plans', []);
-        if (! isset($plan[$key]) || trim((string) ($plan[$key]['price_id'] ?? '')) === '') {
+        if (! isset($plan[$key]) || ! $this->looksLikeStripePriceId((string) ($plan[$key]['price_id'] ?? ''))) {
             return null;
         }
 
@@ -167,6 +183,20 @@ class StripeBillingService
             return __('料金プランの設定（Price ID）が Stripe の鍵のモード（テスト／本番）と一致していない可能性があります。運営の設定を確認してください。');
         }
 
+        if (
+            stripos($msg, 'literal numerical price') !== false
+            || stripos($msg, 'should be the ID of a price object') !== false
+        ) {
+            return __('料金プランの Price ID が正しくありません。金額（例: 980）ではなく、Stripe の price_ で始まる ID を設定してください。');
+        }
+
+        if (
+            stripos($msg, 'product tax code is missing') !== false
+            || stripos($msg, 'Managed Payments') !== false
+        ) {
+            return __('Stripe の Managed Payments（税コード必須）が有効なため決済を開けませんでした。商品に税コードを付けるか、Managed Payments をオフにしてください。');
+        }
+
         if (stripos($msg, 'Invalid API Key') !== false || stripos($msg, 'Invalid API key') !== false) {
             return __('Stripe の API キーが無効です。設定を確認してください。');
         }
@@ -204,6 +234,9 @@ class StripeBillingService
                 'cancel_url' => url($returnTo),
                 'locale' => 'ja',
                 'client_reference_id' => (string) $user->id,
+                // 新規 Stripe アカウントは Managed Payments が既定 ON で、商品税コードが無いと Checkout が落ちる。
+                // 自社が販売者の通常サブスクでは不要なので明示的にオフにする。
+                'managed_payments' => ['enabled' => false],
             ]);
     }
 
