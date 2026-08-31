@@ -231,7 +231,7 @@
           <div class="storage-form-actions" style="margin-bottom:12px;">
             <a class="button-link secondary" href="/mypage/export">{{ __('データをエクスポート') }}</a>
           </div>
-          <form method="post" action="/mypage/delete" class="stack-form" onsubmit="return confirm(@json(__('本当に退会しますか？データは復元できません。')))">
+          <form method="post" action="/mypage/delete" class="stack-form" id="mypage-account-delete-form">
             @csrf
             <label>{{ __('現在のパスワード') }}
               <input type="password" name="password" required autocomplete="current-password" />
@@ -239,8 +239,47 @@
             <label>{{ __('確認（「退会」または DELETE と入力）') }}
               <input type="text" name="confirm" required autocomplete="off" placeholder="退会" />
             </label>
-            <button type="submit" class="danger">{{ __('退会する') }}</button>
+            <button type="button" class="danger" id="mypage-account-delete-open">{{ __('退会する') }}</button>
           </form>
+
+          <dialog class="msg-dialog" id="mypage-account-delete-dialog" aria-labelledby="mypage-account-delete-title">
+            <section class="msg-dialog-card">
+              <h3 id="mypage-account-delete-title">{{ __('退会の確認') }}</h3>
+              <p>{{ __('本当に退会しますか？アカウントとデータは削除され、元に戻せません。') }}</p>
+              <p class="hint">{{ __('有料プランがある場合は、退会と同時に課金も解約します。') }}</p>
+              <div class="msg-dialog-actions">
+                <button type="button" class="msg-dialog-cancel" id="mypage-account-delete-cancel">{{ __('キャンセル') }}</button>
+                <button type="button" class="danger" id="mypage-account-delete-confirm">{{ __('退会する') }}</button>
+              </div>
+            </section>
+          </dialog>
+          <script>
+            (function () {
+              const form = document.getElementById('mypage-account-delete-form')
+              const dialog = document.getElementById('mypage-account-delete-dialog')
+              const openBtn = document.getElementById('mypage-account-delete-open')
+              const cancelBtn = document.getElementById('mypage-account-delete-cancel')
+              const confirmBtn = document.getElementById('mypage-account-delete-confirm')
+              if (!form || !dialog || !openBtn || !cancelBtn || !confirmBtn) return
+
+              openBtn.addEventListener('click', () => {
+                if (!form.reportValidity()) return
+                if (typeof dialog.showModal === 'function') {
+                  dialog.showModal()
+                } else if (window.confirm(@json(__('本当に退会しますか？データは復元できません。')))) {
+                  form.submit()
+                }
+              })
+              cancelBtn.addEventListener('click', () => dialog.close())
+              confirmBtn.addEventListener('click', () => {
+                dialog.close()
+                form.submit()
+              })
+              dialog.addEventListener('click', (e) => {
+                if (e.target === dialog) dialog.close()
+              })
+            })()
+          </script>
         </div>
       </details>
     </main>
