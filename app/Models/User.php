@@ -62,6 +62,14 @@ class User extends Authenticatable
         'pending_email_token',
     ];
 
+    /** Cashier 既定の name カラムは使わない */
+    public function stripeName(): ?string
+    {
+        $name = trim((string) ($this->display_name ?? ''));
+
+        return $name !== '' ? $name : null;
+    }
+
     protected function casts(): array
     {
         return [

@@ -6,6 +6,9 @@ use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\Checkout;
+use Stripe\Exception\InvalidRequestException as StripeInvalidRequestException;
 
 /**
  * Stripe と既存のエンタイトルメント層をつなぐ層。
@@ -120,6 +123,88 @@ class StripeBillingService
         }
 
         return ((array) $plan[$key]) + ['key' => $key];
+    }
+
+    /**
+     * Checkout Session を作る。古い stripe_id（テスト／本番の食い違い等）は一度消して再試行する。
+     *
+     * @param  array<string, mixed>  $plan
+     *
+     * @throws \Throwable
+     */
+    public function createCheckoutSession(User $user, array $plan, string $returnTo): Checkout
+    {
+        try {
+            return $this->buildCheckoutSession($user, $plan, $returnTo);
+        } catch (StripeInvalidRequestException $e) {
+            if (! $this->isMissingStripeCustomerError($e) || ! $user->hasStripeId()) {
+                throw $e;
+            }
+
+            Log::warning('stripe checkout: clearing stale customer id', [
+                'user_id' => $user->id,
+                'stripe_id' => $user->stripe_id,
+                'message' => $e->getMessage(),
+            ]);
+            $this->forgetStripeCustomer($user);
+
+            return $this->buildCheckoutSession($user->fresh() ?? $user, $plan, $returnTo);
+        }
+    }
+
+    /**
+     * 利用者向けの短い案内。秘密情報は出さない。
+     */
+    public function checkoutFailureMessage(\Throwable $e): string
+    {
+        $msg = $e->getMessage();
+
+        if ($this->isMissingStripeCustomerError($e)) {
+            return __('決済用の顧客情報が見つかりませんでした。もう一度「申し込む」を押してください。');
+        }
+
+        if (stripos($msg, 'No such price') !== false || stripos($msg, 'No such plan') !== false) {
+            return __('料金プランの設定（Price ID）が Stripe の鍵のモード（テスト／本番）と一致していない可能性があります。運営の設定を確認してください。');
+        }
+
+        if (stripos($msg, 'Invalid API Key') !== false || stripos($msg, 'Invalid API key') !== false) {
+            return __('Stripe の API キーが無効です。設定を確認してください。');
+        }
+
+        return __('決済ページを開けませんでした。時間をおいて再度お試しください。');
+    }
+
+    public function forgetStripeCustomer(User $user): void
+    {
+        $user->forceFill([
+            'stripe_id' => null,
+            'pm_type' => null,
+            'pm_last_four' => null,
+        ])->save();
+    }
+
+    public function isMissingStripeCustomerError(\Throwable $e): bool
+    {
+        $msg = $e->getMessage();
+
+        return stripos($msg, 'No such customer') !== false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $plan
+     */
+    private function buildCheckoutSession(User $user, array $plan, string $returnTo): Checkout
+    {
+        return $user
+            ->newSubscription('default', (string) $plan['price_id'])
+            ->trialDays(max(0, (int) ($plan['trial_days'] ?? 0)))
+            ->allowPromotionCodes()
+            ->checkout([
+                'success_url' => url($returnTo).'?notice='.urlencode(__('お申し込みを受け付けました。反映まで少しお待ちください。')),
+                'cancel_url' => url($returnTo),
+                'locale' => 'ja',
+                'client_reference_id' => (string) $user->id,
+            ]);
     }
 
     /** price ID から逆引きする。Webhook が受け取るのは price なので必要になる */

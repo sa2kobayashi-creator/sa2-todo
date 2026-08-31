@@ -393,6 +393,34 @@ class StripeBillingTest extends TestCase
         );
     }
 
+    public function test_checkout_failure_message_explains_missing_price(): void
+    {
+        $svc = app(StripeBillingService::class);
+        $e = new \RuntimeException('No such price: \'price_xxx\'');
+
+        $this->assertSame(
+            __('料金プランの設定（Price ID）が Stripe の鍵のモード（テスト／本番）と一致していない可能性があります。運営の設定を確認してください。'),
+            $svc->checkoutFailureMessage($e)
+        );
+    }
+
+    public function test_forget_stripe_customer_clears_local_ids(): void
+    {
+        $user = $this->makeUser('billing-stale-cus@example.com');
+        $user->forceFill([
+            'stripe_id' => 'cus_stale_test',
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ])->save();
+
+        app(StripeBillingService::class)->forgetStripeCustomer($user->fresh());
+
+        $user->refresh();
+        $this->assertNull($user->stripe_id);
+        $this->assertNull($user->pm_type);
+        $this->assertNull($user->pm_last_four);
+    }
+
     public function test_the_plan_page_requires_login(): void
     {
         $this->get('/mypage/plan')->assertRedirect('/login');

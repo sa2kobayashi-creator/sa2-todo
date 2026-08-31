@@ -61,20 +61,16 @@ class BillingController extends Controller
         }
 
         try {
-            $checkout = $user
-                ->newSubscription('default', (string) $plan['price_id'])
-                ->trialDays(max(0, (int) ($plan['trial_days'] ?? 0)))
-                ->allowPromotionCodes()
-                ->checkout([
-                    'success_url' => url($returnTo).'?notice='.urlencode(__('お申し込みを受け付けました。反映まで少しお待ちください。')),
-                    'cancel_url' => url($returnTo),
-                    'locale' => 'ja',
-                    'client_reference_id' => (string) $user->id,
-                ]);
+            $checkout = $this->stripe->createCheckoutSession($user, $plan, $returnTo);
         } catch (\Throwable $e) {
             report($e);
+            Log::warning('stripe checkout failed', [
+                'user_id' => $user->id,
+                'plan' => (string) ($plan['key'] ?? $request->input('plan', '')),
+                'message' => $e->getMessage(),
+            ]);
 
-            return $this->redirectWithMessage($returnTo, __('決済ページを開けませんでした。時間をおいて再度お試しください。'), 'error');
+            return $this->redirectWithMessage($returnTo, $this->stripe->checkoutFailureMessage($e), 'error');
         }
 
         $this->stats->increment(SiteStatEvent::CHECKOUT_START);
@@ -95,7 +91,20 @@ class BillingController extends Controller
             return $user->redirectToBillingPortal(url($returnTo));
         } catch (\Throwable $e) {
             report($e);
-            Log::warning('stripe portal failed', ['user_id' => $user->id]);
+            Log::warning('stripe portal failed', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            if ($this->stripe->isMissingStripeCustomerError($e)) {
+                $this->stripe->forgetStripeCustomer($user);
+
+                return $this->redirectWithMessage(
+                    $returnTo,
+                    __('決済用の顧客情報が見つかりませんでした。プラン申し込みからやり直してください。'),
+                    'error'
+                );
+            }
 
             return $this->redirectWithMessage($returnTo, __('契約内容の画面を開けませんでした。時間をおいて再度お試しください。'), 'error');
         }
