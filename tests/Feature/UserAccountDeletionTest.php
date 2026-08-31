@@ -9,6 +9,7 @@ use App\Models\Photo;
 use App\Models\Todo;
 use App\Models\User;
 use App\Services\UserAccountDeletionService;
+use App\Services\StripeBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -126,5 +127,43 @@ class UserAccountDeletionTest extends TestCase
 
         $this->assertDatabaseMissing('users', ['id' => $user->id]);
         $this->assertDatabaseMissing('notes', ['title' => 'keep-check']);
+    }
+
+    public function test_account_deletion_cancels_stripe_before_removing_user(): void
+    {
+        $user = $this->makeUser(UserRole::Light, 'stripe-leave@example.com');
+        $user->forceFill(['stripe_id' => 'cus_delete_test'])->save();
+
+        $billing = \Mockery::mock(StripeBillingService::class)->makePartial();
+        $billing->shouldReceive('cancelAllSubscriptionsForDeletion')
+            ->once()
+            ->with(\Mockery::on(fn ($u) => (int) $u->id === (int) $user->id));
+        $this->app->instance(StripeBillingService::class, $billing);
+
+        app(UserAccountDeletionService::class)->delete($user->fresh());
+
+        $this->assertDatabaseMissing('users', ['email' => 'stripe-leave@example.com']);
+    }
+
+    public function test_mypage_delete_aborts_when_stripe_cancel_fails(): void
+    {
+        $this->makeUser(UserRole::SuperAdmin, 'keep-sa@example.com');
+        $user = $this->makeUser(UserRole::Light, 'stripe-fail-leave@example.com');
+        $user->forceFill(['stripe_id' => 'cus_fail_test'])->save();
+
+        $billing = \Mockery::mock(StripeBillingService::class)->makePartial();
+        $billing->shouldReceive('cancelAllSubscriptionsForDeletion')
+            ->once()
+            ->andThrow(new \RuntimeException('有料契約の解約に失敗しました。'));
+        $this->app->instance(StripeBillingService::class, $billing);
+
+        $this->actingAs($user)->post('/mypage/delete', [
+            'password' => 'password',
+            'confirm' => '退会',
+        ])->assertRedirect();
+
+        $this->assertSame('有料契約の解約に失敗しました。', session('error'));
+        $this->assertDatabaseHas('users', ['email' => 'stripe-fail-leave@example.com']);
+        $this->assertAuthenticatedAs($user);
     }
 }

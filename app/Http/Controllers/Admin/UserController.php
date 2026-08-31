@@ -11,6 +11,7 @@ use App\Jobs\DeleteUserAccountJob;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\BillingEntitlementService;
+use App\Services\StripeBillingService;
 use App\Services\TenantContractService;
 use App\Services\UsageLimitPolicyService;
 use App\Services\UserUsageLimitService;
@@ -30,6 +31,7 @@ class UserController extends Controller
         private TenantContractService $tenants,
         private UserUsageLimitService $usageLimits,
         private UsageLimitPolicyService $usagePolicies,
+        private StripeBillingService $stripeBilling,
     ) {}
 
     public function index(Request $request)
@@ -283,6 +285,20 @@ class UserController extends Controller
             if ($tenant && $tenant->isOwner($user)) {
                 return $this->redirectWithMessage('/admin/users', __('契約代表は削除できません。'), 'error');
             }
+        }
+
+        try {
+            $this->stripeBilling->cancelAllSubscriptionsForDeletion($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->redirectWithMessage(
+                '/admin/users/'.$user->id,
+                $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : __('有料契約の解約に失敗しました。先に Stripe 側で解約してから削除してください。'),
+                'error'
+            );
         }
 
         $userId = (int) $user->id;

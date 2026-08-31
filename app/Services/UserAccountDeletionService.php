@@ -25,6 +25,7 @@ class UserAccountDeletionService
         private GoogleCalendarService $googleCalendar,
         private GoogleCalendarOAuthService $googleOauth,
         private MessagingLinkService $messagingLinks,
+        private StripeBillingService $stripeBilling,
     ) {}
 
     /**
@@ -34,6 +35,9 @@ class UserAccountDeletionService
     public function delete(User $user): void
     {
         $userId = (int) $user->id;
+
+        // 課金が残るとクレームになるため、データ削除より先に Stripe を止める
+        $this->stripeBilling->cancelAllSubscriptionsForDeletion($user);
 
         $this->purgePhotoAssets($userId);
         $this->purgeMusicTracks($userId);
