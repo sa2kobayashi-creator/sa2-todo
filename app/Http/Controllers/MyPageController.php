@@ -24,7 +24,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class MyPageController extends Controller
@@ -218,11 +217,8 @@ class MyPageController extends Controller
         }
 
         $userId = (int) $user->id;
-        $user->forceFill([
-            'password' => Hash::make(Str::random(64)),
-            'remember_token' => null,
-        ])->save();
 
+        // パスワード無効化は削除ジョブ成功直前のみ。ここで潰すと削除失敗時にログイン不能のまま残る。
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

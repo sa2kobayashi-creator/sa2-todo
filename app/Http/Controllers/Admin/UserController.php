@@ -19,7 +19,6 @@ use App\Support\FooterNav;
 use App\Support\Registration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -302,10 +301,6 @@ class UserController extends Controller
         }
 
         $userId = (int) $user->id;
-        $user->forceFill([
-            'password' => Hash::make(Str::random(64)),
-            'remember_token' => null,
-        ])->save();
 
         DeleteUserAccountJob::dispatchAfterHttp($userId);
 

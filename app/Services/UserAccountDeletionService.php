@@ -13,8 +13,10 @@ use App\Models\Todo;
 use App\Models\User;
 use App\Models\MessagingConnection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class UserAccountDeletionService
 {
@@ -52,6 +54,11 @@ class UserAccountDeletionService
             ->update(['recipient_user_id' => null]);
 
         DB::transaction(function () use ($user) {
+            // 削除直前にログイン不能化（途中失敗でアカウントが残ってもパスワードは生きる）
+            $user->forceFill([
+                'password' => Hash::make(Str::random(64)),
+                'remember_token' => null,
+            ])->save();
             $user->delete();
         });
     }
