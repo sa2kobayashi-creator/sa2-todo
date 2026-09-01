@@ -23558,7 +23558,6 @@ body.dash-home-lightbox-open {
 .mail-shell-v2[data-mail-bg="dusk"] .mail-subject,
 .mail-shell-v2[data-mail-bg="dusk"] .mail-read-header h2,
 .mail-shell-v2[data-mail-bg="dusk"] .mail-read-header p,
-.mail-shell-v2[data-mail-bg="dusk"] .mail-read-body,
 .mail-shell-v2[data-mail-bg="dusk"] .mail-list-toolbar strong,
 .mail-shell-v2[data-mail-bg="dusk"] .mail-sidebar-head strong,
 .mail-shell-v2[data-mail-bg="dusk"] .mail-account-group-title,
@@ -23584,7 +23583,6 @@ body.dash-home-lightbox-open {
 .mail-shell-v2[data-mail-bg="midnight"] .mail-subject,
 .mail-shell-v2[data-mail-bg="midnight"] .mail-read-header h2,
 .mail-shell-v2[data-mail-bg="midnight"] .mail-read-header p,
-.mail-shell-v2[data-mail-bg="midnight"] .mail-read-body,
 .mail-shell-v2[data-mail-bg="midnight"] .mail-list-toolbar strong,
 .mail-shell-v2[data-mail-bg="midnight"] .mail-sidebar-head strong,
 .mail-shell-v2[data-mail-bg="midnight"] .mail-account-group-title,
@@ -23628,10 +23626,22 @@ body.dash-home-lightbox-open {
 .mail-read-header h2 { margin: 0 0 10px; font-size: 22px; line-height: 1.3; letter-spacing: -.01em; }
 .mail-read-header p { margin: 0 0 4px; font-size: 13px; color: #475569; }
 .mail-read-body {
-  margin-top: 18px; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere;
+  margin-top: 18px;
+  padding: 18px 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid rgba(15, 118, 110, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 35, 31, 0.04);
   /* 送信者の inline style で position:fixed の重ね物を作られてもアプリ UI を覆えないようにする */
   position: relative; contain: layout; isolation: isolate;
 }
+.mail-read-body > :first-child { margin-top: 0; }
+.mail-read-body > :last-child { margin-bottom: 0; }
 .mail-read-empty { margin-top: 64px; text-align: center; color: #64748b; }
 .mail-compose { padding: 16px; display: grid; gap: 10px; }
 .mail-compose-v2 {
