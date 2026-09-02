@@ -72,62 +72,44 @@
 
         <a href="{{ $buildFinanceReportQuery($filters) }}" class="button-link secondary finance-report-link">{{ __('レポート') }}</a>
         <details class="finance-csv-panel">
-          <summary>CSV</summary>
+          <summary>{{ __('Excel / CSV') }}</summary>
           <div class="finance-csv-panel-body">
             <div class="finance-csv-actions">
               <a
                 href="{{ $buildFinanceExportQuery($filters, 'transactions') }}"
                 class="button-link secondary"
-              >{{ __('取引をエクスポート') }}</a>
+              >{{ __('今月の取引をエクスポート') }}</a>
               <a
-                href="{{ $buildFinanceExportQuery($filters, 'budget_monitor') }}"
+                href="{{ $buildFinanceExportQuery($filters, 'template') }}"
                 class="button-link secondary"
-              >{{ __('予算監視形式でエクスポート') }}</a>
-              <a
-                href="{{ $buildFinanceExportQuery($filters, 'accounts') }}"
-                class="button-link secondary"
-              >{{ __('口座マスターをエクスポート') }}</a>
+              >{{ __('ひな形をダウンロード') }}</a>
             </div>
-            <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form">
-              @csrf
-              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <p class="finance-csv-form-title">{{ __('取引インポート') }}</p>
-              <label class="finance-csv-file-label">
-                {{ __('CSVファイル') }}
-                <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
-              </label>
-              <label class="inline-check">
-                <input type="checkbox" name="replace" value="1" />
-                {{ __('以前の予算CSVインポート分を置き換え') }}
-              </label>
-              <label class="inline-check">
-                <input type="checkbox" name="include_card_deltas" value="1" checked />
-                {{ __('クレカ欄の金額も支出として取り込む') }}
-              </label>
-              <button type="submit" class="button-link">{{ __('インポート') }}</button>
-            </form>
-            <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form finance-csv-import-form-accounts">
-              @csrf
-              <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
-              <input type="hidden" name="import_type" value="accounts" />
-              <p class="finance-csv-form-title">{{ __('口座マスターインポート') }}</p>
-              <p class="hint">{{ __('口座マスターはログイン中のユーザー専用です。他のユーザーとは共有されません。') }}</p>
-              <label class="finance-csv-file-label">
-                {{ __('CSVファイル') }}
-                <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
-              </label>
-              <label class="inline-check">
-                <input type="checkbox" name="update_existing" value="1" checked />
-                {{ __('同名・同識別子の口座を更新') }}
-              </label>
-              <button type="submit" class="button-link">{{ __('口座マスターをインポート') }}</button>
-            </form>
-            <p class="hint finance-csv-hint">{{ __('予算監視CSVは見出し名と口座名を照合して取り込みます（IN/OUT・PH Bank In/Out・クレカ金額・口座残高）。取り込み前に「以前の予算CSVを置き換え」を推奨。エクスポートも同じ列順（UTF-8 BOM）。Shift-JIS のインポートにも対応。') }}</p>
+            @if(!empty($isSuperAdmin))
+              <form method="post" action="/finance/import" enctype="multipart/form-data" class="finance-csv-import-form">
+                @csrf
+                <input type="hidden" name="returnTo" value="{{ $returnTo }}" />
+                <p class="finance-csv-form-title">{{ __('取引インポート（運営）') }}</p>
+                <label class="finance-csv-file-label">
+                  {{ __('CSVファイル') }}
+                  <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required />
+                </label>
+                <label class="inline-check">
+                  <input type="checkbox" name="replace" value="1" />
+                  {{ __('以前のCSVインポート分を置き換え') }}
+                </label>
+                <button type="submit" class="button-link">{{ __('インポート') }}</button>
+              </form>
+            @endif
+            <p class="hint finance-csv-hint">{{ __('列は「日付,種別,口座,カテゴリー,金額,メモ」です。種別は収入・支出・振替。口座名は家計簿の口座名と揃えてください（UTF-8 BOM / Shift-JIS 可）。') }}</p>
           </div>
         </details>
       </div>
 
       <section class="finance-quick-entry panel" id="finance-quick-entry">
+        <div class="finance-quick-entry-head">
+          <h2 class="finance-quick-entry-title">{{ __('かんたん入力') }}</h2>
+          <p class="hint finance-quick-entry-lead">{{ __('日付・種別・口座・金額・メモを入れて登録。普段の入力はこちらがおすすめです。') }}</p>
+        </div>
         <form method="post" action="/finance" id="finance-quick-entry-form" class="finance-quick-entry-form">
           @csrf
           <input type="hidden" name="returnTo" value="{{ $returnTo }}" />

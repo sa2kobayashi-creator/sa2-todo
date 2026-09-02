@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\FinanceAccount;
+use App\Models\FinanceTransaction;
 use App\Models\Photo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,12 +26,12 @@ class FinanceIsolationAndPhotoFileTest extends TestCase
         ]);
     }
 
-    public function test_account_master_is_isolated_per_user(): void
+    public function test_transactions_export_is_isolated_per_user(): void
     {
         $a = $this->makeUser('finance-a@example.com');
         $b = $this->makeUser('finance-b@example.com');
 
-        FinanceAccount::create([
+        $accountA = FinanceAccount::create([
             'user_id' => $a->id,
             'slug' => 'a_bank',
             'region' => 'jp',
@@ -41,7 +42,7 @@ class FinanceIsolationAndPhotoFileTest extends TestCase
             'is_active' => true,
         ]);
 
-        FinanceAccount::create([
+        $accountB = FinanceAccount::create([
             'user_id' => $b->id,
             'slug' => 'b_bank',
             'region' => 'jp',
@@ -52,16 +53,40 @@ class FinanceIsolationAndPhotoFileTest extends TestCase
             'is_active' => true,
         ]);
 
-        $exportA = $this->actingAs($a)->get('/finance/export?format=accounts');
+        FinanceTransaction::create([
+            'user_id' => $a->id,
+            'transaction_date' => now()->toDateString(),
+            'type' => 'expense',
+            'account_id' => $accountA->id,
+            'amount' => 1000,
+            'currency' => 'JPY',
+            'memo' => 'Aの支出',
+        ]);
+
+        FinanceTransaction::create([
+            'user_id' => $b->id,
+            'transaction_date' => now()->toDateString(),
+            'type' => 'expense',
+            'account_id' => $accountB->id,
+            'amount' => 2000,
+            'currency' => 'JPY',
+            'memo' => 'Bの支出',
+        ]);
+
+        $period = now()->format('Y-m');
+        $exportA = $this->actingAs($a)->get('/finance/export?format=transactions&period='.$period);
         $exportA->assertOk();
         $csvA = $exportA->streamedContent();
         $this->assertStringContainsString('A専用銀行', $csvA);
+        $this->assertStringContainsString('Aの支出', $csvA);
         $this->assertStringNotContainsString('B専用銀行', $csvA);
+        $this->assertStringNotContainsString('Bの支出', $csvA);
 
-        $exportB = $this->actingAs($b)->get('/finance/export?format=accounts');
+        $exportB = $this->actingAs($b)->get('/finance/export?format=transactions&period='.$period);
         $exportB->assertOk();
         $csvB = $exportB->streamedContent();
         $this->assertStringContainsString('B専用銀行', $csvB);
+        $this->assertStringContainsString('Bの支出', $csvB);
         $this->assertStringNotContainsString('A専用銀行', $csvB);
 
         $this->actingAs($b)->get('/finance')->assertOk()->assertDontSee('A専用銀行', false);

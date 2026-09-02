@@ -7717,6 +7717,21 @@ body.finance-page {
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.12);
 }
 
+.finance-quick-entry-head {
+  margin-bottom: 10px;
+}
+
+.finance-quick-entry-title {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.finance-quick-entry-lead {
+  margin: 0;
+}
+
 .finance-quick-entry-form {
   display: flex;
   flex-direction: column;
