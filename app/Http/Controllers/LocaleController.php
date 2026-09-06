@@ -29,6 +29,6 @@ class LocaleController extends Controller
         }
 
         return redirect($redirect)
-            ->withCookie(cookie('locale', $locale, 60 * 24 * 365));
+            ->withCookie(cookie('locale', $locale, SetLocale::COOKIE_MINUTES));
     }
 }

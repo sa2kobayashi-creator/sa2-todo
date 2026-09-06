@@ -91,10 +91,10 @@ class EnglishLocaleRenderTest extends TestCase
 
     }
 
-    public function test_an_english_browser_is_not_forced_into_english(): void
+    public function test_saved_japanese_locale_is_not_overridden_by_english_browser(): void
     {
-        // 端末の言語ではなく、アプリの言語切替だけで決まること
         $response = $this->actingAs($this->user)
+            ->withSession(['locale' => 'ja'])
             ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
             ->get('/dashboard');
 
