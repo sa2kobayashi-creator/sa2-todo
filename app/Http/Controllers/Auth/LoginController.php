@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\RedirectsWithFlash;
+use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\MaintenanceModeService;
 use App\Services\SiteStatsService;
+use App\Support\Registration;
 use App\Support\SiteStatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,14 +17,18 @@ class LoginController extends Controller
 {
     use RedirectsWithFlash;
 
-    public function __construct(private readonly SiteStatsService $stats) {}
+    public function __construct(
+        private readonly SiteStatsService $stats,
+        private readonly MaintenanceModeService $maintenance,
+    ) {}
 
     public function show(Request $request)
     {
         return view('auth.login', [
             'returnTo' => $this->safeReturnTo($request->query('returnTo'), '/dashboard'),
             'email' => $request->old('email'),
-            'registrationOpen' => \App\Support\Registration::isOpen(),
+            'registrationOpen' => Registration::isOpen(),
+            'maintenanceEnabled' => $this->maintenance->isEnabled(),
             ...$this->flashFromQuery($request),
         ]);
     }
@@ -42,6 +48,10 @@ class LoginController extends Controller
         if (str_starts_with($user->password, '$2b$') || str_starts_with($user->password, '$2a$')) {
             $user->password = Hash::make($credentials['password']);
             $user->save();
+        }
+
+        if ($this->maintenance->isEnabled() && ! $user->isSuperAdmin()) {
+            return back()->withInput(['email'])->with('error', __('メンテナンス中のため、運営者以外はログインできません。'));
         }
 
         // 未チェックのチェックボックスはそもそも送られてこないので、既定を true にすると解除できない

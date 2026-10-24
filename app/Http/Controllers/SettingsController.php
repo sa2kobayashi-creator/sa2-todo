@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\RedirectsWithFlash;
 use App\Models\TranslationApiKey;
 use App\Services\AiLlmConfigService;
 use App\Services\AiProviderUsageService;
+use App\Services\AppInstallConfigService;
 use App\Services\CalendarService;
 use App\Services\CloudflareWorkersAiConfigService;
 use App\Services\DeeplUsageService;
@@ -18,6 +19,7 @@ use App\Services\IntegrationUsageService;
 use App\Services\LegalConfigService;
 use App\Services\LineMessagingService;
 use App\Services\LiveKitConfigService;
+use App\Services\MaintenanceModeService;
 use App\Services\MediaStorageConfigService;
 use App\Services\MessengerMessagingService;
 use App\Services\NavitimeConfigService;
@@ -31,6 +33,7 @@ use App\Services\WebPushConfigService;
 use App\Services\WebPushService;
 use App\Services\YoutubeVideoService;
 use App\Support\FooterNav;
+use App\Support\Registration;
 use App\Support\ServerRuntimeStatus;
 use Illuminate\Http\Request;
 
@@ -56,6 +59,7 @@ class SettingsController extends Controller
         private LegalConfigService $legalConfig,
         private MessengerMessagingService $messengerMessaging,
         private LiveKitConfigService $livekit,
+        private MaintenanceModeService $maintenance,
         private WebPushService $webPush,
         private WebPushConfigService $webPushConfig,
         private IntegrationUsageService $integrationUsage,
@@ -108,6 +112,9 @@ class SettingsController extends Controller
                 ? $this->aiProviderUsage->summaries()
                 : null,
             'usageLimitForm' => $section === 'limits' ? $this->usageLimits->formState() : null,
+            'maintenanceForm' => $section === 'limits' && $isSuperAdmin
+                ? $this->maintenance->formState()
+                : null,
             'usageEstimatedYen' => in_array($section, ['limits', 'usage'], true)
                 ? $this->usageLimits->estimatedMonthlyYen()
                 : 0,
@@ -156,10 +163,10 @@ class SettingsController extends Controller
             'legalSettings' => $section === 'sales' ? $this->legalConfig->formState() : null,
             'stripeSettings' => $section === 'sales' ? $this->stripeConfig->formState() : null,
             'appInstallSettings' => $section === 'sales' && $isSuperAdmin
-                ? app(\App\Services\AppInstallConfigService::class)->formState()
+                ? app(AppInstallConfigService::class)->formState()
                 : null,
             'applicationsOpenByPlan' => $section === 'sales'
-                ? \App\Support\Registration::applicationsOpenByPlan()
+                ? Registration::applicationsOpenByPlan()
                 : null,
             'serverRuntime' => $section === 'sales' ? ServerRuntimeStatus::formState() : null,
             'siteStats' => $section === 'stats' && $isSuperAdmin

@@ -33,6 +33,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\LiveKitSettingsController;
+use App\Http\Controllers\MaintenanceModeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\MapController;
@@ -64,6 +65,7 @@ use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\RequireSuperAdmin;
 use App\Http\Middleware\ShareViewData;
+use App\Support\AppInstall;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -136,7 +138,7 @@ Route::get('/.well-known/assetlinks.json', function () {
 
 // Android APK（実体は public/downloads/sa2-plus.apk。短い URL でも配信）
 Route::get('/sa2-plus.apk', function () {
-    $path = \App\Support\AppInstall::localAbsolutePath();
+    $path = AppInstall::localAbsolutePath();
     abort_unless(is_string($path) && is_file($path), 404);
 
     return response()->file($path, [
@@ -486,6 +488,8 @@ Route::middleware(['auth', ShareViewData::class])->group(function () {
             Route::post('/settings/ai/workers-ai/models', [WorkersAiSettingsController::class, 'models']);
             Route::post('/settings/ai/usage/refresh', [AiProviderUsageController::class, 'refresh']);
             Route::post('/settings/limits', [UsageLimitSettingsController::class, 'update'])
+                ->middleware(RequireSuperAdmin::class);
+            Route::post('/settings/maintenance', [MaintenanceModeController::class, 'update'])
                 ->middleware(RequireSuperAdmin::class);
 
             Route::post('/settings/sales/legal', [CommercialSettingsController::class, 'updateLegal'])

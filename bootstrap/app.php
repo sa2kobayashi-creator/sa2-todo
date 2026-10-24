@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAppAvailable;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\SetTenantContext;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SetLocale::class,
             SetTenantContext::class,
+            EnsureAppAvailable::class,
             EnsurePasswordChanged::class,
         ]);
         $middleware->validateCsrfTokens(except: [

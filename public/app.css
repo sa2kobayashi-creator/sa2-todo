@@ -12474,6 +12474,24 @@ body.map-page {
   }
 }
 
+.maintenance-admin-banner {
+  background: #b45309;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px 12px;
+}
+.maintenance-admin-banner a {
+  color: #fff;
+  margin-left: 8px;
+  text-decoration: underline;
+}
+.maintenance-card p {
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
 /* Auth pages */
 .auth-body {
   position: relative;

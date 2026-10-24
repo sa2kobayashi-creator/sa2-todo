@@ -18,6 +18,9 @@
       </a>
       <div class="auth-card panel">
         <h1>{{ __('ログイン') }}</h1>
+        @if(!empty($maintenanceEnabled))
+          <div class="banner notice">{{ __('ただいまメンテナンス中です。運営者のみログインできます。') }}</div>
+        @endif
         @if(!empty($notice))<div class="banner notice">{{ $notice }}</div>@endif
         @if(!empty($error))<div class="banner error">{{ $error }}</div>@endif
         @if(session('notice'))<div class="banner notice">{{ session('notice') }}</div>@endif

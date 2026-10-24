@@ -24,6 +24,33 @@
     <div class="banner error">{{ __('全停止がオンです。SuperAdmin 以外は外部APIを使えません。') }}</div>
   @endif
 
+  @php $maintenance = $maintenanceForm ?? ['enabled' => false, 'message' => '', 'enabled_at' => null]; @endphp
+  <div class="storage-settings" id="maintenance-mode-settings">
+    <h3>{{ __('メンテナンスモード') }}</h3>
+    <p class="hint">{{ __('公開ページを停止し、運営者以外のログインを止めます。運営者（SuperAdmin）はログインしたまま操作でき、ここから解除できます。Stripe / LINE の webhook と利用規約ページは止まりません。') }}</p>
+    @if(!empty($maintenance['enabled']))
+      <div class="banner error">{{ __('メンテナンス中です。運営者以外はアプリを使えません。') }}</div>
+      @if(!empty($maintenance['enabled_at']))
+        <p class="hint">{{ __('開始: :at', ['at' => $maintenance['enabled_at']]) }}</p>
+      @endif
+    @endif
+    <form method="post" action="/settings/maintenance" class="storage-provider-form">
+      @csrf
+      <input type="hidden" name="enabled" value="{{ !empty($maintenance['enabled']) ? '0' : '1' }}" />
+      <label>
+        {{ __('表示するメッセージ（任意）') }}
+        <textarea name="message" rows="3" maxlength="400" @disabled(!empty($maintenance['enabled']))>{{ $maintenance['message'] ?? '' }}</textarea>
+      </label>
+      <div class="storage-form-actions">
+        @if(!empty($maintenance['enabled']))
+          <button type="submit" class="button-link">{{ __('メンテナンスを終了') }}</button>
+        @else
+          <button type="submit" class="danger" onclick="return confirm(@json(__('メンテナンスを開始します。運営者以外はアプリを使えなくなります。よろしいですか？')))">{{ __('メンテナンスを開始') }}</button>
+        @endif
+      </div>
+    </form>
+  </div>
+
   <form method="post" action="/settings/limits" class="usage-limit-form">
     @csrf
     <div class="usage-limit-table-wrap">

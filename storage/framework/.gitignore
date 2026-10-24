@@ -3,6 +3,7 @@ config.php
 down
 events.scanned.php
 maintenance.php
+sa2-maintenance.json
 routes.php
 routes.scanned.php
 schedule-*

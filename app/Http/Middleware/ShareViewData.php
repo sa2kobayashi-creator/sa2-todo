@@ -2,13 +2,16 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AppContext;
+use App\Services\AppContextService;
 use App\Services\CalendarService;
-use App\Services\FinanceService;
 use App\Services\GroupChatService;
 use App\Services\HolidayService;
+use App\Services\MaintenanceModeService;
 use App\Services\NoteService;
 use App\Services\TodoService;
-use App\Services\TransitService;
+use App\Support\FooterNav;
+use App\Support\LocaleFormat;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -91,14 +94,14 @@ class ShareViewData
                 'nishitetsu_rail' => __('西鉄電車'),
                 'subway' => __('地下鉄'),
             ],
-            'formatDate' => fn ($value) => \App\Support\LocaleFormat::date($value),
-            'formatDateTime' => fn ($value) => \App\Support\LocaleFormat::dateTime($value),
-            'formatMoney' => fn ($amount, string $currency = 'JPY') => \App\Support\LocaleFormat::money($amount, $currency),
+            'formatDate' => fn ($value) => LocaleFormat::date($value),
+            'formatDateTime' => fn ($value) => LocaleFormat::dateTime($value),
+            'formatMoney' => fn ($amount, string $currency = 'JPY') => LocaleFormat::money($amount, $currency),
         ]);
 
         if ($user = $request->user()) {
-            $appContext = app(\App\Services\AppContextService::class)->current($user, $request);
-            $nav = \App\Support\FooterNav::resolve($user);
+            $appContext = app(AppContextService::class)->current($user, $request);
+            $nav = FooterNav::resolve($user);
             $canMessages = $user->canAccess('messages');
             $messagesUnreadCount = 0;
             if ($canMessages) {
@@ -128,11 +131,12 @@ class ShareViewData
                 'canManageTenants' => $user->isSuperAdmin(),
                 'canManagePlatformOps' => $user->isPlatformStaff(),
                 'appContext' => $appContext->value,
-                'appContextIsWork' => $appContext === \App\Enums\AppContext::Work,
+                'appContextIsWork' => $appContext === AppContext::Work,
                 'appContextLabel' => $appContext->label(),
                 'footerNavItems' => $nav['footer'],
                 'moreNavItems' => $nav['more'],
                 'headerNavItems' => $nav['header'],
+                'maintenanceModeActive' => app(MaintenanceModeService::class)->isEnabled(),
             ]);
         }
 

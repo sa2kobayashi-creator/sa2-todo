@@ -4,6 +4,12 @@
   $headerNavItems = $headerNavItems ?? [];
 @endphp
 <header class="site-header">
+  @if(!empty($maintenanceModeActive) && !empty($isSuperAdmin))
+    <div class="maintenance-admin-banner" role="status">
+      {{ __('メンテナンス中です。運営者以外の画面は停止しています。') }}
+      <a href="/settings?section=limits#maintenance-mode-settings">{{ __('解除する') }}</a>
+    </div>
+  @endif
   <div class="site-header-inner">
     <a href="/dashboard" class="site-logo">
       <img src="{{ asset('icons/app-icon.png') }}?v=9" alt="" class="site-logo-icon" width="36" height="36" />
